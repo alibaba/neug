@@ -15,12 +15,34 @@
 
 #include "neug/execution/expression/exprs/struct_extract.h"
 
+#include <map>
+
 #include "neug/common/types/value.h"
 #include "neug/utils/property/struct_property_column.h"
 
 namespace neug {
 namespace execution {
 namespace {
+
+// Shared field selection for vertex and edge refs. Missing vertex properties
+// remain null; mismatched layouts cause the caller to fall back.
+bool select_struct_field(const std::shared_ptr<RefColumnBase>& column,
+                         const DataType& struct_type, size_t field_idx,
+                         std::shared_ptr<RefColumnBase>& field) {
+  if (field_idx >= StructType::GetNumFields(struct_type)) {
+    return false;
+  }
+  if (!column) {
+    field.reset();
+    return true;
+  }
+  auto* ref = dynamic_cast<const StructPropertyRefColumn*>(column.get());
+  if (!ref || ref->struct_type() != struct_type) {
+    return false;
+  }
+  field = ref->field_ref_ptr(field_idx);
+  return true;
+}
 
 // Narrows per-label struct ref columns to their `field_idx` child columns,
 // preserving null columns (a label without the property). Returns an empty
@@ -35,17 +57,11 @@ std::vector<std::shared_ptr<RefColumnBase>> narrow_to_field(
   }
   field_columns.reserve(parent_columns.size());
   for (const auto& column : parent_columns) {
-    if (column == nullptr) {
-      field_columns.push_back(nullptr);
-      continue;
-    }
-    auto* struct_column =
-        dynamic_cast<const StructPropertyRefColumn*>(column.get());
-    if (struct_column == nullptr ||
-        struct_column->struct_type() != struct_type) {
+    std::shared_ptr<RefColumnBase> field;
+    if (!select_struct_field(column, struct_type, field_idx, field)) {
       return {};
     }
-    field_columns.push_back(struct_column->field_ref_ptr(field_idx));
+    field_columns.push_back(std::move(field));
   }
   return field_columns;
 }
@@ -110,6 +126,92 @@ class BindedRecordVertexStructFieldExpr : public RecordExprBase {
  private:
   int tag_;
   std::vector<std::shared_ptr<RefColumnBase>> field_columns_;
+  DataType type_;
+};
+
+using EdgeColumns = std::map<LabelTriplet, std::shared_ptr<RefColumnBase>>;
+
+EdgeColumns narrow_edge_to_field(const EdgeColumns& columns,
+                                 const DataType& struct_type,
+                                 size_t field_idx) {
+  EdgeColumns fields;
+  for (const auto& [label, column] : columns) {
+    std::shared_ptr<RefColumnBase> field;
+    // A null edge ref denotes bundled storage, which cannot be narrowed.
+    if (!column ||
+        !select_struct_field(column, struct_type, field_idx, field)) {
+      return {};
+    }
+    fields.emplace(label, std::move(field));
+  }
+  return fields;
+}
+
+// Edge-context counterpart of BindedVertexStructFieldExpr: reads only the
+// field's child column through the narrowed per-triplet accessor.
+class BindedEdgeStructFieldExpr : public EdgeExprBase {
+ public:
+  BindedEdgeStructFieldExpr(EdgeColumns field_accessors, const DataType& type)
+      : field_accessors_(std::move(field_accessors)), type_(type) {}
+
+  Value eval_edge(const LabelTriplet& label, vid_t src, vid_t dst,
+                  const void* data_ptr) const override {
+    auto it = field_accessors_.find(label);
+    if (it == field_accessors_.end()) {
+      return Value(type_);  // the triplet has no such property
+    }
+    return it->second->get_any(*static_cast<const size_t*>(data_ptr));
+  }
+  const DataType& type() const override { return type_; }
+  std::unique_ptr<BindedExprBase> bind_struct_field(
+      size_t field_idx, const DataType& field_type) const override {
+    auto fields = narrow_edge_to_field(field_accessors_, type_, field_idx);
+    if (fields.empty()) {
+      return nullptr;
+    }
+    return std::make_unique<BindedEdgeStructFieldExpr>(std::move(fields),
+                                                       field_type);
+  }
+
+ private:
+  EdgeColumns field_accessors_;
+  DataType type_;
+};
+
+// Record-context counterpart: resolves the edge from the chunk, then reads
+// its field column.
+class BindedRecordEdgeStructFieldExpr : public RecordExprBase {
+ public:
+  BindedRecordEdgeStructFieldExpr(int tag, EdgeColumns field_accessors,
+                                  const DataType& type)
+      : tag_(tag), field_accessors_(std::move(field_accessors)), type_(type) {}
+
+  Value eval_record(const DataChunk& chunk, size_t idx) const override {
+    const auto& edge_val = chunk.get(tag_)->get_elem(idx);
+    if (edge_val.IsNull()) {
+      return Value(type_);
+    }
+    edge_t edge = edge_val.GetValue<edge_t>();
+    auto it = field_accessors_.find(edge.label);
+    if (it == field_accessors_.end()) {
+      return Value(type_);
+    }
+    return it->second->get_any(*static_cast<const size_t*>(edge.prop));
+  }
+  const DataType& type() const override { return type_; }
+  std::unique_ptr<BindedExprBase> bind_struct_field(
+      size_t field_idx, const DataType& field_type) const override {
+    auto fields = narrow_edge_to_field(field_accessors_, type_, field_idx);
+    if (fields.empty()) {
+      return nullptr;
+    }
+    return std::make_unique<BindedRecordEdgeStructFieldExpr>(
+        tag_, std::move(fields), field_type);
+  }
+
+ private:
+  int tag_;
+  EdgeColumns field_accessors_;
   DataType type_;
 };
 
@@ -188,6 +290,31 @@ std::unique_ptr<BindedExprBase> bind_record_vertex_struct_field(
   }
   return std::make_unique<BindedRecordVertexStructFieldExpr>(
       tag, std::move(field_columns), field_type);
+}
+
+std::unique_ptr<BindedExprBase> bind_edge_struct_field(
+    const std::map<LabelTriplet, std::shared_ptr<RefColumnBase>>& accessors,
+    const DataType& struct_type, size_t field_idx, const DataType& field_type) {
+  auto field_accessors =
+      narrow_edge_to_field(accessors, struct_type, field_idx);
+  if (field_accessors.empty()) {
+    return nullptr;
+  }
+  return std::make_unique<BindedEdgeStructFieldExpr>(std::move(field_accessors),
+                                                     field_type);
+}
+
+std::unique_ptr<BindedExprBase> bind_record_edge_struct_field(
+    int tag,
+    const std::map<LabelTriplet, std::shared_ptr<RefColumnBase>>& accessors,
+    const DataType& struct_type, size_t field_idx, const DataType& field_type) {
+  auto field_accessors =
+      narrow_edge_to_field(accessors, struct_type, field_idx);
+  if (field_accessors.empty()) {
+    return nullptr;
+  }
+  return std::make_unique<BindedRecordEdgeStructFieldExpr>(
+      tag, std::move(field_accessors), field_type);
 }
 
 }  // namespace execution

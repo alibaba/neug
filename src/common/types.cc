@@ -542,8 +542,12 @@ OutArchive& operator>>(OutArchive& out_archive, DataType& type) {
       for (size_t i = 0; i < field_names_size; ++i) {
         out_archive >> field_names[i];
       }
-      type = StructType::FromFields(std::move(field_names),
-                                    std::move(child_types));
+      // Preserve both absent names and positional empty names exactly.
+      if (field_names.empty()) {
+        type = DataType::Struct(std::move(child_types));
+      } else {
+        type = DataType::Struct(std::move(field_names), std::move(child_types));
+      }
     } else if (id == DataTypeId::kArray) {
       DataType child_type;
       uint64_t array_size;

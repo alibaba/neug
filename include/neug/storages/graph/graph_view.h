@@ -92,6 +92,8 @@ class EdgeTableView {
   // Returns the latest storage cardinality for statistics/planning, not a
   // timestamp-scoped MVCC-visible count.
   size_t EdgeNum() const;
+  // Returns nullptr for bundled properties; refs borrow the graph snapshot.
+  std::shared_ptr<RefColumnBase> GetPropertyColumn(int prop_id) const;
   EdgeDataAccessor GetDataAccessor(int prop_id) const;
   EdgeDataAccessor GetDataAccessor(const std::string& prop_name) const;
 
@@ -178,6 +180,10 @@ class GraphView {
   // timestamp-scoped MVCC-visible count.
   size_t EdgeNum(label_t src_label, label_t dst_label,
                  label_t edge_label) const;
+  std::shared_ptr<RefColumnBase> GetEdgePropertyColumn(label_t src_label,
+                                                       label_t dst_label,
+                                                       label_t edge_label,
+                                                       int prop_id) const;
   EdgeDataAccessor GetEdgeDataAccessor(label_t src_label, label_t dst_label,
                                        label_t edge_label, int prop_id) const;
   EdgeDataAccessor GetEdgeDataAccessor(label_t src_label, label_t dst_label,

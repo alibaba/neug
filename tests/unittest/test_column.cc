@@ -16,6 +16,7 @@
 #include <gtest/gtest.h>
 #include <chrono>
 #include <cmath>
+#include <cstring>
 #include <filesystem>
 #include <memory>
 
@@ -27,6 +28,8 @@
 #include "neug/utils/property/list_property_column.h"
 #include "neug/utils/property/struct_property_column.h"
 #include "neug/utils/property/vec_column.h"
+#include "neug/utils/serialization/in_archive.h"
+#include "neug/utils/serialization/out_archive.h"
 #include "unittest/utils.h"
 
 namespace neug {
@@ -883,6 +886,33 @@ TEST(StructPropertyColumnTest, FactoryRejectsEmptyStruct) {
   auto empty_struct =
       DataType::Struct(std::vector<std::string>{}, std::vector<DataType>{});
   EXPECT_THROW(CreateColumn(empty_struct), exception::NotSupportedException);
+}
+
+TEST(StructPropertyColumnTest, DataTypeArchiveRoundTripPreservesNames) {
+  // Named struct: field names survive the archive round trip.
+  auto named =
+      DataType::Struct({"x", "y"}, {DataType::INT64, DataType::VARCHAR});
+  // Unnamed struct (positional tuple): must stay unnamed after the round
+  // trip; synthesizing field_<i> names on read would break type equality.
+  auto unnamed = DataType::Struct({DataType::INT64, DataType::DOUBLE});
+
+  auto positional =
+      DataType::Struct({"", ""}, {DataType::INT64, DataType::DOUBLE});
+  auto partly_named =
+      DataType::Struct({"x", ""}, {DataType::INT64, DataType::DOUBLE});
+
+  for (const auto& type : {named, unnamed, positional, partly_named}) {
+    InArchive in;
+    in << type;
+    OutArchive out;
+    out.Allocate(in.GetSize());
+    std::memcpy(out.GetBuffer(), in.GetBuffer(), in.GetSize());
+    DataType parsed;
+    out >> parsed;
+    EXPECT_EQ(parsed, type);
+    EXPECT_EQ(StructType::GetFieldNames(parsed),
+              StructType::GetFieldNames(type));
+  }
 }
 
 TEST(VecColumnTest, AccessResizeCloneAndDumpOpen) {

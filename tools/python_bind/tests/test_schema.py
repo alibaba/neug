@@ -669,3 +669,144 @@ def test_copy_from_struct_column_rejected(tmp_path):
     finally:
         conn.close()
         db.close()
+
+
+@pytest.mark.parametrize(
+    "other_type", [None, "STRUCT(x INT64)", "STRUCT(inner STRING)", "INT64"]
+)
+def test_struct_edge_property_field_access(tmp_path, other_type):
+    """Struct edge properties support field-level access (incl. nested and
+    record context), backed by the per-field child column pushdown."""
+    db = Database(db_path=str(tmp_path / "struct_edge_field"), mode="w")
+    conn = db.connect()
+    try:
+        conn.execute("CREATE NODE TABLE T(id INT64, PRIMARY KEY(id))")
+        conn.execute(
+            "CREATE REL TABLE R(FROM T TO T, "
+            "s STRUCT(x INT64, inner STRUCT(y INT64)))"
+        )
+        if other_type is not None:
+            conn.execute(f"CREATE REL TABLE Other(FROM T TO T, s {other_type})")
+        conn.execute("CREATE (:T {id: 1})")
+        conn.execute("CREATE (:T {id: 2})")
+        conn.execute(
+            "MATCH (a:T {id: 1}), (b:T {id: 2}) "
+            "CREATE (a)-[:R {s: {x: 10, inner: {y: 20}}}]->(b)"
+        )
+        assert list(conn.execute("MATCH ()-[e:R]->() RETURN e.s.x")) == [[10]]
+        assert list(conn.execute("MATCH ()-[e:R]->() RETURN e.s.inner.y")) == [[20]]
+        assert list(conn.execute("MATCH ()<-[e:R]-() RETURN e.s.inner.y")) == [[20]]
+        assert list(
+            conn.execute("MATCH ()-[e:R]->() WHERE e.s.inner.y = 20 RETURN e.s.x")
+        ) == [[10]]
+        assert list(
+            conn.execute(
+                "MATCH (n:T {id: 2}) OPTIONAL MATCH (n)-[e:R]->() " "RETURN e.s.inner.y"
+            )
+        ) == [[None]]
+        assert list(conn.execute("MATCH ()-[e:R]->() WITH e.s AS s RETURN s.x")) == [
+            [10]
+        ]
+        assert list(conn.execute("MATCH ()-[e:R]->() RETURN e.s")) == [
+            [{"x": 10, "inner": {"y": 20}}]
+        ]
+    finally:
+        conn.close()
+        db.close()
+
+
+@pytest.mark.parametrize("value", ["2", "NULL"])
+def test_struct_implicit_cast_requires_matching_field_names(tmp_path, value):
+    """A struct value cannot be implicitly retyped to a struct with different
+    field names; the compatibility check must compare names, not just field
+    counts and child types."""
+    db = Database(db_path=str(tmp_path / "struct_cast_names"), mode="w")
+    conn = db.connect()
+    try:
+        conn.execute(
+            "CREATE NODE TABLE T(id INT64, s STRUCT(x INT64), PRIMARY KEY(id))"
+        )
+        conn.execute("CREATE (:T {id: 1, s: {x: 1}})")
+        with pytest.raises(RuntimeError, match="(?i)cast"):
+            conn.execute(f"MATCH (n:T) SET n.s = {{y: {value}}}")
+        assert list(conn.execute("MATCH (n:T) RETURN n.s.x")) == [[1]]
+    finally:
+        conn.close()
+        db.close()
+
+
+@pytest.mark.parametrize("reverse", [False, True])
+@pytest.mark.parametrize("operation", ["update", "delete"])
+def test_struct_parallel_edge_mutation(tmp_path, reverse, operation):
+    path = str(tmp_path / "struct_parallel_edges")
+    outgoing = "MATCH (:T {id:1})-[e:R]->(:T {id:2})"
+    incoming = "MATCH (:T {id:2})<-[e:R]-(:T {id:1})"
+    expected = [[10], [30], [40]] if operation == "update" else [[10], [40]]
+
+    def check_edges(conn, values):
+        for match in (outgoing, incoming):
+            assert (
+                list(conn.execute(match + " RETURN e.s.inner.y ORDER BY e.s.inner.y"))
+                == values
+            )
+
+    db = Database(db_path=path, mode="w")
+    conn = db.connect()
+    try:
+        conn.execute("CREATE NODE TABLE T(id INT64, PRIMARY KEY(id))")
+        conn.execute("CREATE REL TABLE R(FROM T TO T, s STRUCT(inner STRUCT(y INT64)))")
+        conn.execute("CREATE (:T {id:1}), (:T {id:2})")
+        for value in (10, 20, 40):
+            conn.execute(
+                "MATCH (a:T {id:1}), (b:T {id:2}) "
+                f"CREATE (a)-[:R {{s:{{inner:{{y:{value}}}}}}}]->(b)"
+            )
+        check_edges(conn, [[10], [20], [40]])
+        match = incoming if reverse else outgoing
+        action = "SET e.s={inner:{y:30}}" if operation == "update" else "DELETE e"
+        conn.execute(match + " WHERE e.s.inner.y = 20 " + action)
+        check_edges(conn, expected)
+        conn.execute("CHECKPOINT")
+        check_edges(conn, expected)
+    finally:
+        conn.close()
+        db.close()
+
+    db = Database(db_path=path, mode="w")
+    conn = db.connect()
+    try:
+        check_edges(conn, expected)
+    finally:
+        conn.close()
+        db.close()
+
+
+def test_struct_edge_field_refs_after_checkpoint_and_reopen(tmp_path):
+    path = str(tmp_path / "edge_field_refs")
+    query = "MATCH (a:T)-[e:R]->() RETURN a.id, e.s.inner.y ORDER BY a.id"
+    db = Database(db_path=path, mode="w")
+    conn = db.connect()
+    try:
+        conn.execute("CREATE NODE TABLE T(id INT64, PRIMARY KEY(id))")
+        conn.execute("CREATE REL TABLE R(FROM T TO T, s STRUCT(inner STRUCT(y INT64)))")
+        for i in range(1, 4):
+            conn.execute(f"CREATE (:T {{id:{i}}})")
+        for i, value in [(1, 10), (2, 20)]:
+            conn.execute(
+                f"MATCH (a:T {{id:{i}}}), (b:T {{id:{i + 1}}}) "
+                f"CREATE (a)-[:R {{s:{{inner:{{y:{value}}}}}}}]->(b)"
+            )
+        assert list(conn.execute(query)) == [[1, 10], [2, 20]]
+        conn.execute("CHECKPOINT")
+        assert list(conn.execute(query)) == [[1, 10], [2, 20]]
+    finally:
+        conn.close()
+        db.close()
+
+    db = Database(db_path=path, mode="w")
+    conn = db.connect()
+    try:
+        assert list(conn.execute(query)) == [[1, 10], [2, 20]]
+    finally:
+        conn.close()
+        db.close()

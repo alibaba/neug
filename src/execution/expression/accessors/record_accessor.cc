@@ -186,6 +186,10 @@ class BindedEdgeRecordPropertyExpr : public RecordExprBase {
               LabelTriplet label{src_label, dst_label, edge_label};
               edge_accessors_[label] = graph.GetEdgeDataAccessor(
                   src_label, dst_label, edge_label, i);
+              if (type_.id() == DataTypeId::kStruct) {
+                struct_columns_[label] = graph.GetEdgePropColumn(
+                    src_label, dst_label, edge_label, i);
+              }
               break;
             }
           }
@@ -210,10 +214,17 @@ class BindedEdgeRecordPropertyExpr : public RecordExprBase {
 
   const DataType& type() const override { return type_; }
 
+  std::unique_ptr<BindedExprBase> bind_struct_field(
+      size_t field_idx, const DataType& field_type) const override {
+    return bind_record_edge_struct_field(tag_, struct_columns_, type_,
+                                         field_idx, field_type);
+  }
+
  private:
   int tag_;
   DataType type_;
   std::map<LabelTriplet, EdgeDataAccessor> edge_accessors_;
+  std::map<LabelTriplet, std::shared_ptr<RefColumnBase>> struct_columns_;
 };
 
 class BindedEdgeRecordLabelExpr : public RecordExprBase {

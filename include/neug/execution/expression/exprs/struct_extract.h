@@ -14,6 +14,7 @@
  */
 
 #pragma once
+#include <map>
 #include <memory>
 #include <vector>
 
@@ -55,6 +56,16 @@ std::unique_ptr<BindedExprBase> bind_vertex_struct_field(
     const DataType& struct_type, size_t field_idx, const DataType& field_type);
 std::unique_ptr<BindedExprBase> bind_record_vertex_struct_field(
     int tag, const std::vector<std::shared_ptr<RefColumnBase>>& parent_columns,
+    const DataType& struct_type, size_t field_idx, const DataType& field_type);
+
+// Edge counterparts use read-only refs keyed by label triplet. A missing or
+// incompatible ref disables pushdown; whole-struct evaluation remains valid.
+std::unique_ptr<BindedExprBase> bind_edge_struct_field(
+    const std::map<LabelTriplet, std::shared_ptr<RefColumnBase>>& accessors,
+    const DataType& struct_type, size_t field_idx, const DataType& field_type);
+std::unique_ptr<BindedExprBase> bind_record_edge_struct_field(
+    int tag,
+    const std::map<LabelTriplet, std::shared_ptr<RefColumnBase>>& accessors,
     const DataType& struct_type, size_t field_idx, const DataType& field_type);
 
 }  // namespace execution

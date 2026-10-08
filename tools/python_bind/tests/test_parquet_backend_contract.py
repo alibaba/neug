@@ -398,3 +398,31 @@ def test_writer_preserves_options_and_nested_values(connection, tmp_path):
 
     rows = list(connection.execute(f'LOAD FROM "{path}" RETURN * ORDER BY "r.id"'))
     assert rows == [[1, "alpha", [1, 2]], [2, "中文", []]]
+
+
+def test_export_preserves_nested_struct_field_names(connection, tmp_path):
+    pq = pytest.importorskip("pyarrow.parquet")
+    connection.execute(
+        "CREATE NODE TABLE ST(id INT64, "
+        "info STRUCT(address STRUCT(city STRING, zip INT64), "
+        "history STRUCT(city STRING, zip INT64)[]), PRIMARY KEY(id))"
+    )
+    connection.execute(
+        "CREATE (:ST {id:1, info:{address:{city:'hz', zip:310000}, "
+        "history:CAST([{city:'sh', zip:200000}], "
+        "'STRUCT(city STRING, zip INT64)[]')}})"
+    )
+    path = tmp_path / "struct_names.parquet"
+    connection.execute(
+        f"COPY (MATCH (n:ST) RETURN n.info AS info, [1, 'a'] AS positional) "
+        f"TO '{path.as_posix()}'"
+    )
+    assert pq.read_table(path).to_pylist() == [
+        {
+            "info": {
+                "address": {"city": "hz", "zip": 310000},
+                "history": [{"city": "sh", "zip": 200000}],
+            },
+            "positional": {"field_0": 1, "field_1": "a"},
+        }
+    ]

@@ -365,6 +365,14 @@ static bool compatible(const DataType& type, const DataType& target) {
     if (StructType::GetNumFields(type) != StructType::GetNumFields(target)) {
       return false;
     }
+    // Field names are part of a struct's identity: without this check a
+    // polymorphic value such as STRUCT(a ANY) could be retagged as
+    // STRUCT(b INT64), silently reading field a as b. Unnamed (positional)
+    // structs compare empty name vectors and stay compatible.
+    if (StructType::GetFieldNames(type) !=
+        StructType::GetFieldNames(target)) {
+      return false;
+    }
     for (auto i = 0u; i < StructType::GetNumFields(type); ++i) {
       if (!compatible(StructType::GetChildType(type, i),
                       StructType::GetChildType(target, i))) {
