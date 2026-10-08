@@ -56,7 +56,6 @@
 #include "neug/utils/exception/exception.h"
 #include "neug/utils/io/file/file_utils.h"
 #include "neug/utils/result.h"
-#include "service_mode_lease.h"
 
 namespace neug {
 
@@ -332,6 +331,10 @@ bool NeugDB::HasActiveService() const {
 bool NeugDB::HasOpenConnections() const {
   std::lock_guard<std::mutex> lock(service_mutex_);
   return connection_manager_ && connection_manager_->HasOpenConnections();
+}
+
+NeugDB::ServiceModeLease::~ServiceModeLease() noexcept {
+  db_.leaveServiceMode();
 }
 
 NeugDB::ServiceModeLease NeugDB::enterServiceMode() {

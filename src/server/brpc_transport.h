@@ -29,13 +29,13 @@ class Service;
 }
 
 namespace neug {
-class ITpService;
+class ITpOperations;
 
 /** Owns a BRPC server and its protocol handlers; lifecycle calls are serialized
  * by NeugDBService. HTTP is the currently registered protocol. */
 class BrpcTransport final : public IServiceTransport {
  public:
-  BrpcTransport(ITpService& service, std::string host, uint32_t port);
+  BrpcTransport(ITpOperations& service, std::string host, uint32_t port);
   ~BrpcTransport() override;
 
   std::string Start() override;

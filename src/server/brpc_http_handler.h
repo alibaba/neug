@@ -17,12 +17,13 @@
 #include "neug/generated/proto/http_service/http_svc.pb.h"
 
 namespace neug {
-class ITpService;
+class ITpOperations;
 
 /** Converts HTTP requests and responses around the TP business interface. */
 class BrpcHttpHandler : public neug::HttpService {
  public:
-  explicit BrpcHttpHandler(ITpService& tp_service) : tp_service_(tp_service) {}
+  explicit BrpcHttpHandler(ITpOperations& tp_operations)
+      : tp_operations_(tp_operations) {}
   ~BrpcHttpHandler() override = default;
 
   static const char* Routes();
@@ -54,7 +55,7 @@ class BrpcHttpHandler : public neug::HttpService {
                            google::protobuf::Closure* done) override;
 
  private:
-  ITpService& tp_service_;
+  ITpOperations& tp_operations_;
 };
 
 }  // namespace neug

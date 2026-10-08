@@ -23,7 +23,7 @@
 #include <thread>
 
 #include "neug/server/service_config.h"
-#include "neug/server/tp_service.h"
+#include "neug/server/tp_operations.h"
 
 namespace neug {
 
@@ -33,7 +33,7 @@ class ServiceTransactionManager;
 class TpExecutionSlotPool;
 
 /** Owns TP runtime resources behind the service application boundary. */
-class TpServiceRuntime final : public ITpService {
+class TpServiceRuntime final : public ITpOperations {
  public:
   TpServiceRuntime(NeugDB& db, const ServiceConfig& config);
   ~TpServiceRuntime() override;

@@ -21,8 +21,9 @@ namespace neug {
 /**
  * @brief Network lifecycle boundary for a TP service transport.
  *
- * NeugDBService serializes lifecycle calls. Request handlers borrow ITpService;
- * they must not outlive it. The interface does not prescribe HTTP or RPC.
+ * NeugDBService serializes lifecycle calls. Request handlers borrow
+ * ITpOperations; they must not outlive it. The interface does not prescribe
+ * HTTP or RPC.
  */
 class IServiceTransport {
  public:

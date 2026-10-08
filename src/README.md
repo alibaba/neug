@@ -113,7 +113,7 @@ Service lifecycle and transport adapters. The current backend exposes HTTP throu
 - **Service Management:**
   - `neug_db_service.cc` - Backend assembly, lifecycle coordination, and exit waiting
   - `brpc_transport.cc` - BRPC listener and protocol-handler ownership
-  - `brpc_http_handler.cc` - HTTP request/response conversion through `ITpService`
+  - `brpc_http_handler.cc` - HTTP request/response conversion through `ITpOperations`
   - `tp_service_runtime.cc` - Execution slots, transactions, and compaction
 
 See [server architecture](server/README.md) for ownership and shutdown contracts.

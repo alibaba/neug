@@ -25,7 +25,7 @@
 namespace neug {
 
 class NeugDB;
-class ITpService;
+class ITpOperations;
 class IServiceTransport;
 
 /**
@@ -225,7 +225,7 @@ class NeugDBService {
  private:
   friend class NeugDBServiceTestPeer;
   using TransportFactory =
-      std::function<std::unique_ptr<IServiceTransport>(ITpService&)>;
+      std::function<std::unique_ptr<IServiceTransport>(ITpOperations&)>;
   NeugDBService(NeugDB& db, const ServiceConfig& config,
                 const TransportFactory& factory);
   // A per-call test seam for pausing after startup, outside the lifecycle lock.

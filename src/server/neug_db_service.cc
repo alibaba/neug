@@ -23,7 +23,6 @@
 #include <iostream>
 #include <mutex>
 
-#include "../main/service_mode_lease.h"
 #include "brpc_transport.h"
 #include "neug/main/neug_db.h"
 #include "neug/server/service_transport.h"

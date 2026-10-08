@@ -7,14 +7,14 @@ BRPC backend directly in `neug_db_service.cc`.
 
 ```text
 NeugDBService
-  |-- TpServiceRuntime : ITpService
+  |-- TpServiceRuntime : ITpOperations
   |     |-- TpExecutionSlotPool
   |     |-- ServiceTransactionManager
   |     `-- background compaction
   `-- IServiceTransport
         `-- BrpcTransport
               |-- brpc::Server
-              `-- BrpcHttpHandler --borrows--> ITpService
+              `-- BrpcHttpHandler --borrows--> ITpOperations
 ```
 
 ## Ownership and requests
@@ -26,7 +26,7 @@ the runtime, so callbacks never refer to a destroyed business service.
 `BrpcHttpHandler` parses HTTP requests, maps status codes and writes responses.
 Its fixed HTTP codecs are internal functions, not a global protocol registry.
 Additional BRPC protocols should register their own handlers with the server.
-It calls `ITpService`, implemented by the runtime. The transport itself handles
+It calls `ITpOperations`, implemented by the runtime. The transport itself handles
 listening and request draining. Only HTTP handlers are registered today. A future
 protobuf RPC handler could share the same BRPC server and business interface;
 no RPC endpoint or alternative networking library is implemented here.
@@ -37,7 +37,7 @@ capacity, transaction limits, timeouts, and compaction settings.
 
 ## Service contract types
 
-`ITpService` defines request-facing business operations. `QueryRequest`,
+`ITpOperations` defines request-facing business operations. `QueryRequest`,
 `QueryResult`, and `TransactionMode` remain shared execution types in `main/`.
 `ServiceTransactionInfo` in `server/service_transaction.h` contains the opaque
 service transaction identifier and optional client-visible expiry. Both the
@@ -49,7 +49,7 @@ Admission, draining, and compaction controls remain on `TpServiceRuntime`.
 The facade serializes transport lifecycle calls. `Start()` returns only after
 listening succeeds, and returns the actual endpoint. Failed startup leaves no
 listener or active callback. `StopAndJoin()` is idempotent and returns only when
-handlers can no longer call `ITpService`. Restart is supported.
+handlers can no longer call `ITpOperations`. Restart is supported.
 
 The facade stops in this order:
 
@@ -76,7 +76,7 @@ Adding a native-thread backend requires selecting and validating an appropriate
 runtime wait strategy as well as changing transport construction. This refactor
 does not claim to remove the build dependency on BRPC/bthread.
 
-`ITpService` also retains existing JSON/protobuf result encodings. In particular,
+`ITpOperations` also retains existing JSON/protobuf result encodings. In particular,
 explicit-transaction serialization remains inside execution so serialization
 failure can mark the transaction for rollback.
 

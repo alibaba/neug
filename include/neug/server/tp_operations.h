@@ -32,9 +32,9 @@ struct QueryRequest;
  * Transport adapters own endpoint mapping and request parsing. String results
  * preserve the service's existing JSON or protobuf wire encodings.
  */
-class ITpService {
+class ITpOperations {
  public:
-  virtual ~ITpService() = default;
+  virtual ~ITpOperations() = default;
 
   /**
    * @brief Executes a standalone query with service-managed transactions.

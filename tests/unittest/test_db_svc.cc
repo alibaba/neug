@@ -45,7 +45,7 @@
 #include "neug/server/neug_db_service.h"
 #include "neug/server/service_transport.h"
 #include "neug/server/tp_execution_slot_pool.h"
-#include "neug/server/tp_service.h"
+#include "neug/server/tp_operations.h"
 #include "neug/storages/graph/graph_interface.h"
 #include "utils.h"
 
@@ -55,7 +55,7 @@ class NeugDBServiceTestPeer {
  public:
   static std::unique_ptr<NeugDBService> Create(
       NeugDB& db, const ServiceConfig& config,
-      const std::function<std::unique_ptr<IServiceTransport>(ITpService&)>&
+      const std::function<std::unique_ptr<IServiceTransport>(ITpOperations&)>&
           factory) {
     return std::unique_ptr<NeugDBService>(
         new NeugDBService(db, config, factory));
@@ -72,7 +72,7 @@ namespace test {
 namespace {
 
 struct TransportProbe {
-  ITpService* service = nullptr;
+  ITpOperations* service = nullptr;
   int starts = 0;
   int stops = 0;
   bool fail_start = false;
@@ -274,7 +274,7 @@ class NeugDBServiceTest : public ::testing::Test {
 TEST_F(NeugDBServiceTest, TransactionDrainPrecedesTransportJoin) {
   TransportProbe probe;
   auto service =
-      NeugDBServiceTestPeer::Create(*db_, config_, [&](ITpService& runtime) {
+      NeugDBServiceTestPeer::Create(*db_, config_, [&](ITpOperations& runtime) {
         probe.service = &runtime;
         return std::make_unique<ProbeTransport>(probe);
       });
@@ -308,7 +308,7 @@ TEST_F(NeugDBServiceTest, TransactionDrainPrecedesTransportJoin) {
 TEST_F(NeugDBServiceTest, TransportStartFailureClosesAdmissionAndAllowsRetry) {
   TransportProbe probe;
   auto service =
-      NeugDBServiceTestPeer::Create(*db_, config_, [&](ITpService& runtime) {
+      NeugDBServiceTestPeer::Create(*db_, config_, [&](ITpOperations& runtime) {
         probe.service = &runtime;
         return std::make_unique<ProbeTransport>(probe);
       });
@@ -327,7 +327,7 @@ TEST_F(NeugDBServiceTest, TransportStartFailureClosesAdmissionAndAllowsRetry) {
 TEST_F(NeugDBServiceTest, FailedStartDrainsTransactionsCreatedDuringStartup) {
   TransportProbe probe;
   auto service =
-      NeugDBServiceTestPeer::Create(*db_, config_, [&](ITpService& runtime) {
+      NeugDBServiceTestPeer::Create(*db_, config_, [&](ITpOperations& runtime) {
         probe.service = &runtime;
         return std::make_unique<ProbeTransport>(probe);
       });
@@ -803,7 +803,7 @@ void CheckBlockingServiceLifecycle(bool request_quit, bool pause_waiter = false,
         use_probe_transport
             ? NeugDBServiceTestPeer::Create(
                   db, cfg,
-                  [&](ITpService& runtime) {
+                  [&](ITpOperations& runtime) {
                     probe.service = &runtime;
                     return std::make_unique<ProbeTransport>(probe);
                   })
@@ -924,7 +924,7 @@ TEST(NeugDBServiceDeathTest, BlockingLifecycleDoesNotDependOnTransportWait) {
 }
 
 // A real HTTP callback remains blocked until the test explicitly releases it.
-class BlockingSchemaService final : public ITpService {
+class BlockingSchemaService final : public ITpOperations {
  public:
   std::promise<void> entered;
   std::promise<void> release;

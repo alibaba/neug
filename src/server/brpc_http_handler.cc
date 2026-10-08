@@ -30,7 +30,7 @@
 
 #include "neug/generated/proto/plan/error.pb.h"
 #include "neug/main/query_request.h"
-#include "neug/server/tp_service.h"
+#include "neug/server/tp_operations.h"
 
 namespace neug {
 
@@ -248,7 +248,7 @@ void BrpcHttpHandler::PostCypherQuery(
   }
   auto response =
       ParseAndExecuteQuery(query_request, [this](const auto& request) {
-        return tp_service_.ExecuteQuery(request);
+        return tp_operations_.ExecuteQuery(request);
       });
   SendHttpResponse(cntl, response);
 }
@@ -259,7 +259,7 @@ void BrpcHttpHandler::GetSchema(google::protobuf::RpcController* cntl_base,
                                 google::protobuf::Closure* done) {
   brpc::ClosureGuard done_guard(done);
   brpc::Controller* cntl = static_cast<brpc::Controller*>(cntl_base);
-  auto ret = tp_service_.GetSchema();
+  auto ret = tp_operations_.GetSchema();
 
   SendHttpResponse(cntl, ret);
 }
@@ -269,7 +269,7 @@ void BrpcHttpHandler::GetServiceStatus(
     HttpResponse* response, google::protobuf::Closure* done) {
   brpc::ClosureGuard done_guard(done);
   brpc::Controller* cntl = static_cast<brpc::Controller*>(cntl_base);
-  auto ret = tp_service_.GetServiceStatus();
+  auto ret = tp_operations_.GetServiceStatus();
 
   SendHttpResponse(cntl, ret);
 }
@@ -289,7 +289,7 @@ void BrpcHttpHandler::BeginTransaction(
     SendHttpResponse(cntl, error);
     return;
   }
-  auto transaction = tp_service_.BeginTransaction(mode.value());
+  auto transaction = tp_operations_.BeginTransaction(mode.value());
   if (!transaction) {
     result<std::string> error = tl::unexpected(transaction.error());
     SendHttpResponse(cntl, error);
@@ -326,8 +326,8 @@ void BrpcHttpHandler::ExecuteTransactionQuery(
     SendHttpResponse(cntl, error);
     return;
   }
-  auto response =
-      tp_service_.ExecuteInTransaction(transaction_id.value(), request.value());
+  auto response = tp_operations_.ExecuteInTransaction(transaction_id.value(),
+                                                      request.value());
   SendHttpResponse(cntl, response);
 }
 
@@ -337,7 +337,7 @@ void BrpcHttpHandler::CommitTransaction(
   brpc::ClosureGuard done_guard(done);
   auto* cntl = static_cast<brpc::Controller*>(cntl_base);
   FinishTransaction(cntl, [this](std::string_view transaction_id) {
-    return tp_service_.CommitTransaction(transaction_id);
+    return tp_operations_.CommitTransaction(transaction_id);
   });
 }
 
@@ -347,7 +347,7 @@ void BrpcHttpHandler::RollbackTransaction(
   brpc::ClosureGuard done_guard(done);
   auto* cntl = static_cast<brpc::Controller*>(cntl_base);
   FinishTransaction(cntl, [this](std::string_view transaction_id) {
-    return tp_service_.RollbackTransaction(transaction_id);
+    return tp_operations_.RollbackTransaction(transaction_id);
   });
 }
 

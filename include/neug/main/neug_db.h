@@ -347,7 +347,21 @@ class NEUG_API NeugDB {
   inline const char* Version() const { return TOSTRING(NEUG_VERSION_STRING); }
 
  private:
-  class ServiceModeLease;
+  /** Keeps service mode active until all service runtime resources are gone. */
+  class ServiceModeLease {
+   public:
+    ServiceModeLease(const ServiceModeLease&) = delete;
+    ServiceModeLease& operator=(const ServiceModeLease&) = delete;
+    ServiceModeLease(ServiceModeLease&&) = delete;
+    ServiceModeLease& operator=(ServiceModeLease&&) = delete;
+    ~ServiceModeLease() noexcept;
+
+   private:
+    friend class NeugDB;
+    explicit ServiceModeLease(NeugDB& db) noexcept : db_(db) {}
+
+    NeugDB& db_;
+  };
 
   void preprocessConfig();
   void initAllocators(const std::string& allocator_dir);

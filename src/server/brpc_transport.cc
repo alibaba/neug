@@ -22,7 +22,7 @@
 
 namespace neug {
 
-BrpcTransport::BrpcTransport(ITpService& service, std::string host,
+BrpcTransport::BrpcTransport(ITpOperations& service, std::string host,
                              uint32_t port)
     : host_(std::move(host)),
       port_(port),
