@@ -78,31 +78,9 @@ Adding a native-thread backend requires selecting and validating an appropriate
 runtime wait strategy as well as changing transport construction. This refactor
 does not claim to remove the build dependency on BRPC/bthread.
 
-`ITpOperations` returns typed query results for standalone and explicit-
-transaction queries. The HTTP adapter encodes both as protobuf responses;
-an encoding failure affects only that response, leaving the explicit
-transaction available for the client to commit or roll back.
-
 ## Validation
 
 `test_db_svc` covers HTTP queries, transaction behavior, concurrency limits,
 startup failure, shutdown, and restart. A private test factory injects a transport
 without a listener or wait API to verify that facade lifecycle and transaction
-drain ordering do not depend on BRPC server methods. Public construction and
-Python/Node service entry points remain unchanged.
-
-## Source compatibility
-
-The public `NeugDBService` constructor and methods are unchanged. This refactor
-removes the installed `neug/server/brpc_service_mgr.h` header and `IServiceManager`:
-code that directly used `BrpcServiceManager`, `HttpServiceImpl`, or the old
-protocol registry must migrate. These removals are a C++ source compatibility
-change, even though no in-repository caller remains.
-
-`ServiceConfig` now lives in `neug/server/service_config.h`; direct includes of
-`neug/utils/service_manager.h` must use the new path.
-
-Applications should use `NeugDBService`. New transport implementations implement
-`IServiceTransport` and are assembled in `neug_db_service.cc`. BRPC handlers are
-backend implementation details; the old registry is removed. No legacy
-compatibility wrapper is provided in this change.
+drain ordering do not depend on BRPC server methods.
