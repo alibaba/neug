@@ -126,13 +126,30 @@ class ChunkedColumn : public ColumnBase {
     } else {
       // One-time conversion of the initial whole-chunk directory. Its payload
       // CRC protects the old slice; new checkpoints encode physical page CRCs.
-      for (const auto& page : d.pages) {
-        auto source = load(page.prefix, rows_per_chunk_);
+      // The last chunk may be partial: load it by its actual row count and
+      // pad the tail page to a full page so every page keeps exactly
+      // rows_per_page_ slots.
+      for (size_t chunk_index = 0; chunk_index < d.pages.size();
+           ++chunk_index) {
+        const size_t chunk_begin = chunk_index * rows_per_chunk_;
+        const size_t chunk_rows = static_cast<size_t>(
+            std::min<uint64_t>(rows_per_chunk_, size_ - chunk_begin));
+        auto source = load(d.pages[chunk_index].prefix, chunk_rows);
         source->Verify();
         for (size_t offset = 0;
-             offset < rows_per_chunk_ && pages_.size() < PageCount(size_);
+             offset < chunk_rows && pages_.size() < PageCount(size_);
              offset += rows_per_page_) {
-          auto segment = Slice(source, offset, rows_per_page_, true);
+          const size_t valid = std::min(rows_per_page_, chunk_rows - offset);
+          std::shared_ptr<Segment> segment;
+          if (valid == rows_per_page_) {
+            segment = Slice(source, offset, rows_per_page_, true);
+          } else {
+            segment = Copy(nullptr, rows_per_page_ * sizeof(T));
+            std::memcpy(segment->data, source->data + offset,
+                        valid * sizeof(T));
+            std::fill_n(segment->data + valid, rows_per_page_ - valid, T());
+            segment->frozen = true;
+          }
           pages_.push_back(Page{std::move(segment), nullptr,
                                 static_cast<uint32_t>(rows_per_page_)});
         }
@@ -450,6 +467,9 @@ class ChunkedColumn : public ColumnBase {
   std::shared_ptr<Segment> Slice(const std::shared_ptr<Segment>& source,
                                  size_t row, size_t rows, bool frozen) {
     source->Verify();
+    // row/rows are bounded by ValidateRows, so this product cannot overflow.
+    if ((row + rows) * sizeof(T) > source->bytes)
+      THROW_CHECKPOINT_EXCEPTION("Chunk slice exceeds its source");
     const size_t bytes = rows * sizeof(T);
     std::shared_ptr<Segment> result;
     if (frozen && source->frozen) {

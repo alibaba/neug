@@ -178,9 +178,9 @@ class MvccInsertTransaction {
   /**
    * @brief Apply an insert-WAL byte stream via a writable GraphView.
    *
-   * Used both:
-   *  - by MvccInsertTransaction::Commit() — passing its writable view_; and
-   *  - by NeugDB recovery — over a GraphView rebuilt on the opened graph.
+   * Used by MvccInsertTransaction::Commit() with its writable view_. Recovery
+   * uses ReplayCowGraphWal instead so legacy records can reuse deleted VIDs
+   * without relaxing the live insert path's append-only requirement.
    *
    * Marks dirty bits through the view's borrowed DirtyTracker after successful
    * writes. Capacity is assumed to be sufficient (no auto-grow /

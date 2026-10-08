@@ -29,13 +29,16 @@ bool vertex_property_topN_impl(bool asc, size_t limit,
   std::vector<std::shared_ptr<StorageReadInterface::vertex_column_t<T>>>
       property_columns;
   label_t label_num = graph.schema().vertex_label_frontier();
+  // Index by the real label id: labels may be tombstoned below the frontier,
+  // so a compacted vector would shift every later label out of place.
+  property_columns.resize(label_num);
   for (label_t i = 0; i < label_num; ++i) {
     if (!graph.schema().is_vertex_label_valid(i)) {
       continue;
     }
-    property_columns.emplace_back(
+    property_columns[i] =
         std::dynamic_pointer_cast<StorageReadInterface::vertex_column_t<T>>(
-            graph.GetVertexPropColumn(i, prop_name)));
+            graph.GetVertexPropColumn(i, prop_name));
   }
   bool success = true;
   std::vector<PropertyColumnReader<T>> readers(property_columns.size());

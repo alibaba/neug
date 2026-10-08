@@ -383,6 +383,73 @@ TEST_F(ChunkedColumnTest, OpenRejectsTruncatedDirectory) {
                exception::CheckpointException);
 }
 
+TEST_F(ChunkedColumnTest, OpenConvertsLegacyWholeChunkDirectoryWithTail) {
+  // Legacy directories (no version header) reference whole-chunk slices whose
+  // last chunk may be partial. Conversion must load the tail by its actual
+  // row count and pad the tail page to a full page, keeping the invariant
+  // that every page covers exactly rows_per_page_ slots.
+  const std::vector<int64_t> values = {10, 11, 12, 13, 14, 15};
+  const size_t payload = values.size() * sizeof(int64_t);
+  auto obj = ckp_->CreateRuntimeContainer(payload, MemoryLevel::kInMemory);
+  std::memcpy(obj->GetData(), values.data(), payload);
+  const std::string obj_id =
+      std::filesystem::path(ckp_->Commit(*obj)).filename().string();
+
+  // Hand-encode the legacy blob: rows_per_chunk, chunk_count, row_count,
+  // object table, then one ObjectSlice per chunk with its real payload CRC.
+  std::vector<char> blob;
+  auto append_u64 = [&](uint64_t v) {
+    for (int i = 0; i < 8; ++i) {
+      blob.push_back(static_cast<char>((v >> (8 * i)) & 0xFF));
+    }
+  };
+  auto append_u32 = [&](uint32_t v) {
+    for (int i = 0; i < 4; ++i) {
+      blob.push_back(static_cast<char>((v >> (8 * i)) & 0xFF));
+    }
+  };
+  append_u64(kRowsPerChunk);
+  append_u64(2);  // chunk_count
+  append_u64(6);  // row_count
+  append_u64(1);  // object_count
+  append_u32(static_cast<uint32_t>(obj_id.size()));
+  blob.insert(blob.end(), obj_id.begin(), obj_id.end());
+  // Chunk 0 holds a full 4 rows; chunk 1 is a 2-row tail.
+  append_u32(0);
+  append_u64(0);
+  append_u32(4 * sizeof(int64_t));
+  append_u32(Crc32c(values.data(), 4 * sizeof(int64_t)));
+  append_u32(0);
+  append_u64(4 * sizeof(int64_t));
+  append_u32(2 * sizeof(int64_t));
+  append_u32(Crc32c(values.data() + 4, 2 * sizeof(int64_t)));
+  // Legacy blobs have no overall CRC trailer (versioned ones do).
+
+  auto dir = ckp_->CreateRuntimeContainer(blob.size(), MemoryLevel::kInMemory);
+  std::memcpy(dir->GetData(), blob.data(), blob.size());
+  ModuleDescriptor desc;
+  desc.module_type = ChunkedColumn<int64_t>::type_name();
+  desc.set_path(kChunkDirPath, ckp_->Commit(*dir));
+
+  ChunkedColumn<int64_t> col(kRowsPerChunk);
+  col.Open(*ckp_, desc, MemoryLevel::kInMemory);
+  ASSERT_EQ(col.size(), 6u);
+  for (size_t i = 0; i < 6; ++i) {
+    EXPECT_EQ(col.get_view(i), values[i]);
+  }
+
+  // The converted column must round-trip through the versioned format.
+  CheckpointManifest meta;
+  col.Dump(*ckp_, meta, "col");
+  ckp_->FinalizeObjectWriter(meta);
+  ChunkedColumn<int64_t> reopened(kRowsPerChunk);
+  reopened.Open(*ckp_, *meta.FindModule("col"), MemoryLevel::kInMemory);
+  ASSERT_EQ(reopened.size(), 6u);
+  for (size_t i = 0; i < 6; ++i) {
+    EXPECT_EQ(reopened.get_view(i), values[i]);
+  }
+}
+
 TEST_F(ChunkedColumnTest, GarbageCollectionRetainsChunkObjects) {
   // Publish a checkpoint holding a chunked column. Its chunk objects are
   // referenced only inside the directory blob, so GC must parse the directory
