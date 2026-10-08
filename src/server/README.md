@@ -78,9 +78,10 @@ Adding a native-thread backend requires selecting and validating an appropriate
 runtime wait strategy as well as changing transport construction. This refactor
 does not claim to remove the build dependency on BRPC/bthread.
 
-`ITpOperations` also retains existing JSON/protobuf result encodings. In particular,
-explicit-transaction serialization remains inside execution so serialization
-failure can mark the transaction for rollback.
+`ITpOperations` returns typed query results for standalone and explicit-
+transaction queries. The HTTP adapter encodes both as protobuf responses;
+an encoding failure affects only that response, leaving the explicit
+transaction available for the client to commit or roll back.
 
 ## Validation
 

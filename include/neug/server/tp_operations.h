@@ -29,8 +29,8 @@ struct QueryRequest;
 /**
  * @brief Application boundary between TP operations and transport adapters.
  *
- * Transport adapters own endpoint mapping and request parsing. String results
- * preserve the service's existing JSON or protobuf wire encodings.
+ * Transport adapters own endpoint mapping, request parsing, and query result
+ * encoding. Schema and status retain their existing JSON payloads.
  */
 class ITpOperations {
  public:
@@ -61,11 +61,10 @@ class ITpOperations {
    * @brief Executes a query without committing the explicit transaction.
    * @param transaction_id Identifier returned by BeginTransaction().
    * @param request Parsed query, parameters, and requested access mode.
-   * @return Serialized protobuf QueryResponse bytes, or a transaction/query
-   * error. Serialization belongs to this operation so that a serialization
-   * failure can mark the transaction as requiring rollback.
+   * @return Typed query result, or a transaction/query error. Encoding failures
+   * in the transport affect only the response, not the transaction state.
    */
-  virtual result<std::string> ExecuteInTransaction(
+  virtual result<QueryResult> ExecuteInTransaction(
       std::string_view transaction_id, const QueryRequest& request) = 0;
 
   /**

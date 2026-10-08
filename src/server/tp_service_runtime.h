@@ -46,7 +46,7 @@ class TpServiceRuntime final : public ITpOperations {
   result<std::string> GetServiceStatus() override;
   result<ServiceTransactionInfo> BeginTransaction(
       TransactionMode mode) override;
-  result<std::string> ExecuteInTransaction(
+  result<QueryResult> ExecuteInTransaction(
       std::string_view transaction_id, const QueryRequest& request) override;
   Status CommitTransaction(std::string_view transaction_id) override;
   Status RollbackTransaction(std::string_view transaction_id) override;

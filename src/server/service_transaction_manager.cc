@@ -168,7 +168,7 @@ result<ServiceTransactionInfo> ServiceTransactionManager::Begin(
   }
 }
 
-result<std::string> ServiceTransactionManager::Execute(
+result<QueryResult> ServiceTransactionManager::Execute(
     std::string_view transaction_id, const QueryRequest& request) {
   auto locked_result = LockEntry(transaction_id);
   if (!locked_result) {
@@ -181,7 +181,7 @@ result<std::string> ServiceTransactionManager::Execute(
                         "Transaction must be rolled back before reuse."));
   }
 
-  result<std::string> response = [&]() -> result<std::string> {
+  result<QueryResult> response = [&]() -> result<QueryResult> {
     try {
       auto slot = execution_slot_pool_.TryAcquireExecutionSlot();
       if (!slot) {
@@ -193,14 +193,7 @@ result<std::string> ServiceTransactionManager::Execute(
       if (!query_result) {
         RETURN_ERROR(query_result.error());
       }
-      try {
-        // Serialization is part of explicit transaction execution: failure
-        // poisons the session before the protocol adapter sees the response.
-        return query_result.value().Serialize();
-      } catch (const std::exception& e) {
-        entry->context.AbortAndMarkRollbackOnly();
-        RETURN_ERROR(Status::RuntimeError(e.what()));
-      }
+      return query_result;
     } catch (const std::exception& e) {
       RETURN_ERROR(Status::RuntimeError(e.what()));
     }

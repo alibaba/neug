@@ -147,7 +147,7 @@ result<ServiceTransactionInfo> TpServiceRuntime::BeginTransaction(
   return transaction_manager_->Begin(mode);
 }
 
-result<std::string> TpServiceRuntime::ExecuteInTransaction(
+result<QueryResult> TpServiceRuntime::ExecuteInTransaction(
     std::string_view transaction_id, const QueryRequest& request) {
   return transaction_manager_->Execute(transaction_id, request);
 }

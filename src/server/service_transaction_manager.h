@@ -25,6 +25,7 @@
 #include <thread>
 #include <unordered_map>
 
+#include "neug/main/query_result.h"
 #include "neug/main/transaction_context.h"
 #include "neug/server/service_transaction.h"
 #include "neug/utils/result.h"
@@ -47,7 +48,7 @@ class ServiceTransactionManager {
       delete;
 
   result<ServiceTransactionInfo> Begin(TransactionMode mode);
-  result<std::string> Execute(std::string_view transaction_id,
+  result<QueryResult> Execute(std::string_view transaction_id,
                               const QueryRequest& request);
   Status Commit(std::string_view transaction_id);
   Status Rollback(std::string_view transaction_id);
