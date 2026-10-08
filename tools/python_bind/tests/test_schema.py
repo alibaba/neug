@@ -614,6 +614,14 @@ def test_struct_field_access_with_unrelated_layout(tmp_path, other_type):
         assert list(conn.execute("MATCH (n:T) WITH n.s AS s RETURN s.y.value")) == [
             [30]
         ]
+        # An unlabelled scan requires one consistent type for property s.
+        if other_type == "STRUCT(x INT64, y STRUCT(z INT64, value INT64))":
+            assert list(conn.execute("MATCH (n) RETURN n.s.x")) == [[10]]
+        else:
+            with pytest.raises(
+                RuntimeError, match="Expected the same data type for property s"
+            ):
+                conn.execute("MATCH (n) RETURN n.s.x")
     finally:
         conn.close()
         db.close()
@@ -737,31 +745,53 @@ def test_struct_implicit_cast_requires_matching_field_names(tmp_path, value):
 
 @pytest.mark.parametrize("reverse", [False, True])
 @pytest.mark.parametrize("operation", ["update", "delete"])
-def test_struct_parallel_edge_mutation(tmp_path, reverse, operation):
+@pytest.mark.parametrize("with_other_prop", [False, True])
+def test_struct_parallel_edge_mutation(tmp_path, reverse, operation, with_other_prop):
     path = str(tmp_path / "struct_parallel_edges")
     outgoing = "MATCH (:T {id:1})-[e:R]->(:T {id:2})"
     incoming = "MATCH (:T {id:2})<-[e:R]-(:T {id:1})"
-    expected = [[10], [30], [40]] if operation == "update" else [[10], [40]]
+    initial = [(10, 110), (20, 120), (40, 140)]
+    expected = (
+        [(10, 110), (30, 120), (40, 140)]
+        if operation == "update"
+        else [(10, 110), (40, 140)]
+    )
 
     def check_edges(conn, values):
         for match in (outgoing, incoming):
-            assert (
-                list(conn.execute(match + " RETURN e.s.inner.y ORDER BY e.s.inner.y"))
-                == values
+            projection = "e.s.inner.y, e.weight" if with_other_prop else "e.s.inner.y"
+            assert list(
+                conn.execute(match + " RETURN " + projection + " ORDER BY e.s.inner.y")
+            ) == (
+                [list(row) for row in values]
+                if with_other_prop
+                else [[row[0]] for row in values]
             )
 
     db = Database(db_path=path, mode="w")
     conn = db.connect()
     try:
         conn.execute("CREATE NODE TABLE T(id INT64, PRIMARY KEY(id))")
-        conn.execute("CREATE REL TABLE R(FROM T TO T, s STRUCT(inner STRUCT(y INT64)))")
+        props = "weight INT64, " if with_other_prop else ""
+        conn.execute(
+            "CREATE REL TABLE R(FROM T TO T, "
+            + props
+            + "s STRUCT(inner STRUCT(y INT64)))"
+        )
         conn.execute("CREATE (:T {id:1}), (:T {id:2})")
         for value in (10, 20, 40):
+            weight = f"weight:{value + 100}, " if with_other_prop else ""
             conn.execute(
                 "MATCH (a:T {id:1}), (b:T {id:2}) "
-                f"CREATE (a)-[:R {{s:{{inner:{{y:{value}}}}}}}]->(b)"
+                f"CREATE (a)-[:R {{{weight}s:{{inner:{{y:{value}}}}}}}]->(b)"
             )
-        check_edges(conn, [[10], [20], [40]])
+        check_edges(conn, initial)
+        if with_other_prop:
+            assert list(
+                conn.execute(
+                    outgoing + " WITH e RETURN e.s.inner.y ORDER BY e.s.inner.y"
+                )
+            ) == [[10], [20], [40]]
         match = incoming if reverse else outgoing
         action = "SET e.s={inner:{y:30}}" if operation == "update" else "DELETE e"
         conn.execute(match + " WHERE e.s.inner.y = 20 " + action)
