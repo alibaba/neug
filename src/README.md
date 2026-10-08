@@ -108,9 +108,12 @@ Core database engine implementation and execution slot management.
 ### 🌐 [`server/`](./server/)
 **Network Server Implementation**
 
-HTTP and RPC server implementations for service mode operations.
+Service lifecycle and transport adapters. The current backend exposes HTTP through BRPC.
 
 - **Service Management:**
-  - `brpc_service_mgr.cc` - BRPC service framework management
-  - `neug_db_service.cc` - Database service implementation and API endpoints
-  - `tp_execution_slot_pool.cc` - ExecutionSlot pooling and resource management
+  - `neug_db_service.cc` - Backend assembly, lifecycle coordination, and exit waiting
+  - `brpc_transport.cc` - BRPC listener and protocol-handler ownership
+  - `brpc_http_handler.cc` - HTTP request/response conversion through `ITpOperations`
+  - `tp_service_runtime.cc` - Execution slots, transactions, and compaction
+
+See [server architecture](server/README.md) for ownership and shutdown contracts.

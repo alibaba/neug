@@ -14,24 +14,15 @@
  */
 #pragma once
 
-#include <atomic>
 #include <cstdint>
-#include <memory>
 #include <string>
-
-#include "neug/utils/result.h"
-#include "neug/utils/service_utils.h"
-
-namespace neug {
-class Status;
-}  // namespace neug
 
 namespace neug {
 
 /**
- * @brief Configuration for NeuG HTTP service.
+ * @brief Configuration for the NeuG database service.
  *
- * ServiceConfig contains settings for the HTTP server that handles remote
+ * ServiceConfig contains settings for the service that handles remote
  * Cypher query execution. Use this to configure the service endpoint before
  * starting NeugDBService.
  *
@@ -46,22 +37,22 @@ namespace neug {
  * service.Start();
  * @endcode
  *
- * @see NeugDBService for HTTP service management
+ * @see NeugDBService for service management
  * @since v0.1.0
  */
 struct ServiceConfig {
   /// Default thread count policy: 0 means auto-select from database
   /// max_thread_num.
   static constexpr const uint32_t DEFAULT_THREAD_NUM = 0;
-  /// Default HTTP port for query endpoint
+  /// Default port for query endpoint
   static constexpr const uint32_t DEFAULT_QUERY_PORT = 10000;
   /// 0 scales the session limit with the TP execution slot count.
   static constexpr const uint32_t DEFAULT_MAX_EXPLICIT_TRANSACTIONS = 0;
-  /// Default absolute lifetime for an explicit HTTP transaction.
+  /// Default absolute lifetime for an explicit transaction.
   static constexpr const uint64_t DEFAULT_EXPLICIT_TRANSACTION_TIMEOUT_MS =
       60000;
 
-  /// HTTP port for the query endpoint (default: 10000)
+  /// Port for the query endpoint (default: 10000)
   uint32_t query_port;
   /// Maximum number of concurrently executing service queries. 0 follows the
   /// database max_thread_num. Values above max_thread_num are clamped to that
@@ -72,9 +63,9 @@ struct ServiceConfig {
   std::string host_str;
   /// Enable background auto-compaction thread while serving
   bool auto_compaction;
-  /// Maximum active explicit HTTP transactions. 0 follows the slot count.
+  /// Maximum active explicit transactions. 0 follows the slot count.
   uint32_t max_explicit_transactions;
-  /// Absolute lifetime of an explicit HTTP transaction, in milliseconds.
+  /// Absolute lifetime of an explicit transaction, in milliseconds.
   uint64_t explicit_transaction_timeout_ms;
 
   /**
@@ -98,13 +89,4 @@ struct ServiceConfig {
             DEFAULT_EXPLICIT_TRANSACTION_TIMEOUT_MS) {}
 };
 
-class IServiceManager {
- public:
-  virtual ~IServiceManager() = default;
-  virtual void Init(const ServiceConfig& config) = 0;
-  virtual std::string Start() = 0;
-  virtual void Stop() = 0;
-  virtual void RunAndWaitForExit() = 0;
-  virtual bool IsRunning() const = 0;
-};
 }  // namespace neug

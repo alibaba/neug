@@ -14,33 +14,60 @@
  */
 
 #include "neug/server/tp_execution_slot_pool.h"
+#include "neug/server/service_transport.h"
+
+#include <condition_variable>
+#include <mutex>
 
 namespace neug {
 
-ExecutionSlotLease TpExecutionSlotPool::AcquireExecutionSlot() {
-  bthread_mutex_lock(&mutex_);
-  while (available_slot_ids_.empty()) {
-    bthread_cond_wait(&cond_, &mutex_);
+namespace {
+class NativeSlotSynchronizer final : public IExecutionSlotSynchronizer {
+ public:
+  void lock() noexcept override { mutex_.lock(); }
+  void unlock() noexcept override { mutex_.unlock(); }
+  void Wait() noexcept override {
+    std::unique_lock lock(mutex_, std::adopt_lock);
+    cond_.wait(lock);
+    lock.release();
   }
+  void NotifyOne() noexcept override { cond_.notify_one(); }
 
+ private:
+  std::mutex mutex_;
+  std::condition_variable cond_;
+};
+}  // namespace
+
+std::unique_ptr<IExecutionSlotSynchronizer> CreateNativeSlotSynchronizer() {
+  return std::make_unique<NativeSlotSynchronizer>();
+}
+
+std::unique_ptr<IExecutionSlotSynchronizer>
+IServiceTransport::CreateSlotSynchronizer() const {
+  return CreateNativeSlotSynchronizer();
+}
+
+ExecutionSlotLease TpExecutionSlotPool::AcquireExecutionSlot() {
+  std::lock_guard lock(*synchronizer_);
+  while (available_slot_ids_.empty()) {
+    synchronizer_->Wait();
+  }
   const auto slot_id = available_slot_ids_.back();
   available_slot_ids_.pop_back();
   CHECK_LT(slot_id, slot_num_);
-  bthread_mutex_unlock(&mutex_);
   return ExecutionSlotLease(&entries_[slot_id].slot, this, slot_id,
                             &TpExecutionSlotPool::releaseExecutionSlot);
 }
 
 ExecutionSlotLease TpExecutionSlotPool::TryAcquireExecutionSlot() {
-  bthread_mutex_lock(&mutex_);
+  std::lock_guard lock(*synchronizer_);
   if (available_slot_ids_.empty()) {
-    bthread_mutex_unlock(&mutex_);
     return {};
   }
   const auto slot_id = available_slot_ids_.back();
   available_slot_ids_.pop_back();
   CHECK_LT(slot_id, slot_num_);
-  bthread_mutex_unlock(&mutex_);
   return ExecutionSlotLease(&entries_[slot_id].slot, this, slot_id,
                             &TpExecutionSlotPool::releaseExecutionSlot);
 }
@@ -48,14 +75,15 @@ ExecutionSlotLease TpExecutionSlotPool::TryAcquireExecutionSlot() {
 void TpExecutionSlotPool::releaseExecutionSlot(void* owner,
                                                size_t slot_id) noexcept {
   auto* pool = static_cast<TpExecutionSlotPool*>(owner);
-  bthread_mutex_lock(&pool->mutex_);
-  CHECK_LT(slot_id, pool->slot_num_);
-  CHECK_LT(pool->available_slot_ids_.size(), pool->slot_num_);
-  CHECK_GE(pool->available_slot_ids_.capacity(), pool->slot_num_);
-  pool->available_slot_ids_.push_back(slot_id);
+  {
+    std::lock_guard lock(*pool->synchronizer_);
+    CHECK_LT(slot_id, pool->slot_num_);
+    CHECK_LT(pool->available_slot_ids_.size(), pool->slot_num_);
+    CHECK_GE(pool->available_slot_ids_.capacity(), pool->slot_num_);
+    pool->available_slot_ids_.push_back(slot_id);
+    pool->synchronizer_->NotifyOne();
+  }
   VLOG(10) << "Released slot_id=" << slot_id;
-  bthread_cond_signal(&pool->cond_);
-  bthread_mutex_unlock(&pool->mutex_);
 }
 
 }  // namespace neug

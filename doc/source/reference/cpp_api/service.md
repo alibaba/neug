@@ -2,9 +2,9 @@
 
 **Full name:** `neug::NeugDBService`
 
-NeuG database HTTP service for high-throughput scenarios.
+NeuG database service facade for remote TP workloads.
 
-`NeugDBService` provides an HTTP interface layer for the NeuG graph database, enabling remote query execution over HTTP. It manages the lifecycle of a BRPC-based HTTP server that handles Cypher queries, service status requests, and schema queries through RESTful endpoints.
+`NeugDBService` coordinates a TP runtime and an `IServiceTransport`. The default transport uses BRPC to expose HTTP endpoints; query execution and transaction ownership remain in the runtime, independently of the network handlers.
 This is the C++ equivalent of Python's `Database.serve()` functionality, designed for high-throughput Transaction Processing (TP) scenarios where multiple clients need concurrent access to the database.
 
 **Usage Example:** 
@@ -19,13 +19,12 @@ int main() {
   neug::ServiceConfig config;
   config.query_port = 10000;
   config.host_str = "0.0.0.0";
-  // 3. Start HTTP service
-  neug::NeugDBService service(db, config);
-  std::string url = service.Start();
-  std::cout << "Service running at: " << url << std::endl;
-  // 4. Block until shutdown signal (Ctrl+C)
-  service.run_and_wait_for_exit();
-  // 5. Cleanup
+  // 3. Start and block until shutdown (Ctrl+C or Stop from another thread).
+  {
+    neug::NeugDBService service(db, config);
+    service.run_and_wait_for_exit();
+  }
+  // 4. Close after service resources have been released.
   db.Close();
   return 0;
 }
@@ -34,7 +33,7 @@ int main() {
 **HTTP Endpoints:**
 - `POST /cypher` - Execute Cypher queries
 - `GET /schema` - Retrieve graph schema
-- `GET /status` - Check service status
+- `GET /service_status` - Check service status
 - `POST /transactions` - Begin an explicit TP transaction session
 - `POST /transactions/{id}/query|commit|rollback` - Operate on a session
 
@@ -56,6 +55,17 @@ Construction requires all existing embedded connections to be closed first.
   - The database should be opened and ready before creating the service
   - At most one `NeugDBService` can be associated with a `NeugDB` instance at any given time. The association is released when the service is destructed.
 
+#### `NeugDBService(NeugDB &db, const ServiceConfig &config, const TransportFactory &factory)`
+
+Builds the service with another transport.
+
+The factory must not start request callbacks; `NeugDBService` starts them after configuring the runtime.
+
+- **Parameters:**
+  - `db`
+  - `config`
+  - `factory`
+
 #### `~NeugDBService()`
 
 Destructor that ensures proper cleanup.
@@ -75,7 +85,7 @@ Direct database access bypasses the service layer
 
 #### `Start()`
 
-Starts the HTTP server.
+Starts the service transport.
 
 Binds to the configured host and port and begins accepting HTTP requests. Returns the full URL where the service is accessible.
 
@@ -88,9 +98,9 @@ Binds to the configured host and port and begins accepting HTTP requests. Return
 
 #### `Stop()`
 
-Stops the HTTP server gracefully.
+Stops the service and drains its requests and transactions.
 
-Stops accepting new connections and shuts down the BRPC server. This method is thread-safe and can be called from signal handlers.
+Stops accepting new requests, drains explicit transactions, joins active transport callbacks, and stops background compaction. Thread-safe, but not safe to call directly from an asynchronous signal handler.
 
 - **Notes:**
   - Prints status messages to stderr if service is not properly initialized
@@ -129,13 +139,12 @@ auto result = lease->ExecuteTransactionalRequest(
 
 #### `IsRunning() const`
 
-Checks if the HTTP server is currently running.
+Checks if the service transport is accepting requests.
 
 - **Notes:**
-  - This delegates to the HTTP handler manager's `IsRunning()` method
   - Thread-safe query of server state
 
-- **Returns:** `true` if the underlying BRPC server is accepting connections
+- **Returns:** `true` after successful `Start()`, until the transport stops accepting requests during shutdown
 
 #### `service_status()`
 
@@ -155,7 +164,7 @@ Returns status messages indicating the current state:
 
 Starts service and blocks until shutdown signal.
 
-Convenience method that starts the HTTP server and blocks the calling thread until the server is asked to quit (via `Stop()` or signal). Uses the underlying BRPC server's RunUntilAskedToQuit() mechanism.
+Convenience method that starts the service transport and blocks the calling thread until the server is asked to quit (via `Stop()` or signal).
 
 - **Notes:**
   - This is the typical way to run the service in production
@@ -163,7 +172,7 @@ Convenience method that starts the HTTP server and blocks the calling thread unt
 - **Throws:**
   - `std::runtime_error`: If service is not initialized
   - `std::runtime_error`: If service is already running
-  - `std::runtime_error`: If HTTP handler manager is not available
+  - `std::runtime_error`: If the service transport cannot start
 
 
 ---
@@ -271,7 +280,7 @@ Pool of database slots for concurrent query execution.
 
 **Key Features:**
 - Owns service-local slots for query execution
-- Thread-safe lease/release with bthread synchronization
+- Thread-safe lease/release with scheduler-aware waiting
 - Stable WAL (Write-Ahead Log) writer per logical slot
 - 4096-byte-aligned per-slot Entry storage
 
