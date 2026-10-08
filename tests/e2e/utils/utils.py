@@ -158,9 +158,7 @@ def parse_test_file(
             else:
                 # Reaching EOF before the closing bracket means a malformed
                 # test file would silently swallow all remaining cases.
-                raise ValueError(
-                    f"Unterminated -DEFINE_STATEMENT_BLOCK in {file_path}"
-                )
+                raise ValueError(f"Unterminated -DEFINE_STATEMENT_BLOCK in {file_path}")
         elif line.startswith(NAME):
             if not case_name:
                 query_name_prefix = line.split()[1]
