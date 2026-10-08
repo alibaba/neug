@@ -77,6 +77,7 @@ message ListArray {
 message StructArray {
   repeated Array fields = 1;  
   bytes validity = 2;
+  repeated string field_names = 3;
 }
 
 

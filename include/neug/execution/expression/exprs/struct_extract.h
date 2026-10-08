@@ -48,14 +48,14 @@ class StructExtractExpr : public ExprBase {
 // Projection-pushdown factories used by property accessors. `parent_columns`
 // are the per-label struct ref columns backing a struct property; each is
 // narrowed to its `field_idx` child column. Returns nullptr when any present
-// column is not a struct ref column, letting the caller fall back to
+// column has a different struct layout, letting the caller fall back to
 // whole-struct evaluation.
 std::unique_ptr<BindedExprBase> bind_vertex_struct_field(
     const std::vector<std::shared_ptr<RefColumnBase>>& parent_columns,
-    size_t field_idx, const DataType& field_type);
+    const DataType& struct_type, size_t field_idx, const DataType& field_type);
 std::unique_ptr<BindedExprBase> bind_record_vertex_struct_field(
     int tag, const std::vector<std::shared_ptr<RefColumnBase>>& parent_columns,
-    size_t field_idx, const DataType& field_type);
+    const DataType& struct_type, size_t field_idx, const DataType& field_type);
 
 }  // namespace execution
 }  // namespace neug

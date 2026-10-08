@@ -473,9 +473,11 @@ static void add_column(const std::shared_ptr<IContextColumn>& col,
   case DataTypeId::kStruct: {
     auto casted = std::dynamic_pointer_cast<StructColumn>(col);
     auto struct_col = column->mutable_struct_array();
+    const auto& field_names = StructType::GetFieldNames(casted->elem_type());
     const auto& children = casted->children();
     struct_col->mutable_fields()->Reserve(children.size());
     for (size_t i = 0; i < children.size(); ++i) {
+      struct_col->add_field_names(i < field_names.size() ? field_names[i] : "");
       auto child_field = struct_col->add_fields();
       add_column(children[i], graph, child_field);
     }

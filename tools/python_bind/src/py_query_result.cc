@@ -176,8 +176,12 @@ static void build_column_schema(OwnedSchema& root, ArrowSchema& col,
     ch->child_ptrs.resize(nf);
     for (int i = 0; i < nf; ++i) {
       ch->child_ptrs[i] = &ch->children[i];
+      const auto field_name =
+          i < sa.field_names_size() && !sa.field_names(i).empty()
+              ? sa.field_names(i)
+              : "f" + std::to_string(i);
       build_column_schema(*ch, ch->children[i], sa.fields(i),
-                          dup_string(*ch, "f" + std::to_string(i)));
+                          dup_string(*ch, field_name));
     }
     col.children = ch->child_ptrs.data();
     col.private_data = ch;

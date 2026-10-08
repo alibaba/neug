@@ -47,7 +47,8 @@ class BindedVertexPropertyAccessor : public VertexExprBase {
 
   std::unique_ptr<BindedExprBase> bind_struct_field(
       size_t field_idx, const DataType& field_type) const override {
-    return bind_vertex_struct_field(property_columns_, field_idx, field_type);
+    return bind_vertex_struct_field(property_columns_, type_, field_idx,
+                                    field_type);
   }
 
  private:

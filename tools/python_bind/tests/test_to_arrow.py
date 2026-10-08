@@ -379,10 +379,7 @@ def test_to_arrow_struct_column(tmp_path):
         .to_pylist()
     )
 
-    assert structs[0].get("x", structs[0].get("f0")) == 10
-    assert structs[0].get("y", structs[0].get("f1")) == "hello"
-    assert structs[1].get("x", structs[1].get("f0")) == 20
-    assert structs[1].get("y", structs[1].get("f1")) == "world"
+    assert structs == [{"x": 10, "y": "hello"}, {"x": 20, "y": "world"}]
 
     cast_structs = (
         conn.execute(
@@ -437,3 +434,31 @@ def test_to_arrow_to_pandas(tmp_path):
 
     conn.close()
     db.close()
+
+
+def test_to_arrow_nested_struct_field_names(tmp_path):
+    db, conn = _make_db(tmp_path, "nested_struct_names")
+    try:
+        conn.execute(
+            "CREATE NODE TABLE ST(id INT64, "
+            "info STRUCT(address STRUCT(city STRING, zip INT64), "
+            "history STRUCT(city STRING, zip INT64)[]), PRIMARY KEY(id))"
+        )
+        conn.execute(
+            "CREATE (:ST {id:1, info:"
+            "{address:{city:'hz', zip:310000}, "
+            "history:CAST([{city:'sh', zip:200000}], "
+            "'STRUCT(city STRING, zip INT64)[]')}})"
+        )
+        result = conn.execute("MATCH (n:ST) RETURN n.info AS info").to_arrow()
+        assert result.to_pylist() == [
+            {
+                "info": {
+                    "address": {"city": "hz", "zip": 310000},
+                    "history": [{"city": "sh", "zip": 200000}],
+                }
+            }
+        ]
+    finally:
+        conn.close()
+        db.close()

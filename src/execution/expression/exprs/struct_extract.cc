@@ -24,11 +24,11 @@ namespace {
 
 // Narrows per-label struct ref columns to their `field_idx` child columns,
 // preserving null columns (a label without the property). Returns an empty
-// vector when any present column is not a struct ref column, meaning pushdown
-// does not apply and the caller falls back to whole-struct evaluation.
+// vector when any present column has a different struct layout, meaning
+// pushdown does not apply and the caller falls back to whole-struct evaluation.
 std::vector<std::shared_ptr<RefColumnBase>> narrow_to_field(
     const std::vector<std::shared_ptr<RefColumnBase>>& parent_columns,
-    size_t field_idx) {
+    const DataType& struct_type, size_t field_idx) {
   std::vector<std::shared_ptr<RefColumnBase>> field_columns;
   field_columns.reserve(parent_columns.size());
   for (const auto& column : parent_columns) {
@@ -38,7 +38,9 @@ std::vector<std::shared_ptr<RefColumnBase>> narrow_to_field(
     }
     auto* struct_column =
         dynamic_cast<const StructPropertyRefColumn*>(column.get());
-    if (struct_column == nullptr) {
+    if (struct_column == nullptr ||
+        struct_column->struct_type() != struct_type ||
+        field_idx >= StructType::GetNumFields(struct_type)) {
       return {};
     }
     field_columns.push_back(struct_column->field_ref_ptr(field_idx));
@@ -70,7 +72,8 @@ class BindedVertexStructFieldExpr : public VertexExprBase {
   const DataType& type() const override { return type_; }
   std::unique_ptr<BindedExprBase> bind_struct_field(
       size_t field_idx, const DataType& field_type) const override {
-    return bind_vertex_struct_field(field_columns_, field_idx, field_type);
+    return bind_vertex_struct_field(field_columns_, type_, field_idx,
+                                    field_type);
   }
 
  private:
@@ -98,8 +101,8 @@ class BindedRecordVertexStructFieldExpr : public RecordExprBase {
   const DataType& type() const override { return type_; }
   std::unique_ptr<BindedExprBase> bind_struct_field(
       size_t field_idx, const DataType& field_type) const override {
-    return bind_record_vertex_struct_field(tag_, field_columns_, field_idx,
-                                           field_type);
+    return bind_record_vertex_struct_field(tag_, field_columns_, type_,
+                                           field_idx, field_type);
   }
 
  private:
@@ -165,8 +168,8 @@ std::unique_ptr<BindedExprBase> StructExtractExpr::bind(
 
 std::unique_ptr<BindedExprBase> bind_vertex_struct_field(
     const std::vector<std::shared_ptr<RefColumnBase>>& parent_columns,
-    size_t field_idx, const DataType& field_type) {
-  auto field_columns = narrow_to_field(parent_columns, field_idx);
+    const DataType& struct_type, size_t field_idx, const DataType& field_type) {
+  auto field_columns = narrow_to_field(parent_columns, struct_type, field_idx);
   if (field_columns.empty()) {
     return nullptr;
   }
@@ -176,8 +179,8 @@ std::unique_ptr<BindedExprBase> bind_vertex_struct_field(
 
 std::unique_ptr<BindedExprBase> bind_record_vertex_struct_field(
     int tag, const std::vector<std::shared_ptr<RefColumnBase>>& parent_columns,
-    size_t field_idx, const DataType& field_type) {
-  auto field_columns = narrow_to_field(parent_columns, field_idx);
+    const DataType& struct_type, size_t field_idx, const DataType& field_type) {
+  auto field_columns = narrow_to_field(parent_columns, struct_type, field_idx);
   if (field_columns.empty()) {
     return nullptr;
   }

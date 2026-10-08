@@ -586,3 +586,34 @@ def test_create_knows_if_not_exists(modern_graph):
     )
     records = list(res)
     assert records == [[2]]
+
+
+@pytest.mark.parametrize(
+    "other_type",
+    [
+        "STRUCT(x INT64)",
+        "STRUCT(x INT64, y STRING)",
+        "STRUCT(x INT64, y STRUCT(z INT64))",
+        "STRUCT(x INT64, y STRUCT(z INT64, value INT64))",
+    ],
+)
+def test_struct_field_access_with_unrelated_layout(tmp_path, other_type):
+    db = Database(db_path=str(tmp_path / "struct_layout"), mode="w")
+    conn = db.connect()
+    try:
+        conn.execute(
+            "CREATE NODE TABLE T(id INT64, "
+            "s STRUCT(x INT64, y STRUCT(z INT64, value INT64)), PRIMARY KEY(id))"
+        )
+        conn.execute(f"CREATE NODE TABLE U(id INT64, s {other_type}, PRIMARY KEY(id))")
+        conn.execute("CREATE (:T {id:1, s:{x:10, y:{z:20, value:30}}})")
+        assert list(conn.execute("MATCH (n:T) RETURN n.s.y.value")) == [[30]]
+        assert list(conn.execute("MATCH (n:T) WHERE n.s.y.value = 30 RETURN n.id")) == [
+            [1]
+        ]
+        assert list(conn.execute("MATCH (n:T) WITH n.s AS s RETURN s.y.value")) == [
+            [30]
+        ]
+    finally:
+        conn.close()
+        db.close()

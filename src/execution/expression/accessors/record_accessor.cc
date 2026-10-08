@@ -82,8 +82,8 @@ class BindedRecordVertexPropertyExpr : public RecordExprBase {
 
   std::unique_ptr<BindedExprBase> bind_struct_field(
       size_t field_idx, const DataType& field_type) const override {
-    return bind_record_vertex_struct_field(tag_, property_columns_, field_idx,
-                                           field_type);
+    return bind_record_vertex_struct_field(tag_, property_columns_, type_,
+                                           field_idx, field_type);
   }
 
  private:
