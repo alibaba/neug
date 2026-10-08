@@ -461,14 +461,12 @@ Status buildNode(const Array& input, int32_t begin, int32_t count,
       auto childArray = makeCDataObject<ArrowArray>();
       // Prefer the struct's real field names; positional tuples carry none
       // and fall back to "field_<i>".
-      const auto fieldName =
-          field < structure.field_names_size() &&
-                  !structure.field_names(field).empty()
-              ? structure.field_names(field)
-              : "field_" + std::to_string(field);
-      auto status = buildNode(structure.fields(field), begin, count,
-                              fieldName, *childSchema,
-                              *childArray);
+      const auto fieldName = field < structure.field_names_size() &&
+                                     !structure.field_names(field).empty()
+                                 ? structure.field_names(field)
+                                 : "field_" + std::to_string(field);
+      auto status = buildNode(structure.fields(field), begin, count, fieldName,
+                              *childSchema, *childArray);
       if (!status.ok()) {
         return status;
       }

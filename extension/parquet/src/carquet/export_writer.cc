@@ -343,11 +343,10 @@ carquet_status_t addField(carquet_schema_t* schema, const char* name,
     for (int32_t field = 0; field < structure.fields_size(); ++field) {
       // Prefer the struct's real field names; positional tuples carry none
       // and fall back to "field_<i>".
-      const auto fieldName =
-          field < structure.field_names_size() &&
-                  !structure.field_names(field).empty()
-              ? structure.field_names(field)
-              : "field_" + std::to_string(field);
+      const auto fieldName = field < structure.field_names_size() &&
+                                     !structure.field_names(field).empty()
+                                 ? structure.field_names(field)
+                                 : "field_" + std::to_string(field);
       const auto* fieldType = tuple ? &tuple->component_types(field) : nullptr;
       const auto status =
           addField(schema, fieldName.c_str(), structure.fields(field),

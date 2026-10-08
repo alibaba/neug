@@ -134,11 +134,10 @@ static std::shared_ptr<arrow::DataType> inferArrowTypeFromArray(
       auto field_type = inferArrowTypeFromArray(struct_arr.fields(i));
       // Prefer the struct's real field names; positional tuples carry none
       // and fall back to "field_<i>".
-      const auto field_name =
-          i < struct_arr.field_names_size() &&
-                  !struct_arr.field_names(i).empty()
-              ? struct_arr.field_names(i)
-              : "field_" + std::to_string(i);
+      const auto field_name = i < struct_arr.field_names_size() &&
+                                      !struct_arr.field_names(i).empty()
+                                  ? struct_arr.field_names(i)
+                                  : "field_" + std::to_string(i);
       fields.push_back(arrow::field(field_name, field_type));
     }
     return arrow::struct_(fields);
