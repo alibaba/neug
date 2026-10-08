@@ -13,8 +13,13 @@
  * limitations under the License.
  */
 
+#include <algorithm>
+#include <array>
 #include <cstdio>
 #include <filesystem>
+#include <string>
+#include <string_view>
+#include <vector>
 
 #include <gtest/gtest.h>
 
@@ -23,12 +28,159 @@
 #include "neug/utils/datetime_parsers.h"
 #include "neug/utils/encoder.h"
 #include "neug/utils/io/read/common/type_converter.h"
+#include "neug/utils/md5.h"
 #include "neug/utils/pb_utils.h"
 #include "neug/utils/string_view_vector.h"
 #include "neug/utils/yaml_utils.h"
 
 namespace neug {
 namespace test {
+namespace {
+
+std::string MD5Hex(const MD5::Digest& digest) {
+  constexpr char hex[] = "0123456789abcdef";
+  std::string result;
+  result.reserve(digest.size() * 2);
+  for (unsigned char byte : digest) {
+    result.push_back(hex[byte >> 4]);
+    result.push_back(hex[byte & 0x0f]);
+  }
+  return result;
+}
+
+}  // namespace
+
+TEST(MD5Test, RFC1321Vectors) {
+  const struct {
+    std::string_view input;
+    const char* expected;
+  } cases[] = {
+      {"", "d41d8cd98f00b204e9800998ecf8427e"},
+      {"a", "0cc175b9c0f1b6a831c399e269772661"},
+      {"abc", "900150983cd24fb0d6963f7d28e17f72"},
+      {"message digest", "f96b697d7cb7938d525a2f31aaf161d0"},
+      {"abcdefghijklmnopqrstuvwxyz", "c3fcd3d76192e4007dfb496cca67e13b"},
+      {"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789",
+       "d174ab98d277d9f5a5611c2c9f419d9f"},
+      {"123456789012345678901234567890123456789012345678901234567890123456789"
+       "01234567890",
+       "57edf4a22be3c955ac49da2e2107b67a"},
+  };
+  for (const auto& test_case : cases) {
+    SCOPED_TRACE(test_case.input);
+    EXPECT_EQ(
+        MD5Hex(MD5::Compute(test_case.input.data(), test_case.input.size())),
+        test_case.expected);
+  }
+}
+
+TEST(MD5Test, BinaryPaddingBoundaries) {
+  // Independent fixtures from hashlib.md5(bytes(range(length))).hexdigest().
+  const struct {
+    size_t length;
+    const char* expected;
+  } cases[] = {
+      {1, "93b885adfe0da089cdf634904fd59f71"},
+      {55, "6912ee65fff2d9f9ce2508cddf8bcda0"},
+      {56, "51fdd1acda72405dfdfa03fcb85896d7"},
+      {63, "48a6295221902e8e0938f773a7185e72"},
+      {64, "b2d3f56bc197fd985d5965079b5e7148"},
+      {65, "8bd7053801c768420faf816fadba971c"},
+      {119, "1c772251899a7ff007400b888d6b2042"},
+      {120, "b7ba1efc6022e9ed272f00b8831e26e6"},
+      {127, "8402b21e7bc7906493bae0dac017f1f9"},
+      {128, "37eff01866ba3f538421b30b7cbefcac"},
+      {129, "46f986692847558fc38b0cece591c20f"},
+  };
+  std::array<unsigned char, 129> input{};
+  for (size_t i = 0; i < input.size(); ++i) {
+    input[i] = static_cast<unsigned char>(i);
+  }
+  for (const auto& test_case : cases) {
+    SCOPED_TRACE(test_case.length);
+    EXPECT_EQ(MD5Hex(MD5::Compute(input.data(), test_case.length)),
+              test_case.expected);
+    // Splitting immediately before the last byte exercises a buffered tail.
+    MD5 streamed;
+    streamed.Update(input.data(), test_case.length - 1);
+    streamed.Update(input.data() + test_case.length - 1, 1);
+    EXPECT_EQ(MD5Hex(streamed.Finalize()), test_case.expected);
+  }
+}
+
+TEST(MD5Test, UnalignedBinaryInputAndChunkSizes) {
+  alignas(8) std::array<unsigned char, 257> storage{};
+  auto* input = storage.data() + 1;
+  for (size_t i = 0; i < 256; ++i) {
+    input[i] = static_cast<unsigned char>(i);
+  }
+  constexpr char expected[] = "e2c865db4162bed963bfaa9ef6ac18f0";
+  EXPECT_EQ(MD5Hex(MD5::Compute(input, 256)), expected);
+  for (size_t chunk_size : {1, 3, 7, 55, 56, 63, 64, 65, 127, 256}) {
+    SCOPED_TRACE(chunk_size);
+    MD5 streamed;
+    for (size_t offset = 0; offset < 256; offset += chunk_size) {
+      streamed.Update(nullptr, 0);
+      streamed.Update(input + offset, std::min(chunk_size, 256 - offset));
+    }
+    EXPECT_EQ(MD5Hex(streamed.Finalize()), expected);
+  }
+}
+
+TEST(MD5Test, EmptyResetAndNonMutatingFinalize) {
+  constexpr char empty[] = "d41d8cd98f00b204e9800998ecf8427e";
+  EXPECT_EQ(MD5Hex(MD5::Compute(nullptr, 0)), empty);
+  MD5 digest;
+  EXPECT_EQ(MD5Hex(digest.Finalize()), empty);
+  digest.Update(nullptr, 0);
+  EXPECT_EQ(MD5Hex(digest.Finalize()), empty);
+
+  digest.Update("a", 1);
+  const auto& snapshot = digest;
+  EXPECT_EQ(MD5Hex(snapshot.Finalize()), "0cc175b9c0f1b6a831c399e269772661");
+  EXPECT_EQ(MD5Hex(snapshot.Finalize()), "0cc175b9c0f1b6a831c399e269772661");
+  digest.Update("bc", 2);
+  EXPECT_EQ(MD5Hex(digest.Finalize()), "900150983cd24fb0d6963f7d28e17f72");
+
+  digest.Reset();
+  EXPECT_EQ(MD5Hex(digest.Finalize()), empty);
+  digest.Update("message digest", 14);
+  EXPECT_EQ(MD5Hex(digest.Finalize()), "f96b697d7cb7938d525a2f31aaf161d0");
+}
+
+TEST(MD5Test, MillionBytesInIndependentContexts) {
+  const std::string block(1000, 'a');
+  MD5 digest;
+  MD5 independent;
+  independent.Update("abc", 3);
+  for (size_t i = 0; i < 1000; ++i) {
+    digest.Update(block.data(), block.size());
+  }
+  EXPECT_EQ(MD5Hex(digest.Finalize()), "7707d6ae4e027c70eea2a935c2296f21");
+  EXPECT_EQ(MD5Hex(independent.Finalize()), "900150983cd24fb0d6963f7d28e17f72");
+}
+
+// Opt in with --gtest_also_run_disabled_tests and the exact test filter. This
+// hashes over 4 GiB but retains only a 1 MiB buffer. Fixtures were generated by
+// hashlib.md5(), updating with bytes(range(256)) * 4096 for each block.
+TEST(MD5Test, DISABLED_LengthCounterBeyondFourGiB) {
+  std::vector<unsigned char> block(1024 * 1024);
+  for (size_t i = 0; i < block.size(); ++i) {
+    block[i] = static_cast<unsigned char>(i & 0xff);
+  }
+  MD5 digest;
+  for (size_t i = 0; i < 4096; ++i) {
+    digest.Update(block.data(), block.size());
+    if (i == 511) {
+      // 512 MiB is the first carry beyond a 32-bit bit counter.
+      EXPECT_EQ(MD5Hex(digest.Finalize()), "31077c1c4e040c748ac6aee4d1723b5e");
+    }
+  }
+  EXPECT_EQ(MD5Hex(digest.Finalize()), "fe86844fc3d92814461c48025d2bcb7c");
+  digest.Update("a", 1);
+  EXPECT_EQ(MD5Hex(digest.Finalize()), "2ea5f234554cdbfcde3c45aff80d1e02");
+}
+
 class BitsetTest : public ::testing::Test {
  protected:
   void SetUp() override {}

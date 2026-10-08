@@ -15,14 +15,29 @@
 
 #include <gtest/gtest.h>
 
+#include <array>
 #include <cstring>
 #include <filesystem>
+#include <fstream>
 #include <string>
 
 #include "neug/storages/checkpoint_manager.h"
+#include "neug/storages/container/file_header.h"
 #include "neug/storages/container/file_mmap_container.h"
 
 namespace {
+
+// Raw MD5 bytes written by the legacy OpenSSL-backed format. Keep these
+// independent of the new digest implementation so format regressions fail.
+constexpr std::array<unsigned char, 16> kAbcMD5 = {
+    0x90, 0x01, 0x50, 0x98, 0x3c, 0xd2, 0x4f, 0xb0,
+    0xd6, 0x96, 0x3f, 0x7d, 0x28, 0xe1, 0x7f, 0x72};
+constexpr std::array<unsigned char, 16> kAbdMD5 = {
+    0x49, 0x11, 0xe5, 0x16, 0xe5, 0xaa, 0x21, 0xd3,
+    0x27, 0x51, 0x2e, 0x0c, 0x8b, 0x19, 0x76, 0x16};
+constexpr std::array<unsigned char, 16> kEmptyMD5 = {
+    0xd4, 0x1d, 0x8c, 0xd9, 0x8f, 0x00, 0xb2, 0x04,
+    0xe9, 0x80, 0x09, 0x98, 0xec, 0xf8, 0x42, 0x7e};
 
 template <typename Container>
 class DirtyCheckCountingContainer : public Container {
@@ -58,8 +73,117 @@ class MMapContainerTest : public ::testing::Test {
     return path;
   }
 
+  void WriteLegacyFile(const std::string& path, const std::string& payload,
+                       const std::array<unsigned char, 16>& md5) {
+    std::ofstream file(path, std::ios::binary);
+    ASSERT_TRUE(file.is_open());
+    file.write(reinterpret_cast<const char*>(md5.data()), md5.size());
+    file.write(payload.data(), payload.size());
+    file.close();
+    ASSERT_TRUE(file.good());
+  }
+
+  void ExpectFileContents(const std::string& path, const std::string& payload,
+                          const std::array<unsigned char, 16>& md5) {
+    ASSERT_EQ(sizeof(neug::FileHeader), 16u);
+    ASSERT_EQ(std::filesystem::file_size(path), 16u + payload.size());
+    std::ifstream file(path, std::ios::binary);
+    ASSERT_TRUE(file.is_open());
+    std::array<unsigned char, 16> header{};
+    file.read(reinterpret_cast<char*>(header.data()), header.size());
+    ASSERT_TRUE(file.good());
+    EXPECT_EQ(header, md5);
+    std::string stored(payload.size(), '\0');
+    file.read(stored.data(), stored.size());
+    ASSERT_TRUE(file.good());
+    EXPECT_EQ(stored, payload);
+  }
+
   std::filesystem::path test_dir_;
 };
+
+TEST_F(MMapContainerTest, LegacyMD5HeaderDumpCompatibility) {
+  const auto path = (test_dir_ / "legacy.bin").string();
+  WriteLegacyFile(path, "abc", kAbcMD5);
+  neug::FilePrivateMMap container;
+  container.Open(path);
+  ASSERT_EQ(container.GetDataSize(), 3u);
+  EXPECT_EQ(std::memcmp(container.GetData(), "abc", 3), 0);
+  EXPECT_FALSE(container.IsDirty());
+
+  static_cast<char*>(container.GetData())[2] = 'd';
+  EXPECT_TRUE(container.IsDirty());
+  const auto output = (test_dir_ / "updated.bin").string();
+  container.Dump(output);
+  ExpectFileContents(output, "abd", kAbdMD5);
+  ExpectFileContents(path, "abc", kAbcMD5);
+  container.Open(output);
+  EXPECT_FALSE(container.IsDirty());
+}
+
+TEST_F(MMapContainerTest, LegacyMD5HeaderSyncCompatibility) {
+  const auto path = (test_dir_ / "legacy_shared.bin").string();
+  WriteLegacyFile(path, "abc", kAbcMD5);
+  neug::FileSharedMMap container;
+  container.Open(path);
+  ASSERT_EQ(container.GetDataSize(), 3u);
+  EXPECT_FALSE(container.IsDirty());
+  container.Sync();
+  ExpectFileContents(path, "abc", kAbcMD5);
+
+  static_cast<char*>(container.GetData())[2] = 'd';
+  EXPECT_TRUE(container.IsDirty());
+  container.Sync();
+  EXPECT_FALSE(container.IsDirty());
+  container.Close();
+  ExpectFileContents(path, "abd", kAbdMD5);
+  container.Open(path);
+  EXPECT_FALSE(container.IsDirty());
+}
+
+TEST_F(MMapContainerTest, LegacyMD5HeaderCheckpointReuse) {
+  neug::CheckpointManager manager;
+  manager.Open(test_dir_.string());
+  auto staging = manager.CreateStaging();
+  auto checkpoint = staging.checkpoint();
+  const auto path =
+      (test_dir_ / "checkpoint" / "objects" / "legacy-md5.bin").string();
+  WriteLegacyFile(path, "abc", kAbcMD5);
+  neug::FilePrivateMMap container;
+  container.Open(path);
+  EXPECT_EQ(checkpoint->Commit(container), path);
+  ExpectFileContents(path, "abc", kAbcMD5);
+
+  container.Open(path);
+  ASSERT_EQ(container.GetDataSize(), 3u);
+  static_cast<char*>(container.GetData())[2] = 'd';
+  const auto modified_path = checkpoint->Commit(container);
+  EXPECT_NE(modified_path, path);
+  ExpectFileContents(modified_path, "abd", kAbdMD5);
+  ExpectFileContents(path, "abc", kAbcMD5);
+  container.Open(modified_path);
+  EXPECT_FALSE(container.IsDirty());
+}
+
+TEST_F(MMapContainerTest, EmptyDumpPreservesLegacyMD5Header) {
+  const auto path = (test_dir_ / "empty.bin").string();
+  neug::FilePrivateMMap container;
+  container.Dump(path);
+  ExpectFileContents(path, "", kEmptyMD5);
+  container.Open(path);
+  EXPECT_EQ(container.GetDataSize(), 0u);
+  EXPECT_FALSE(container.IsDirty());
+  const auto output = (test_dir_ / "empty_copy.bin").string();
+  container.Dump(output);
+  ExpectFileContents(output, "", kEmptyMD5);
+
+  neug::FileSharedMMap shared;
+  shared.Open(output);
+  shared.Sync();
+  EXPECT_FALSE(shared.IsDirty());
+  shared.Close();
+  ExpectFileContents(output, "", kEmptyMD5);
+}
 
 TEST_F(MMapContainerTest, CommitRuntimeFileSkipsDirtyCheck) {
   neug::CheckpointManager manager;

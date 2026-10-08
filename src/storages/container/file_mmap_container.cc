@@ -56,6 +56,7 @@
 #include "neug/storages/container/file_header.h"
 #include "neug/storages/container/file_mmap_container.h"
 #include "neug/utils/io/file/file_utils.h"
+#include "neug/utils/md5.h"
 
 namespace neug {
 
@@ -145,12 +146,11 @@ void FileSharedMMap::Sync() {
   if (mmap_data_ == nullptr || data_ == nullptr || size_ == 0) {
     return;
   }
-  unsigned char md5[MD5_DIGEST_LENGTH];
-  MD5((unsigned char*) this->data_, this->size_, md5);
-  if (memcmp(md5, reinterpret_cast<FileHeader*>(mmap_data_)->data_md5,
-             MD5_DIGEST_LENGTH) != 0) {
-    memcpy(reinterpret_cast<FileHeader*>(mmap_data_)->data_md5, md5,
-           MD5_DIGEST_LENGTH);
+  const auto md5 = MD5::Compute(this->data_, this->size_);
+  if (memcmp(md5.data(), reinterpret_cast<FileHeader*>(mmap_data_)->data_md5,
+             md5.size()) != 0) {
+    memcpy(reinterpret_cast<FileHeader*>(mmap_data_)->data_md5, md5.data(),
+           md5.size());
     msync(mmap_data_, mmap_size_, MS_SYNC);
   }
 }
