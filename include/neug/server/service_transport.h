@@ -14,9 +14,13 @@
  */
 #pragma once
 
+#include <memory>
 #include <string>
 
+#include "neug/transaction/runtime_wait.h"
+
 namespace neug {
+class IExecutionSlotSynchronizer;
 
 /**
  * @brief Network lifecycle boundary for a TP service transport.
@@ -41,6 +45,18 @@ class IServiceTransport {
 
   /** Waits for active callbacks after StopAccepting(). Idempotent. */
   virtual void Join() noexcept = 0;
+
+  /** Scheduler wait used while this transport runs request callbacks. */
+  virtual RuntimeWaitFn RuntimeWait() const noexcept {
+    return &NativeRuntimeWait;
+  }
+
+  /** Creates a waiter compatible with this transport's callback scheduler. */
+  virtual std::unique_ptr<IExecutionSlotSynchronizer> CreateSlotSynchronizer()
+      const;
+
+  /** Whether this transport's process-wide shutdown has been requested. */
+  virtual bool IsExitRequested() const noexcept { return false; }
 
   /** Stops the transport and waits until handlers can no longer call the
    * service. */

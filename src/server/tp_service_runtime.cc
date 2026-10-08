@@ -15,16 +15,13 @@
 
 #include "tp_service_runtime.h"
 
-#include <algorithm>
 #include <chrono>
 #include <utility>
 
-#include <bthread/bthread.h>
 #include <glog/logging.h>
 
 #include "neug/main/checkpoint_coordinator.h"
 #include "neug/main/neug_db.h"
-#include "neug/server/bthread_runtime_wait.h"
 #include "neug/server/tp_execution_slot_pool.h"
 #include "neug/transaction/version_manager.h"
 #include "neug/utils/exception/exception.h"
@@ -59,28 +56,16 @@ TpServiceRuntime::TpServiceRuntime(NeugDB& db, const ServiceConfig& config)
           ? static_cast<size_t>(db_.config().max_thread_num)
           : static_cast<size_t>(service_config_.thread_num);
 
-  installBthreadRuntimeWait();
-  try {
-    // Keep the process-wide worker capacity sized for the database. The slot
-    // pool below enforces the service-local query concurrency limit.
-    bthread_setconcurrency(
-        std::max(db_.config().max_thread_num, BTHREAD_MIN_CONCURRENCY));
-    execution_slot_pool_ = std::make_unique<TpExecutionSlotPool>(
-        db_.graph_snapshot_store(), db_.GetPlanner(), db_.GetQueryCache(),
-        *db_.version_manager_, *db_.checkpoint_coordinator_,
-        db_.extension_manager(), db_.allocators_, *db_.wal_writers_,
-        db_.config(), service_slot_num);
-    LOG(INFO) << "TP runtime execution_slots="
-              << execution_slot_pool_->ExecutionSlotNum();
-    transaction_manager_ = std::make_unique<ServiceTransactionManager>(
-        *execution_slot_pool_, service_config_.max_explicit_transactions,
-        service_config_.explicit_transaction_timeout_ms);
-  } catch (...) {
-    transaction_manager_.reset();
-    execution_slot_pool_.reset();
-    restoreNativeRuntimeWait();
-    throw;
-  }
+  execution_slot_pool_ = std::make_unique<TpExecutionSlotPool>(
+      db_.graph_snapshot_store(), db_.GetPlanner(), db_.GetQueryCache(),
+      *db_.version_manager_, *db_.checkpoint_coordinator_,
+      db_.extension_manager(), db_.allocators_, *db_.wal_writers_, db_.config(),
+      service_slot_num);
+  LOG(INFO) << "TP runtime execution_slots="
+            << execution_slot_pool_->ExecutionSlotNum();
+  transaction_manager_ = std::make_unique<ServiceTransactionManager>(
+      *execution_slot_pool_, service_config_.max_explicit_transactions,
+      service_config_.explicit_transaction_timeout_ms);
 }
 
 TpServiceRuntime::~TpServiceRuntime() {
@@ -94,25 +79,31 @@ TpServiceRuntime::~TpServiceRuntime() {
   restoreNativeRuntimeWait();
 }
 
-void TpServiceRuntime::installBthreadRuntimeWait() {
-  CHECK(!bthread_runtime_wait_installed_);
-  if (!db_.version_manager_->try_set_runtime_wait_if_quiescent(
-          &BthreadRuntimeWait)) {
+void TpServiceRuntime::InitializeScheduler(
+    RuntimeWaitFn runtime_wait,
+    std::unique_ptr<IExecutionSlotSynchronizer> slot_synchronizer) {
+  CHECK(!runtime_wait_installed_);
+  if (!runtime_wait || !slot_synchronizer) {
     THROW_RUNTIME_ERROR(
-        "Cannot install bthread runtime wait while transactions are active.");
+        "Service scheduler requires a wait callback and slot synchronizer.");
   }
-  bthread_runtime_wait_installed_ = true;
+  if (!db_.version_manager_->try_set_runtime_wait_if_quiescent(runtime_wait)) {
+    THROW_RUNTIME_ERROR(
+        "Cannot install service runtime wait while transactions are active.");
+  }
+  execution_slot_pool_->SetSynchronizer(std::move(slot_synchronizer));
+  runtime_wait_installed_ = true;
 }
 
 void TpServiceRuntime::restoreNativeRuntimeWait() noexcept {
-  if (!bthread_runtime_wait_installed_) {
+  if (!runtime_wait_installed_) {
     return;
   }
   CHECK(db_.version_manager_->try_set_runtime_wait_if_quiescent(
       &NativeRuntimeWait))
       << "All service transactions must be quiescent before restoring native "
          "runtime wait";
-  bthread_runtime_wait_installed_ = false;
+  runtime_wait_installed_ = false;
 }
 
 result<QueryResult> TpServiceRuntime::ExecuteQuery(

@@ -47,6 +47,7 @@
 #include "neug/server/tp_execution_slot_pool.h"
 #include "neug/server/tp_operations.h"
 #include "neug/storages/graph/graph_interface.h"
+#include "neug/utils/exception/exception.h"
 #include "utils.h"
 
 namespace neug {
@@ -73,9 +74,12 @@ namespace {
 
 struct TransportProbe {
   ITpOperations* service = nullptr;
+  std::atomic<bool> exit_requested{false};
   int starts = 0;
   int stops = 0;
   bool fail_start = false;
+  bool null_slot_synchronizer = false;
+  RuntimeWaitFn runtime_wait = &NativeRuntimeWait;
   std::function<void()> on_start;
   std::function<void()> on_stop_accepting;
   std::function<void()> on_stop;
@@ -115,6 +119,18 @@ class ProbeTransport final : public IServiceTransport {
       }
       active_ = false;
     }
+  }
+  RuntimeWaitFn RuntimeWait() const noexcept override {
+    return probe_.runtime_wait;
+  }
+  std::unique_ptr<IExecutionSlotSynchronizer> CreateSlotSynchronizer()
+      const override {
+    return probe_.null_slot_synchronizer
+               ? nullptr
+               : IServiceTransport::CreateSlotSynchronizer();
+  }
+  bool IsExitRequested() const noexcept override {
+    return probe_.exit_requested.load(std::memory_order_relaxed);
   }
 
  private:
@@ -326,6 +342,73 @@ TEST_F(NeugDBServiceTest, TransportStopsAcceptingBeforeTransactionDrain) {
     EXPECT_EQ(probe.stops, round + 1);
   }
   EXPECT_EQ(probe.starts, 2);
+}
+
+TEST(NeugDBServiceDeathTest, NativeTransportWaitsForExecutionSlot) {
+  ::testing::FLAGS_gtest_death_test_style = "threadsafe";
+  EXPECT_EXIT(
+      {
+        alarm(20);
+        const auto path = std::filesystem::temp_directory_path() /
+                          ("neug_native_slot_wait_" + std::to_string(getpid()));
+        NeugDB db;
+        db.Open(path.string(), 1);
+        ServiceConfig config;
+        config.thread_num = 1;
+        config.auto_compaction = false;
+        TransportProbe probe;
+        auto service =
+            NeugDBServiceTestPeer::Create(db, config, [&](ITpOperations&) {
+              return std::make_unique<ProbeTransport>(probe);
+            });
+        service->Start();
+
+        std::promise<void> waiting;
+        std::promise<void> acquired;
+        auto waiting_future = waiting.get_future();
+        auto acquired_future = acquired.get_future();
+        std::thread waiter;
+        {
+          auto first = service->AcquireExecutionSlot();
+          waiter = std::thread([&]() {
+            waiting.set_value();
+            auto second = service->AcquireExecutionSlot();
+            acquired.set_value();
+          });
+          waiting_future.wait();
+          EXPECT_EQ(acquired_future.wait_for(std::chrono::milliseconds(100)),
+                    std::future_status::timeout);
+        }
+
+        EXPECT_EQ(acquired_future.wait_for(std::chrono::seconds(5)),
+                  std::future_status::ready);
+        waiter.join();
+        service->Stop();
+        service.reset();
+        db.Close();
+        std::filesystem::remove_all(path);
+        _exit(::testing::Test::HasFailure() ? 1 : 0);
+      },
+      ::testing::ExitedWithCode(0), "");
+}
+
+TEST_F(NeugDBServiceTest,
+       InvalidSchedulerConfigurationReleasesServiceRegistration) {
+  TransportProbe probe;
+  const NeugDBService::TransportFactory factory = [&](ITpOperations&) {
+    return std::make_unique<ProbeTransport>(probe);
+  };
+  probe.runtime_wait = nullptr;
+  EXPECT_THROW(NeugDBService(*db_, config_, factory), exception::RuntimeError);
+  probe.runtime_wait = &NativeRuntimeWait;
+  probe.null_slot_synchronizer = true;
+  EXPECT_THROW(NeugDBService(*db_, config_, factory), exception::RuntimeError);
+  probe.null_slot_synchronizer = false;
+  NeugDBService service(*db_, config_, factory);
+  EXPECT_EQ(service.Start(), "probe://service");
+  auto slot = service.AcquireExecutionSlot();
+  EXPECT_TRUE(static_cast<bool>(slot));
+  service.Stop();
 }
 
 TEST_F(NeugDBServiceTest, TransportStartFailureClosesAdmissionAndAllowsRetry) {
@@ -875,7 +958,11 @@ void CheckBlockingServiceLifecycle(bool request_quit, bool pause_waiter = false,
                   std::future_status::ready);
       }
       if (request_quit || !started) {
-        brpc::AskToQuit();
+        if (use_probe_transport) {
+          probe.exit_requested.store(true, std::memory_order_relaxed);
+        } else {
+          brpc::AskToQuit();
+        }
       } else {
         service.Stop();
       }
@@ -893,7 +980,11 @@ void CheckBlockingServiceLifecycle(bool request_quit, bool pause_waiter = false,
           std::future_status::ready;
       EXPECT_TRUE(returned_on_time);
       if (!returned_on_time) {
-        brpc::AskToQuit();
+        if (use_probe_transport) {
+          probe.exit_requested.store(true, std::memory_order_relaxed);
+        } else {
+          brpc::AskToQuit();
+        }
       }
       runner.join();
       EXPECT_NO_THROW(completed.get());
@@ -941,6 +1032,16 @@ TEST(NeugDBServiceDeathTest, BlockingLifecycleDoesNotDependOnTransportWait) {
   EXPECT_EXIT(
       {
         CheckBlockingServiceLifecycle(false, true, true);
+        _exit(::testing::Test::HasFailure() ? 1 : 0);
+      },
+      ::testing::ExitedWithCode(0), "");
+}
+
+TEST(NeugDBServiceDeathTest, BlockingWaitHonorsTransportExitRequest) {
+  ::testing::FLAGS_gtest_death_test_style = "threadsafe";
+  EXPECT_EXIT(
+      {
+        CheckBlockingServiceLifecycle(true, false, true);
         _exit(::testing::Test::HasFailure() ? 1 : 0);
       },
       ::testing::ExitedWithCode(0), "");

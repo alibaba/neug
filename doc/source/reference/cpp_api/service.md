@@ -55,6 +55,17 @@ Construction requires all existing embedded connections to be closed first.
   - The database should be opened and ready before creating the service
   - At most one `NeugDBService` can be associated with a `NeugDB` instance at any given time. The association is released when the service is destructed.
 
+#### `NeugDBService(NeugDB &db, const ServiceConfig &config, const TransportFactory &factory)`
+
+Builds the service with another transport.
+
+The factory must not start request callbacks; `NeugDBService` starts them after configuring the runtime.
+
+- **Parameters:**
+  - `db`
+  - `config`
+  - `factory`
+
 #### `~NeugDBService()`
 
 Destructor that ensures proper cleanup.
@@ -269,7 +280,7 @@ Pool of database slots for concurrent query execution.
 
 **Key Features:**
 - Owns service-local slots for query execution
-- Thread-safe lease/release with bthread synchronization
+- Thread-safe lease/release with scheduler-aware waiting
 - Stable WAL (Write-Ahead Log) writer per logical slot
 - 4096-byte-aligned per-slot Entry storage
 

@@ -24,6 +24,7 @@
 
 #include "neug/server/service_config.h"
 #include "neug/server/tp_operations.h"
+#include "neug/transaction/runtime_wait.h"
 
 namespace neug {
 
@@ -31,6 +32,7 @@ class NeugDB;
 class ExecutionSlotLease;
 class ServiceTransactionManager;
 class TpExecutionSlotPool;
+class IExecutionSlotSynchronizer;
 
 /** Owns TP runtime resources behind the service application boundary. */
 class TpServiceRuntime final : public ITpOperations {
@@ -56,6 +58,11 @@ class TpServiceRuntime final : public ITpOperations {
   void Drain();
   void StartCompaction();
   void StopCompaction();
+  /** Called exactly once during service construction, before any request
+   * callbacks. */
+  void InitializeScheduler(
+      RuntimeWaitFn runtime_wait,
+      std::unique_ptr<IExecutionSlotSynchronizer> slot_synchronizer);
 
   ExecutionSlotLease AcquireExecutionSlot();
   size_t ExecutionSlotNum() const;
@@ -63,7 +70,6 @@ class TpServiceRuntime final : public ITpOperations {
   const ServiceConfig& config() const { return service_config_; }
 
  private:
-  void installBthreadRuntimeWait();
   void restoreNativeRuntimeWait() noexcept;
 
   NeugDB& db_;
@@ -76,7 +82,7 @@ class TpServiceRuntime final : public ITpOperations {
   std::mutex compact_mtx_;
   std::condition_variable compact_cv_;
 
-  bool bthread_runtime_wait_installed_{false};
+  bool runtime_wait_installed_{false};
 };
 
 }  // namespace neug

@@ -15,17 +15,16 @@
 
 #include "neug/server/neug_db_service.h"
 
-#include <brpc/controller.h>
-
 #include <atomic>
 #include <chrono>
 #include <condition_variable>
 #include <iostream>
 #include <mutex>
 
-#include "brpc_transport.h"
+#include "default_service_transport.h"
 #include "neug/main/neug_db.h"
 #include "neug/server/service_transport.h"
+#include "neug/server/tp_execution_slot_pool.h"
 #include "neug/utils/exception/exception.h"
 #include "tp_service_runtime.h"
 
@@ -38,12 +37,14 @@ class NeugDBService::Impl {
         db_(db),
         runtime_(db_, config),
         transport_(factory ? factory(runtime_)
-                           : std::make_unique<BrpcTransport>(
-                                 runtime_, runtime_.config().host_str,
-                                 runtime_.config().query_port)) {
+                           : CreateDefaultServiceTransport(
+                                 runtime_, runtime_.config(),
+                                 db_.config().max_thread_num)) {
     if (!transport_) {
       THROW_RUNTIME_ERROR("Service transport factory returned null");
     }
+    runtime_.InitializeScheduler(transport_->RuntimeWait(),
+                                 transport_->CreateSlotSynchronizer());
   }
 
   ~Impl() { StopResources(); }
@@ -76,8 +77,7 @@ class NeugDBService::Impl {
         before_wait();
       }
       std::unique_lock<std::mutex> lock(mutex_);
-      // Preserve BRPC's process-wide quit-signal handling.
-      while (IsRunning() && !brpc::IsAskedToQuit()) {
+      while (IsRunning() && !transport_->IsExitRequested()) {
         stopped_cv_.wait_for(lock, std::chrono::milliseconds(100));
       }
     } catch (...) {

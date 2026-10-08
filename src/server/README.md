@@ -2,8 +2,10 @@
 
 `NeugDBService` owns the complete service lifecycle. Its implementation owns a
 `TpServiceRuntime` and an `IServiceTransport`; neither HTTP nor BRPC types appear
-in the transport contract. The public service constructor selects the existing
-BRPC backend directly in `neug_db_service.cc`.
+in the transport contract. The public constructor uses the default transport
+factory to select BRPC without making the facade or runtime depend on its API.
+Callers can supply a transport factory through the other public constructor;
+the factory must leave request callbacks stopped until `Start()`.
 
 ```text
 NeugDBService
@@ -32,8 +34,9 @@ protobuf RPC handler could share the same BRPC server and business interface;
 no RPC endpoint or alternative networking library is implemented here.
 
 `thread_num` limits the runtime's execution-slot pool. It is not the BRPC worker
-count. The transport receives only host and port, while the runtime owns database
-capacity, transaction limits, timeouts, and compaction settings.
+count. The default backend sizes process-wide bthread capacity from the database
+thread limit, while the runtime owns the service-local query limit, transaction
+limits, timeouts, and compaction settings.
 
 ## Service contract types
 
@@ -69,14 +72,18 @@ another thread has already stopped the server.
 
 ## Current backend dependencies
 
-The facade preserves `brpc::IsAskedToQuit()` behavior. The quit flag is
-process-wide, not a per-service stop flag; `Stop()` must not run directly inside
+The facade asks the transport whether process shutdown has been requested.
+`BrpcTransport` preserves `brpc::IsAskedToQuit()` behavior; its quit flag is
+process-wide, not a per-service stop flag. `Stop()` must not run directly inside
 an asynchronous signal handler. Signal tests therefore use separate processes.
 
-The runtime still installs `BthreadRuntimeWait` and initializes bthread capacity.
-Adding a native-thread backend requires selecting and validating an appropriate
-runtime wait strategy as well as changing transport construction. This refactor
-does not claim to remove the build dependency on BRPC/bthread.
+The runtime installs the transport's scheduler wait callback in the version
+manager and restores the native callback after callbacks and transactions
+drain. The execution-slot pool uses a transport-provided synchronizer, so a
+released slot wakes one waiter without polling or blocking a BRPC worker on a
+native condition variable. `BrpcTransport` supplies bthread waiting and
+synchronization; other transports use native defaults or provide their own.
+BRPC and bthread remain build dependencies of the default backend.
 
 ## Validation
 

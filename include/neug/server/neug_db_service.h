@@ -100,6 +100,15 @@ class NeugDBService {
   NeugDBService(neug::NeugDB& db,
                 const ServiceConfig& config = ServiceConfig());
 
+  using TransportFactory =
+      std::function<std::unique_ptr<IServiceTransport>(ITpOperations&)>;
+
+  /** Builds the service with another transport. The factory must not start
+   * request callbacks; NeugDBService starts them after configuring the runtime.
+   */
+  NeugDBService(NeugDB& db, const ServiceConfig& config,
+                const TransportFactory& factory);
+
   /**
    * @brief Gets direct access to the underlying graph database
    *
@@ -224,10 +233,6 @@ class NeugDBService {
 
  private:
   friend class NeugDBServiceTestPeer;
-  using TransportFactory =
-      std::function<std::unique_ptr<IServiceTransport>(ITpOperations&)>;
-  NeugDBService(NeugDB& db, const ServiceConfig& config,
-                const TransportFactory& factory);
   // A per-call test seam for pausing after startup, outside the lifecycle lock.
   void runAndWaitForExitWithHook(const std::function<void()>& before_wait);
   class Impl;
