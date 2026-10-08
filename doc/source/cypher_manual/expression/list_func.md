@@ -1,13 +1,16 @@
 # List Functions
 
-Since v0.2.0, NeuG provides built-in functions for working with list-like values. These functions provide common operations for constructing, combining, and manipulating collection values in Cypher queries.
+NeuG provides built-in functions for working with list-like values. These functions provide common operations for constructing, combining, and manipulating collection values in Cypher queries.
 
 The currently supported list functions are summarized below.
 
-| Function                          | Description                            | Example                              |
-| --------------------------------- | -------------------------------------- | ------------------------------------ |
-| `list_append(list_like, element)` | Appends one element to a list or array | `RETURN list_append([1, 2], 3)`      |
-| `list_concat(left, right)`        | Concatenates two lists or arrays       | `RETURN list_concat([1, 2], [3, 4])` |
+| Function                          | Description                              | Example                              | Version      |
+| --------------------------------- | ---------------------------------------- | ------------------------------------ | ------------ |
+| `list_append(list_like, element)` | Appends one element to a list or array   | `RETURN list_append([1, 2], 3)`      | Since v0.2.0 |
+| `list_concat(left, right)`        | Concatenates two lists or arrays         | `RETURN list_concat([1, 2], [3, 4])` | Since v0.2.0 |
+| `list_contains(list, element)`    | Tests whether a list contains an element | `RETURN list_contains([1, 2], 2)`    | Since v0.2.0 |
+| `list_has(list, element)`         | Alias of `list_contains`                 | `RETURN list_has([1, 2], 2)`         | Since v0.2.0 |
+| `repeat(unit, count)`             | Repeats an entire list or array unit     | `RETURN repeat([1, 2], 2)`           | Since v0.2.1 |
 
 The accepted argument types, return types, type inference rules, and behavior of each function are described in the corresponding sections below.
 
@@ -123,6 +126,22 @@ RETURN list_append([1, 2], NULL);
 ```
 
 In this example, the existing list determines the element type as `INT64`, and the returned list preserves the appended `NULL` value.
+
+Existing `NULL` elements are also preserved, and the new element is appended
+after them:
+
+```cypher
+RETURN list_append([NULL], NULL);
+// [NULL, NULL]
+```
+
+If the input list itself is `NULL`, the result is `NULL` regardless of the
+element being appended:
+
+```cypher
+RETURN list_append(CAST(NULL, 'INT64[]'), 3);
+// NULL
+```
 
 #### Append a compatible type
 
@@ -254,6 +273,33 @@ RETURN list_concat([], []);
 
 When one side has a known element type, that type can be used to infer the type of an untyped empty list.
 
+#### Concatenate lists containing `NULL`
+
+`NULL` elements inside a list are preserved in their original order. Empty
+lists contribute no elements:
+
+```cypher
+RETURN list_concat([], [NULL]);
+// [NULL]
+```
+
+```cypher
+RETURN list_concat([1, CAST(NULL, 'INT64')], [2]);
+// [1, NULL, 2]
+```
+
+If either input list itself is `NULL`, the entire result is `NULL`:
+
+```cypher
+RETURN list_concat(CAST(NULL, 'INT64[]'), []);
+// NULL
+```
+
+```cypher
+RETURN list_concat([], CAST(NULL, 'INT64[]'));
+// NULL
+```
+
 #### Concatenate compatible element types
 
 If the two inputs have different but compatible element types, NeuG promotes them to a common type:
@@ -286,6 +332,86 @@ For example, the following call is invalid because the second argument is a scal
 ```cypher
 RETURN list_concat([1], 2);
 ```
+
+## `list_contains` and `list_has`
+
+`list_contains(list, element)` and `list_has(list, element)` are equivalent to
+the [`IN` operator](list_op). Both functions test whether `element` occurs in
+`list` and have identical behavior.
+
+### Syntax
+
+```cypher
+list_contains(list, element)
+list_has(list, element)
+```
+
+### Examples
+
+The functions return `TRUE` when the element occurs in the list and `FALSE`
+when it does not:
+
+```cypher
+RETURN list_contains([1, 2, 3], 2);
+// TRUE
+
+RETURN list_has([1, 2, 3], 4);
+// FALSE
+```
+
+### NULL Values
+
+Like the `IN` operator, `list_contains` and `list_has` use three-valued logic
+when the list, the searched element, or an element in the list is `NULL`:
+
+* A `NULL` list produces `NULL`.
+* An empty list produces `FALSE`, including when the searched element is
+  `NULL`.
+* A definite match produces `TRUE`, even if another list element is `NULL`.
+* If there is no match but the list contains `NULL`, the result is `NULL`.
+* If there is no match and the list contains no `NULL`, the result is `FALSE`.
+
+```cypher
+RETURN list_contains(NULL, 2);
+// NULL
+
+RETURN list_contains([], NULL);
+// FALSE
+
+RETURN list_has([1, NULL, 3], 1),
+       list_has([1, NULL, 3], 2);
+// TRUE, NULL
+```
+
+## `repeat`
+
+Since v0.2.1, `repeat` repeats an entire `LIST` or `ARRAY` unit a specified
+number of times. Expansion happens in the execution engine rather than during
+query compilation.
+
+```cypher
+repeat(unit, count)
+```
+
+`unit` must be a `LIST` or `ARRAY`, and `count` must be a non-negative integer.
+The result is always a `LIST`. If `count` is `0`, the result is an empty
+`LIST`. The result size is `size(unit) * count` and must be in the range
+`[0, 65,536)`.
+
+```cypher
+RETURN repeat([1, 2], 3);
+// [1, 2, 1, 2, 1, 2]
+
+RETURN repeat([1, 2], 0);
+// []
+
+RETURN CAST(repeat([1], 4), 'INT32[4]');
+// [1, 1, 1, 1]
+```
+
+When casting the result to an `ARRAY`, the repeated result length must match the
+declared fixed length. Invalid argument types, negative counts, oversized
+results, and incompatible result types produce an error.
 
 ## Type Inference and Conversion
 

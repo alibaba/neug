@@ -102,8 +102,12 @@ ArrowParquetOptionsBuilder::buildFragmentOptions() const {
   auto arrow_reader_properties =
       std::make_shared<parquet::ArrowReaderProperties>();
 
-  // Set Arrow row batch size (number of rows per batch)
-  int64_t row_batch_size = parquetOpts.row_batch_size.get(options);
+  // Set Arrow row batch size (number of rows per batch). Prefer the
+  // generic `batch_rows` option; fall back to the deprecated
+  // `PARQUET_BATCH_ROWS` alias for backward compatibility.
+  int64_t row_batch_size = options.count("batch_rows")
+                               ? parquetOpts.row_batch_size.get(options)
+                               : parquetOpts.legacy_row_batch_size.get(options);
   arrow_reader_properties->set_batch_size(row_batch_size);
 
   // Use threads setting from general read options

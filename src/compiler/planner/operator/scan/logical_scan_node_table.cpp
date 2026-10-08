@@ -84,9 +84,8 @@ std::unique_ptr<gopt::GNodeType> LogicalScanNodeTable::getNodeType(
     catalog::Catalog* catalog) const {
   // get node table from catalog by table ids
   std::vector<const VertexSchema*> nodeTables;
-  auto& transaction = neug::Constants::DEFAULT_TRANSACTION;
   for (auto tableId : getTableIDs()) {
-    auto tableEntry = catalog->getTableCatalogEntry(&transaction, tableId);
+    auto tableEntry = catalog->getTableCatalogEntry(tableId);
     auto nodeTableEntry = dynamic_cast<const VertexSchema*>(tableEntry);
     if (!nodeTableEntry) {
       THROW_EXCEPTION_WITH_FILE_LINE("Table with ID " +
@@ -106,8 +105,7 @@ std::optional<PrimaryKey> LogicalScanNodeTable::getPrimaryKey(
       THROW_EXCEPTION_WITH_FILE_LINE(
           "No table IDs found for primary key scan.");
     }
-    auto tableEntry = catalog->getTableCatalogEntry(
-        &neug::Constants::DEFAULT_TRANSACTION, tableIds.at(0));
+    auto tableEntry = catalog->getTableCatalogEntry(tableIds.at(0));
     auto nodeTableEntry = dynamic_cast<const VertexSchema*>(tableEntry);
     if (!nodeTableEntry) {
       THROW_EXCEPTION_WITH_FILE_LINE(

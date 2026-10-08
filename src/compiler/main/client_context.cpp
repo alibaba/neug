@@ -51,7 +51,6 @@ using namespace neug::binder;
 using namespace neug::common;
 using namespace neug::catalog;
 using namespace neug::planner;
-using namespace neug::transaction;
 
 namespace neug {
 namespace main {
@@ -100,10 +99,6 @@ compiler_impl::Value ClientContext::getCurrentSetting(
     return extensionOptionValues.at(lowerCaseOptionName);
   }
   THROW_RUNTIME_ERROR("Invalid option name: " + lowerCaseOptionName + ".");
-}
-
-Transaction* ClientContext::getTransaction() const {
-  return &neug::Constants::DEFAULT_TRANSACTION;
 }
 
 std::unique_ptr<function::ScanReplacementData> ClientContext::tryReplace(

@@ -171,7 +171,7 @@ Planner::enumerateQueryGraphCollection(
     auto queryGraph = queryGraphCollection.getQueryGraph(i);
     std::unordered_set<uint32_t> predicateToEvaluateIndices;
     for (auto j = 0u; j < info.predicates.size(); ++j) {
-      if (info.predicates[j]->expressionType == ExpressionType::LITERAL) {
+      if (ExpressionUtil::isLiteralLike(*info.predicates[j])) {
         continue;
       }
       if (evaluatedPredicatesIndices.contains(j)) {
@@ -245,8 +245,7 @@ Planner::enumerateQueryGraphCollection(
 std::vector<std::unique_ptr<LogicalPlan>> Planner::enumerateQueryGraph(
     const QueryGraph& queryGraph, const QueryGraphPlanningInfo& info) {
   context.init(&queryGraph, info.predicates);
-  cardinalityEstimator.initNodeIDDom(clientContext->getTransaction(),
-                                     queryGraph);
+  cardinalityEstimator.initNodeIDDom(queryGraph);
   if (info.hint != nullptr) {
     auto constructor = JoinTreeConstructor(queryGraph, propertyExprCollection,
                                            info.predicates, info);
@@ -579,15 +578,13 @@ static std::unique_ptr<LogicalPlan> getWCOJBuildPlanForRel(
 double Planner::computeRelCardRate(
     size_t relIdx, const std::vector<std::shared_ptr<RelExpression>>& rels,
     const std::shared_ptr<NodeExpression>& intersectNode) {
-  auto& transaction = neug::Constants::DEFAULT_TRANSACTION;
   auto& rel = rels[relIdx];
   auto boundNode = rel->getSrcNodeName() == intersectNode->getUniqueName()
                        ? rel->getDstNode()
                        : rel->getSrcNode();
-  auto extensionRate =
-      cardinalityEstimator.getExtensionRate(*rel, *boundNode, &transaction);
-  auto intersectNodes = static_cast<double>(cardinalityEstimator.getNumNodes(
-      &transaction, intersectNode->getTableIDs()));
+  auto extensionRate = cardinalityEstimator.getExtensionRate(*rel, *boundNode);
+  auto intersectNodes = static_cast<double>(
+      cardinalityEstimator.getNumNodes(intersectNode->getTableIDs()));
   if (relIdx == 0) {
     return extensionRate;
   } else {
@@ -610,14 +607,11 @@ std::vector<std::shared_ptr<RelExpression>> Planner::sortRels(
         auto aBound = a->getSrcNodeName() == intersectNode->getUniqueName()
                           ? a->getDstNode()
                           : a->getSrcNode();
-        auto& transaction = neug::Constants::DEFAULT_TRANSACTION;
-        double aRate =
-            cardinalityEstimator.getExtensionRate(*a, *aBound, &transaction);
+        double aRate = cardinalityEstimator.getExtensionRate(*a, *aBound);
         auto bBound = b->getSrcNodeName() == intersectNode->getUniqueName()
                           ? b->getDstNode()
                           : b->getSrcNode();
-        double bRate =
-            cardinalityEstimator.getExtensionRate(*b, *bBound, &transaction);
+        double bRate = cardinalityEstimator.getExtensionRate(*b, *bBound);
         return aRate < bRate;
       });
   return std::move(sortedRels);

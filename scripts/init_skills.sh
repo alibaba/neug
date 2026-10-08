@@ -10,6 +10,10 @@ case "$1" in
         OUTPUT=".claude/skills"
         shift 1
         ;;
+    cursor)
+        OUTPUT=".cursor/skills"
+        shift 1
+        ;;
     codebuddy)
         OUTPUT=".codebuddy/skills"
         shift 1
@@ -65,6 +69,7 @@ while [[ $# -gt 0 ]]; do
             echo ""
             echo "Shortcuts:"
             echo "  claude    -> --output=.claude/skills"
+            echo "  cursor    -> --output=.cursor/skills"
             echo "  codebuddy -> --output=.codebuddy/skills"
             echo "  codex     -> --output=.codex/skills"
             echo "  gemini    -> --output=.gemini/skills"
@@ -89,6 +94,7 @@ if [ -z "$OUTPUT" ]; then
     echo ""
     echo "Shortcuts:"
     echo "  claude    -> --output=.claude/skills"
+    echo "  cursor    -> --output=.cursor/skills"
     echo "  codebuddy -> --output=.codebuddy/skills"
     echo "  codex     -> --output=.codex/skills"
     echo "  gemini    -> --output=.gemini/skills"
@@ -105,7 +111,7 @@ if [ -z "$OUTPUT" ]; then
 fi
 
 # 检查源目录是否存在
-SOURCE_DIR=".cursor/skills"
+SOURCE_DIR=".agent/skills"
 if [ ! -d "$SOURCE_DIR" ]; then
     echo "Error: Source directory '$SOURCE_DIR' does not exist"
     exit 1

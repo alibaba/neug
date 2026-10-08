@@ -29,26 +29,24 @@ class MetaDataTest : public GOptTest {
   common::cardinality_t getTableCard(main::ClientContext* ctx,
                                      const std::string& tableName) {
     auto catalog = ctx->getCatalog();
-    auto& transaction = neug::Constants::DEFAULT_TRANSACTION;
-    auto tableEntry = catalog->getTableCatalogEntry(&transaction, tableName);
+    auto tableEntry = catalog->getTableCatalogEntry(tableName);
     return ctx->getGraphStats()->getTableCardinality(tableEntry);
   }
 };
 
 TEST_F(MetaDataTest, GCataLog) {
-  auto& transaction = neug::Constants::DEFAULT_TRANSACTION;
   auto schemaResult = Schema::LoadFromYamlNode(YAML::Load(schemaData));
   ASSERT_TRUE(schemaResult) << schemaResult.error().ToString();
   auto schema = std::move(schemaResult).value();
   neug::catalog::GCatalog catalog;
   auto clonedCatalog = catalog.clone(&schema);
-  auto entry = clonedCatalog->getTableCatalogEntry(&transaction, "KNOWS");
+  auto entry = clonedCatalog->getTableCatalogEntry("KNOWS");
   auto knowsEntry = static_cast<EdgeSchema*>(entry);
   ASSERT_EQ("KNOWS", knowsEntry->edge_label_name);
   ASSERT_EQ(8, knowsEntry->getLabelId());
   ASSERT_EQ(1, knowsEntry->getSrcTableID());
   ASSERT_EQ(1, knowsEntry->getDstTableID());
-  auto groupEntry = clonedCatalog->getRelGroupEntry(&transaction, "HASCREATOR");
+  auto groupEntry = clonedCatalog->getRelGroupEntry("HASCREATOR");
   ASSERT_EQ(2, groupEntry.size());
   std::vector<
       std::tuple<common::table_id_t, common::table_id_t, common::table_id_t>>
@@ -78,13 +76,11 @@ TEST_F(MetaDataTest, GStorageManager) {
   ctx = std::make_unique<main::ClientContext>(database.get());
   auto& catalog = *ctx->getCatalog();
   auto storageManager = ctx->getGraphStats();
-  auto& transaction = neug::Constants::DEFAULT_TRANSACTION;
-  auto entry = catalog.getTableCatalogEntry(&transaction, "KNOWS");
+  auto entry = catalog.getTableCatalogEntry("KNOWS");
   ASSERT_EQ(storageManager->getTableCardinality(entry), 1);
-  auto entry2 = catalog.getTableCatalogEntry(&transaction, "COMMENT");
+  auto entry2 = catalog.getTableCatalogEntry("COMMENT");
   ASSERT_EQ(storageManager->getTableCardinality(entry2), 1);
-  auto entry3 =
-      catalog.getTableCatalogEntry(&transaction, "HASCREATOR_COMMENT_PERSON");
+  auto entry3 = catalog.getTableCatalogEntry("HASCREATOR_COMMENT_PERSON");
   ASSERT_EQ(storageManager->getTableCardinality(entry3), 1);
 }
 

@@ -65,6 +65,9 @@ inline std::string AccessModeToString(AccessMode mode) {
   }
 }
 
+// Graph-read-only external data plans remain read-only even though their
+// physical pipeline carries the generic batch flag. COPY FROM and graph
+// mutations are not read-only.
 bool IsReadOnlyExecutionFlag(const physical::ExecutionFlag& flags);
 bool IsInsertOnlyExecutionFlag(const physical::ExecutionFlag& flags);
 

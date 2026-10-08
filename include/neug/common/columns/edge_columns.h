@@ -110,7 +110,7 @@ class SDSLEdgeColumn : public IEdgeColumn {
 
   bool has_value(size_t idx) const override {
     auto& tup = edges_[idx];
-    return std::get<0>(tup) != std::numeric_limits<vid_t>::max();
+    return std::get<0>(tup) != INVALID_VID;
   }
 
   inline bool is_optional() const override { return is_optional_; }
@@ -142,15 +142,14 @@ class SDSLEdgeColumnBuilder : public IContextColumnBuilder {
     push_back_opt(e.src, e.dst, e.prop);
   }
   inline void push_back_opt(vid_t src, vid_t dst, const void* prop) {
-    assert(src != std::numeric_limits<vid_t>::max());
-    assert(dst != std::numeric_limits<vid_t>::max());
+    assert(src != INVALID_VID);
+    assert(dst != INVALID_VID);
     edges_.emplace_back(src, dst, prop);
   }
 
   inline void push_back_null() override {
     is_optional_ = true;
-    edges_.emplace_back(std::numeric_limits<vid_t>::max(),
-                        std::numeric_limits<vid_t>::max(), nullptr);
+    edges_.emplace_back(INVALID_VID, INVALID_VID, nullptr);
   }
 
   std::shared_ptr<IContextColumn> finish() override;
@@ -228,7 +227,7 @@ class MSEdgeColumn : public IEdgeColumn {
 
   bool has_value(size_t idx) const override {
     const auto& tup = get_edge(idx);
-    return tup.src != std::numeric_limits<vid_t>::max();
+    return tup.src != INVALID_VID;
   }
 
   size_t seg_num() const { return edges_.size(); }
@@ -287,15 +286,14 @@ class MSEdgeColumnBuilder : public IContextColumnBuilder {
   }
 
   inline void push_back_opt(vid_t src, vid_t dst, const void* prop) {
-    assert(src != std::numeric_limits<vid_t>::max());
-    assert(dst != std::numeric_limits<vid_t>::max());
+    assert(src != INVALID_VID);
+    assert(dst != INVALID_VID);
     cur_edges_.emplace_back(src, dst, prop);
   }
 
   inline void push_back_null() override {
     is_optional_ = true;
-    cur_edges_.emplace_back(std::numeric_limits<vid_t>::max(),
-                            std::numeric_limits<vid_t>::max(), nullptr);
+    cur_edges_.emplace_back(INVALID_VID, INVALID_VID, nullptr);
   }
 
   inline std::shared_ptr<IContextColumn> finish() override {
@@ -397,7 +395,7 @@ class BDSLEdgeColumn : public IEdgeColumn {
 
   bool has_value(size_t idx) const override {
     const auto& tup = edges_[idx];
-    return std::get<0>(tup) != std::numeric_limits<vid_t>::max();
+    return std::get<0>(tup) != INVALID_VID;
   }
 
  private:
@@ -426,16 +424,14 @@ class BDSLEdgeColumnBuilder : public IContextColumnBuilder {
 
   inline void push_back_opt(vid_t src, vid_t dst, const void* prop,
                             Direction dir) {
-    assert(src != std::numeric_limits<vid_t>::max());
-    assert(dst != std::numeric_limits<vid_t>::max());
+    assert(src != INVALID_VID);
+    assert(dst != INVALID_VID);
     edges_.emplace_back(src, dst, prop, dir);
   }
 
   inline void push_back_null() override {
     is_optional_ = true;
-    edges_.emplace_back(std::numeric_limits<vid_t>::max(),
-                        std::numeric_limits<vid_t>::max(), nullptr,
-                        Direction::kOut);
+    edges_.emplace_back(INVALID_VID, INVALID_VID, nullptr, Direction::kOut);
   }
 
   inline std::shared_ptr<IContextColumn> finish() override {
@@ -510,7 +506,7 @@ class SDMLEdgeColumn : public IEdgeColumn {
 
   bool has_value(size_t idx) const override {
     const auto& tup = edges_[idx];
-    return std::get<1>(tup) != std::numeric_limits<vid_t>::max();
+    return std::get<1>(tup) != INVALID_VID;
   }
 
   bool is_optional() const override { return is_optional_; }
@@ -546,22 +542,21 @@ class SDMLEdgeColumnBuilder : public IContextColumnBuilder {
 
   inline void push_back_opt(const LabelTriplet& label, vid_t src, vid_t dst,
                             const void* prop) {
-    assert(src != std::numeric_limits<vid_t>::max());
-    assert(dst != std::numeric_limits<vid_t>::max());
+    assert(src != INVALID_VID);
+    assert(dst != INVALID_VID);
     edges_.emplace_back(index_.at(label), src, dst, prop);
   }
 
   inline void push_back_opt(int label_idx, vid_t src, vid_t dst,
                             const void* prop) {
-    assert(src != std::numeric_limits<vid_t>::max());
-    assert(dst != std::numeric_limits<vid_t>::max());
+    assert(src != INVALID_VID);
+    assert(dst != INVALID_VID);
     edges_.emplace_back(label_idx, src, dst, prop);
   }
 
   inline void push_back_null() override {
     is_optional_ = true;
-    edges_.emplace_back(-1, std::numeric_limits<vid_t>::max(),
-                        std::numeric_limits<vid_t>::max(), nullptr);
+    edges_.emplace_back(-1, INVALID_VID, INVALID_VID, nullptr);
   }
 
   inline std::shared_ptr<IContextColumn> finish() override {
@@ -638,7 +633,7 @@ class BDMLEdgeColumn : public IEdgeColumn {
 
   bool has_value(size_t idx) const override {
     const auto& tup = edges_[idx];
-    return std::get<1>(tup) != std::numeric_limits<vid_t>::max();
+    return std::get<1>(tup) != INVALID_VID;
   }
 
   bool is_optional() const override { return is_optional_; }
@@ -675,23 +670,21 @@ class BDMLEdgeColumnBuilder : public IContextColumnBuilder {
 
   inline void push_back_opt(const LabelTriplet& label, vid_t src, vid_t dst,
                             const void* prop, Direction dir) {
-    assert(src != std::numeric_limits<vid_t>::max());
-    assert(dst != std::numeric_limits<vid_t>::max());
+    assert(src != INVALID_VID);
+    assert(dst != INVALID_VID);
     edges_.emplace_back(index_.at(label), src, dst, prop, dir);
   }
 
   inline void push_back_opt(int label_idx, vid_t src, vid_t dst,
                             const void* prop, Direction dir) {
-    assert(src != std::numeric_limits<vid_t>::max());
-    assert(dst != std::numeric_limits<vid_t>::max());
+    assert(src != INVALID_VID);
+    assert(dst != INVALID_VID);
     edges_.emplace_back(label_idx, src, dst, prop, dir);
   }
 
   inline void push_back_null() override {
     is_optional_ = true;
-    edges_.emplace_back(-1, std::numeric_limits<vid_t>::max(),
-                        std::numeric_limits<vid_t>::max(), nullptr,
-                        Direction::kOut);
+    edges_.emplace_back(-1, INVALID_VID, INVALID_VID, nullptr, Direction::kOut);
   }
 
   inline std::shared_ptr<IContextColumn> finish() override {

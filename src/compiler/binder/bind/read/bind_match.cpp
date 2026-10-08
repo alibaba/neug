@@ -21,6 +21,7 @@
  */
 
 #include "neug/compiler/binder/binder.h"
+#include "neug/compiler/binder/expression/expression_util.h"
 #include "neug/compiler/binder/query/reading_clause/bound_match_clause.h"
 #include "neug/compiler/parser/query/reading_clause/match_clause.h"
 #include "neug/utils/exception/exception.h"
@@ -141,7 +142,9 @@ void Binder::rewriteMatchPattern(BoundGraphPattern& boundGraphPattern) {
     where = expressionBinder.combineBooleanExpressions(ExpressionType::AND,
                                                        predicate, where);
   }
-  for (auto& predicate : boundGraphPattern.namespacePredicates) {
+  auto namespacePredicates =
+      ExpressionUtil::removeDuplication(boundGraphPattern.namespacePredicates);
+  for (auto& predicate : namespacePredicates) {
     where = expressionBinder.combineBooleanExpressions(ExpressionType::AND,
                                                        predicate, where);
   }

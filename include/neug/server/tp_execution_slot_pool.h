@@ -50,8 +50,9 @@ class ServiceTransactionManager;
  * - Stable WAL (Write-Ahead Log) writer per logical slot
  * - 4096-byte-aligned per-slot Entry storage
  *
- * **Pool Size:** `NeugDBConfig::max_thread_num` determines the pool size. Each
- * TP query leases one slot and one thread for its duration.
+ * **Pool Size:** The service resolves its concurrency from
+ * `ServiceConfig::thread_num` and `NeugDBConfig::max_thread_num`, then passes
+ * that value to the pool. Each TP query leases one slot for its duration.
  *
  * @see NeugDBService for HTTP service wrapper
  * @see ExecutionSlotLease for RAII slot management
@@ -89,6 +90,13 @@ class TpExecutionSlotPool {
   static_assert(sizeof(Entry) == kEntryAlignment);
 
  public:
+  /**
+   * @brief Constructs a pool using all database-owned allocators.
+   *
+   * This overload preserves the original source-compatible behavior. Service
+   * code that needs a smaller execution limit should use the overload that
+   * accepts an explicit slot count.
+   */
   explicit TpExecutionSlotPool(
       GraphSnapshotStore& snapshot_store,
       std::shared_ptr<IGraphPlanner> planner,
@@ -98,7 +106,23 @@ class TpExecutionSlotPool {
       ExtensionManager& extension_manager,
       const std::vector<std::shared_ptr<Allocator>>& allocators,
       WalWriterSet& wal_writers, const NeugDBConfig& config)
-      : entries_(nullptr), slot_num_(allocators.size()) {
+      : TpExecutionSlotPool(
+            snapshot_store, std::move(planner), std::move(global_query_cache),
+            version_manager, checkpoint_coordinator, extension_manager,
+            allocators, wal_writers, config, allocators.size()) {}
+
+  explicit TpExecutionSlotPool(
+      GraphSnapshotStore& snapshot_store,
+      std::shared_ptr<IGraphPlanner> planner,
+      std::shared_ptr<execution::GlobalQueryCache> global_query_cache,
+      IVersionManager& version_manager,
+      CheckpointCoordinator& checkpoint_coordinator,
+      ExtensionManager& extension_manager,
+      const std::vector<std::shared_ptr<Allocator>>& allocators,
+      WalWriterSet& wal_writers, const NeugDBConfig& config, size_t slot_num)
+      : entries_(nullptr), slot_num_(slot_num) {
+    CHECK_GT(slot_num_, 0U);
+    CHECK_LE(slot_num_, allocators.size());
     available_slot_ids_.reserve(slot_num_);
     entries_ = static_cast<Entry*>(
         aligned_alloc(kEntryAlignment, sizeof(Entry) * slot_num_));

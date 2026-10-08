@@ -24,13 +24,9 @@ class GCatalog : public Catalog {
   GCatalog();
   ~GCatalog() = default;
 
-  void addFunctionWithSignature(transaction::Transaction* transaction,
-                                CatalogEntryType entryType, std::string name,
+  void addFunctionWithSignature(CatalogEntryType entryType, std::string name,
                                 function::function_set functionSet,
                                 bool isInternal = false);
-
-  function::Function* getFunctionWithSignature(
-      transaction::Transaction* transaction, const std::string& signatureName);
 
   function::Function* getFunctionWithSignature(
       const std::string& signatureName);

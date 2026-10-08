@@ -79,7 +79,10 @@ class IWalWriter {
   virtual void close() = 0;
 
   /**
-   * Append data to the wal file.
+   * Append data to the WAL. Returns true on success, or false only when no
+   * bytes from this record were written and the caller may safely abort.
+   * Throws if the write or its durability is uncertain; callers must not
+   * treat an exception as an ordinary rollback.
    */
   virtual bool append(const char* data, size_t length) = 0;
 };

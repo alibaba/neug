@@ -29,17 +29,12 @@ class LogicalPlan;
 class CardinalityEstimator;
 }  // namespace planner
 
-namespace transaction {
-class Transaction;
-}
-
 namespace optimizer {
 class CardinalityUpdater : public LogicalOperatorVisitor {
  public:
   explicit CardinalityUpdater(
-      const planner::CardinalityEstimator& cardinalityEstimator,
-      const transaction::Transaction* transaction)
-      : cardinalityEstimator(cardinalityEstimator), transaction(transaction) {}
+      const planner::CardinalityEstimator& cardinalityEstimator)
+      : cardinalityEstimator(cardinalityEstimator) {}
 
   void rewrite(planner::LogicalPlan* plan);
 
@@ -59,7 +54,6 @@ class CardinalityUpdater : public LogicalOperatorVisitor {
   void visitLimit(planner::LogicalOperator* op) override;
 
   const planner::CardinalityEstimator& cardinalityEstimator;
-  const transaction::Transaction* transaction;
 };
 }  // namespace optimizer
 }  // namespace neug

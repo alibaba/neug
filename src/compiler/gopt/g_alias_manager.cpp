@@ -278,9 +278,24 @@ void GAliasManager::visitOperator(const planner::LogicalOperator& op,
       }
       auto uniqueName = name.uniqueName;
       auto queryName = name.queryName;
+      bool pathMaterializationRequired = false;
+      if (op.getOperatorType() == planner::LogicalOperatorType::EXTEND) {
+        pathMaterializationRequired = op.constCast<planner::LogicalExtend>()
+                                          .getRel()
+                                          ->isPathMaterializationRequired();
+      } else if (op.getOperatorType() ==
+                 planner::LogicalOperatorType::RECURSIVE_EXTEND) {
+        pathMaterializationRequired =
+            op.constCast<planner::LogicalRecursiveExtend>()
+                .getRel()
+                ->isPathMaterializationRequired();
+      }
       // if the unique name is not used by any later operators and the query
-      // given name is not set, we set it as the default alias id
-      if (!vTags.contains(uniqueName) && !queryName.has_value()) {
+      // given name is not set, we set it as the default alias id. A named path
+      // can still consume an anonymous relationship, so such a relationship
+      // needs its own implicit physical alias.
+      if (!vTags.contains(uniqueName) && !queryName.has_value() &&
+          !pathMaterializationRequired) {
         uniqueNameToId[uniqueName] = DEFAULT_ALIAS_ID;
         break;
       }

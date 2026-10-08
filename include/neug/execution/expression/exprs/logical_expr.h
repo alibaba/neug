@@ -19,6 +19,9 @@
 
 namespace neug {
 namespace execution {
+
+Value evaluate_regex(const Value& value, const Value& pattern);
+
 class UnaryLogicalExpr : public ExprBase {
  public:
   UnaryLogicalExpr(std::unique_ptr<ExprBase>&& operand,

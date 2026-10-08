@@ -37,13 +37,11 @@
 #include "neug/compiler/function/function_collection.h"
 #include "neug/compiler/function/scalar_function.h"
 #include "neug/compiler/main/option_config.h"
-#include "neug/compiler/transaction/transaction.h"
 #include "neug/utils/exception/exception.h"
 
 using namespace neug::binder;
 using namespace neug::common;
 using namespace neug::storage;
-using namespace neug::transaction;
 
 namespace neug {
 namespace catalog {
@@ -103,8 +101,7 @@ std::vector<std::string> Catalog::getGraphEntryNames() const {
                            : schema->GetGraphEntryNames();
 }
 
-bool Catalog::containsTable(const Transaction* transaction,
-                            const std::string& tableName,
+bool Catalog::containsTable(const std::string& tableName,
                             bool useInternal) const {
   if (schema == nullptr) {
     return false;
@@ -129,8 +126,7 @@ bool Catalog::containsTable(const Transaction* transaction,
   return false;
 }
 
-bool Catalog::containsTable(const Transaction* transaction, table_id_t tableID,
-                            bool useInternal) const {
+bool Catalog::containsTable(table_id_t tableID, bool useInternal) const {
   if (schema == nullptr) {
     return false;
   }
@@ -147,8 +143,7 @@ bool Catalog::containsTable(const Transaction* transaction, table_id_t tableID,
   return false;
 }
 
-const SchemaEntry* Catalog::getTableCatalogEntry(const Transaction* transaction,
-                                                 table_id_t tableID) const {
+const SchemaEntry* Catalog::getTableCatalogEntry(table_id_t tableID) const {
   if (schema != nullptr && tableID <= std::numeric_limits<label_t>::max() &&
       schema->is_vertex_label_valid(static_cast<label_t>(tableID))) {
     return schema->get_vertex_schema(static_cast<label_t>(tableID)).get();
@@ -176,8 +171,7 @@ const SchemaEntry* Catalog::getTableCatalogEntry(const Transaction* transaction,
       "Cannot find table catalog entry with id {}.", std::to_string(tableID)));
 }
 
-SchemaEntry* Catalog::getTableCatalogEntry(const Transaction* transaction,
-                                           const std::string& tableName,
+SchemaEntry* Catalog::getTableCatalogEntry(const std::string& tableName,
                                            bool useInternal) const {
   if (schema != nullptr) {
     VertexSchema* vertexResult = nullptr;
@@ -223,7 +217,7 @@ SchemaEntry* Catalog::getTableCatalogEntry(const Transaction* transaction,
 }
 
 std::vector<VertexSchema*> Catalog::getNodeTableEntries(
-    const Transaction* transaction, bool useInternal) const {
+    bool useInternal) const {
   std::vector<VertexSchema*> result;
   if (schema == nullptr) {
     return result;
@@ -237,8 +231,7 @@ std::vector<VertexSchema*> Catalog::getNodeTableEntries(
   return result;
 }
 
-std::vector<EdgeSchema*> Catalog::getRelTableEntries(
-    const Transaction* transaction, bool useInternal) const {
+std::vector<EdgeSchema*> Catalog::getRelTableEntries(bool useInternal) const {
   std::vector<EdgeSchema*> result;
   if (schema == nullptr) {
     return result;
@@ -259,20 +252,18 @@ std::vector<EdgeSchema*> Catalog::getRelTableEntries(
   return result;
 }
 
-std::vector<SchemaEntry*> Catalog::getTableEntries(
-    const Transaction* transaction, bool useInternal) const {
+std::vector<SchemaEntry*> Catalog::getTableEntries(bool useInternal) const {
   std::vector<SchemaEntry*> result;
-  for (auto* entry : getNodeTableEntries(transaction, useInternal)) {
+  for (auto* entry : getNodeTableEntries(useInternal)) {
     result.push_back(entry);
   }
-  for (auto* entry : getRelTableEntries(transaction, useInternal)) {
+  for (auto* entry : getRelTableEntries(useInternal)) {
     result.push_back(entry);
   }
   return result;
 }
 
-bool Catalog::containsRelGroup(const Transaction* transaction,
-                               const std::string& name) const {
+bool Catalog::containsRelGroup(const std::string& name) const {
   if (schema == nullptr) {
     return false;
   }
@@ -290,7 +281,7 @@ bool Catalog::containsRelGroup(const Transaction* transaction,
 }
 
 std::vector<EdgeSchema*> Catalog::getRelGroupEntry(
-    const Transaction* transaction, const std::string& name) const {
+    const std::string& name) const {
   std::vector<EdgeSchema*> result;
   if (schema != nullptr) {
     for (auto& [_, edgeSchema] : schema->get_all_edge_schemas()) {
@@ -316,14 +307,13 @@ std::vector<EdgeSchema*> Catalog::getRelGroupEntry(
   return result;
 }
 
-void Catalog::createType(Transaction* transaction, std::string name,
-                         DataType type) {
-  if (types->containsEntry(transaction, name)) {
+void Catalog::createType(std::string name, DataType type) {
+  if (types->containsEntry(name)) {
     return;
   }
   auto entry =
       std::make_unique<TypeCatalogEntry>(std::move(name), std::move(type));
-  types->createEntry(transaction, std::move(entry));
+  types->createEntry(std::move(entry));
 }
 
 static std::string getInstallExtensionMessage(std::string_view extensionName,
@@ -341,42 +331,37 @@ static std::string getTypeDoesNotExistMessage(std::string_view entryName) {
   return message;
 }
 
-DataType Catalog::getType(const Transaction* transaction,
-                          const std::string& name) const {
-  if (!types->containsEntry(transaction, name)) {
+DataType Catalog::getType(const std::string& name) const {
+  if (!types->containsEntry(name)) {
     THROW_CATALOG_EXCEPTION(getTypeDoesNotExistMessage(name));
   }
-  return types->getEntry(transaction, name)
+  return types->getEntry(name)
       ->constCast<TypeCatalogEntry>()
       .getLogicalType()
       .copy();
 }
 
-bool Catalog::containsType(const Transaction* transaction,
-                           const std::string& typeName) const {
-  return types->containsEntry(transaction, typeName);
+bool Catalog::containsType(const std::string& typeName) const {
+  return types->containsEntry(typeName);
 }
 
-bool Catalog::containsFunction(const Transaction* transaction,
-                               const std::string& name,
+bool Catalog::containsFunction(const std::string& name,
                                bool useInternal) const {
-  auto hasEntry = functions->containsEntry(transaction, name);
+  auto hasEntry = functions->containsEntry(name);
   if (!hasEntry && useInternal) {
-    return internalFunctions->containsEntry(transaction, name);
+    return internalFunctions->containsEntry(name);
   }
   return hasEntry;
 }
 
-void Catalog::addFunction(Transaction* transaction, CatalogEntryType entryType,
-                          std::string name, function::function_set functionSet,
-                          bool isInternal) {
+void Catalog::addFunction(CatalogEntryType entryType, std::string name,
+                          function::function_set functionSet, bool isInternal) {
   auto& catalogSet = isInternal ? internalFunctions : functions;
-  if (catalogSet->containsEntry(transaction, name)) {
+  if (catalogSet->containsEntry(name)) {
     THROW_CATALOG_EXCEPTION(stringFormat("function {} already exists.", name));
   }
-  catalogSet->createEntry(
-      transaction, std::make_unique<FunctionCatalogEntry>(
-                       entryType, std::move(name), std::move(functionSet)));
+  catalogSet->createEntry(std::make_unique<FunctionCatalogEntry>(
+      entryType, std::move(name), std::move(functionSet)));
 }
 
 static std::string getFunctionDoesNotExistMessage(std::string_view entryName) {
@@ -384,53 +369,49 @@ static std::string getFunctionDoesNotExistMessage(std::string_view entryName) {
   return message;
 }
 
-void Catalog::dropFunction(Transaction* transaction, const std::string& name) {
-  if (!containsFunction(transaction, name)) {
+void Catalog::dropFunction(const std::string& name) {
+  if (!containsFunction(name)) {
     THROW_CATALOG_EXCEPTION(stringFormat("function {} doesn't exist.", name));
   }
-  auto entry = getFunctionEntry(transaction, name);
-  functions->dropEntry(transaction, name, entry->getOID());
+  auto entry = getFunctionEntry(name);
+  functions->dropEntry(name, entry->getOID());
 }
 
-CatalogEntry* Catalog::getFunctionEntry(const Transaction* transaction,
-                                        const std::string& name,
+CatalogEntry* Catalog::getFunctionEntry(const std::string& name,
                                         bool useInternal) const {
   CatalogEntry* result = nullptr;
-  if (!functions->containsEntry(transaction, name)) {
+  if (!functions->containsEntry(name)) {
     if (!useInternal) {
       THROW_CATALOG_EXCEPTION(getFunctionDoesNotExistMessage(name));
     }
-    result = internalFunctions->getEntry(transaction, name);
+    result = internalFunctions->getEntry(name);
   } else {
-    result = functions->getEntry(transaction, name);
+    result = functions->getEntry(name);
   }
   return result;
 }
 
-std::vector<FunctionCatalogEntry*> Catalog::getFunctionEntries(
-    const Transaction* transaction) const {
+std::vector<FunctionCatalogEntry*> Catalog::getFunctionEntries() const {
   std::vector<FunctionCatalogEntry*> result;
-  for (auto& [_, entry] : functions->getEntries(transaction)) {
+  for (auto& [_, entry] : functions->getEntries()) {
     result.push_back(entry->ptrCast<FunctionCatalogEntry>());
   }
   return result;
 }
 
-bool Catalog::containsRule(const Transaction* transaction,
-                           const std::string& name) const {
-  return rules->containsEntry(transaction, name);
+bool Catalog::containsRule(const std::string& name) const {
+  return rules->containsEntry(name);
 }
 
-void Catalog::addRule(Transaction* transaction, std::string name,
+void Catalog::addRule(std::string name,
                       RuleCatalogEntry::RuleFactory ruleFactory) {
-  rules->createEntry(transaction, std::make_unique<RuleCatalogEntry>(
-                                      std::move(name), std::move(ruleFactory)));
+  rules->createEntry(std::make_unique<RuleCatalogEntry>(
+      std::move(name), std::move(ruleFactory)));
 }
 
-std::vector<RuleCatalogEntry*> Catalog::getRuleEntries(
-    const Transaction* transaction) const {
+std::vector<RuleCatalogEntry*> Catalog::getRuleEntries() const {
   std::vector<RuleCatalogEntry*> result;
-  for (auto& [_, entry] : rules->getEntries(transaction)) {
+  for (auto& [_, entry] : rules->getEntries()) {
     result.push_back(entry->ptrCast<RuleCatalogEntry>());
   }
   return result;

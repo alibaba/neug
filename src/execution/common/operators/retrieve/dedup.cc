@@ -32,22 +32,51 @@ neug::result<ContextChunk> Dedup::dedup(ContextChunk&& chunk,
   if (cols.size() == 0) {
     return chunk;
   }
-  if (cols.size() == 1 && chunk.get(cols[0])->generate_dedup_offset(offsets)) {
+  std::vector<std::shared_ptr<IContextColumn>> key_columns;
+  bool has_optional = false;
+  for (auto col : cols) {
+    auto key_column = chunk.get(col);
+    has_optional = has_optional || key_column->is_optional();
+    key_columns.push_back(std::move(key_column));
+  }
+  if (cols.size() == 1 && !has_optional &&
+      key_columns[0]->generate_dedup_offset(offsets)) {
   } else {
     offsets.clear();
     flat_hash_set<std::string> set;
-    for (size_t r_i = 0; r_i < row_num; ++r_i) {
-      vector_t<char> bytes;
-      Encoder encoder(bytes);
-      for (size_t c_i = 0; c_i < cols.size(); ++c_i) {
-        auto val = chunk.get(cols[c_i])->get_elem(r_i);
-        encode_value(val, encoder);
-        encoder.put_byte('#');
+    if (!has_optional) {
+      for (size_t r_i = 0; r_i < row_num; ++r_i) {
+        vector_t<char> bytes;
+        Encoder encoder(bytes);
+        for (size_t c_i = 0; c_i < cols.size(); ++c_i) {
+          auto val = chunk.get(cols[c_i])->get_elem(r_i);
+          encode_value(val, encoder);
+          encoder.put_byte('#');
+        }
+        std::string cur(bytes.begin(), bytes.end());
+        if (set.find(cur) == set.end()) {
+          offsets.push_back(r_i);
+          set.insert(cur);
+        }
       }
-      std::string cur(bytes.begin(), bytes.end());
-      if (set.find(cur) == set.end()) {
-        offsets.push_back(r_i);
-        set.insert(cur);
+    } else {
+      const auto null_bitmap_size = (cols.size() + 7) / 8;
+      for (size_t r_i = 0; r_i < row_num; ++r_i) {
+        vector_t<char> bytes(null_bitmap_size, 0);
+        Encoder encoder(bytes);
+        for (size_t c_i = 0; c_i < cols.size(); ++c_i) {
+          auto val = key_columns[c_i]->get_elem(r_i);
+          if (val.IsNull()) {
+            bytes[c_i >> 3] |= static_cast<char>(1U << (c_i & 7));
+          }
+          encode_value(val, encoder);
+          encoder.put_byte('#');
+        }
+        std::string cur(bytes.begin(), bytes.end());
+        if (set.find(cur) == set.end()) {
+          offsets.push_back(r_i);
+          set.insert(cur);
+        }
       }
     }
   }

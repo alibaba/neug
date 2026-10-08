@@ -26,10 +26,6 @@
 #include "neug/compiler/function/function.h"
 
 namespace neug {
-namespace transaction {
-class Transaction;
-}  // namespace transaction
-
 namespace catalog {
 class FunctionCatalogEntry;
 }  // namespace catalog

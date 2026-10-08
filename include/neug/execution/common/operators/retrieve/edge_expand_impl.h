@@ -164,7 +164,7 @@ std::pair<std::shared_ptr<IContextColumn>, sel_vec_t> expand_vertex_impl(
       for (size_t idx = 0; idx < vertices.size(); ++idx) {
         auto v = vertices[idx];
         if constexpr (is_optional) {
-          if (v != std::numeric_limits<vid_t>::max()) {
+          if (v != INVALID_VID) {
             size_t old_size = builder.cur_size();
             expand_sv_np_ms(v, idx, view, builder, offsets);
             if (builder.cur_size() != old_size) {
@@ -186,7 +186,7 @@ std::pair<std::shared_ptr<IContextColumn>, sel_vec_t> expand_vertex_impl(
       for (size_t idx = 0; idx < vertices.size(); ++idx) {
         auto v = vertices[idx];
         if constexpr (is_optional) {
-          if (v != std::numeric_limits<vid_t>::max()) {
+          if (v != INVALID_VID) {
             size_t old_size = builder.cur_size();
             expand_sv_p_ms(input_label, v, idx, nbr_label, edge_label, dir,
                            view, gpred, builder, offsets);
@@ -271,7 +271,7 @@ std::pair<std::shared_ptr<IContextColumn>, sel_vec_t> expand_vertex_impl(
           auto vertex = input.get_vertex(idx);
           vid_t v = vertex.vid_;
           if constexpr (is_optional) {
-            if (v != std::numeric_limits<vid_t>::max()) {
+            if (v != INVALID_VID) {
               size_t old_size = builder.cur_size();
               expand_sv_np_ms(v, idx, view, builder, offsets);
               if (builder.cur_size() != old_size) {
@@ -294,7 +294,7 @@ std::pair<std::shared_ptr<IContextColumn>, sel_vec_t> expand_vertex_impl(
           auto vertex = input.get_vertex(idx);
           vid_t v = vertex.vid_;
           if constexpr (is_optional) {
-            if (v != std::numeric_limits<vid_t>::max()) {
+            if (v != INVALID_VID) {
               size_t old_size = builder.cur_size();
               expand_sv_p_ms(input_label, v, idx, nbr_label, edge_label, dir,
                              view, gpred, builder, offsets);
@@ -355,7 +355,7 @@ std::pair<std::shared_ptr<IContextColumn>, sel_vec_t> expand_vertex_impl(
         input.foreach_vertex([&](size_t idx, label_t l, vid_t vid) {
           auto& view = single_views[l];
           if constexpr (is_optional) {
-            if (vid != std::numeric_limits<vid_t>::max()) {
+            if (vid != INVALID_VID) {
               size_t old_size = builder.cur_size();
               expand_sv_np_ms(vid, idx, view, builder, offsets);
               if (builder.cur_size() == old_size) {
@@ -376,7 +376,7 @@ std::pair<std::shared_ptr<IContextColumn>, sel_vec_t> expand_vertex_impl(
           label_t edge_label = single_edge_labels[l];
           Direction dir = single_dirs[l];
           if constexpr (is_optional) {
-            if (vid != std::numeric_limits<vid_t>::max()) {
+            if (vid != INVALID_VID) {
               size_t old_size = builder.cur_size();
               expand_sv_p_ms(l, vid, idx, nbr_label, edge_label, dir, view,
                              gpred, builder, offsets);
@@ -413,7 +413,7 @@ std::pair<std::shared_ptr<IContextColumn>, sel_vec_t> expand_vertex_impl(
       if constexpr (GPRED_T::is_dummy) {
         input.foreach_vertex([&](size_t idx, label_t l, vid_t vid) {
           if constexpr (is_optional) {
-            if (vid == std::numeric_limits<vid_t>::max()) {
+            if (vid == INVALID_VID) {
               builder.push_back_null();
               offsets.push_back(idx);
             } else {
@@ -442,7 +442,7 @@ std::pair<std::shared_ptr<IContextColumn>, sel_vec_t> expand_vertex_impl(
       } else {
         input.foreach_vertex([&](size_t idx, label_t l, vid_t vid) {
           if constexpr (is_optional) {
-            if (vid != std::numeric_limits<vid_t>::max()) {
+            if (vid != INVALID_VID) {
               size_t old_size = builder.cur_size();
               size_t csr_idx = 0;
               for (auto& view : views[l]) {
@@ -508,7 +508,7 @@ std::pair<std::shared_ptr<IContextColumn>, sel_vec_t> expand_vertex_impl(
           auto& view = single_views[l];
           label_t nbr_label = single_nbr_labels[l];
           if constexpr (is_optional) {
-            if (vid == std::numeric_limits<vid_t>::max()) {
+            if (vid == INVALID_VID) {
               builder.push_back_null();
               offsets.push_back(idx);
             } else {
@@ -534,7 +534,7 @@ std::pair<std::shared_ptr<IContextColumn>, sel_vec_t> expand_vertex_impl(
           label_t edge_label = single_edge_labels[l];
           Direction dir = single_dirs[l];
           if constexpr (is_optional) {
-            if (vid != std::numeric_limits<vid_t>::max()) {
+            if (vid != INVALID_VID) {
               size_t old_size = builder.cur_size();
               expand_sv_p_ml(l, vid, idx, nbr_label, edge_label, dir, view,
                              gpred, builder, offsets);
@@ -572,7 +572,7 @@ std::pair<std::shared_ptr<IContextColumn>, sel_vec_t> expand_vertex_impl(
       if constexpr (GPRED_T::is_dummy) {
         input.foreach_vertex([&](size_t idx, label_t l, vid_t vid) {
           if constexpr (is_optional) {
-            if (vid != std::numeric_limits<vid_t>::max()) {
+            if (vid != INVALID_VID) {
               size_t old_size = builder.cur_size();
               for (size_t i = 0; i < views[l].size(); ++i) {
                 expand_sv_np_ml(vid, idx, views[l][i],
@@ -597,7 +597,7 @@ std::pair<std::shared_ptr<IContextColumn>, sel_vec_t> expand_vertex_impl(
       } else {
         input.foreach_vertex([&](size_t idx, label_t l, vid_t vid) {
           if constexpr (is_optional) {
-            if (vid != std::numeric_limits<vid_t>::max()) {
+            if (vid != INVALID_VID) {
               size_t old_size = builder.cur_size();
               for (size_t i = 0; i < views[l].size(); ++i) {
                 auto& view = views[l][i];
@@ -694,7 +694,7 @@ std::pair<std::shared_ptr<IContextColumn>, sel_vec_t> expand_vertex_impl(
           auto vid = vertices[i];
           size_t old_size = builder.cur_size();
           if constexpr (is_optional) {
-            if (vid != std::numeric_limits<vid_t>::max()) {
+            if (vid != INVALID_VID) {
               expand_sv_np_ms(vid, vertex_idx, view, builder, offsets);
             }
             if (builder.cur_size() > old_size) {
@@ -714,7 +714,7 @@ std::pair<std::shared_ptr<IContextColumn>, sel_vec_t> expand_vertex_impl(
           auto vid = vertices[i];
           size_t old_size = builder.cur_size();
           if constexpr (is_optional) {
-            if (vid != std::numeric_limits<vid_t>::max()) {
+            if (vid != INVALID_VID) {
               expand_sv_p_ms(input_label, vid, vertex_idx, nbr_label,
                              edge_label, dir, view, gpred, builder, offsets);
             }
@@ -805,7 +805,7 @@ std::pair<std::shared_ptr<IContextColumn>, sel_vec_t> expand_edge_impl(
       for (size_t idx = 0; idx < vertices.size(); ++idx) {
         auto v = vertices[idx];
         if constexpr (is_optional) {
-          if (v == std::numeric_limits<vid_t>::max()) {
+          if (v == INVALID_VID) {
             if (!matched[idx]) {
               builder.push_back_null();
               offsets.push_back(idx);
@@ -841,7 +841,7 @@ std::pair<std::shared_ptr<IContextColumn>, sel_vec_t> expand_edge_impl(
       for (size_t idx = 0; idx < vertices.size(); ++idx) {
         auto v = vertices[idx];
         if constexpr (is_optional) {
-          if (v == std::numeric_limits<vid_t>::max()) {
+          if (v == INVALID_VID) {
             if (!matched[idx]) {
               builder.push_back_null();
               offsets.push_back(idx);
@@ -928,7 +928,7 @@ std::pair<std::shared_ptr<IContextColumn>, sel_vec_t> expand_edge_impl(
       if constexpr (PRED_T::is_dummy) {
         for (auto v : vertices) {
           if constexpr (is_optional) {
-            if (v == std::numeric_limits<vid_t>::max()) {
+            if (v == INVALID_VID) {
               if (!matched[vertex_idx]) {
                 builder.push_back_null();
                 offsets.push_back(vertex_idx);
@@ -964,7 +964,7 @@ std::pair<std::shared_ptr<IContextColumn>, sel_vec_t> expand_edge_impl(
       } else {
         for (auto v : vertices) {
           if constexpr (is_optional) {
-            if (v == std::numeric_limits<vid_t>::max()) {
+            if (v == INVALID_VID) {
               if (!matched[vertex_idx]) {
                 builder.push_back_null();
                 offsets.push_back(vertex_idx);
@@ -1069,7 +1069,7 @@ std::pair<std::shared_ptr<IContextColumn>, sel_vec_t> expand_edge_impl(
   size_t old_size;
   input.foreach_vertex([&](size_t idx, label_t l, vid_t vid) {
     if constexpr (is_optional) {
-      if (vid == std::numeric_limits<vid_t>::max()) {
+      if (vid == INVALID_VID) {
         builder.push_back_null();
         offsets.push_back(idx);
         return;

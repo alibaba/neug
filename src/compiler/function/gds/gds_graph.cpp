@@ -118,8 +118,7 @@ BoundGraphEntryTableInfo GDSFunction::bindNodeEntry(
     main::ClientContext& context, const std::string& tableName,
     const std::string& predicate) {
   auto catalog = context.getCatalog();
-  auto transaction = context.getTransaction();
-  auto nodeEntry = catalog->getTableCatalogEntry(transaction, tableName);
+  auto nodeEntry = catalog->getTableCatalogEntry(tableName);
   if (nodeEntry->get_entry_type() != SchemaEntryType::NODE) {
     THROW_BINDER_EXCEPTION(stringFormat("{} is not a NODE table.", tableName));
   }
@@ -142,16 +141,15 @@ BoundGraphEntryTableInfo GDSFunction::bindRelEntry(
     main::ClientContext& context, const std::vector<std::string>& triplets,
     const std::string& predicate) {
   auto* catalog = context.getCatalog();
-  auto* transaction = context.getTransaction();
   const auto& srcLabel = triplets[0];
   const auto& edgeLabel = triplets[1];
   const auto& dstLabel = triplets[2];
   std::string tableName = edgeLabel;
-  if (catalog->containsRelGroup(transaction, edgeLabel)) {
+  if (catalog->containsRelGroup(edgeLabel)) {
     tableName =
         RelGroupCatalogEntry::getChildTableName(edgeLabel, srcLabel, dstLabel);
   }
-  auto* relEntry = catalog->getTableCatalogEntry(transaction, tableName);
+  auto* relEntry = catalog->getTableCatalogEntry(tableName);
   if (!relEntry || relEntry->get_entry_type() != SchemaEntryType::REL) {
     THROW_BINDER_EXCEPTION(stringFormat("{} is not a REL table.", tableName));
   }
@@ -196,12 +194,11 @@ std::shared_ptr<binder::Expression> GDSFunction::bindRelOutput(
 
 static void validateNodeProjected(const table_id_set_t& connectedNodeTableIDSet,
                                   const table_id_set_t& projectedNodeIDSet,
-                                  const std::string& relName, Catalog* catalog,
-                                  transaction::Transaction* transaction) {
+                                  const std::string& relName,
+                                  Catalog* catalog) {
   for (auto id : connectedNodeTableIDSet) {
     if (!projectedNodeIDSet.contains(id)) {
-      auto entryName =
-          catalog->getTableCatalogEntry(transaction, id)->get_label();
+      auto entryName = catalog->getTableCatalogEntry(id)->get_label();
       THROW_BINDER_EXCEPTION(stringFormat(
           "{} is connected to {} but not projected.", entryName, relName));
     }
@@ -210,7 +207,7 @@ static void validateNodeProjected(const table_id_set_t& connectedNodeTableIDSet,
 
 static void validateRelSrcDstNodeAreProjected(
     SchemaEntry& entry, const table_id_set_t& projectedNodeIDSet,
-    Catalog* catalog, transaction::Transaction* transaction) {
+    Catalog* catalog) {
   if (entry.get_entry_type() != SchemaEntryType::REL) {
     THROW_BINDER_EXCEPTION(
         stringFormat("{} is not a rel table entry.", entry.get_label()));
@@ -218,15 +215,14 @@ static void validateRelSrcDstNodeAreProjected(
   auto& relEntry = static_cast<EdgeSchema&>(entry);
   auto relName = relEntry.get_label();
   validateNodeProjected({relEntry.getSrcTableID()}, projectedNodeIDSet, relName,
-                        catalog, transaction);
+                        catalog);
   validateNodeProjected({relEntry.getDstTableID()}, projectedNodeIDSet, relName,
-                        catalog, transaction);
+                        catalog);
 }
 
 GraphEntry GDSFunction::bindGraphEntry(main::ClientContext& context,
                                        const ProjectedGraphEntry& entry) {
   auto* catalog = context.getCatalog();
-  auto* transaction = context.getTransaction();
   GraphEntry result;
   table_id_set_t projectedNodeTableIDSet;
   for (auto& nodeInfo : entry.vertexInfos) {
@@ -248,7 +244,7 @@ GraphEntry GDSFunction::bindGraphEntry(main::ClientContext& context,
       renameVar.visit(boundInfo.predicate);
     }
     validateRelSrcDstNodeAreProjected(*boundInfo.entry, projectedNodeTableIDSet,
-                                      catalog, transaction);
+                                      catalog);
     result.relInfos.push_back(std::move(boundInfo));
   }
   return result;

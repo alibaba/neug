@@ -89,7 +89,7 @@ LOAD FROM "person.parquet"
 RETURN *;
 ```
 
-See the [Parquet Extension](../extensions/load_parquet) page for format-specific options (`buffered_stream`, `pre_buffer`, `enable_io_coalescing`, `parquet_batch_rows`) and examples, including how to export query results to Parquet via `COPY TO`.
+See the [Parquet Extension](../extensions/load_parquet) page for format-specific options (`batch_size`, `buffered_stream`, `pre_buffer`, `enable_io_coalescing`, `batch_rows`) and examples, including how to export query results to Parquet via `COPY TO`.
 
 ## Relational Operations
 
@@ -207,7 +207,7 @@ For large files, the following option can improve read performance:
 | ------------ | ----- | -------------- | ----------- |
 | `parallel`   | bool  | `false` | Enable parallel reading using multiple threads (max core number). When enabled for Parquet files, row groups are scanned concurrently and row order is **not** preserved. |
 
-> **Note:** Batch reading options (`batch_read`, `batch_size`) are currently supported in [`COPY FROM`](import_data#performance-options), not in `LOAD FROM`. 
+> **Note:** Batch reading options (`batch_read`, `batch_rows`) are currently supported in [`COPY FROM`](import_data#performance-options), not in `LOAD FROM`. 
 
 Example:
 

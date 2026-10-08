@@ -69,6 +69,11 @@ Value evaluate(const BindedExprBase& expression, VarType mode) {
   return Value(DataType::BOOLEAN);
 }
 
+TEST(LogicalExprTest, InvalidRegexRaisesNeugRuntimeError) {
+  EXPECT_THROW(evaluate_regex(Value::STRING("value"), Value::STRING("[")),
+               exception::RuntimeError);
+}
+
 TEST(LogicalExprTest, PreservesThreeValuedLogicInEveryEvaluationMode) {
   struct TruthRow {
     std::optional<bool> left;

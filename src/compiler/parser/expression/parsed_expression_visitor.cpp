@@ -175,11 +175,10 @@ void ReadWriteExprAnalyzer::visitFunctionExpr(const ParsedExpression* expr) {
   auto catalog = context->getCatalog();
   // Assume user cannot add function with sideeffect, i.e. all non-readonly
   // function is registered when database starts.
-  auto transaction = &transaction::DUMMY_TRANSACTION;
-  if (!catalog->containsFunction(transaction, funcName)) {
+  if (!catalog->containsFunction(funcName)) {
     return;
   }
-  auto entry = catalog->getFunctionEntry(transaction, funcName);
+  auto entry = catalog->getFunctionEntry(funcName);
   if (entry->getType() != CatalogEntryType::SCALAR_FUNCTION_ENTRY) {
     // Can be macro function which guarantees to be readonly.
     return;

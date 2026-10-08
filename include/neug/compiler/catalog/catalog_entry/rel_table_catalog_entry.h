@@ -65,11 +65,8 @@ class NEUG_API RelTableCatalogEntry : public TableCatalogEntry {
   }
 
   bool isParent(common::table_id_t tableID) override;
-  bool hasParentRelGroup(const Catalog* catalog,
-                         const transaction::Transaction* transaction) const;
-  RelGroupCatalogEntry* getParentRelGroup(
-      const Catalog* catalog,
-      const transaction::Transaction* transaction) const;
+  bool hasParentRelGroup(const Catalog* catalog) const;
+  RelGroupCatalogEntry* getParentRelGroup(const Catalog* catalog) const;
 
   SchemaEntryType getTableType() const override { return SchemaEntryType::REL; }
   common::table_id_t getSrcTableID() const { return srcTableID; }
@@ -93,10 +90,6 @@ class NEUG_API RelTableCatalogEntry : public TableCatalogEntry {
 
   std::string getMultiplicityStr() const;
   std::string toCypher(const ToCypherInfo& info) const override;
-
- private:
-  std::unique_ptr<binder::BoundExtraCreateCatalogEntryInfo>
-  getBoundExtraCreateInfo(transaction::Transaction* transaction) const override;
 
  private:
   common::RelMultiplicity srcMultiplicity;

@@ -22,10 +22,15 @@
 
 #pragma once
 
+#include <optional>
+
 #include "neug/compiler/common/vector/value_vector.h"
 #include "neug/compiler/function/function.h"
 
 namespace neug {
+namespace binder {
+class Expression;
+}
 namespace function {
 
 struct ListCreationFunction {
@@ -67,6 +72,14 @@ struct ListConcatFunction {
   static constexpr const char* name = "LIST_CONCAT";
 
   static function_set getFunctionSet();
+};
+
+struct RepeatFunction {
+  static constexpr const char* name = "REPEAT";
+
+  static function_set getFunctionSet();
+  static std::optional<uint64_t> tryGetResultSize(
+      const binder::Expression& expression);
 };
 
 struct ListHasFunction {

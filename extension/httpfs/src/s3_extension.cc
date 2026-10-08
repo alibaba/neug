@@ -16,6 +16,7 @@
 
 #include <glog/logging.h>
 #include "http_filesystem.h"
+#include "neug/compiler/extension/extension_api.h"
 #include "neug/compiler/main/metadata_registry.h"
 #include "neug/utils/exception/exception.h"
 #include "neug/utils/io/vfs/file_system.h"
@@ -71,6 +72,13 @@ void Init() {
 
     // Register HTTP/HTTPS filesystem provider
     neug::extension::httpfs::RegisterHTTPProvider();
+
+    // Register the extension so it shows up in SHOW_LOADED_EXTENSIONS()
+    neug::extension::ExtensionAPI::registerExtension(
+        neug::extension::ExtensionInfo{
+            "httpfs",
+            "Provides remote filesystem access for s3, oss, http, https "
+            "schemes."});
 
     LOG(INFO) << "[httpfs extension] initialized (s3, oss, http, https)";
   } catch (const std::exception& e) {

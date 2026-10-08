@@ -33,7 +33,6 @@
 #include "neug/compiler/main/client_config.h"
 #include "neug/compiler/parser/statement.h"
 #include "neug/compiler/processor/warning_context.h"
-#include "neug/compiler/transaction/transaction.h"
 #include "neug/storages/graph/graph_stats.h"
 #include "prepared_statement.h"
 
@@ -98,11 +97,6 @@ class NEUG_API ClientContext {
   const ClientConfig* getClientConfig() const { return &clientConfig; }
   ClientConfig* getClientConfigUnsafe() { return &clientConfig; }
   compiler_impl::Value getCurrentSetting(const std::string& optionName) const;
-
-  // TODO: This will be removed after decoupling other dependencies.
-  // Currently returns a dummy `transaction` to maintain compatibility. It will
-  // be removed once dependent interfaces are refactored.
-  transaction::Transaction* getTransaction() const;
 
   std::unique_ptr<function::ScanReplacementData> tryReplace(
       const std::string& objectName) const;

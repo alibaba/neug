@@ -31,7 +31,6 @@
 #include "neug/compiler/common/data_chunk/sel_vector.h"
 #include "neug/compiler/common/types/types.h"
 #include "neug/compiler/common/vector/value_vector.h"
-#include "neug/compiler/transaction/transaction.h"
 
 namespace neug {
 namespace catalog {
@@ -220,16 +219,13 @@ class Graph {
   virtual std::vector<common::table_id_t> getRelTableIDs() const = 0;
 
   // Get max offset of each table as a map.
-  virtual common::table_id_map_t<common::offset_t> getMaxOffsetMap(
-      transaction::Transaction* transaction) const = 0;
+  virtual common::table_id_map_t<common::offset_t> getMaxOffsetMap() const = 0;
 
   // Get max offset of given table.
-  virtual common::offset_t getMaxOffset(transaction::Transaction* transaction,
-                                        common::table_id_t id) const = 0;
+  virtual common::offset_t getMaxOffset(common::table_id_t id) const = 0;
 
   // Get num nodes for all node tables.
-  virtual common::offset_t getNumNodes(
-      transaction::Transaction* transaction) const = 0;
+  virtual common::offset_t getNumNodes() const = 0;
 
   // Get all possible forward (toNodeTable, relTable)s.
   virtual std::vector<NbrTableInfo> getForwardNbrTableInfos(

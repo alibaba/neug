@@ -50,8 +50,7 @@ function::ExportFunction Binder::getExportFunction(
   std::transform(fileTypeStr.begin(), fileTypeStr.end(), fileTypeStr.begin(),
                  [](unsigned char c) { return std::toupper(c); });
   auto name = stringFormat("COPY_{}", fileTypeStr);
-  auto entry = clientContext->getCatalog()->getFunctionEntry(
-      clientContext->getTransaction(), name);
+  auto entry = clientContext->getCatalog()->getFunctionEntry(name);
   return *function::BuiltInFunctionsUtils::matchFunction(
               name, entry->ptrCast<catalog::FunctionCatalogEntry>())
               ->constPtrCast<function::ExportFunction>();

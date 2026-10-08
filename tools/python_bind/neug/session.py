@@ -317,20 +317,21 @@ class Session:
         """
         Execute a query on the NeuG server.
 
-        :param query: The query string to be executed.
-        :param access_mode: The access mode for the query. Supported modes are:
-            - `read` or `r`: Read-only queries
-            - `insert` or `i`: Insert-only operations
-            - `update` or `u`: Update/delete operations (default)
-            - `schema` or `s`: Schema modification operations
-        :param parameters: Optional dict of query parameters.
-        :return: The result of the query execution.
-
         While an explicit transaction is active, the query runs in that
         transaction. A failure reported by the service leaves it rollback-only;
         call `rollback()` before issuing another query. Client-side validation
         errors, such as an invalid `access_mode`, do not change the transaction
         state.
+
+        :param query: The query string to be executed.
+        :param access_mode: The access mode for the query. When omitted, NeuG infers it
+            from the query text. Supported modes are:
+            - `read` or `r`: Read-only queries
+            - `insert` or `i`: Insert-only operations
+            - `update` or `u`: Update/delete operations
+            - `schema` or `s`: Schema modification operations
+        :param parameters: Optional dict of query parameters.
+        :return: The result of the query execution.
         """
         if self._closed:
             logger.error("Session is closed. Cannot execute query.")

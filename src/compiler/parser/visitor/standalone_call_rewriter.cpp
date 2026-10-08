@@ -45,9 +45,7 @@ void StandaloneCallRewriter::visitStandaloneCallFunction(
   auto funcName = standaloneCallFunc.getFunctionExpression()
                       ->constPtrCast<parser::ParsedFunctionExpression>()
                       ->getFunctionName();
-  if (!context->getCatalog()->containsFunction(context->getTransaction(),
-                                               funcName) &&
-      !singleStatement) {
+  if (!context->getCatalog()->containsFunction(funcName) && !singleStatement) {
     THROW_PARSER_EXCEPTION(funcName +
                            " must be called in a query which "
                            "doesn't have other statements.");

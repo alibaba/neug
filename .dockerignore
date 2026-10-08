@@ -22,7 +22,7 @@ coverage_html.tar.gz
 .idea/
 .vscode/
 .qoder/
-.cursor/
+.agent/
 .devcontainer/
 **/.DS_Store
 

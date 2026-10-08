@@ -16,6 +16,7 @@
 # limitations under the License.
 #
 
+import datetime
 import logging
 import shutil
 
@@ -32,6 +33,13 @@ from neug.proto.error_pb2 import ERR_NOT_SUPPORTED
 from neug.proto.error_pb2 import ERR_QUERY_SYNTAX
 
 logger = logging.getLogger(__name__)
+
+
+def _profile_operator_names(result):
+    return [
+        operator["operator_name"]
+        for operator in result.get_profile_metrics()["operators"]
+    ]
 
 
 # DB-003-12
@@ -142,6 +150,127 @@ def test_aggregate_over_all_null_input(empty_db):
     )
 
     assert list(result) == [[None, None, None, 0, []]]
+
+
+def test_aggregation_function(empty_db):
+    _, conn = empty_db
+
+    # Normal input: count(*) and count(value) both count every row.
+    result = conn.execute(
+        "UNWIND [1, 1, 2] AS value "
+        "RETURN count(*), count(value), avg(value), max(value), min(value), "
+        "sum(value), collect(value);"
+    )
+    assert list(result)[0] == [3, 3, pytest.approx(4 / 3), 2, 1, 4, [1, 1, 2]]
+
+    # Empty input: both counts are 0; sum and collect return their identity values.
+    result = conn.execute(
+        "UNWIND CAST([], 'INT64[]') AS value "
+        "RETURN count(*), count(value), avg(value), max(value), min(value), "
+        "sum(value), collect(value);"
+    )
+    assert list(result) == [[0, 0, None, None, None, 0, []]]
+
+    # Input containing NULL: count(*) counts every row; other aggregates ignore NULL.
+    result = conn.execute(
+        "UNWIND [CAST(NULL, 'INT64'), -1, -1, 1, 2] AS value "
+        "RETURN count(*), count(value), avg(value), max(value), min(value), "
+        "sum(value), collect(value);"
+    )
+    assert list(result)[0] == [5, 4, pytest.approx(1 / 4), 2, -1, 1, [-1, -1, 1, 2]]
+
+    # All-NULL input: count(*) counts every row; count(value) and others see no values.
+    result = conn.execute(
+        "UNWIND [CAST(NULL, 'INT64'), CAST(NULL, 'INT64')] AS value "
+        "RETURN count(*), count(value), avg(value), max(value), min(value), "
+        "sum(value), collect(value);"
+    )
+    assert list(result) == [[2, 0, None, None, None, 0, []]]
+
+
+def test_aggregation_function_distinct(empty_db):
+    _, conn = empty_db
+
+    # Normal input: DISTINCT aggregates remove duplicate values.
+    result = conn.execute(
+        "UNWIND [1, 1, 2] AS value "
+        "RETURN count(DISTINCT value), max(DISTINCT value), "
+        "min(DISTINCT value), collect(DISTINCT value);"
+    )
+    assert list(result) == [[2, 2, 1, [1, 2]]]
+
+    # Empty input: count is 0; max, min, and collect return their empty values.
+    result = conn.execute(
+        "UNWIND CAST([], 'INT64[]') AS value "
+        "RETURN count(DISTINCT value), max(DISTINCT value), "
+        "min(DISTINCT value), collect(DISTINCT value);"
+    )
+    assert list(result) == [[0, None, None, []]]
+
+    # Input containing NULL: DISTINCT aggregates ignore NULL and remove duplicates.
+    result = conn.execute(
+        "UNWIND [CAST(NULL, 'INT64'), CAST(NULL, 'INT64'), -1, -1, 1, 2] "
+        "AS value "
+        "RETURN count(DISTINCT value), max(DISTINCT value), "
+        "min(DISTINCT value), collect(DISTINCT value);"
+    )
+    assert list(result) == [[3, 2, -1, [-1, 1, 2]]]
+
+    # RETURN DISTINCT preserves NULL as a separate single-column or multi-column row.
+    rows = list(
+        conn.execute(
+            "UNWIND [CAST(NULL, 'INT64'), CAST(NULL, 'INT64'), -1, -1, 1, 2] "
+            "AS value RETURN DISTINCT value;"
+        )
+    )
+    assert len(rows) == 4
+    assert {row[0] for row in rows} == {None, -1, 1, 2}
+
+    rows = list(
+        conn.execute(
+            "UNWIND [CAST(NULL, 'INT64'), CAST(NULL, 'INT64'), -1, -1, 1, 2] "
+            "AS value RETURN DISTINCT value, 5;"
+        )
+    )
+    assert len(rows) == 4
+    assert {tuple(row) for row in rows} == {(None, 5), (-1, 5), (1, 5), (2, 5)}
+
+    # All-NULL input: DISTINCT aggregates see no non-NULL values.
+    result = conn.execute(
+        "UNWIND [CAST(NULL, 'INT64'), CAST(NULL, 'INT64')] AS value "
+        "RETURN count(DISTINCT value), max(DISTINCT value), "
+        "min(DISTINCT value), collect(DISTINCT value);"
+    )
+    assert list(result) == [[0, None, None, []]]
+
+    # SUM(DISTINCT ...) and AVG(DISTINCT ...) are not supported.
+    with pytest.raises(RuntimeError) as excinfo:
+        conn.execute("UNWIND [1, 1, 2] AS value RETURN sum(DISTINCT value);")
+    message = str(excinfo.value)
+    assert str(ERR_NOT_SUPPORTED) in message
+    assert "SUM(DISTINCT ...) is not supported" in message
+
+    with pytest.raises(RuntimeError) as excinfo:
+        conn.execute("UNWIND [1, 1, 2] AS value RETURN avg(DISTINCT value);")
+    message = str(excinfo.value)
+    assert str(ERR_NOT_SUPPORTED) in message
+    assert "AVG(DISTINCT ...) is not supported" in message
+
+
+def test_order_by_null_placement(empty_db):
+    """Null sorts last for ASC and first for DESC."""
+    _, conn = empty_db
+    asc_result = conn.execute(
+        "UNWIND CAST([3, 1, CAST(null, 'INT64'), 4, 2], 'INT64[]') AS value "
+        "RETURN value ORDER BY value ASC;"
+    )
+    assert list(asc_result) == [[1], [2], [3], [4], [None]]
+
+    desc_result = conn.execute(
+        "UNWIND CAST([3, 1, CAST(null, 'INT64'), 4, 2], 'INT64[]') AS value "
+        "RETURN value ORDER BY value DESC;"
+    )
+    assert list(desc_result) == [[None], [4], [3], [2], [1]]
 
 
 def test_result_getitem(modern_graph):
@@ -304,26 +433,419 @@ def test_return_literal(tinysnb):
     assert res[1] == [2, "person"]  # Assuming there are at
 
 
-def test_builtin_scalar_function_with_dynamic_parameter(empty_db):
+def _create_dynamic_parameter_read_fixture(conn):
+    conn.execute(
+        "CREATE NODE TABLE DynamicParam("
+        "id STRING PRIMARY KEY, name STRING, score INT64);"
+    )
+    conn.execute(
+        "CREATE REL TABLE DynamicParamRel("
+        "FROM DynamicParam TO DynamicParam, kind STRING);"
+    )
+    conn.execute(
+        "CREATE (:DynamicParam {id: 'a', name: 'AlphaBeta', score: 10}), "
+        "(:DynamicParam {id: 'b', name: 'Beta', score: 20}), "
+        "(:DynamicParam {id: 'c', name: 'Gamma', score: 30});"
+    )
+    conn.execute(
+        "MATCH (a:DynamicParam {id: 'a'}), (b:DynamicParam {id: 'b'}) "
+        "CREATE (a)-[:DynamicParamRel {kind: 'linked'}]->(b);"
+    )
+
+
+def test_dynamic_parameter_in_general_projection_and_predicate(empty_db):
+    _, conn = empty_db
+    _create_dynamic_parameter_read_fixture(conn)
+
+    result = conn.execute(
+        "MATCH (a:DynamicParam)-[r:DynamicParamRel]->(b:DynamicParam) "
+        "WHERE a.score >= $minimum AND r.kind = $kind "
+        "RETURN a.name = $projected_name, b.name;",
+        parameters={
+            "minimum": 10,
+            "kind": "linked",
+            "projected_name": "AlphaBeta",
+        },
+    )
+    assert list(result) == [[True, "Beta"]]
+
+
+def test_dynamic_parameters_in_arithmetic_comparison_boolean_and_case(empty_db):
+    _, conn = empty_db
+    _create_dynamic_parameter_read_fixture(conn)
+
+    result = conn.execute(
+        "MATCH (n:DynamicParam) "
+        "WHERE n.score >= $minimum AND n.id <> $excluded "
+        "RETURN n.id, n.score + $increment, "
+        "CASE WHEN n.name = $name THEN $matched ELSE n.name END "
+        "ORDER BY n.id;",
+        parameters={
+            "minimum": 10,
+            "excluded": "b",
+            "increment": 5,
+            "name": "AlphaBeta",
+            "matched": "matched",
+        },
+    )
+    assert list(result) == [["a", 15, "matched"], ["c", 35, "Gamma"]]
+
+
+def test_dynamic_parameter_in_neug_scalar_function(empty_db):
     _, conn = empty_db
     result = conn.execute(
         "RETURN lower($value);", parameters={"value": "NeuG"}, access_mode="read"
     )
-
     assert list(result) == [["neug"]]
+
+
+def test_dynamic_parameters_in_string_predicates(empty_db):
+    _, conn = empty_db
+    _create_dynamic_parameter_read_fixture(conn)
+
+    result = conn.execute(
+        "MATCH (n:DynamicParam {id: 'a'}) RETURN "
+        "n.name STARTS WITH $prefix, "
+        "n.name ENDS WITH $suffix, "
+        "n.name CONTAINS $substring;",
+        parameters={
+            "prefix": "Alpha",
+            "suffix": "Beta",
+            "substring": "haBe",
+        },
+    )
+    assert list(result) == [[True, True, True]]
+
+    metacharacter_result = conn.execute(
+        "RETURN $value STARTS WITH $prefix, "
+        "$value ENDS WITH $suffix, "
+        "$value CONTAINS $substring;",
+        parameters={
+            "value": "a[b.c*",
+            "prefix": "a[",
+            "suffix": ".c*",
+            "substring": "[b.",
+        },
+    )
+    assert list(metacharacter_result) == [[True, True, True]]
+
+
+def test_dynamic_parameter_in_list_membership(empty_db):
+    _, conn = empty_db
+    _create_dynamic_parameter_read_fixture(conn)
+
+    primary_key_result = conn.execute(
+        "MATCH (n:DynamicParam) WHERE n.id IN $ids RETURN n.id ORDER BY n.id;",
+        parameters={"ids": ["b", "a"]},
+    )
+    assert list(primary_key_result) == [["a"], ["b"]]
+
+    filter_result = conn.execute(
+        "MATCH (n:DynamicParam) WHERE n.name IN $names RETURN n.id ORDER BY n.id;",
+        parameters={"names": ["Beta", "Gamma"]},
+    )
+    assert list(filter_result) == [["b"], ["c"]]
+
+
+def test_dynamic_parameter_in_primary_key_equality(empty_db):
+    _, conn = empty_db
+    _create_dynamic_parameter_read_fixture(conn)
+
+    result = conn.execute(
+        "MATCH (n:DynamicParam {id: $id}) RETURN n.name;",
+        parameters={"id": "a"},
+    )
+    assert list(result) == [["AlphaBeta"]]
+
+
+def test_dynamic_parameters_in_write_property_values(empty_db):
+    _, conn = empty_db
+    conn.execute(
+        "CREATE NODE TABLE DynamicParam("
+        "id STRING PRIMARY KEY, name STRING, score INT64);"
+    )
+    conn.execute(
+        "CREATE (:DynamicParam {id: $id, name: $name, score: $score});",
+        parameters={"id": "a", "name": "Alpha", "score": 10},
+    )
+    conn.execute(
+        "CREATE (:DynamicParam {id: $id, name: $name, score: $score});",
+        parameters={"id": "b", "name": "Beta", "score": 20},
+    )
+
+    conn.execute(
+        "MATCH (n:DynamicParam {id: $id}) SET n.score = $score;",
+        parameters={"id": "a", "score": 30},
+    )
+    on_match = conn.execute(
+        "MERGE (n:DynamicParam {id: $id}) "
+        "ON MATCH SET n.score = $score RETURN n.score;",
+        parameters={"id": "b", "score": 40},
+    )
+    assert list(on_match) == [[40]]
+
+    on_create = conn.execute(
+        "MERGE (n:DynamicParam {id: $id}) "
+        "ON CREATE SET n.name = $name, n.score = $score "
+        "RETURN n.name, n.score;",
+        parameters={"id": "c", "name": "Gamma", "score": 50},
+    )
+    assert list(on_create) == [["Gamma", 50]]
+
+    final_scores = conn.execute(
+        "MATCH (n:DynamicParam) RETURN n.id, n.score ORDER BY n.id;"
+    )
+    assert list(final_scores) == [["a", 30], ["b", 40], ["c", 50]]
+
+
+def test_dynamic_limit_without_order_by(modern_graph):
+    query = "MATCH (n) RETURN n.id AS id LIMIT $k"
+
+    assert len(modern_graph.execute(query, parameters={"k": 2})) == 2
+    # Exercise the same cached plan with a different runtime value.
+    assert len(modern_graph.execute(query, parameters={"k": 4})) == 4
+
+
+def test_dynamic_limit_without_match(modern_graph):
+    assert list(
+        modern_graph.execute("RETURN 1 AS value LIMIT $k", parameters={"k": 1})
+    ) == [[1]]
+    assert (
+        list(modern_graph.execute("RETURN 1 AS value LIMIT $k", parameters={"k": 0}))
+        == []
+    )
+
+
+def test_dynamic_skip_without_order_by(modern_graph):
+    result = modern_graph.execute(
+        "MATCH (n) RETURN n.id AS id SKIP $offset",
+        parameters={"offset": 2},
+    )
+
+    assert len(result) == 4
+
+
+def test_dynamic_skip_and_limit_without_order_by(modern_graph):
+    exhaustive = list(modern_graph.execute("MATCH (n) RETURN n.id AS id"))
+    result = modern_graph.execute(
+        "MATCH (n) RETURN n.id AS id SKIP $offset LIMIT $k",
+        parameters={"offset": 1, "k": 3},
+    )
+
+    assert list(result) == exhaustive[1:4]
+
+
+def test_dynamic_order_by_limit_applies_project_order_by_fusion(modern_graph):
+    result = modern_graph.execute(
+        "PROFILE MATCH (n) RETURN n.id AS id ORDER BY id LIMIT $k",
+        parameters={"k": 3},
+    )
+
+    assert list(result) == [[1], [2], [3]]
+    assert "ProjectOrderByOprBeta" in _profile_operator_names(result)
+
+
+def test_dynamic_order_by_skip_uses_unbounded_fallback(modern_graph):
+    result = modern_graph.execute(
+        "PROFILE MATCH (n) RETURN n.id AS id ORDER BY id SKIP $offset",
+        parameters={"offset": 2},
+    )
+
+    assert list(result) == [[3], [4], [5], [6]]
+    operator_names = _profile_operator_names(result)
+    assert "ProjectOrderByOprBeta" not in operator_names
+    assert "OrderByOpr" in operator_names
+
+
+def test_dynamic_order_by_skip_and_limit(modern_graph):
+    query = "PROFILE MATCH (n) RETURN n.id AS id " "ORDER BY id SKIP $offset LIMIT $k"
+
+    result = modern_graph.execute(query, parameters={"offset": 1, "k": 3})
+    assert list(result) == [
+        [2],
+        [3],
+        [4],
+    ]
+    assert "ProjectOrderByOprBeta" in _profile_operator_names(result)
+
+    result = modern_graph.execute(query, parameters={"offset": 3, "k": 2})
+    assert list(result) == [
+        [4],
+        [5],
+    ]
+    assert "ProjectOrderByOprBeta" in _profile_operator_names(result)
+
+
+@pytest.mark.parametrize(
+    ("suffix", "parameters", "expected"),
+    [
+        ("LIMIT $k", {"k": 1}, [[2, 1]]),
+        ("SKIP $offset LIMIT $k", {"offset": 1, "k": 1}, [[4, 1]]),
+    ],
+)
+def test_dynamic_shortest_path_limit_rule(modern_graph, suffix, parameters, expected):
+    result = modern_graph.execute(
+        "PROFILE MATCH (v:person {id: 1})"
+        "-[e:knows*SHORTEST 1..]-(v2:person) "
+        "WHERE v <> v2 "
+        "WITH v2, length(e) AS distance "
+        "RETURN v2.id, distance ORDER BY distance ASC " + suffix,
+        parameters=parameters,
+    )
+
+    assert list(result) == expected
+    operator_names = _profile_operator_names(result)
+    assert "SPOrderByLimitWithGPredOpr" in operator_names
+    assert "ProjectOrderByOprBeta" in operator_names
+
+
+@pytest.mark.parametrize("suffix", ["LIMIT $value", "SKIP $value"])
+@pytest.mark.parametrize("value", [-1, 1.5, "2", True, None])
+def test_dynamic_limit_and_skip_reject_invalid_values(modern_graph, suffix, value):
+    with pytest.raises(Exception):
+        modern_graph.execute(
+            f"MATCH (n) RETURN n.id AS id {suffix}",
+            parameters={"value": value},
+        )
+
+
+@pytest.mark.parametrize(
+    ("suffix", "parameter_name"),
+    [("LIMIT $k", "k"), ("SKIP $offset", "offset")],
+)
+def test_dynamic_limit_and_skip_report_missing_parameter(
+    modern_graph, suffix, parameter_name
+):
+    with pytest.raises(
+        Exception, match=rf"Missing query parameter: \${parameter_name}"
+    ):
+        modern_graph.execute(f"MATCH (n) RETURN n.id AS id {suffix}")
+
+
+def test_dynamic_skip_and_limit_clamp_combined_upper_bound(modern_graph):
+    result = modern_graph.execute(
+        "MATCH (n) RETURN n.id AS id ORDER BY id SKIP $offset LIMIT $k",
+        parameters={"offset": 1, "k": 2**32 - 1},
+    )
+
+    assert list(result) == [[2], [3], [4], [5], [6]]
+
+
+def test_literal_integer_expression_for_limit_and_skip(modern_graph):
+    result = modern_graph.execute(
+        "MATCH (n) RETURN n.id AS id ORDER BY id SKIP 1 + 1 LIMIT 1 + 1"
+    )
+
+    assert list(result) == [[3], [4]]
+
+
+def test_skip_may_be_greater_than_limit(modern_graph):
+    result = modern_graph.execute(
+        "MATCH (n) RETURN n.id AS id ORDER BY id SKIP 4 LIMIT 1"
+    )
+
+    assert list(result) == [[5]]
+
+
+def test_dynamic_skip_rejects_value_above_upper_bound(modern_graph):
+    with pytest.raises(Exception, match="exceeds maximum allowed value: 4294967295"):
+        modern_graph.execute(
+            "MATCH (n) RETURN n.id AS id SKIP $offset",
+            parameters={"offset": 2**32},
+        )
+
+
+@pytest.mark.parametrize(
+    ("suffix", "parameters"),
+    [
+        ("SKIP 4294967296", None),
+        ("SKIP $value", {"value": 2**32}),
+        ("LIMIT 4294967296", None),
+        ("LIMIT $value", {"value": 2**32}),
+    ],
+)
+def test_skip_and_limit_reject_out_of_range_values(modern_graph, suffix, parameters):
+    with pytest.raises(Exception):
+        modern_graph.execute(
+            f"MATCH (n) RETURN n.id AS id {suffix}",
+            parameters=parameters,
+        )
+
+
+@pytest.mark.parametrize(
+    ("suffix", "parameters"),
+    [
+        ("SKIP 4294967295", None),
+        ("SKIP $value", {"value": 2**32 - 1}),
+        ("LIMIT 4294967295", None),
+        ("LIMIT $value", {"value": 2**32 - 1}),
+    ],
+)
+def test_skip_and_limit_accept_upper_bound(modern_graph, suffix, parameters):
+    result = list(
+        modern_graph.execute(
+            f"MATCH (n) RETURN n.id AS id {suffix}",
+            parameters=parameters,
+        )
+    )
+
+    if suffix.startswith("SKIP"):
+        assert result == []
+    else:
+        assert len(result) == 6
+
+
+@pytest.mark.parametrize(
+    "suffix",
+    [
+        "SKIP 10",
+        "SKIP $value",
+        "SKIP 10 LIMIT 1",
+        "SKIP $value LIMIT $limit",
+    ],
+)
+def test_skip_beyond_result_cardinality_returns_empty(modern_graph, suffix):
+    assert (
+        list(
+            modern_graph.execute(
+                f"MATCH (n) RETURN n.id AS id {suffix}",
+                parameters={"value": 10, "limit": 1},
+            )
+        )
+        == []
+    )
+
+
+@pytest.mark.parametrize("suffix", ["LIMIT -1", "SKIP -1", "LIMIT 1.5"])
+def test_literal_limit_and_skip_reject_invalid_values(modern_graph, suffix):
+    with pytest.raises(Exception):
+        modern_graph.execute(f"MATCH (n) RETURN n.id AS id {suffix}")
 
 
 @pytest.mark.parametrize(
     "expression, expected",
     [
-        ("false OR true", True),
-        ("true OR false", True),
-        ("true OR true", True),
-        ("false OR false", False),
         ("true AND true", True),
         ("true AND false", False),
+        ("true AND null", None),
+        ("false AND true", False),
+        ("false AND false", False),
+        ("false AND null", False),
+        ("null AND true", None),
+        ("null AND false", False),
+        ("null AND null", None),
+        ("true OR true", True),
+        ("true OR false", True),
+        ("true OR null", True),
+        ("false OR true", True),
+        ("false OR false", False),
+        ("false OR null", None),
+        ("null OR true", True),
+        ("null OR false", None),
+        ("null OR null", None),
         ("NOT false", True),
         ("NOT true", False),
+        ("NOT null", None),
         ("NULL IS NULL", True),
         ("1 IS NULL", False),
         ("NULL IS NOT NULL", False),
@@ -350,7 +872,6 @@ def test_no_existing_property(tinysnb):
 def test_return_date(tinysnb):
     conn = tinysnb
     query = "MATCH (n) return n.birthdate limit 1"
-    import datetime
 
     expected = [[datetime.date(1900, 1, 1)]]
     result = conn.execute(query)
@@ -589,6 +1110,28 @@ def test_dummy_scan():
         assert record[0] == 1002, f"Expected value 1002, got {record[0]}"
     conn.close()
     db.close()
+
+
+def test_simple_case_when_null(empty_db):
+    _, conn = empty_db
+    result = conn.execute(
+        "RETURN CASE null WHEN null THEN 'null value' "
+        "ELSE 'not matched' END, "
+        "CASE 1 WHEN null THEN 'null value' ELSE 'not matched' END;"
+    )
+    assert list(result) == [["null value", "not matched"]]
+
+
+def test_searched_case_null_condition(empty_db):
+    _, conn = empty_db
+    result = conn.execute(
+        "RETURN CASE WHEN null = null THEN 'matched' "
+        "ELSE 'not matched' END, "
+        "CASE WHEN 1 = null THEN 'matched' ELSE 'not matched' END, "
+        "CASE WHEN null IS NULL THEN 'matched' ELSE 'not matched' END, "
+        "CASE WHEN null = null THEN 'matched' END;"
+    )
+    assert list(result) == [["not matched", "not matched", "matched", None]]
 
 
 @pytest.mark.skipif(not HAS_LDBC, reason="LDBC data not found")
@@ -925,6 +1468,28 @@ def test_reverse(modern_graph):
         ), f"Expected {expected} for {original}, got {reversed_str}"
 
 
+def test_string_functions_with_null(empty_db):
+    _, conn = empty_db
+    assert list(conn.execute("RETURN UPPER(null), LOWER(null), REVERSE(null);")) == [
+        [None, None, None]
+    ]
+
+
+def test_starts_with_null_right_operand(empty_db):
+    _, conn = empty_db
+    assert list(conn.execute("RETURN 'Alice' STARTS WITH null;")) == [[None]]
+
+
+def test_ends_with_null_right_operand(empty_db):
+    _, conn = empty_db
+    assert list(conn.execute("RETURN 'Alice' ENDS WITH null;")) == [[None]]
+
+
+def test_contains_null_right_operand(empty_db):
+    _, conn = empty_db
+    assert list(conn.execute("RETURN 'Alice' CONTAINS null;")) == [[None]]
+
+
 def test_starts_with(modern_graph):
     conn = modern_graph
     # todo: property value of `age` is null, engine will fail if the tuple contains null value
@@ -1033,6 +1598,71 @@ def test_create_interval(modern_graph):
     res = conn.execute("RETURN INTERVAL('5 DAY')")
     for record in res:
         assert record[0] == "5 days", f"Expected value '5 days', got {record[0]}"
+
+
+@pytest.mark.parametrize(
+    "left, right",
+    [
+        ("1 year", "12 months"),
+        ("1 month", "30 days"),
+        ("1 day", "24 hours"),
+        ("1 hour", "60 minutes"),
+        ("1 minute", "60 seconds"),
+        ("1 second", "1000 milliseconds"),
+        ("1 millisecond", "1000 us"),
+        ("1 year", "8640 hours"),
+    ],
+)
+def test_interval_fixed_base_unit_conversion(empty_db, left, right):
+    _, conn = empty_db
+
+    result = conn.execute(
+        f"RETURN interval('{left}') = interval('{right}');",
+        access_mode="read",
+    )
+
+    assert list(result) == [[True]]
+
+
+@pytest.mark.parametrize(
+    "expression, expected",
+    [
+        ("interval('1 year') = interval('8640 hours')", True),
+        ("interval('1 year') > interval('8639 hours')", True),
+        ("interval('1 year') < interval('8641 hours')", True),
+        ("interval('1 month') > interval('29 days 23 hours')", True),
+        ("interval('1 day') < interval('1441 minutes')", True),
+    ],
+)
+def test_interval_comparison_uses_fixed_base_normalization(
+    empty_db, expression, expected
+):
+    _, conn = empty_db
+
+    result = conn.execute(f"RETURN {expression};", access_mode="read")
+
+    assert list(result) == [[expected]]
+
+
+def test_date_interval_arithmetic_uses_calendar_months(empty_db):
+    _, conn = empty_db
+
+    result = conn.execute(
+        "RETURN date('2024-02-01') + interval('1 month'), "
+        "date('2024-02-01') + interval('30 days'), "
+        "date('2024-03-31') - interval('1 month'), "
+        "date('2024-03-31') - interval('30 days');",
+        access_mode="read",
+    )
+
+    assert list(result) == [
+        [
+            datetime.date(2024, 3, 1),
+            datetime.date(2024, 3, 2),
+            datetime.date(2024, 2, 29),
+            datetime.date(2024, 3, 1),
+        ]
+    ]
 
 
 # ---------------------------------------------------------------------------

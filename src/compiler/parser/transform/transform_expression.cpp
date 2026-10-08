@@ -20,6 +20,9 @@
  * Zhou Xiaoli in 2025 to support Neug-specific features.
  */
 
+#include <cstdint>
+#include <exception>
+
 #include "neug/compiler/function/aggregate/count_star.h"
 #include "neug/compiler/function/arithmetic/vector_arithmetic_functions.h"
 #include "neug/compiler/function/cast/functions/cast_from_string_functions.h"

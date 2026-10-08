@@ -233,7 +233,6 @@ class GQueryConvertor {
   std::unique_ptr<::algebra::Range> convertRange(
       std::shared_ptr<binder::Expression> skip,
       std::shared_ptr<binder::Expression> limit);
-  uint64_t convertValueAsUint64(compiler_impl::Value value);
   std::string getExtensionName(const planner::LogicalCopyTo& copyTo);
   void convertDataExport(const planner::LogicalCopyTo& copyTo,
                          ::physical::PhysicalPlan* plan);

@@ -280,7 +280,11 @@ test('test_config_param_boundary', () => {
 
 
 // DB-001-12
-test('test_open_no_permission', () => {
+test('test_open_no_permission', {
+  skip: process.platform === 'win32'
+    ? 'Windows file permissions differ from Unix'
+    : false,
+}, () => {
   const dbDir = makeTmpDir('no_permission_db');
   if (fs.existsSync(dbDir)) {
     fs.rmSync(dbDir, { recursive: true, force: true });
@@ -321,7 +325,11 @@ test('test_open_version_mismatch', { skip: 'https://github.com/GraphScope/neug/i
 
 
 // DB-001-14
-test('test_open_dir_not_exist', () => {
+test('test_open_dir_not_exist', {
+  skip: process.platform === 'win32'
+    ? 'Windows file permissions differ from Unix'
+    : false,
+}, () => {
   const dbDir = makeTmpDir('not_exist_dir');
   if (fs.existsSync(dbDir)) {
     fs.rmSync(dbDir, { recursive: true, force: true });

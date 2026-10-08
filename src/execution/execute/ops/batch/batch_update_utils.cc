@@ -273,6 +273,68 @@ std::string path_to_json_string(Path& path, const StorageReadInterface& graph) {
   return buffer.GetString();
 }
 
+namespace {
+
+/**
+ * @brief Constant-space head column preserving the input row count of fused
+ * COPY.
+ *
+ * Fused COPY streams batches into storage without retaining their columns in
+ * Context. This column represents N NULL values using only a row count, so
+ * ContextChunk's head-only fallback preserves QueryResult length and PROFILE
+ * output rows. The count reflects consumed input rows, including dangling edges
+ * skipped by storage, rather than the number of records actually inserted.
+ *
+ * Used only as the head of a zero-column COPY result, it is not an output
+ * column. Reading an element returns NULL; shuffle and optional_shuffle use the
+ * selection size, while union adds the two row counts. These operations
+ * preserve chunk transformation semantics without materializing values.
+ */
+class CopyResultColumn final : public IContextColumn {
+ public:
+  explicit CopyResultColumn(size_t row_count) : row_count_(row_count) {}
+
+  size_t size() const override { return row_count_; }
+  std::string column_info() const override { return "CopyResultColumn"; }
+  ContextColumnType column_type() const override {
+    return ContextColumnType::kNone;
+  }
+  const DataType& elem_type() const override {
+    static const DataType type(DataType::SQLNULL);
+    return type;
+  }
+  Value get_elem(size_t) const override { return Value(DataType::SQLNULL); }
+  bool has_value(size_t) const override { return false; }
+  bool is_optional() const override { return true; }
+
+  std::shared_ptr<IContextColumn> shuffle(
+      const sel_vec_t& offsets) const override {
+    return std::make_shared<CopyResultColumn>(offsets.size());
+  }
+
+  std::shared_ptr<IContextColumn> optional_shuffle(
+      const sel_vec_t& offsets) const override {
+    return shuffle(offsets);
+  }
+
+  std::shared_ptr<IContextColumn> union_col(
+      std::shared_ptr<IContextColumn> other) const override {
+    const auto& rhs = dynamic_cast<const CopyResultColumn&>(*other);
+    return std::make_shared<CopyResultColumn>(row_count_ + rhs.size());
+  }
+
+ private:
+  size_t row_count_;
+};
+
+}  // namespace
+
+Context create_copy_result(size_t rows_read) {
+  Context ctx;
+  ctx.append_chunk(DataChunk(), std::make_shared<CopyResultColumn>(rows_read));
+  return ctx;
+}
+
 /// A supplier that yields pre-projected DataChunks one by one.
 class MultiChunkSupplier : public IDataChunkSupplier {
  public:
@@ -298,6 +360,48 @@ class MultiChunkSupplier : public IDataChunkSupplier {
   size_t index_;
 };
 
+std::shared_ptr<DataChunk> map_data_chunk(
+    const DataChunk& chunk,
+    const std::vector<std::pair<int32_t, std::string>>& prop_mappings) {
+  auto out_chunk = std::make_shared<DataChunk>();
+  for (size_t i = 0; i < prop_mappings.size(); ++i) {
+    auto tag_id = prop_mappings[i].first;
+    auto column = chunk.get(tag_id);
+    if (column == nullptr) {
+      THROW_INTERNAL_EXCEPTION("Column not found for tag id: " +
+                               std::to_string(tag_id));
+    }
+    out_chunk->set(static_cast<int>(i), column);
+  }
+  return out_chunk;
+}
+
+class MappedChunkSupplier : public IDataChunkSupplier {
+ public:
+  MappedChunkSupplier(
+      std::shared_ptr<IDataChunkSupplier> supplier,
+      std::vector<std::pair<int32_t, std::string>> prop_mappings,
+      size_t& rows_read)
+      : supplier_(std::move(supplier)),
+        prop_mappings_(std::move(prop_mappings)),
+        rows_read_(rows_read) {}
+
+  std::shared_ptr<DataChunk> GetNextChunk() override {
+    auto chunk = supplier_->GetNextChunk();
+    if (chunk) {
+      rows_read_ += chunk->row_num();
+    }
+    return chunk ? map_data_chunk(*chunk, prop_mappings_) : nullptr;
+  }
+
+  int64_t RowNum() const override { return supplier_->RowNum(); }
+
+ private:
+  std::shared_ptr<IDataChunkSupplier> supplier_;
+  std::vector<std::pair<int32_t, std::string>> prop_mappings_;
+  size_t& rows_read_;
+};
+
 std::shared_ptr<IDataChunkSupplier> create_data_chunk_supplier(
     const Context& ctx,
     const std::vector<std::pair<int32_t, std::string>>& prop_mappings) {
@@ -305,19 +409,17 @@ std::shared_ptr<IDataChunkSupplier> create_data_chunk_supplier(
   projected_chunks.reserve(ctx.chunk_num());
   for (size_t i = 0; i < ctx.chunk_num(); ++i) {
     const auto& chunk = ctx.chunk(i).chunk();
-    auto out_chunk = std::make_shared<DataChunk>();
-    for (size_t j = 0; j < prop_mappings.size(); ++j) {
-      auto tag_id = prop_mappings[j].first;
-      auto column = chunk.get(tag_id);
-      if (column == nullptr) {
-        THROW_INTERNAL_EXCEPTION("Column not found for tag id: " +
-                                 std::to_string(tag_id));
-      }
-      out_chunk->set(static_cast<int>(j), column);
-    }
-    projected_chunks.push_back(std::move(out_chunk));
+    projected_chunks.push_back(map_data_chunk(chunk, prop_mappings));
   }
   return std::make_shared<MultiChunkSupplier>(std::move(projected_chunks));
+}
+
+std::shared_ptr<IDataChunkSupplier> create_mapped_data_chunk_supplier(
+    std::shared_ptr<IDataChunkSupplier> supplier,
+    const std::vector<std::pair<int32_t, std::string>>& prop_mappings,
+    size_t& rows_read) {
+  return std::make_shared<MappedChunkSupplier>(std::move(supplier),
+                                               prop_mappings, rows_read);
 }
 
 std::vector<std::string> match_files_with_pattern(

@@ -20,7 +20,7 @@ The following extensions are currently supported or planned to be supported in N
 | Vector Search   | [Vector Search](vector_search.md) | Vector distance functions and HNSW-based approximate nearest neighbor search | v0.2.0          |
 | Search          | [Full-Text Search](fts_search.md) | BM25-ranked full-text search over string properties with SQLite FTS5 indexes | v0.2.0          |
 
-To author a custom extension outside the NeuG tree (NeuG as submodule), see [Developing Out-of-Tree Extensions](develop_extension.md).
+To author a custom extension outside the NeuG tree (NeuG as submodule), see [Developing Extensions](../development/develop_extension.md).
 
 ## Using Extensions
 

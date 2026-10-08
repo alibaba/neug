@@ -48,8 +48,8 @@ struct IndexBindColumn {
 
 struct IndexBindSchema {
   label_t label_id = 0;
-  // Stable identity used to remap label_id when a checkpoint strips temporary
-  // labels and compacts the remaining schema slots.
+  // Stable identity used to remap label_id when persistence strips temporary
+  // labels. Used by checkpoint metadata and WAL recovery.
   std::string label_name;
   std::vector<IndexBindColumn> columns;
 

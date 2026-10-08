@@ -106,7 +106,9 @@ class ExecutionSlotLease {
  *
  * ExecutionSlot is a passive core execution context. It owns slot-local query
  * state and borrows database-wide transaction, storage, allocator, and WAL
- * resources.
+ * resources. The class itself has no brpc or bthread dependency: TP slot
+ * scheduling and synchronization are injected by TpExecutionSlotPool, so the
+ * same execution core also serves embedded connections.
  *
  * Embedded connections exclusively own one ExecutionSlot. Service mode owns a
  * fixed set through TpExecutionSlotPool and leases them per request.
@@ -296,6 +298,15 @@ class ExecutionSlot {
       const std::string& query_string, AccessMode requested_mode,
       const rapidjson::Value& parameters, int32_t num_threads,
       TransactionContext& transaction_context);
+  Status CommitExplicitTransaction(TransactionContext& transaction_context);
+  Status executeExplicitCopy(SnapshotCowWriteTransaction& transaction,
+                             const AnalyzedQuery& query,
+                             execution::CacheValue& prepared_query,
+                             QueryResponse& response);
+  Status executeExplicitCopy(CurrentCowWriteTransaction& transaction,
+                             const AnalyzedQuery& query,
+                             execution::CacheValue& prepared_query,
+                             QueryResponse& response);
 
   Status validatePlan(AccessMode mode, const physical::ExecutionFlag& flags,
                       bool is_explain) const;

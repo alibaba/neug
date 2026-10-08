@@ -12,10 +12,10 @@ Index DDL is supported by `CowGraphStorage` in both AP and TP and commits
 through logical WAL. AP-direct COPY uses `BulkCowGraphStorage` over the same
 private `CowGraphWorkspace` and commits through a statement-level checkpoint.
 The ordinary storage type rejects batch insertion, keeping COPY-only
-capabilities out of TP and explicit transactions. `COPY TEMP` uses the same
-private bulk storage but commits through the `ExecutionSlot`-only transient
-path: it atomically replaces the in-memory current graph without writing WAL
-or publishing a checkpoint.
+capabilities out of TP and the ordinary storage interface. Embedded explicit
+transactions use the same private bulk adapter. `COPY TEMP` uses this adapter
+too; a transaction containing only temporary mutations atomically replaces the
+in-memory current graph without writing WAL or publishing a checkpoint.
 `InPlaceCompactionTransaction` and `CheckpointCoordinator` implement maintenance paths.
 These names describe internal execution strategies; Connection and Session
 continue to present logical read-only/read-write transaction semantics.
@@ -33,18 +33,31 @@ snapshot, while an update lease is acquired before cloning the current graph.
 `CurrentCowWriteTransaction` for
 `TransactionMode::kReadWrite`; it does not introduce a public transaction
 interface or a second execution pipeline. The read-only owner pins one view.
-The read-write owner uses `OpenStorage()` for every supported statement, and
-its private view supplies read-your-writes until one `Commit()` appends and
-publishes the combined redo.
+The read-write owner uses `OpenStorage()` for ordinary statements and
+`OpenBulkStorage()` for persistent COPY or `COPY TEMP`. Both adapters mutate
+the same private workspace, whose view supplies read-your-writes. A transaction
+without a checkpoint-only mutation commits its combined logical redo normally.
+Once COPY changes persistent storage or creates persistent schema without
+logical redo, the checkpoint requirement remains sticky: one checkpoint
+captures the final DDL, DML, and COPY state even if a copied target is later
+dropped. The buffered logical redo is then redundant and is not appended to
+WAL.
 
 After a successful schema, bulk, or transient mutation changes private planning
 inputs, queries compile against the private view without consulting the local or
 global query cache. Ordinary DML continues to reuse plans compiled for the
 unchanged schema. A regular statement failure aborts the concrete owner and
 leaves the connection rollback-only; `Rollback()`, `Close()`, and destruction
-clear it. Cypher transaction-control text, bulk,
-checkpoint/maintenance, procedure calls, and temporary-schema operations are
-rejected in this first embedded API before their side effects.
+clear it. `LOAD FROM` may drive ordinary DML through the private write view;
+graph-read-only `LOAD FROM` and `COPY TO` plans may also execute against a
+pinned read view. External files are outside graph transaction rollback. A
+`COPY TEMP` transaction may also contain durable graph mutations: one snapshot
+publication exposes all changes, but only persistent changes are written to
+disk. Cypher transaction-control text, graph-mutating `COPY TO`,
+checkpoint/maintenance, and mutating procedure calls remain rejected.
+Dropping a table populated by persistent COPY removes it from the live
+bulk-finalization set; the transaction still commits through a checkpoint
+because the earlier checkpoint-only mutation is intentionally sticky.
 
 ## Snapshot Read Strategy
 
@@ -108,9 +121,11 @@ and reopens admission without publishing a snapshot.
 DML WAL records identify vertex and edge types by schema name rather than by
 process-local numeric label ID. This keeps replay stable when temporary labels
 occupied ID slots that are intentionally absent from the persisted schema.
-Mutations whose target schema is temporary use `CommitTransient()` and produce
-no WAL; a statement that mixes durable and transient mutations is rejected by
-the commit validation instead of partially persisting either side.
+In Embedded mode, temporary mutations produce no WAL. The current COW owner
+publishes them through `CommitTransient()` when there are no persistent
+mutations, or together with persistent changes through logical WAL or a bulk
+checkpoint. TP Service mode rejects temporary schema operations before
+execution; its snapshot COW owner does not expose transient commit.
 
 ## Bulk COW Write Mode
 
@@ -120,10 +135,10 @@ COPY/batch insert. Both types mutate only a private shallow clone. Bulk
 operations detach their target table, CSR, column, and affected indexes once
 before consuming input; they continue to use the native batch loader instead
 of per-row DML or per-row WAL. Index create/drop/activation is handled by
-`CowGraphStorage` and commits through logical WAL in AP and TP.
-When COPY infers a persistent schema, that schema creation belongs to the same
-checkpoint-only bulk workspace and therefore does not conflict with the
-empty-logical-redo requirement of `CommitCowWrite()`.
+`CowGraphStorage` and normally commits through logical WAL in AP and TP. When
+the same explicit transaction also contains a persistent bulk mutation, the
+checkpoint captures those index and other ordinary mutations instead. Schema
+inferred by COPY is recorded directly as a checkpoint-backed bulk mutation.
 
 A successful persistent bulk statement calls
 `CheckpointCoordinator::CommitCowWrite()`. It consumes and reopens dirty
@@ -136,9 +151,16 @@ currently shared between the clone and its published base, so consumption may
 invalidate the base even before manifest publication. Manifest publication is
 still the durable decision point.
 
-`COPY TEMP` is not a durable bulk statement. It calls `CommitTransient()` after
-the private workspace has been fully prepared; failures discard the workspace,
-and successful temporary objects disappear after database restart.
+`COPY TEMP` is not a durable bulk statement. `CurrentCowWriteTransaction::Commit()`
+selects transient publication when the workspace has only temporary mutations;
+explicit execution defers publication until transaction commit. The checkpoint
+coordinator delegates to this ordinary commit when no persistent bulk mutation
+was recorded. Failures and rollback discard the workspace, and successful temporary
+objects disappear when their owning connection closes or after database
+restart. When mixed with persistent mutations, logical commit appends only
+persistent redo and publishes the whole workspace. A persistent bulk checkpoint
+strips temporary schema and skips temporary modules during persistence, while
+retaining temporary objects in the graph published to the running database.
 
 ## In-Place Compaction Strategy
 

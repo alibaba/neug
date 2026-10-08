@@ -39,6 +39,7 @@ struct ParquetReadFunction {
         std::vector<::neug::DataTypeId>{::neug::DataTypeId::kVarchar};
     auto readFunction = std::make_unique<ReadFunction>(name, typeIDs);
     readFunction->execFunc = execFunc;
+    readFunction->supplierFunc = supplierFunc;
     readFunction->sniffFunc = sniffFunc;
     function_set functionSet;
     functionSet.push_back(std::move(readFunction));
@@ -68,6 +69,26 @@ struct ParquetReadFunction {
     auto localState = std::make_shared<reader::ReadLocalState>();
     reader->read(localState, ctx);
     return ctx;
+  }
+
+  static std::shared_ptr<IDataChunkSupplier> supplierFunc(
+      std::shared_ptr<reader::ReadSharedState> state) {
+    const auto& vfs = neug::main::MetadataRegistry::getVFS();
+    const auto& fs = vfs->Provide(state->schema.file);
+    auto resolvedPaths = std::vector<std::string>();
+    for (const auto& path : state->schema.file.paths) {
+      const auto& resolved = fs->glob(path);
+      resolvedPaths.insert(resolvedPaths.end(), resolved.begin(),
+                           resolved.end());
+    }
+    state->schema.file.paths = std::move(resolvedPaths);
+
+    auto optionsBuilder =
+        std::make_unique<reader::ArrowParquetOptionsBuilder>(state);
+    auto arrowFs = parquet::resolveArrowFileSystem(*fs);
+    return std::make_unique<reader::ArrowReader>(
+               state, std::move(optionsBuilder), std::move(arrowFs))
+        ->getDataChunkSupplier();
   }
 
   static std::shared_ptr<reader::EntrySchema> sniffFunc(

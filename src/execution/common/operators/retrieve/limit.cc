@@ -21,12 +21,15 @@ namespace execution {
 
 neug::result<ContextChunk> Limit::limit(ContextChunk&& chunk, size_t lower,
                                         size_t upper) {
-  if (lower == 0 && upper >= chunk.row_num()) {
+  const auto row_num = chunk.row_num();
+  if (lower == 0 && upper >= row_num) {
     return chunk;
   }
-  if (upper > chunk.row_num()) {
-    upper = chunk.row_num();
+  if (lower >= row_num || lower >= upper) {
+    chunk.reshuffle(sel_vec_t{});
+    return chunk;
   }
+  upper = std::min(upper, row_num);
 
   sel_vec_t offsets(upper - lower);
   for (size_t i = lower; i < upper; ++i) {

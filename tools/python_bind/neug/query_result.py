@@ -177,26 +177,28 @@ class QueryResult(object):
 
     def get_profile_metrics(self) -> dict:
         """
-        Get detailed profile metrics for all operators.
+        Return detailed PROFILE or EXPLAIN metrics as a Python dictionary.
 
-        Returns complete execution plan metrics including timing and output
-        information for each operator in the query execution tree.
+        The result contains complete execution plan metrics, including timing
+        and output information for each operator in the query execution tree.
+        Returns an empty dict if no profile result is available.
 
-        Returns
-        -------
-        dict
-            Complete profile data with keys:
-            - 'total_elapsed_ms' (float): Total execution time in milliseconds
-            - 'total_output_rows' (int): Total output rows from query
-            - 'operators' (list): List of operator metrics, each dict contains:
-                - 'operator_id' (int): Unique operator identifier
-                - 'parent_id' (int): Parent operator id (-1 for root)
-                - 'operator_name' (str): Human-readable operator name
-                - 'elapsed_ms' (float): Execution time in milliseconds
-                - 'output_rows' (int): Number of output tuples
-                - 'child_ids' (list): IDs of child operators
+        .. code:: python
 
-            Returns empty dict if no profile result available.
+            {
+                "total_elapsed_ms": float,
+                "total_output_rows": int,
+                "operators": [
+                    {
+                        "operator_id": int,
+                        "parent_id": int,
+                        "operator_name": str,
+                        "elapsed_ms": float,
+                        "output_rows": int,
+                        "child_ids": [int],
+                    }
+                ],
+            }
         """
         if not self.has_profile_result():
             return {}

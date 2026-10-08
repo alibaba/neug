@@ -84,7 +84,8 @@ Open a database.
 
     Embedded (AP) queries are currently single-threaded; using this setting for intra-query parallelism is future work.
 
-    In TP mode, it sizes the slot pool and caps service threads. Queries run concurrently; each uses one slot/thread.
+    In TP mode, it is the default service execution-slot capacity. An explicit
+    smaller service concurrency reduces the service-local pool.
   - `options.checkpointOnClose` (boolean)
     Whether to automatically create a checkpoint when the database is closed. Default is true.
     If false, no checkpoint is created automatically when close the database.

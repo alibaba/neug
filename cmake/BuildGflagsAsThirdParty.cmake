@@ -26,6 +26,13 @@ function (build_gflags_as_third_party)
     set(GFLAGS_INSTALL_HEADERS OFF CACHE BOOL "Install gflags headers")
     set(INSTALL_HEADERS OFF CACHE BOOL "Install gflags headers")
     set(GFLAGS_BUILD_TESTING OFF CACHE BOOL "Build gflags tests")
+    # abseil (configured earlier in the root CMakeLists) unconditionally does
+    # include(CTest), which sets the cache variable BUILD_TESTING=ON. gflags'
+    # gflags_define() macro then picks up that pre-defined BUILD_TESTING and
+    # ignores GFLAGS_BUILD_TESTING, dragging gflags' test executables into the
+    # default `cmake --build` target graph. Shadow the inherited value with a
+    # plain subdirectory variable so only the gflags library is built.
+    set(BUILD_TESTING OFF)
     set(GFLAGS_IS_SUBPROJECT ON)
     set(BUILD_PACKAGING OFF CACHE BOOL "Build gflags packaging")
     set(GFLAGS_INCLUDE_DIRS ${CMAKE_CURRENT_BINARY_DIR}/third_party/gflags/include PARENT_SCOPE)

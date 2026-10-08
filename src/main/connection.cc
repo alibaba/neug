@@ -120,7 +120,7 @@ Status Connection::Commit() {
     return Status(StatusCode::ERR_TX_STATE_CONFLICT,
                   "No explicit transaction is active.");
   }
-  return transaction_context_.Commit();
+  return execution_slot_->CommitExplicitTransaction(transaction_context_);
 }
 
 Status Connection::Rollback() {

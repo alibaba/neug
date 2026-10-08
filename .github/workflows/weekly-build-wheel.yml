@@ -29,6 +29,7 @@ on:
           - linux-x86_64
           - linux-arm64
           - macos-arm64
+          - windows-arm64
   schedule:
     # Trigger the workflow at 22:00(CST) every Monday (14:00 UTC)
     - cron: '0 14 * * 1'

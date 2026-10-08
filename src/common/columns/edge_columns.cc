@@ -24,8 +24,7 @@ std::shared_ptr<IContextColumn> SDSLEdgeColumn::shuffle(
   if (is_optional_) {
     for (auto offset : offsets) {
       auto& e = edges_[offset];
-      if (std::get<0>(e) == std::numeric_limits<vid_t>::max() ||
-          std::get<1>(e) == std::numeric_limits<vid_t>::max()) {
+      if (std::get<0>(e) == INVALID_VID || std::get<1>(e) == INVALID_VID) {
         builder.push_back_null();
       } else {
         builder.push_back_opt(std::get<0>(e), std::get<1>(e), std::get<2>(e));
@@ -49,8 +48,7 @@ std::shared_ptr<IContextColumn> SDSLEdgeColumn::optional_shuffle(
       builder.push_back_null();
     } else {
       auto& e = edges_[offset];
-      if (std::get<0>(e) == std::numeric_limits<vid_t>::max() ||
-          std::get<1>(e) == std::numeric_limits<vid_t>::max()) {
+      if (std::get<0>(e) == INVALID_VID || std::get<1>(e) == INVALID_VID) {
         builder.push_back_null();
       } else {
         builder.push_back_opt(std::get<0>(e), std::get<1>(e), std::get<2>(e));
@@ -78,8 +76,8 @@ std::shared_ptr<IContextColumn> MSEdgeColumn::shuffle(
           auto& seg = std::get<2>(seg_tuple);
           if (offset < seg.size()) {
             auto& e = seg[offset];
-            if (std::get<0>(e) == std::numeric_limits<vid_t>::max() ||
-                std::get<1>(e) == std::numeric_limits<vid_t>::max()) {
+            if (std::get<0>(e) == INVALID_VID ||
+                std::get<1>(e) == INVALID_VID) {
               builder.push_back_null();
             } else {
               builder.push_back_opt(std::get<0>(e), std::get<1>(e),
@@ -116,8 +114,8 @@ std::shared_ptr<IContextColumn> MSEdgeColumn::shuffle(
           auto& seg = std::get<2>(seg_tuple);
           if (offset < seg.size()) {
             auto& e = seg[offset];
-            if (std::get<0>(e) == std::numeric_limits<vid_t>::max() ||
-                std::get<1>(e) == std::numeric_limits<vid_t>::max()) {
+            if (std::get<0>(e) == INVALID_VID ||
+                std::get<1>(e) == INVALID_VID) {
               builder.push_back_null();
             } else {
               builder.push_back_opt(std::get<0>(seg_tuple), std::get<0>(e),
@@ -165,8 +163,7 @@ std::shared_ptr<IContextColumn> MSEdgeColumn::optional_shuffle(
         auto& seg = std::get<2>(seg_tuple);
         if (offset < seg.size()) {
           auto& e = seg[offset];
-          if (std::get<0>(e) == std::numeric_limits<vid_t>::max() ||
-              std::get<1>(e) == std::numeric_limits<vid_t>::max()) {
+          if (std::get<0>(e) == INVALID_VID || std::get<1>(e) == INVALID_VID) {
             builder.push_back_null();
           } else {
             builder.push_back_opt(std::get<0>(e), std::get<1>(e),
@@ -192,8 +189,7 @@ std::shared_ptr<IContextColumn> MSEdgeColumn::optional_shuffle(
         auto& seg = std::get<2>(seg_tuple);
         if (offset < seg.size()) {
           auto& e = seg[offset];
-          if (std::get<0>(e) == std::numeric_limits<vid_t>::max() ||
-              std::get<1>(e) == std::numeric_limits<vid_t>::max()) {
+          if (std::get<0>(e) == INVALID_VID || std::get<1>(e) == INVALID_VID) {
             builder.push_back_null();
           } else {
             builder.push_back_opt(std::get<0>(seg_tuple), std::get<0>(e),
@@ -218,8 +214,7 @@ std::shared_ptr<IContextColumn> BDSLEdgeColumn::shuffle(
   if (is_optional_) {
     for (auto offset : offsets) {
       auto& e = edges_[offset];
-      if (std::get<0>(e) == std::numeric_limits<vid_t>::max() ||
-          std::get<1>(e) == std::numeric_limits<vid_t>::max()) {
+      if (std::get<0>(e) == INVALID_VID || std::get<1>(e) == INVALID_VID) {
         builder.push_back_null();
       } else {
         builder.push_back_opt(std::get<0>(e), std::get<1>(e), std::get<2>(e),
@@ -245,8 +240,7 @@ std::shared_ptr<IContextColumn> BDSLEdgeColumn::optional_shuffle(
       builder.push_back_null();
     } else {
       auto& e = edges_[offset];
-      if (std::get<0>(e) == std::numeric_limits<vid_t>::max() ||
-          std::get<1>(e) == std::numeric_limits<vid_t>::max()) {
+      if (std::get<0>(e) == INVALID_VID || std::get<1>(e) == INVALID_VID) {
         builder.push_back_null();
       } else {
         builder.push_back_opt(std::get<0>(e), std::get<1>(e), std::get<2>(e),
@@ -264,8 +258,7 @@ std::shared_ptr<IContextColumn> SDMLEdgeColumn::shuffle(
   if (is_optional_) {
     for (auto offset : offsets) {
       auto& e = edges_[offset];
-      if (std::get<1>(e) == std::numeric_limits<vid_t>::max() ||
-          std::get<2>(e) == std::numeric_limits<vid_t>::max()) {
+      if (std::get<1>(e) == INVALID_VID || std::get<2>(e) == INVALID_VID) {
         builder.push_back_null();
       } else {
         builder.push_back_opt(std::get<0>(e), std::get<1>(e), std::get<2>(e),
@@ -291,8 +284,7 @@ std::shared_ptr<IContextColumn> SDMLEdgeColumn::optional_shuffle(
       builder.push_back_null();
     } else {
       auto& e = edges_[offset];
-      if (std::get<1>(e) == std::numeric_limits<vid_t>::max() ||
-          std::get<2>(e) == std::numeric_limits<vid_t>::max()) {
+      if (std::get<1>(e) == INVALID_VID || std::get<2>(e) == INVALID_VID) {
         builder.push_back_null();
       } else {
         builder.push_back_opt(std::get<0>(e), std::get<1>(e), std::get<2>(e),
@@ -310,8 +302,7 @@ std::shared_ptr<IContextColumn> BDMLEdgeColumn::shuffle(
   if (is_optional_) {
     for (auto offset : offsets) {
       auto& e = edges_[offset];
-      if (std::get<1>(e) == std::numeric_limits<vid_t>::max() ||
-          std::get<2>(e) == std::numeric_limits<vid_t>::max()) {
+      if (std::get<1>(e) == INVALID_VID || std::get<2>(e) == INVALID_VID) {
         builder.push_back_null();
       } else {
         builder.push_back_opt(std::get<0>(e), std::get<1>(e), std::get<2>(e),
@@ -337,8 +328,7 @@ std::shared_ptr<IContextColumn> BDMLEdgeColumn::optional_shuffle(
       builder.push_back_null();
     } else {
       auto& e = edges_[offset];
-      if (std::get<1>(e) == std::numeric_limits<vid_t>::max() ||
-          std::get<2>(e) == std::numeric_limits<vid_t>::max()) {
+      if (std::get<1>(e) == INVALID_VID || std::get<2>(e) == INVALID_VID) {
         builder.push_back_null();
       } else {
         builder.push_back_opt(std::get<0>(e), std::get<1>(e), std::get<2>(e),

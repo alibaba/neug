@@ -21,8 +21,12 @@
 #include <ostream>
 #include <string>
 #include <vector>
+
+#include "neug/compiler/binder/ddl/bound_property_definition.h"
 #include "neug/compiler/binder/expression/expression.h"
+#include "neug/compiler/binder/expression/expression_util.h"
 #include "neug/compiler/binder/expression/literal_expression.h"
+#include "neug/compiler/binder/expression/path_expression.h"
 #include "neug/compiler/binder/expression/property_expression.h"
 #include "neug/compiler/binder/expression/rel_expression.h"
 #include "neug/compiler/binder/expression/scalar_function_expression.h"
@@ -83,9 +87,10 @@ std::unique_ptr<::common::Expression> GExprConverter::convert(
     }
   }
   switch (expr.expressionType) {
-  case common::ExpressionType::LITERAL:
+  case common::ExpressionType::LITERAL: {
     return convertLiteral(static_cast<const binder::LiteralExpression&>(
         expr));  // todo: add literal data type
+  }
   case common::ExpressionType::PROPERTY:
     return convertProperty(
         static_cast<const binder::PropertyExpression&>(expr));
@@ -105,6 +110,9 @@ std::unique_ptr<::common::Expression> GExprConverter::convert(
     return convertChildren(expr, schemaAlias);
   case common::ExpressionType::PATTERN: {
     return convertPattern(expr.constCast<binder::NodeOrRelExpression>());
+  }
+  case common::ExpressionType::PATH: {
+    return convertPath(expr.constCast<binder::PathExpression>(), schemaAlias);
   }
   case common::ExpressionType::IS_NOT_NULL: {
     return convertIsNotNull(expr);  // convert to IS NOT NULL
@@ -126,6 +134,71 @@ std::unique_ptr<::common::Expression> GExprConverter::convert(
   }
 }
 
+std::unique_ptr<::common::Expression> GExprConverter::convertPath(
+    const binder::PathExpression& expr,
+    const std::vector<std::string>& schemaAlias) {
+  const auto& children = expr.getChildren();
+  if (children.empty() || children.size() % 2 == 0) {
+    THROW_NOT_SUPPORTED_EXCEPTION("Invalid named path expression: " +
+                                  expr.toString());
+  }
+
+  if (children.size() == 1) {
+    auto pathFunc = std::make_unique<::common::UserDefinedFunction>();
+    pathFunc->set_name("gs.function.singleNodePath");
+    auto node = convert(*children.front(), schemaAlias);
+    pathFunc->mutable_parameters()->AddAllocated(node.release());
+    auto result = std::make_unique<::common::Expression>();
+    auto pathOpr = result->add_operators();
+    pathOpr->set_allocated_udf_func(pathFunc.release());
+    pathOpr->set_allocated_node_type(
+        typeConverter.convertLogicalType(expr.getDataType()).release());
+    return result;
+  }
+
+  std::vector<std::unique_ptr<::common::Expression>> segments;
+  segments.reserve(children.size() / 2);
+  for (size_t i = 1; i < children.size(); i += 2) {
+    const auto& rel = children[i];
+    std::unique_ptr<::common::Expression> segment;
+    if (binder::ExpressionUtil::isRecursiveRelPattern(*rel)) {
+      segment = convert(*rel, schemaAlias);
+    } else if (binder::ExpressionUtil::isRelPattern(*rel)) {
+      auto segmentFunc = std::make_unique<::common::UserDefinedFunction>();
+      segmentFunc->set_name("gs.function.singleRelationshipPath");
+      for (size_t childIdx = i - 1; childIdx <= i + 1; ++childIdx) {
+        auto paramExpr = convert(*children[childIdx], schemaAlias);
+        segmentFunc->mutable_parameters()->AddAllocated(paramExpr.release());
+      }
+      segment = std::make_unique<::common::Expression>();
+      auto segmentOpr = segment->add_operators();
+      segmentOpr->set_allocated_udf_func(segmentFunc.release());
+      segmentOpr->set_allocated_node_type(
+          typeConverter.convertLogicalType(expr.getDataType()).release());
+    } else {
+      THROW_NOT_SUPPORTED_EXCEPTION("Invalid relationship segment in path: " +
+                                    expr.toString());
+    }
+
+    segments.emplace_back(std::move(segment));
+  }
+  if (segments.size() == 1) {
+    return std::move(segments.front());
+  }
+
+  auto concatFunc = std::make_unique<::common::UserDefinedFunction>();
+  concatFunc->set_name("gs.function.pathConcat");
+  for (auto& segment : segments) {
+    concatFunc->mutable_parameters()->AddAllocated(segment.release());
+  }
+  auto result = std::make_unique<::common::Expression>();
+  auto concatOpr = result->add_operators();
+  concatOpr->set_allocated_udf_func(concatFunc.release());
+  concatOpr->set_allocated_node_type(
+      typeConverter.convertLogicalType(expr.getDataType()).release());
+  return result;
+}
+
 ::physical::GroupBy_AggFunc::Aggregate convertAggregate(
     const function::AggregateFunction& func) {
   if (func.name == "COUNT" || func.name == "COUNT_STAR") {
@@ -139,6 +212,9 @@ std::unique_ptr<::common::Expression> GExprConverter::convert(
     return ::physical::GroupBy_AggFunc::MAX;
   }
   if (func.name == "SUM") {
+    if (func.isDistinct) {
+      THROW_NOT_SUPPORTED_EXCEPTION("SUM(DISTINCT ...) is not supported");
+    }
     return ::physical::GroupBy_AggFunc::SUM;
   }
   if (func.name == "COLLECT") {
@@ -146,6 +222,9 @@ std::unique_ptr<::common::Expression> GExprConverter::convert(
                            : ::physical::GroupBy_AggFunc::TO_LIST;
   }
   if (func.name == "AVG") {
+    if (func.isDistinct) {
+      THROW_NOT_SUPPORTED_EXCEPTION("AVG(DISTINCT ...) is not supported");
+    }
     return ::physical::GroupBy_AggFunc::AVG;
   }
   THROW_EXCEPTION_WITH_FILE_LINE("Unsupported aggregate function: " +
@@ -269,14 +348,12 @@ std::unique_ptr<::common::Expression> GExprConverter::castLiteral(
 
 // set default value for property definition
 std::unique_ptr<::common::Expression> GExprConverter::convertDefaultValue(
-    const PropertyDefinition& propertyDef) {
-  const auto& defaultValue = propertyDef.getDefaultValue();
-  if (!propertyDef.hasDefaultValue() || defaultValue.IsNull()) {
+    const binder::BoundPropertyDefinition& propertyDef) {
+  if (!propertyDef.defaultExpr) {
     return convertValue(
-        compiler_impl::Value::createNullValue(defaultValue.type()));
+        compiler_impl::Value::createNullValue(propertyDef.getType()));
   }
-  return convertValue(
-      common::convertToCompilerValue(defaultValue, defaultValue.type()));
+  return convert(*propertyDef.defaultExpr, {});
 }
 
 std::unique_ptr<::common::Expression> GExprConverter::convertValue(
@@ -397,22 +474,6 @@ std::unique_ptr<::common::Expression> GExprConverter::convertValue(
   return exprPB;
 }
 
-std::string GExprConverter::convertRegexValue(const std::string& regex,
-                                              const GScalarType& scalarType) {
-  std::string updateRegex;
-  switch (scalarType.getType()) {
-  case ScalarType::STARTS_WITH:
-    return "^" + regex + ".*";
-  case ScalarType::ENDS_WITH:
-    return ".*" + regex + "$";
-  case ScalarType::CONTAINS:
-    return ".*" + regex + ".*";
-  default:
-    THROW_EXCEPTION_WITH_FILE_LINE("Unsupported regex type " +
-                                   scalarType.getType());
-  }
-}
-
 std::unique_ptr<::common::Expression> GExprConverter::convertListContainsFunc(
     const binder::Expression& expr, const GScalarType& scalarType,
     const std::vector<std::string>& schemaAlias) {
@@ -420,29 +481,10 @@ std::unique_ptr<::common::Expression> GExprConverter::convertListContainsFunc(
     THROW_EXCEPTION_WITH_FILE_LINE(
         "List Contains function should be a function expression");
   }
-  auto& scalarExpr = expr.constCast<binder::ScalarFunctionExpression>();
   if (expr.getChildren().size() < 2) {
     THROW_EXCEPTION_WITH_FILE_LINE(
         "List Contains function should have at least two children");
   }
-  return convertChildren(expr, schemaAlias);
-}
-
-std::unique_ptr<::common::Expression> GExprConverter::convertRegexFunc(
-    const binder::Expression& expr, const GScalarType& scalarType,
-    const std::vector<std::string>& schemaAlias) {
-  if (expr.getNumChildren() != 2) {
-    THROW_EXCEPTION_WITH_FILE_LINE("Regex function should have two children");
-  }
-  auto right = expr.getChild(1);
-  if (right->expressionType != common::ExpressionType::LITERAL) {
-    THROW_EXCEPTION_WITH_FILE_LINE(
-        "Right child of regex function should be a literal");
-  }
-  auto* literalExpr = right->ptrCast<binder::LiteralExpression>();
-  std::string pattern = literalExpr->getValue().getValue<std::string>();
-  std::string regexPattern = convertRegexValue(pattern, scalarType);
-  literalExpr->value = compiler_impl::Value(regexPattern);
   return convertChildren(expr, schemaAlias);
 }
 
@@ -518,19 +560,10 @@ std::unique_ptr<::common::Expression> GExprConverter::convertPropertiesFunc(
     THROW_EXCEPTION_WITH_FILE_LINE(
         "Properties function should be a function expression");
   }
-  auto& scalarExpr = expr.constCast<binder::ScalarFunctionExpression>();
   if (expr.getChildren().size() < 2) {
     THROW_EXCEPTION_WITH_FILE_LINE(
         "Properties function should have at least two children");
   }
-  auto pathFuncPB = std::make_unique<::common::PathFunction>();
-  // convert property key
-  auto literalExpr =
-      expr.getChild(1)->constPtrCast<binder::LiteralExpression>();
-  auto key = literalExpr->getValue().getValue<std::string>();
-  pathFuncPB->set_allocated_property(convertPropertyExpr(key).release());
-
-  // convert path tag
   auto nodeOrRelExpr = expr.getChild(0);
   if (nodeOrRelExpr->getChildren().empty()) {
     THROW_EXCEPTION_WITH_FILE_LINE(
@@ -539,33 +572,36 @@ std::unique_ptr<::common::Expression> GExprConverter::convertPropertiesFunc(
         expr.getChild(0)->toString());
   }
   auto pathExpr = nodeOrRelExpr->getChild(0);
-  auto pathAlias = aliasManager->getAliasId(pathExpr->getUniqueName());
-  if (pathAlias != DEFAULT_ALIAS_ID) {
-    pathFuncPB->set_allocated_tag(convertAlias(pathAlias).release());
-  }
-
-  // convert function opt: vertex or edge
   const auto& listType = expr.getChild(0)->getDataType();
   const auto& childType = common::ListType::GetChildType(listType);
-  // project properties for each node in path expand
+  bool extractVertexProp;
   if (childType.id() == common::DataTypeId::kVertex) {
-    pathFuncPB->set_opt(
-        ::common::PathFunction::FuncOpt::PathFunction_FuncOpt_VERTEX);
+    extractVertexProp = true;
   } else if (childType.id() == common::DataTypeId::kEdge) {
-    pathFuncPB->set_opt(
-        ::common::PathFunction::FuncOpt::PathFunction_FuncOpt_EDGE);
+    extractVertexProp = false;
   } else {
     THROW_EXCEPTION_WITH_FILE_LINE(
         "The first child of Properties function should be a list of nodes or "
         "rels, but is " +
         expr.getChild(0)->toString());
   }
-  auto oprPB = std::make_unique<::common::ExprOpr>();
-  oprPB->set_allocated_path_func(pathFuncPB.release());
+
+  // Both materialized path aliases and computed paths are child expressions.
+  // The selector is explicit because the property result type alone cannot
+  // distinguish properties(nodes(path)) from properties(rels(path)).
+  auto udfFuncPB = std::make_unique<::common::UserDefinedFunction>();
+  udfFuncPB->set_name("gs.function.pathProperties");
+  udfFuncPB->mutable_parameters()->AddAllocated(
+      convert(*pathExpr, schemaAlias).release());
+  udfFuncPB->mutable_parameters()->AddAllocated(
+      convert(*expr.getChild(1), schemaAlias).release());
+  udfFuncPB->mutable_parameters()->AddAllocated(
+      convertValue(compiler_impl::Value(extractVertexProp)).release());
+  auto exprPB = std::make_unique<::common::Expression>();
+  auto oprPB = exprPB->add_operators();
+  oprPB->set_allocated_udf_func(udfFuncPB.release());
   oprPB->set_allocated_node_type(
       typeConverter.convertLogicalType(expr.getDataType()).release());
-  auto exprPB = std::make_unique<::common::Expression>();
-  *exprPB->add_operators() = std::move(*oprPB);
   return exprPB;
 }
 
@@ -787,10 +823,6 @@ std::unique_ptr<::common::Expression> GExprConverter::convertScalarFunc(
     return convertToArrayFunc(expr, schemaAlias);
   } else if (scalarType.getType() == TO_TUPLE) {
     return convertToTupleFunc(expr, schemaAlias);
-  } else if (scalarType.getType() == STARTS_WITH ||
-             scalarType.getType() == ENDS_WITH ||
-             scalarType.getType() == CONTAINS) {
-    return convertRegexFunc(expr, scalarType, schemaAlias);
   } else if (scalarType.getType() == LIST_CONTAINS) {
     return convertListContainsFunc(expr, scalarType, schemaAlias);
   }

@@ -163,7 +163,7 @@ To avoid accidental invocation, we set `disable-model-invocation: true` for all 
 
 ### Installing Skills
 
-We provide agent skills in Cursor format at `.cursor/skills/`. To convert for your agent:
+We provide agent skills at `.agent/skills/` in the Agent Skills markdown format. To convert for your agent:
 
 ```bash
 ./scripts/init_skills.sh <agent-shortcut>
@@ -173,7 +173,7 @@ We provide agent skills in Cursor format at `.cursor/skills/`. To convert for yo
 
 | Shortcut   | Agent               | Documents      |
 |------------|---------------------|----------------|
-| cursor     | Cursor (default)    | [Cursor Skills](https://cursor.com/docs/context/skills)               |
+| cursor     | Cursor              | [Cursor Skills](https://cursor.com/docs/context/skills)               |
 | claude     | Claude Code         | [Claude Code Skills](https://code.claude.com/docs/en/skills)          |
 | codebuddy  | CodeBuddy           | [CodeBuddy Skills](https://www.codebuddy.ai/docs/ide/Features/Skills) |
 | codex      | Codex               | [Codex Skills](https://developers.openai.com/codex/skills/)           |

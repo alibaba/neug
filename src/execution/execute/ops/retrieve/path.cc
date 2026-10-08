@@ -17,6 +17,7 @@
 
 #include "neug/common/types/value.h"
 #include "neug/execution/common/operators/retrieve/path_expand.h"
+#include "neug/execution/execute/ops/retrieve/range_expression.h"
 #include "neug/execution/expression/predicates.h"
 #include "neug/execution/utils/pb_parse_utils.h"
 
@@ -32,7 +33,7 @@ namespace ops {
 
 static bool is_shortest_path_with_order_by_limit(
     const physical::PhysicalPlan& plan, int i, int& path_len_alias,
-    int& vertex_alias, int& limit_upper) {
+    int& vertex_alias) {
   int opr_num = plan.plan_size();
   const auto& opr = plan.plan(i).opr();
   int start_tag = opr.path().start_tag().value();
@@ -127,7 +128,6 @@ static bool is_shortest_path_with_order_by_limit(
     if (!order_by_opr.order_by().has_limit()) {
       return false;
     }
-    limit_upper = order_by_opr.order_by().limit().upper();
     if (order_by_opr.order_by().pairs_size() < 0) {
       return false;
     }
@@ -212,7 +212,7 @@ struct OrderByLimitSPOp {
   template <typename PRED_T>
   static neug::result<ContextChunk> eval_with_predicate(
       const PRED_T& pred, const IStorageInterface& graph_interface,
-      ContextChunk&& chunk, const ShortestPathParams& spp, int limit) {
+      ContextChunk&& chunk, const ShortestPathParams& spp, size_t limit) {
     const auto& graph =
         dynamic_cast<const StorageReadInterface&>(graph_interface);
 
@@ -223,9 +223,10 @@ struct OrderByLimitSPOp {
 
 class SPOrderByLimitOpr : public IOperator {
  public:
-  SPOrderByLimitOpr(const ShortestPathParams& spp, int limit,
+  SPOrderByLimitOpr(const ShortestPathParams& spp,
+                    std::unique_ptr<RangeExpression> range,
                     const SpecialPredicateConfig& config)
-      : spp_(spp), limit_(limit), config_(config) {}
+      : spp_(spp), range_(std::move(range)), config_(config) {}
 
   std::string get_operator_name() const override { return "SPOrderByLimitOpr"; }
 
@@ -235,6 +236,7 @@ class SPOrderByLimitOpr : public IOperator {
       neug::execution::OprTimer* timer) override {
     const auto& graph =
         dynamic_cast<const StorageReadInterface&>(graph_interface);
+    auto range = range_->bind(&graph_interface, params);
     std::set<label_t> expected_labels;
     for (auto label : spp_.labels) {
       expected_labels.insert(label.src_label);
@@ -244,21 +246,22 @@ class SPOrderByLimitOpr : public IOperator {
         [&](ContextChunk&& chunk) -> neug::result<ContextChunk> {
           return dispatch_vertex_predicate<OrderByLimitSPOp>(
               graph, expected_labels, config_, params, graph, std::move(chunk),
-              spp_, limit_);
+              spp_, range.upper);
         });
   }
 
  private:
   ShortestPathParams spp_;
-  int limit_;
+  std::unique_ptr<RangeExpression> range_;
   SpecialPredicateConfig config_;
 };
 
 class SPOrderByLimitWithGPredOpr : public IOperator {
  public:
-  SPOrderByLimitWithGPredOpr(const ShortestPathParams& spp, int limit,
+  SPOrderByLimitWithGPredOpr(const ShortestPathParams& spp,
+                             std::unique_ptr<RangeExpression> range,
                              std::unique_ptr<ExprBase>&& pred)
-      : spp_(spp), limit_(limit), pred_(std::move(pred)) {}
+      : spp_(spp), range_(std::move(range)), pred_(std::move(pred)) {}
 
   std::string get_operator_name() const override {
     return "SPOrderByLimitWithGPredOpr";
@@ -270,6 +273,7 @@ class SPOrderByLimitWithGPredOpr : public IOperator {
       neug::execution::OprTimer* timer) override {
     const auto& graph =
         dynamic_cast<const StorageReadInterface&>(graph_interface);
+    auto range = range_->bind(&graph_interface, params);
     if (pred_) {
       auto pred = pred_->bind(&graph, params);
 
@@ -279,7 +283,8 @@ class SPOrderByLimitWithGPredOpr : public IOperator {
           [&](ContextChunk&& chunk) -> neug::result<ContextChunk> {
             return PathExpand::
                 single_source_shortest_path_with_order_by_length_limit(
-                    graph, std::move(chunk), spp_, predicate_wrapper, limit_);
+                    graph, std::move(chunk), spp_, predicate_wrapper,
+                    range.upper);
           });
     } else {
       return ctx.apply_chunks(
@@ -287,14 +292,14 @@ class SPOrderByLimitWithGPredOpr : public IOperator {
             return PathExpand::
                 single_source_shortest_path_with_order_by_length_limit(
                     graph, std::move(chunk), spp_,
-                    [](label_t, vid_t) { return true; }, limit_);
+                    [](label_t, vid_t) { return true; }, range.upper);
           });
     }
   }
 
  private:
   ShortestPathParams spp_;
-  int limit_;
+  std::unique_ptr<RangeExpression> range_;
   std::unique_ptr<ExprBase> pred_;
 };
 
@@ -304,9 +309,8 @@ neug::result<OpBuildResultT> SPOrderByLimitOprBuilder::Build(
   const auto& opr = plan.plan(op_idx).opr().path();
   int path_len_alias = -1;
   int vertex_alias = -1;
-  int limit_upper = -1;
   if (is_shortest_path_with_order_by_limit(plan, op_idx, path_len_alias,
-                                           vertex_alias, limit_upper)) {
+                                           vertex_alias)) {
     ContextMeta ret_meta = ctx_meta;
     ret_meta.set(vertex_alias, DataType::VERTEX);
     ret_meta.set(path_len_alias, DataType::INT64);
@@ -325,8 +329,10 @@ neug::result<OpBuildResultT> SPOrderByLimitOprBuilder::Build(
     spp.dir = parse_direction(opr.base().edge_expand().direction());
     spp.v_alias = vertex_alias;
     spp.alias = path_len_alias;
-    spp.hop_lower = opr.hop_range().lower();
-    spp.hop_upper = opr.hop_range().upper();
+    auto hop_range =
+        RangeExpression(opr.hop_range(), ctx_meta).bind(nullptr, {});
+    spp.hop_lower = hop_range.lower;
+    spp.hop_upper = hop_range.upper;
     spp.labels = parse_label_triplets(plan.plan(op_idx).meta_data(0));
     if (spp.labels.size() != 1) {
       LOG(ERROR) << "only support one label triplet";
@@ -339,9 +345,11 @@ neug::result<OpBuildResultT> SPOrderByLimitOprBuilder::Build(
       if (is_special_vertex_predicate(schema, vertex_labels,
                                       get_v_opr.params().predicate(),
                                       sp_config)) {
-        return std::make_pair(
-            std::make_unique<SPOrderByLimitOpr>(spp, limit_upper, sp_config),
-            ret_meta);
+        auto range = std::make_unique<RangeExpression>(
+            plan.plan(op_idx + 5).opr().order_by().limit(), ctx_meta);
+        return std::make_pair(std::make_unique<SPOrderByLimitOpr>(
+                                  spp, std::move(range), sp_config),
+                              ret_meta);
       }
     }
     std::unique_ptr<ExprBase> pred = nullptr;
@@ -349,8 +357,10 @@ neug::result<OpBuildResultT> SPOrderByLimitOprBuilder::Build(
       pred = parse_expression(get_v_opr.params().predicate(), ctx_meta,
                               VarType::kVertex);
     }
+    auto range = std::make_unique<RangeExpression>(
+        plan.plan(op_idx + 5).opr().order_by().limit(), ctx_meta);
     return std::make_pair(std::make_unique<SPOrderByLimitWithGPredOpr>(
-                              spp, limit_upper, std::move(pred)),
+                              spp, std::move(range), std::move(pred)),
                           ret_meta);
 
   } else {
@@ -440,14 +450,17 @@ class ASPOpr : public IOperator {
  public:
   ASPOpr(const neug::Schema& schema, const physical::PathExpand& opr,
          const physical::PhysicalOpr_MetaData& meta,
-         const physical::GetV& get_v_opr, int v_alias) {
+         const physical::GetV& get_v_opr, int v_alias,
+         const ContextMeta& ctx_meta) {
     int start_tag = opr.start_tag().value();
     aspp_.start_tag = start_tag;
     aspp_.dir = parse_direction(opr.base().edge_expand().direction());
     aspp_.v_alias = v_alias;
     aspp_.alias = opr.has_alias() ? opr.alias().value() : -1;
-    aspp_.hop_lower = opr.hop_range().lower();
-    aspp_.hop_upper = opr.hop_range().upper();
+    auto hop_range =
+        RangeExpression(opr.hop_range(), ctx_meta).bind(nullptr, {});
+    aspp_.hop_lower = hop_range.lower;
+    aspp_.hop_upper = hop_range.upper;
 
     aspp_.labels = parse_label_triplets(meta);
     CHECK(aspp_.labels.size() == 1) << "only support one label triplet";
@@ -571,8 +584,10 @@ neug::result<OpBuildResultT> SPOprBuilder::Build(
     spp.dir = parse_direction(path.base().edge_expand().direction());
     spp.v_alias = v_alias;
     spp.alias = alias;
-    spp.hop_lower = path.hop_range().lower();
-    spp.hop_upper = path.hop_range().upper();
+    auto hop_range =
+        RangeExpression(path.hop_range(), ctx_meta).bind(nullptr, {});
+    spp.hop_lower = hop_range.lower;
+    spp.hop_upper = hop_range.upper;
     spp.labels = parse_label_triplets(plan.plan(op_idx).meta_data(0));
     if (spp.labels.size() != 1) {
       LOG(ERROR) << "only support one label triplet";
@@ -629,10 +644,11 @@ neug::result<OpBuildResultT> SPOprBuilder::Build(
                     "predicate";
       return std::make_pair(nullptr, ContextMeta());
     }
-    return std::make_pair(std::make_unique<ASPOpr>(
-                              schema, plan.plan(op_idx).opr().path(),
-                              plan.plan(op_idx).meta_data(0), vertex, v_alias),
-                          ret_meta);
+    return std::make_pair(
+        std::make_unique<ASPOpr>(schema, plan.plan(op_idx).opr().path(),
+                                 plan.plan(op_idx).meta_data(0), vertex,
+                                 v_alias, ctx_meta),
+        ret_meta);
   } else {
     return std::make_pair(nullptr, ContextMeta());
   }
@@ -696,8 +712,10 @@ neug::result<OpBuildResultT> PathExpandVOprBuilder::Build(
     PathExpandParams pep;
     pep.alias = alias;
     pep.dir = dir;
-    pep.hop_lower = opr.hop_range().lower();
-    pep.hop_upper = opr.hop_range().upper();
+    auto hop_range =
+        RangeExpression(opr.hop_range(), ctx_meta).bind(nullptr, {});
+    pep.hop_lower = hop_range.lower;
+    pep.hop_upper = hop_range.upper;
     pep.start_tag = start_tag;
     pep.labels = parse_label_triplets(plan.plan(op_idx).meta_data(0));
     if (opr.base().edge_expand().expand_opt() !=
@@ -851,8 +869,9 @@ neug::result<OpBuildResultT> PathExpandOprBuilder::Build(
   PathExpandParams pep;
   pep.alias = alias;
   pep.dir = dir;
-  pep.hop_lower = opr.hop_range().lower();
-  pep.hop_upper = opr.hop_range().upper();
+  auto hop_range = RangeExpression(opr.hop_range(), ctx_meta).bind(nullptr, {});
+  pep.hop_lower = hop_range.lower;
+  pep.hop_upper = hop_range.upper;
   pep.start_tag = start_tag;
   pep.labels = parse_label_triplets(plan.plan(op_idx).meta_data(0));
   pep.opt = parse_path_opt(opr.path_opt());

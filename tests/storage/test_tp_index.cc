@@ -19,6 +19,7 @@
 #include <filesystem>
 #include <memory>
 #include <optional>
+#include <stdexcept>
 #include <string>
 #include <utility>
 #include <vector>
@@ -52,15 +53,24 @@ namespace {
 
 class CapturingWalWriter : public IWalWriter {
  public:
+  enum class Failure { kNone, kPreWrite, kUncertain };
+
   std::string type() const override { return "capturing"; }
   void open(const std::string&) override {}
   void close() override {}
 
   bool append(const char* data, size_t length) override {
+    if (failure == Failure::kPreWrite) {
+      return false;
+    }
+    if (failure == Failure::kUncertain) {
+      throw std::runtime_error("injected WAL append failure");
+    }
     records.emplace_back(data, data + length);
     return true;
   }
 
+  Failure failure{Failure::kNone};
   std::vector<std::vector<char>> records;
 };
 
@@ -449,6 +459,42 @@ TEST_F(TPIndexTest, AbortedIndexDDLDoesNotAffectCurrentSnapshot) {
   ASSERT_TRUE(tp.CreateIndex(PersonAgeIndexMeta(tp)));
   txn.Abort();
   EXPECT_EQ(GetIndexByName("idx_person_age"), nullptr);
+}
+
+TEST_F(TPIndexTest, PreWriteWalFailureDoesNotPublishCurrentSnapshot) {
+  CreatePersonTableTP();
+  wal_writer_.records.clear();
+  wal_writer_.failure = CapturingWalWriter::Failure::kPreWrite;
+
+  auto txn = NewSnapshotCowWriteTransaction();
+  auto tp = txn.OpenStorage();
+  ASSERT_TRUE(tp.CreateIndex(PersonAgeIndexMeta(tp)));
+  EXPECT_FALSE(txn.Commit());
+
+  EXPECT_EQ(GetIndexByName("idx_person_age"), nullptr);
+  EXPECT_TRUE(wal_writer_.records.empty());
+
+  // Failure must release the write lease so a subsequent transaction can
+  // commit.
+  wal_writer_.failure = CapturingWalWriter::Failure::kNone;
+  auto retry = NewSnapshotCowWriteTransaction();
+  auto retry_storage = retry.OpenStorage();
+  ASSERT_TRUE(retry_storage.CreateIndex(PersonAgeIndexMeta(retry_storage)));
+  ASSERT_TRUE(retry.Commit());
+  EXPECT_NE(GetIndexByName("idx_person_age"), nullptr);
+  EXPECT_EQ(wal_writer_.records.size(), 1u);
+}
+
+TEST_F(TPIndexTest, UncertainWalFailureMustFailStop) {
+  CreatePersonTableTP();
+  wal_writer_.failure = CapturingWalWriter::Failure::kUncertain;
+  auto txn = NewSnapshotCowWriteTransaction();
+  auto storage = txn.OpenStorage();
+  ASSERT_TRUE(storage.CreateIndex(PersonAgeIndexMeta(storage)));
+
+  EXPECT_DEATH_IF_SUPPORTED(txn.Commit(),
+                            "TP WAL append failed after commit append began: "
+                            "injected WAL append failure");
 }
 
 TEST_F(TPIndexTest, ActivateIndexesWithoutPendingIndexIsNoOp) {

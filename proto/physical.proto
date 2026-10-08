@@ -332,6 +332,7 @@ message IndexScan {
   map<string, string> options = 4;
   common.Expression weights = 5;
   repeated string property_names = 6;
+  algebra.Range limit = 7;
 }
 
 message ExtensionInstall {
@@ -435,8 +436,12 @@ message ExecutionFlag {
   bool create_temp_table = 6; // create temporary table
   bool checkpoint = 7;
   bool procedure_call = 8;
-  // True only for COPY FROM. `batch` also covers COPY TO and LOAD.
+  // True only for COPY FROM. `batch` also covers COPY TO and LOAD FROM.
   bool copy_from = 9;
+  // True for a top-level LOAD FROM plan.
+  bool load_from = 10;
+  // True only for COPY TO.
+  bool copy_to = 11;
 }
 
 // A single Cypher query ending with a semicolon (;)

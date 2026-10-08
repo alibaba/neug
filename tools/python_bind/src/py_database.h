@@ -76,8 +76,8 @@ class PyDatabase : public std::enable_shared_from_this<PyDatabase> {
    * @brief Start the database server.
    * @param port The port to listen on, default is 10000.
    * @param host The host to bind to, default is "localhost".
-   * @param thread_num The service thread count. 0 means auto-select from
-   * database max_thread_num.
+   * @param thread_num Maximum number of concurrently executing service
+   * queries. 0 follows database max_thread_num.
    * @param blocking Whether to block the function until the server shuts down.
    * @param auto_compaction Enable background auto-compaction while
    * serving.

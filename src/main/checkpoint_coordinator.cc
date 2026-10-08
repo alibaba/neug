@@ -116,20 +116,8 @@ Status CheckpointCoordinator::CommitCowWrite(
     return Status::OK();
   }
   auto& workspace = transaction.workspace_;
-  const auto& logical_redo = workspace.logical_redo();
-  if (logical_redo.op_num() != 0 || logical_redo.content_size() != 0) {
-    transaction.Abort();
-    return Status::InternalError(
-        "Bulk checkpoint commit cannot contain logical WAL redo");
-  }
-  if (workspace.HasTransientMutation()) {
-    transaction.Abort();
-    return Status::InternalError(
-        "Bulk checkpoint commit cannot contain transient graph mutations");
-  }
   if (!workspace.HasBulkMutation()) {
-    transaction.Abort();
-    return Status::OK();
+    return transaction.Commit();
   }
 
   bool consuming_checkpoint_started = false;
@@ -154,7 +142,11 @@ Status CheckpointCoordinator::CommitCowWrite(
     // tail; edge COPY needs compaction only when it has a neighbor sort key.
     // Keeping the target sets transaction-local avoids compacting unrelated
     // dirty tables inherited by the private COW graph.
-    workspace.FinalizeBulkTablesForCheckpoint();
+    auto finalize_status = workspace.FinalizeBulkTablesForCheckpoint();
+    if (!finalize_status.ok()) {
+      transaction.Abort();
+      return finalize_status;
+    }
 
     // This is intentionally not the in-place checkpoint path in execute().
     // `graph` belongs exclusively to this COW transaction, so it can be
@@ -170,6 +162,8 @@ Status CheckpointCoordinator::CommitCowWrite(
     // not report rollback from this point until checkpoint-specific payload
     // detachment exists.
     consuming_checkpoint_started = true;
+    // Persistence strips temporary schema and skips temporary modules, while
+    // the private graph keeps them for the single snapshot publication below.
     graph.DumpDirtyAndReopen(staging_checkpoint.checkpoint(),
                              transaction.timestamp());
     workspace.view().Rebuild(graph);

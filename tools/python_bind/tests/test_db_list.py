@@ -29,6 +29,135 @@ def _nested_list(value):
         return value
 
 
+def test_repeat_list_expression(tmp_path):
+    db = Database(db_path=str(tmp_path), mode="w", checkpoint_on_close=False)
+    conn = db.connect()
+
+    row = list(
+        conn.execute(
+            "RETURN CAST(repeat([-1], 3), 'INT32[]'), "
+            "list_concat(repeat([-1], 2), repeat([0], 3)), "
+            "list_concat([7, 8], repeat([-1], 2)), "
+            "repeat([1, 2], 0), "
+            "repeat(CAST([1, 2], 'INT32[2]'), 2);"
+        )
+    )[0]
+    assert [_nested_list(value) for value in row] == [
+        [-1, -1, -1],
+        [-1, -1, 0, 0, 0],
+        [7, 8, -1, -1],
+        [],
+        [1, 2, 1, 2],
+    ]
+
+    conn.close()
+    db.close()
+
+
+def test_repeat_list_consumers(tmp_path):
+    """Repeated lists stay type-safe through casts and comparisons."""
+    db = Database(db_path=str(tmp_path), mode="w", checkpoint_on_close=False)
+    conn = db.connect()
+
+    row = list(
+        conn.execute(
+            "RETURN CAST(repeat([1], 2), 'FLOAT[]'), "
+            "repeat([1], 2) = repeat([1], 2);"
+        )
+    )[0]
+    assert _nested_list(row[0]) == [1.0, 1.0]
+    assert row[1] is True
+
+    conn.execute(
+        "CREATE NODE TABLE RepeatConsumer("
+        "id INT64, embedding FLOAT[4], PRIMARY KEY(id));"
+    )
+    conn.execute(
+        "CREATE (:RepeatConsumer "
+        "{id: 1, embedding: CAST(repeat([-1], 4), 'FLOAT[4]')});"
+    )
+    assert list(
+        conn.execute(
+            "MATCH (n:RepeatConsumer) WHERE n.embedding = "
+            "CAST(repeat([-1], 4), 'FLOAT[4]') RETURN n.id;"
+        )
+    ) == [[1]]
+
+    with pytest.raises(
+        RuntimeError, match="number of rows to skip/limit must be a parameter/literal"
+    ):
+        list(conn.execute("RETURN 1 SKIP repeat([1], 2);"))
+
+    conn.close()
+    db.close()
+
+
+@pytest.mark.parametrize(
+    "expression",
+    ["repeat([1], 65536)", "repeat([1, 2], 32768)"],
+    ids=["single-value", "multi-value-unit"],
+)
+def test_repeat_rejects_excessive_result_length(tmp_path, expression):
+    db = Database(db_path=str(tmp_path), mode="w", checkpoint_on_close=False)
+    conn = db.connect()
+
+    with pytest.raises(
+        RuntimeError,
+        match="REPEAT result length exceeds maximum supported length of 65535",
+    ):
+        list(conn.execute(f"RETURN {expression};"))
+
+    conn.close()
+    db.close()
+
+
+@pytest.mark.parametrize("ddl_path", ["create", "alter"])
+def test_repeat_list_defaults_in_ddl(tmp_path, ddl_path):
+    """REPEAT expressions work for LIST defaults in both DDL paths."""
+    db = Database(db_path=str(tmp_path), mode="w", checkpoint_on_close=False)
+    conn = db.connect()
+
+    if ddl_path == "create":
+        conn.execute(
+            "CREATE NODE TABLE RepeatListDefaults("
+            "  id INT64,"
+            "  single_fill FLOAT[] DEFAULT repeat([-1], 4),"
+            "  repeated_unit INT64[] DEFAULT repeat([-1, 0], 2),"
+            "  mixed INT64[] DEFAULT list_concat([7, 8], repeat([-1], 2)),"
+            "  PRIMARY KEY(id)"
+            ");"
+        )
+        conn.execute("CREATE (:RepeatListDefaults {id: 1});")
+    else:
+        conn.execute("CREATE NODE TABLE RepeatListDefaults(id INT64, PRIMARY KEY(id));")
+        conn.execute("CREATE (:RepeatListDefaults {id: 1});")
+        conn.execute(
+            "ALTER TABLE RepeatListDefaults "
+            "ADD single_fill FLOAT[] DEFAULT repeat([-1], 4);"
+        )
+        conn.execute(
+            "ALTER TABLE RepeatListDefaults "
+            "ADD repeated_unit INT64[] DEFAULT repeat([-1, 0], 2);"
+        )
+        conn.execute(
+            "ALTER TABLE RepeatListDefaults "
+            "ADD mixed INT64[] DEFAULT list_concat([7, 8], repeat([-1], 2));"
+        )
+
+    row = list(
+        conn.execute(
+            "MATCH (n:RepeatListDefaults {id: 1}) "
+            "RETURN n.single_fill, n.repeated_unit, n.mixed;"
+        )
+    )[0]
+    assert _nested_list(row[0]) == [-1.0, -1.0, -1.0, -1.0]
+    assert _nested_list(row[1]) == [-1, 0, -1, 0]
+    assert _nested_list(row[2]) == [7, 8, -1, -1]
+
+    conn.close()
+    db.close()
+
+
 def test_list_append_and_concat(tmp_path):
     db = Database(db_path=str(tmp_path), mode="w", checkpoint_on_close=False)
     conn = db.connect()
@@ -38,6 +167,13 @@ def test_list_append_and_concat(tmp_path):
         ("RETURN list_append([1, 2], 3.5);", [1.0, 2.0, 3.5]),
         ("RETURN list_append([], 1);", [1]),
         ("RETURN list_append([], NULL);", [None]),
+        ("RETURN list_append([NULL], NULL);", [None, None]),
+        ("RETURN list_append([CAST(NULL, 'INT64')], 1);", [None, 1]),
+        ("RETURN list_append(CAST(NULL, 'INT64[]'), 3);", None),
+        (
+            "RETURN list_append(CAST(NULL, 'INT64[]'), CAST(NULL, 'INT64'));",
+            None,
+        ),
         ("RETURN list_append(CAST([1, 2], 'INT64[]'), 3);", [1, 2, 3]),
         ("RETURN list_concat([1, 2], [3, 4]);", [1, 2, 3, 4]),
         (
@@ -52,6 +188,24 @@ def test_list_append_and_concat(tmp_path):
         ("RETURN list_concat([], [1, 2]);", [1, 2]),
         ("RETURN list_concat([1, 2], []);", [1, 2]),
         ("RETURN list_concat([], []);", []),
+        ("RETURN list_concat([], [NULL]);", [None]),
+        ("RETURN list_concat([NULL], []);", [None]),
+        ("RETURN list_concat([NULL], [NULL]);", [None, None]),
+        ("RETURN list_concat(CAST(NULL, 'INT64[]'), [1]);", None),
+        (
+            "RETURN list_concat(CAST(NULL, 'INT64[]'), CAST(NULL, 'INT64[]'));",
+            None,
+        ),
+        ("RETURN list_concat(CAST(NULL, 'INT64[]'), []);", None),
+        ("RETURN list_concat([], CAST(NULL, 'INT64[]'));", None),
+        (
+            "RETURN list_concat(CAST(NULL, 'INT64[]'), [CAST(NULL, 'INT64')]);",
+            None,
+        ),
+        (
+            "RETURN list_concat([CAST(NULL, 'INT64')], CAST(NULL, 'INT64[]'));",
+            None,
+        ),
         ("RETURN list_append([1, 2], NULL);", [1, 2, None]),
         (
             "RETURN list_append([[1, 2], [3, 4]], [5, 6]);",
@@ -75,14 +229,6 @@ def test_list_append_and_concat(tmp_path):
     for query, expected in cases:
         value = list(conn.execute(query))[0][0]
         assert _nested_list(value) == expected
-
-    # A typed top-level NULL list propagates to a NULL result.
-    assert list(conn.execute("RETURN list_append(CAST(NULL, 'INT64[]'), 3);")) == [
-        [None]
-    ]
-    assert list(conn.execute("RETURN list_concat(CAST(NULL, 'INT64[]'), [1]);")) == [
-        [None]
-    ]
 
     with pytest.raises(Exception, match="first argument to be LIST or ARRAY"):
         conn.execute("RETURN list_append(1, 2);")
@@ -177,6 +323,83 @@ def test_list_cast_contract(tmp_path):
 
     conn.close()
     db.close()
+
+
+def test_unwind_null_raises_error(empty_db):
+    _, conn = empty_db
+    with pytest.raises(Exception):
+        list(conn.execute("UNWIND NULL AS value RETURN value;"))
+    with pytest.raises(Exception):
+        list(conn.execute("UNWIND CAST(NULL, 'INT64[]') AS value RETURN value;"))
+    with pytest.raises(Exception):
+        list(conn.execute("UNWIND CAST(NULL, 'INT64[3]') AS value RETURN value;"))
+
+
+def test_in_null_semantics(empty_db):
+    _, conn = empty_db
+    cases = [
+        ("1 IN NULL", None),
+        ("CAST(NULL, 'INT64') IN NULL", None),
+        ("1 IN []", False),
+        ("CAST(NULL, 'INT64') IN []", False),
+        ("1 IN [1, 2]", True),
+        ("1 IN [CAST(NULL, 'INT64'), 1, 2]", True),
+        ("2 IN [1, CAST(NULL, 'INT64'), 3]", None),
+        ("2 IN [1, 3]", False),
+    ]
+    for expression, expected in cases:
+        assert list(conn.execute(f"RETURN {expression};")) == [[expected]]
+
+
+def test_list_contains_null_semantics(empty_db):
+    _, conn = empty_db
+    cases = [
+        ("list_contains(NULL, 1)", None),
+        ("list_contains(NULL, CAST(NULL, 'INT64'))", None),
+        ("list_contains([], 1)", False),
+        ("list_contains([], CAST(NULL, 'INT64'))", False),
+        ("list_contains([1, 2], 1)", True),
+        ("list_contains([CAST(NULL, 'INT64'), 1, 2], 1)", True),
+        ("list_contains([1, CAST(NULL, 'INT64'), 3], 2)", None),
+        ("list_contains([1, 3], 2)", False),
+    ]
+    for expression, expected in cases:
+        assert list(conn.execute(f"RETURN {expression};")) == [[expected]]
+
+
+def test_list_has_null_semantics(empty_db):
+    _, conn = empty_db
+    cases = [
+        ("list_has(NULL, 1)", None),
+        ("list_has(NULL, CAST(NULL, 'INT64'))", None),
+        ("list_has([], 1)", False),
+        ("list_has([], CAST(NULL, 'INT64'))", False),
+        ("list_has([1, 2], 1)", True),
+        ("list_has([CAST(NULL, 'INT64'), 1, 2], 1)", True),
+        ("list_has([1, CAST(NULL, 'INT64'), 3], 2)", None),
+        ("list_has([1, 3], 2)", False),
+    ]
+    for expression, expected in cases:
+        assert list(conn.execute(f"RETURN {expression};")) == [[expected]]
+
+
+def test_in_null_semantics_with_variables(empty_db):
+    _, conn = empty_db
+    cases = [
+        ("1", "NULL", None),
+        ("CAST(NULL, 'INT64')", "NULL", None),
+        ("1", "[]", False),
+        ("CAST(NULL, 'INT64')", "[]", False),
+        ("1", "[1, 2]", True),
+        ("1", "[CAST(NULL, 'INT64'), 1, 2]", True),
+        ("2", "[1, CAST(NULL, 'INT64'), 3]", None),
+        ("2", "[1, 3]", False),
+    ]
+    for needle, values, expected in cases:
+        rows = list(
+            conn.execute(f"UNWIND [{needle}] AS needle RETURN needle IN {values};")
+        )
+        assert rows == [[expected]]
 
 
 def test_list_preserves_null_elements_during_unwind(tmp_path):

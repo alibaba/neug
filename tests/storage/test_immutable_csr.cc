@@ -396,6 +396,8 @@ TYPED_TEST(IMMutableCsrTest, TestBatchDeleteEdges) {
   }
   immutable_csr.batch_delete_edges(edges_to_delete);
   EXPECT_EQ(immutable_csr.edge_num(), 10000 - edges_to_delete.size());
+  immutable_csr.batch_delete_edges(edges_to_delete);
+  EXPECT_EQ(immutable_csr.edge_num(), 10000 - edges_to_delete.size());
 
   SingleImmutableCsr<TypeParam> single_immutable_csr;
   this->load_single_csr_data(single_immutable_csr);

@@ -173,10 +173,17 @@ bool MvccInsertTransaction::Commit() {
   header->type = 0;
   header->timestamp = timestamp_;
 
-  if (!wal_writer_.append(arc_.GetBuffer(), arc_.GetSize())) {
-    LOG(ERROR) << "Failed to append wal log";
-    Abort();
-    return false;
+  try {
+    if (!wal_writer_.append(arc_.GetBuffer(), arc_.GetSize())) {
+      LOG(ERROR) << "Failed to append wal log";
+      Abort();
+      return false;
+    }
+  } catch (const std::exception& e) {
+    LOG(FATAL) << "Insert WAL append failed after commit append began: "
+               << e.what();
+  } catch (...) {
+    LOG(FATAL) << "Insert WAL append failed after commit append began";
   }
   // Apply WAL operations through the writable view. Capacity is assumed
   // to be sufficient; the strict insert path will throw if exhausted.

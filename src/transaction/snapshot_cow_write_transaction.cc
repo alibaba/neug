@@ -102,13 +102,12 @@ bool SnapshotCowWriteTransaction::CommitPrepared() {
   }
 
   auto& logical_redo = workspace_.logical_redo();
-  // append() does not distinguish a pre-write failure from a partial append.
-  // Until W1 framing makes recovery able to discard incomplete records, do not
-  // report a normal rollback after starting the durability boundary.
+  // Abort only if no record bytes were written. An uncertain append must
+  // fail-stop because recovery cannot safely discard partial WAL records.
   try {
     if (!wal_writer_.append(logical_redo.data(), logical_redo.size())) {
-      LOG(FATAL) << "TP WAL append failed after commit append began; "
-                    "terminating before snapshot publication";
+      Abort();
+      return false;
     }
   } catch (const std::exception& e) {
     LOG(FATAL) << "TP WAL append failed after commit append began: " << e.what()

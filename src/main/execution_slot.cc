@@ -184,11 +184,24 @@ Status validateExplicitTransactionPlan(ExplainMode explain_mode,
                   "Write queries are not allowed in a read-only "
                   "transaction.");
   }
-  if (!read_only && (flags.batch() || flags.copy_from() ||
-                     flags.create_temp_table() || flags.checkpoint())) {
+  const bool copy_temp = flags.copy_from() && flags.create_temp_table();
+  const bool graph_mutation =
+      flags.insert() || flags.update() || flags.schema();
+  // LOAD FROM may drive ordinary DML through the transaction's COW storage.
+  // Keep rejecting any future unclassified batch mutation until it receives an
+  // explicit transactional contract.
+  const bool unsupported_batch_mutation =
+      graph_mutation &&
+      (flags.copy_to() ||
+       (flags.batch() && !flags.copy_from() && !flags.load_from()));
+  const bool graph_mutating_copy_temp =
+      copy_temp && (flags.insert() || flags.update());
+  if (unsupported_batch_mutation || graph_mutating_copy_temp ||
+      (flags.create_temp_table() && !copy_temp) || flags.checkpoint()) {
     return Status(StatusCode::ERR_NOT_SUPPORTED,
-                  "Bulk, temporary schema, and maintenance operations are "
-                  "not supported in an explicit transaction.");
+                  "Graph-mutating COPY TO, unclassified batch mutations, "
+                  "temporary schema operations, and maintenance operations "
+                  "are not supported in an explicit transaction.");
   }
   return Status::OK();
 }
@@ -448,23 +461,17 @@ result<QueryResult> ExecutionSlot::ExecuteQueryInTransaction(
   try {
     const auto start = std::chrono::high_resolution_clock::now();
     const auto analysis = planner_->analyzeQuery(query_string);
-    if (analysis.explain_mode != ExplainMode::kExplain &&
-        analysis.is_copy_statement) {
-      transaction_context.AbortAndMarkRollbackOnly();
-      RETURN_ERROR(Status(StatusCode::ERR_NOT_SUPPORTED,
-                          "COPY is not supported in an explicit transaction."));
-    }
+    const bool is_explain = analysis.explain_mode == ExplainMode::kExplain;
     const auto resolved_mode = requested_mode == AccessMode::kUnKnown
                                    ? analysis.access_mode
                                    : requested_mode;
-    if (analysis.isAdmin() && analysis.explain_mode != ExplainMode::kExplain) {
+    if (analysis.isAdmin() && !is_explain) {
       transaction_context.AbortAndMarkRollbackOnly();
       RETURN_ERROR(Status(StatusCode::ERR_NOT_SUPPORTED,
                           "Administrative operations are not supported in an "
                           "explicit transaction."));
     }
-    if (transaction_context.IsReadOnly() &&
-        analysis.explain_mode != ExplainMode::kExplain &&
+    if (transaction_context.IsReadOnly() && !is_explain &&
         requested_mode != AccessMode::kUnKnown &&
         requested_mode != AccessMode::kRead) {
       transaction_context.AbortAndMarkRollbackOnly();
@@ -476,36 +483,54 @@ result<QueryResult> ExecutionSlot::ExecuteQueryInTransaction(
     const AnalyzedQuery query{query_string, analysis, resolved_mode, parameters,
                               num_threads};
     QueryResponse response;
-    auto prepare_and_execute =
-        [this, &query, &response](
-            const GraphStats& stats, IStorageInterface& storage,
-            QueryCacheMode cache_mode, bool read_only) -> Status {
+    auto prepare_query =
+        [this, &query](
+            const GraphStats& stats, QueryCacheMode cache_mode,
+            bool read_only) -> result<std::shared_ptr<execution::CacheValue>> {
       auto prepared =
           prepareQuery(stats, query.text, query.num_threads, cache_mode);
       if (NEUG_UNLIKELY(!prepared)) {
-        return prepared.error();
+        RETURN_ERROR(prepared.error());
       }
-      auto prepared_query = std::move(prepared).value();
-      RETURN_IF_NOT_OK(validateExplicitTransactionPlan(
-          query.analysis.explain_mode, prepared_query->flags, read_only));
-      return executePreparedQuery(storage, query, *prepared_query, response);
+      RETURN_STATUS_ERROR_IF_NOT_OK(validateExplicitTransactionPlan(
+          query.analysis.explain_mode, prepared.value()->flags, read_only));
+      return prepared;
     };
 
     Status status;
     if (transaction_context.IsReadOnly()) {
       auto& transaction = transaction_context.ReadTransactionOwner();
-      StorageReadInterface storage(transaction.view(), transaction.timestamp());
-      status = prepare_and_execute(transaction.statistic(), storage,
-                                   QueryCacheMode::kShared, true);
+      auto prepared =
+          prepare_query(transaction.statistic(), QueryCacheMode::kShared, true);
+      if (prepared) {
+        StorageReadInterface storage(transaction.view(),
+                                     transaction.timestamp());
+        status =
+            executePreparedQuery(storage, query, *prepared.value(), response);
+      } else {
+        status = prepared.error();
+      }
     } else {
       status = transaction_context.VisitCowWriteOwner(
-          [&prepare_and_execute](auto& transaction) {
-            auto storage = transaction.OpenStorage();
+          [this, is_explain, &prepare_query, &query,
+           &response](auto& transaction) {
             const auto cache_mode = transaction.PlanningChanged()
                                         ? QueryCacheMode::kBypassShared
                                         : QueryCacheMode::kShared;
-            return prepare_and_execute(transaction.statistic(), storage,
-                                       cache_mode, false);
+            auto prepared =
+                prepare_query(transaction.statistic(), cache_mode, false);
+            if (!prepared) {
+              return prepared.error();
+            }
+            auto& prepared_query = *prepared.value();
+
+            if (!is_explain && prepared_query.flags.copy_from()) {
+              return executeExplicitCopy(transaction, query, prepared_query,
+                                         response);
+            }
+            auto storage = transaction.OpenStorage();
+            return executePreparedQuery(storage, query, prepared_query,
+                                        response);
           });
     }
     if (!status.ok()) {
@@ -522,6 +547,47 @@ result<QueryResult> ExecutionSlot::ExecuteQueryInTransaction(
     transaction_context.AbortAndMarkRollbackOnly();
     throw;
   }
+}
+
+Status ExecutionSlot::executeExplicitCopy(SnapshotCowWriteTransaction&,
+                                          const AnalyzedQuery&,
+                                          execution::CacheValue&,
+                                          QueryResponse&) {
+  return Status(StatusCode::ERR_NOT_SUPPORTED,
+                "COPY FROM in an explicit transaction is supported only "
+                "in embedded read-write mode.");
+}
+
+Status ExecutionSlot::executeExplicitCopy(
+    CurrentCowWriteTransaction& transaction, const AnalyzedQuery& query,
+    execution::CacheValue& prepared_query, QueryResponse& response) {
+  const bool copy_temp = prepared_query.flags.create_temp_table();
+  auto storage = transaction.OpenBulkStorage();
+  if (!copy_temp) {
+    storage.RequirePersistentTargets();
+  }
+  return executePreparedQuery(storage, query, prepared_query, response);
+}
+
+Status ExecutionSlot::CommitExplicitTransaction(
+    TransactionContext& transaction_context) {
+  CHECK(transaction_context.IsActive());
+  if (transaction_context.IsReadOnly()) {
+    return transaction_context.Commit();
+  }
+
+  CHECK(std::holds_alternative<CurrentCowWriteTransaction>(
+      transaction_context.transaction_))
+      << "Connection write transactions must own the current COW graph";
+  auto& transaction =
+      std::get<CurrentCowWriteTransaction>(transaction_context.transaction_);
+  auto status = checkpoint_coordinator_.CommitCowWrite(transaction);
+  if (status.ok()) {
+    transaction_context.ResetToIdle();
+  } else {
+    transaction_context.AbortAndMarkRollbackOnly();
+  }
+  return status;
 }
 
 Status ExecutionSlot::executeAutoCommitQuery(const std::string& query,
@@ -589,36 +655,23 @@ Status ExecutionSlot::executeAutoCommitQuery(const std::string& query,
         return classification.error();
       }
       auto prepared_query = std::move(classification).value();
-      const auto& flags = prepared_query->flags;
-      if (flags.copy_from()) {
-        auto transaction = CurrentCowWriteTransaction::Begin(
-            std::move(guard), alloc_, snapshot_store_, *wal_writer_);
+      auto transaction = CurrentCowWriteTransaction::Begin(
+          std::move(guard), alloc_, snapshot_store_, *wal_writer_);
+      if (prepared_query->flags.copy_from()) {
         auto storage = transaction.OpenBulkStorage();
         status = executePreparedQuery(storage, analyzed_query, *prepared_query,
                                       response);
-        if (status.ok()) {
-          // A normal COPY can target a table that is already temporary, so
-          // planner syntax alone cannot select the commit protocol. Storage
-          // marks the resolved target in the workspace.
-          status = transaction.workspace_.HasTransientMutation()
-                       ? transaction.CommitTransient()
-                       : checkpoint_coordinator_.CommitCowWrite(transaction);
-        } else {
-          transaction.Abort();
-        }
       } else {
-        auto transaction = CurrentCowWriteTransaction::Begin(
-            std::move(guard), alloc_, snapshot_store_, *wal_writer_);
         auto storage = transaction.OpenStorage();
         status = executePreparedQuery(storage, analyzed_query, *prepared_query,
                                       response);
-        if (status.ok()) {
-          status = transaction.workspace_.HasTransientMutation()
-                       ? transaction.CommitTransient()
-                       : transaction.Commit();
-        } else {
-          transaction.Abort();
-        }
+      }
+      if (status.ok()) {
+        // Resolved storage targets, not COPY syntax, select checkpoint,
+        // logical-WAL, or transient-only publication.
+        status = checkpoint_coordinator_.CommitCowWrite(transaction);
+      } else {
+        transaction.Abort();
       }
     } else {
       return Status(

@@ -103,10 +103,9 @@ void CardinalityUpdater::visitScanNodeTable(planner::LogicalOperator* op) {
 }
 
 void CardinalityUpdater::visitExtend(planner::LogicalOperator* op) {
-  NEUG_ASSERT(transaction);
   auto& extend = op->cast<planner::LogicalExtend&>();
   const auto extensionRate = cardinalityEstimator.getExtensionRate(
-      *extend.getRel(), *extend.getBoundNode(), transaction);
+      *extend.getRel(), *extend.getBoundNode());
   extend.setCardinality(cardinalityEstimator.multiply(
       extensionRate, op->getChild(0)->getCardinality()));
 }

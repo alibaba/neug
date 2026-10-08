@@ -324,6 +324,12 @@ void VertexSchema::delete_properties(const std::vector<std::string>& names,
     if (it != property_names.end()) {
       size_t j = static_cast<size_t>(std::distance(property_names.begin(), it));
       if (!is_soft) {
+        for (auto& primary_key : primary_keys) {
+          auto& primary_key_ordinal = std::get<2>(primary_key);
+          if (j < primary_key_ordinal) {
+            --primary_key_ordinal;
+          }
+        }
         property_names.erase(property_names.begin() + j);
         property_types.erase(property_types.begin() + j);
         default_property_values.erase(default_property_values.begin() + j);

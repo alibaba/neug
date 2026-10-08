@@ -28,7 +28,6 @@
 #include "neug/compiler/catalog/catalog_entry/table_catalog_entry.h"
 #include "neug/compiler/catalog/catalog_entry/type_catalog_entry.h"
 #include "neug/compiler/common/serializer/deserializer.h"
-#include "neug/compiler/transaction/transaction.h"
 
 namespace neug {
 namespace catalog {
@@ -84,7 +83,6 @@ std::unique_ptr<CatalogEntry> CatalogEntry::deserialize(
   entry->name = std::move(name);
   entry->oid = oid;
   entry->hasParent_ = hasParent_;
-  entry->timestamp = transaction::Transaction::DUMMY_START_TIMESTAMP;
   return entry;
 }
 
@@ -92,8 +90,6 @@ void CatalogEntry::copyFrom(const CatalogEntry& other) {
   type = other.type;
   name = other.name;
   oid = other.oid;
-  timestamp = other.timestamp;
-  deleted = other.deleted;
   hasParent_ = other.hasParent_;
 }
 

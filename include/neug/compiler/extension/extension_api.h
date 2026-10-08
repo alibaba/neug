@@ -22,7 +22,6 @@
 #include "neug/compiler/gopt/g_catalog.h"
 #include "neug/compiler/main/metadata_manager.h"
 #include "neug/compiler/main/metadata_registry.h"
-#include "neug/compiler/transaction/transaction.h"
 #include "neug/utils/exception/exception.h"
 
 namespace neug {
@@ -45,20 +44,17 @@ class ExtensionAPI {
   template <typename T>
   static void registerFunction(catalog::CatalogEntryType entryType) {
     auto gCatalog = neug::main::MetadataRegistry::getCatalog();
-    if (gCatalog->containsFunction(&neug::transaction::DUMMY_TRANSACTION,
-                                   T::name, false)) {
+    if (gCatalog->containsFunction(T::name, false)) {
       return;
     }
-    gCatalog->addFunctionWithSignature(&neug::transaction::DUMMY_TRANSACTION,
-                                       entryType, T::name, T::getFunctionSet(),
+    gCatalog->addFunctionWithSignature(entryType, T::name, T::getFunctionSet(),
                                        false);
   }
 
   template <typename T>
   static void registerFunctionAlias(catalog::CatalogEntryType entryType) {
     auto gCatalog = neug::main::MetadataRegistry::getCatalog();
-    gCatalog->addFunctionWithSignature(&neug::transaction::DUMMY_TRANSACTION,
-                                       entryType, T::name,
+    gCatalog->addFunctionWithSignature(entryType, T::name,
                                        T::alias::getFunctionSet(), false);
   }
 
@@ -83,11 +79,10 @@ class ExtensionAPI {
           "Rules must be registered with RULE_ENTRY");
     }
     auto catalog = neug::main::MetadataRegistry::getCatalog();
-    if (catalog->containsRule(&neug::transaction::DUMMY_TRANSACTION, T::name)) {
+    if (catalog->containsRule(T::name)) {
       return;
     }
-    catalog->addRule(&neug::transaction::DUMMY_TRANSACTION, T::name,
-                     []() { return std::make_unique<T>(); });
+    catalog->addRule(T::name, []() { return std::make_unique<T>(); });
   }
 
   static void registerExtension(const ExtensionInfo& info);

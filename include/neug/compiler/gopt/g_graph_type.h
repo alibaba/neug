@@ -175,18 +175,15 @@ struct GRelType {
     YAML::Node type;
     type["element_opt"] = "EDGE";
     YAML::Node labels = YAML::Node(YAML::NodeType::Sequence);
-    auto& transaction = neug::Constants::DEFAULT_TRANSACTION;
     for (auto& relTable : relTables) {
       YAML::Node label;
       label["id"] = relTable->getLabelId();
       label["name"] = relTable->getEdgeLabelName();
-      auto srcEntry = catalog->getTableCatalogEntry(&transaction,
-                                                    relTable->getSrcTableID());
+      auto srcEntry = catalog->getTableCatalogEntry(relTable->getSrcTableID());
       if (srcEntry->get_entry_type() != SchemaEntryType::NODE) {
         THROW_EXCEPTION_WITH_FILE_LINE("src table is not a node table");
       }
-      auto dstEntry = catalog->getTableCatalogEntry(&transaction,
-                                                    relTable->getDstTableID());
+      auto dstEntry = catalog->getTableCatalogEntry(relTable->getDstTableID());
       if (dstEntry->get_entry_type() != SchemaEntryType::NODE) {
         THROW_EXCEPTION_WITH_FILE_LINE("dst table is not a node table");
       }

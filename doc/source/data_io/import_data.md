@@ -4,6 +4,8 @@
 
 A variant — **`COPY TEMP`** — imports external data as a **temporary graph** whose lifetime is bound to the current connection. Temporary tables are automatically removed when the connection closes, making `COPY TEMP` ideal for ad-hoc analytics without polluting the persistent schema.
 
+> **Tip:** Since v0.2.1, you can group multiple `COPY FROM` statements (and interleave ordinary DML/DDL) into a single Embedded read-write explicit transaction so they publish as one checkpoint instead of one checkpoint per statement. See [Explicit Transactions](../transaction/explicit_transactions.mdx).
+
 ## Schema Requirement
 
 You can create a **predefined schema** — that is, define node/relationship tables before importing data — where the columns in the external file must match the table properties.
@@ -353,8 +355,8 @@ For the full set of relational operations available in `LOAD FROM` subqueries, s
 
 | Option         | Type  | Default           | Description                                                       |
 | -------------- | ----- | ----------------- | ----------------------------------------------------------------- |
-| `batch_read` | bool  | `false`         | Read data incrementally in batches.                               |
-| `batch_size` | int64 | `1048576` (1MB) | Batch size in bytes when `batch_read` is enabled.               |
+| `batch_read` | bool  | `true`          | Read data incrementally in batches.                               |
+| `batch_rows` | int64 | `65536`          | Number of **rows** per batch/chunk when `batch_read` is enabled. |
 | `parallel`   | bool  | `false` | Enable parallel reading using multiple threads (max core number). When enabled for Parquet files, row groups are scanned concurrently and row order is **not** preserved. |
 
 ```cypher

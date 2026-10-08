@@ -25,10 +25,16 @@
 // Internal code MUST use platform-independent macros (NEUG_ALWAYS_INLINE,
 // NEUG_API, NEUG_DEPRECATED, etc.) instead of raw __attribute__.
 #define __attribute__(x)
-// MSVC does not have __builtin_prefetch; use _mm_prefetch instead.
+// MSVC does not have __builtin_prefetch. Use _mm_prefetch on x86/x64;
+// native ARM64 Windows has no <xmmintrin.h>, so prefetch is a no-op there.
+// ARM64EC supports SSE intrinsics, so keep the x86 path for it.
+#if (defined(_M_ARM64) || defined(__aarch64__)) && !defined(_M_ARM64EC)
+#define __builtin_prefetch(ptr, rw, loc) ((void) 0)
+#else
 #include <xmmintrin.h>
 #define __builtin_prefetch(ptr, rw, loc) \
   _mm_prefetch((const char*) (ptr), (loc))
+#endif
 // Windows headers define GetObject as a macro (GetObjectA/GetObjectW),
 // which conflicts with rapidjson::Value::GetObject(). Undefine it.
 #ifdef GetObject

@@ -51,7 +51,6 @@
 #include "neug/compiler/planner/gopt_planner.h"
 #include "neug/compiler/planner/operator/logical_plan_util.h"
 #include "neug/compiler/storage/buffer_manager/memory_manager.h"
-#include "neug/compiler/transaction/transaction.h"
 #include "neug/storages/graph/schema.h"
 #include "neug/utils/pb_utils.h"
 #include "neug/utils/service_utils.h"
@@ -417,8 +416,11 @@ using RegexReplaceMap = std::vector<std::pair<std::string, std::string>>;
 class VerifyFactory {
  public:
   static RegexReplaceMap defaultNormalizePatterns() {
-    return {{R"("max_length":\s*\d+)", "\"max_length\": <IGNORED>"},
-            {R"(max_length:\s*\d+)", "max_length: <IGNORED>"}};
+    return {
+        {R"("max_length":\s*\d+)", "\"max_length\": <IGNORED>"},
+        {R"(max_length:\s*\d+)", "max_length: <IGNORED>"},
+        {R"regex("(hop_range|range|limit)":\{(?:"lower":\d+,"upper":\d+|(?:(?:"offset"|"limit"):\{"operators":\[\{"const":\{"(?:i64|u64)":"\d+"\}\}\]\},?)+)\})regex",
+         "\"$1\":<RANGE_IGNORED>"}};
   }
 
   static std::string normalize(const std::string& s) {

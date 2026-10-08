@@ -651,10 +651,9 @@ Status PropertyGraph::DeleteVertexType(const std::string& vertex_type_name) {
 }
 
 Status PropertyGraph::DeleteVertexType(label_t v_label_id) {
-  schema_.DeleteVertexLabel(v_label_id, false);
-  vertex_tables_[v_label_id].Close();
-  dirty_.SetVertex(v_label_id, false);
-
+  // Remove related triplets while both endpoints are still valid, including
+  // self-edges. Physical vertex deletion must also erase temporary edge schema
+  // so connection cleanup cannot encounter a deleted endpoint later.
   for (label_t i = 0; i < vertex_label_total_count_; i++) {
     if (!schema_.is_vertex_label_valid(i)) {
       continue;
@@ -664,7 +663,7 @@ Status PropertyGraph::DeleteVertexType(label_t v_label_id) {
         continue;
       }
       if (schema_.is_edge_triplet_valid(v_label_id, i, j)) {
-        schema_.DeleteEdgeLabel(v_label_id, i, j);
+        schema_.DeleteEdgeLabel(v_label_id, i, j, false);
         size_t index = schema_.generate_edge_label(v_label_id, i, j);
         auto it = edge_tables_.find(index);
         if (it != edge_tables_.end()) {
@@ -673,7 +672,7 @@ Status PropertyGraph::DeleteVertexType(label_t v_label_id) {
         }
       }
       if (schema_.is_edge_triplet_valid(i, v_label_id, j)) {
-        schema_.DeleteEdgeLabel(i, v_label_id, j);
+        schema_.DeleteEdgeLabel(i, v_label_id, j, false);
         size_t index = schema_.generate_edge_label(i, v_label_id, j);
         auto it = edge_tables_.find(index);
         if (it != edge_tables_.end()) {
@@ -684,6 +683,9 @@ Status PropertyGraph::DeleteVertexType(label_t v_label_id) {
     }
   }
 
+  schema_.DeleteVertexLabel(v_label_id, false);
+  vertex_tables_[v_label_id].Close();
+  dirty_.SetVertex(v_label_id, false);
   return neug::Status::OK();
 }
 

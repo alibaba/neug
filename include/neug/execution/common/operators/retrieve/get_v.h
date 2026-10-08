@@ -117,8 +117,7 @@ class GetV {
             [&](size_t index, const LabelTriplet& label, Direction dir,
                 vid_t src, vid_t dst, const void* data_ptr) {
               if constexpr (is_optional) {
-                if (src == std::numeric_limits<vid_t>::max() ||
-                    dst == std::numeric_limits<vid_t>::max()) {
+                if (src == INVALID_VID || dst == INVALID_VID) {
                   builder.push_back_null();
                   shuffle_offset.push_back(index);
                   return;
@@ -146,8 +145,7 @@ class GetV {
             [&](size_t index, const LabelTriplet& label, Direction dir,
                 vid_t src, vid_t dst, const void* data_ptr) {
               if constexpr (is_optional) {
-                if (src == std::numeric_limits<vid_t>::max() ||
-                    dst == std::numeric_limits<vid_t>::max()) {
+                if (src == INVALID_VID || dst == INVALID_VID) {
                   builder.push_back_null();
                   shuffle_offset.push_back(index);
                   return;
@@ -189,8 +187,7 @@ class GetV {
             [&](size_t index, const LabelTriplet& label, Direction dir,
                 vid_t src, vid_t dst, const void* data_ptr) {
               if constexpr (is_optional) {
-                if (src == std::numeric_limits<vid_t>::max() ||
-                    dst == std::numeric_limits<vid_t>::max()) {
+                if (src == INVALID_VID || dst == INVALID_VID) {
                   builder.push_back_null();
                   shuffle_offset.push_back(index);
                   return;
@@ -211,8 +208,7 @@ class GetV {
             [&](size_t index, const LabelTriplet& label, Direction dir,
                 vid_t src, vid_t dst, const void* data_ptr) {
               if constexpr (is_optional) {
-                if (src == std::numeric_limits<vid_t>::max() ||
-                    dst == std::numeric_limits<vid_t>::max()) {
+                if (src == INVALID_VID || dst == INVALID_VID) {
                   builder.push_back_null();
                   shuffle_offset.push_back(index);
                   return;
@@ -247,8 +243,7 @@ class GetV {
             [&](size_t index, const LabelTriplet& label, Direction dir,
                 vid_t src, vid_t dst, const void* data_ptr) {
               if constexpr (is_optional) {
-                if (src == std::numeric_limits<vid_t>::max() ||
-                    dst == std::numeric_limits<vid_t>::max()) {
+                if (src == INVALID_VID || dst == INVALID_VID) {
                   builder.push_back_null();
                   shuffle_offset.push_back(index);
                   return;
@@ -269,8 +264,7 @@ class GetV {
             [&](size_t index, const LabelTriplet& label, Direction dir,
                 vid_t src, vid_t dst, const void* data_ptr) {
               if constexpr (is_optional) {
-                if (src == std::numeric_limits<vid_t>::max() ||
-                    dst == std::numeric_limits<vid_t>::max()) {
+                if (src == INVALID_VID || dst == INVALID_VID) {
                   builder.push_back_null();
                   shuffle_offset.push_back(index);
                   return;

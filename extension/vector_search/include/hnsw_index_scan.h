@@ -21,6 +21,7 @@
 #include "neug/compiler/function/neug_call_function.h"
 #include "neug/compiler/optimizer/logical_rule.h"
 #include "neug/execution/common/context.h"
+#include "neug/execution/execute/ops/retrieve/range_expression.h"
 #include "neug/execution/expression/expr.h"
 
 namespace neug::vector_search_ext {
@@ -30,7 +31,12 @@ struct HNSWIndexScanFuncInput final : function::CallFuncInputBase {
   std::string unique_index_name;
   std::unique_ptr<execution::ExprBase> target_value;
   Value bound_target_value;
-  uint32_t topk;
+  // Exclusive upper bound resolved from range. This is the number of nearest
+  // candidates requested from the HNSW index.
+  uint32_t bound_range{0};
+  // HNSW scans always have a finite range; bind construction guarantees this
+  // expression is present before bindParams() is called.
+  std::unique_ptr<execution::ops::RangeExpression> range;
   int32_t vertex_alias;
   int32_t score_alias;
   execution::Context context;
@@ -47,7 +53,7 @@ struct HNSWIndexScanFuncInput final : function::CallFuncInputBase {
     // the per-Eval input needs only the immutable bound scalar, not a copy of
     // the expression tree.
     bound->bound_target_value = bound_target_value;
-    bound->topk = topk;
+    bound->bound_range = bound_range;
     bound->vertex_alias = vertex_alias;
     bound->score_alias = score_alias;
     bound->context = std::move(input_context);

@@ -1,0 +1,85 @@
+name: Extension Release Test
+
+on:
+  schedule:
+    # Trigger at 22:00 CST (14:00 UTC) every day
+    - cron: '0 14 * * *'
+  workflow_dispatch:
+  pull_request:
+    branches:
+      - main
+    paths:
+      - '.github/workflows/extension-release-test.yml'
+
+concurrency:
+  group: ${{ github.repository }}-${{ github.event.number || github.head_ref || github.sha }}-${{ github.workflow }}
+  cancel-in-progress: true
+
+jobs:
+  extension-release-test:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os:
+          - ubuntu-latest
+          - ubuntu-24.04-arm
+          - macos-14
+        python-version: ["3.8", "3.9", "3.10", "3.11", "3.12", "3.13", "3.14"]
+        include:
+          - os: ubuntu-latest
+            platform-name: "linux-x86_64"
+            arch: "x86_64"
+
+          - os: ubuntu-24.04-arm
+            platform-name: "linux-arm64"
+            arch: "arm64"
+
+          - os: macos-14
+            platform-name: "macos-arm64"
+            arch: "arm64"
+    steps:
+    - name: checkout
+      id: checkout
+      uses: actions/checkout@v4
+      with:
+        submodules: recursive
+        fetch-depth: 0
+
+    - name: Set up Python ${{ matrix.python-version }}
+      uses: actions/setup-python@v5
+      with:
+        python-version: ${{ matrix.python-version }}
+        allow-prereleases: true
+        cache: 'pip'
+
+    - name: Install NeuG and test dependencies
+      run: |
+        pip install neug pytest
+
+    - name: Run Python Test
+      env:
+        NEUG_RUN_EXTENSION_TESTS: "1"
+      run: |
+        cd ${GITHUB_WORKSPACE}/tools/python_bind/
+        export FLEX_DATA_DIR=${GITHUB_WORKSPACE}/example_dataset/modern_graph
+        # Temporary workaround: force extension home to the pip-installed wheel
+        # directory. Without this the source checkout / build tree shadows the
+        # wheel and extensions are installed where @loader_path/../../libneug
+        # cannot resolve on macOS.
+        export NEUG_EXTENSION_HOME_PYENV="$(python3 - <<'PY'
+        import glob
+        import os
+        import sysconfig
+        sp = sysconfig.get_path("platlib")
+        for pattern in ("neug_py_bind*.so", "neug_py_bind*.pyd", "neug_py_bind*.dll"):
+            if glob.glob(os.path.join(sp, pattern)):
+                print(sp)
+                break
+        else:
+            raise RuntimeError("neug_py_bind not found in %s" % sp)
+        PY
+        )"
+        python3 -m pytest tests/test_extension_install_load.py tests/test_extension_functions.py -v
+        python3 example/complex_test.py
+    

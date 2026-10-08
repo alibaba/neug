@@ -57,6 +57,7 @@ NeuG documentation
    cypher_manual/expression/index
    cypher_manual/query_clauses/index
    cypher_manual/explain_profile
+   cypher_manual/schema_introspection
 
 .. toctree::
    :maxdepth: 1
@@ -65,7 +66,6 @@ NeuG documentation
    extensions/index
    extensions/vector_search
    extensions/fts_search
-   extensions/develop_extension
    extensions/load_json
    extensions/load_parquet
    extensions/pattern_match
@@ -78,10 +78,12 @@ NeuG documentation
 
 .. toctree::
    :maxdepth: 1
-   :caption: Transaction
+   :caption: Transaction Management
 
    transaction/transaction.mdx
+   transaction/explicit_transactions.mdx
    transaction/checkpoint.md
+   transaction/transaction_model.md
 
 .. toctree::
    :maxdepth: 1
@@ -103,6 +105,7 @@ NeuG documentation
    :caption: Developer Guide
 
    development/dev_guide
+   development/develop_extension
    development/code_style_guide
    development/error_code.md
 

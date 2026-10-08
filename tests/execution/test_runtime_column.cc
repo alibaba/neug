@@ -33,7 +33,7 @@ class VertexColumnTest : public ::testing::Test {
   static constexpr vid_t kVid0 = 100;
   static constexpr vid_t kVid1 = 101;
   static constexpr vid_t kVid2 = 102;
-  static constexpr vid_t kNullVid = std::numeric_limits<vid_t>::max();
+  static constexpr vid_t kNullVid = INVALID_VID;
   static constexpr label_t kNullLabel = std::numeric_limits<label_t>::max();
 
   std::shared_ptr<SLVertexColumn> build_sl_vertex_column(label_t label,
@@ -167,6 +167,69 @@ TEST_F(VertexColumnTest, SLVertexColumnUnionSameLabel) {
   EXPECT_EQ(sl_col->get_vertex(1), (VertexRecord{kLabel0, kVid1}));
   EXPECT_EQ(sl_col->get_vertex(2), (VertexRecord{kLabel0, kVid0}));
   EXPECT_EQ(sl_col->get_vertex(3), (VertexRecord{kLabel0, kVid1}));
+}
+
+TEST_F(VertexColumnTest, SLVertexColumnUnionSameLabelPreservesNulls) {
+  for (bool left_optional : {false, true}) {
+    for (bool right_optional : {false, true}) {
+      SCOPED_TRACE(::testing::Message()
+                   << "left_optional=" << left_optional
+                   << ", right_optional=" << right_optional);
+      auto left = build_sl_vertex_column(kLabel0, left_optional);
+      auto right = build_sl_vertex_column(kLabel0, right_optional);
+      auto unioned = left->union_col(right);
+      auto* result = dynamic_cast<SLVertexColumn*>(unioned.get());
+      ASSERT_NE(result, nullptr);
+      ASSERT_EQ(result->size(), left->size() + right->size());
+      EXPECT_EQ(result->is_optional(), left_optional || right_optional);
+
+      size_t offset = 0;
+      for (const auto& input : {left, right}) {
+        for (size_t i = 0; i < input->size(); ++i, ++offset) {
+          EXPECT_EQ(result->has_value(offset), input->has_value(i));
+          EXPECT_EQ(result->get_vertex(offset), input->get_vertex(i));
+        }
+      }
+    }
+  }
+}
+
+TEST_F(VertexColumnTest, SLVertexColumnUnionMultipleLabelsPreservesNulls) {
+  for (bool left_optional : {false, true}) {
+    for (bool right_optional : {false, true}) {
+      auto left = build_sl_vertex_column(kLabel0, left_optional);
+      std::vector<std::shared_ptr<IVertexColumn>> right_columns = {
+          build_sl_vertex_column(kLabel1, right_optional),
+          build_ms_vertex_column(right_optional),
+          build_ml_vertex_column(right_optional)};
+      for (const auto& right : right_columns) {
+        SCOPED_TRACE(::testing::Message()
+                     << "left_optional=" << left_optional
+                     << ", right=" << right->column_info());
+        auto unioned = left->union_col(right);
+        auto* result = dynamic_cast<MLVertexColumn*>(unioned.get());
+        ASSERT_NE(result, nullptr);
+        ASSERT_EQ(result->size(), left->size() + right->size());
+        EXPECT_EQ(result->is_optional(), left_optional || right_optional);
+        EXPECT_EQ(result->get_labels_set(),
+                  (std::set<label_t>{kLabel0, kLabel1}));
+
+        size_t offset = 0;
+        for (const IVertexColumn* input :
+             {static_cast<const IVertexColumn*>(left.get()),
+              static_cast<const IVertexColumn*>(right.get())}) {
+          for (size_t i = 0; i < input->size(); ++i, ++offset) {
+            EXPECT_EQ(result->has_value(offset), input->has_value(i));
+            if (input->has_value(i)) {
+              EXPECT_EQ(result->get_vertex(offset), input->get_vertex(i));
+            } else {
+              EXPECT_EQ(result->get_vertex(offset).vid_, INVALID_VID);
+            }
+          }
+        }
+      }
+    }
+  }
 }
 
 TEST_F(VertexColumnTest, SLVertexColumnUnionDiffLabel) {
@@ -346,7 +409,7 @@ class EdgeColumnTest : public ::testing::Test {
   static constexpr vid_t kVid0 = 100;
   static constexpr vid_t kVid1 = 101;
   static constexpr vid_t kVid2 = 102;
-  static constexpr vid_t kNullVid = std::numeric_limits<vid_t>::max();
+  static constexpr vid_t kNullVid = INVALID_VID;
 
   std::shared_ptr<SDSLEdgeColumn> build_sdsl_edge_column() { return nullptr; }
 };
@@ -1430,12 +1493,98 @@ TEST_F(PathColumnTest, OptionalPathColumnForeach) {
   EXPECT_EQ(collected[0].second, p1);
 }
 
-class ArrowColumnTest : public ::testing::Test {
- protected:
-  void SetUp() override {}
-};
+TEST(DataChunkSupplierTest, MappedSupplierReordersColumnsAndCountsRows) {
+  Context input;
+  for (int batch = 0; batch < 2; ++batch) {
+    DataChunk chunk;
+    for (int column = 0; column < 3; ++column) {
+      ValueColumnBuilder<int32_t> builder;
+      for (int row = 0; row < batch + 1; ++row) {
+        builder.push_back_opt(batch * 100 + column * 10 + row);
+      }
+      chunk.set(column, builder.finish());
+    }
+    input.append_chunk(std::move(chunk));
+  }
+  size_t rows_read = 0;
+  auto supplier = ops::create_mapped_data_chunk_supplier(
+      ops::create_data_chunk_supplier(input, {{0, "a"}, {1, "b"}, {2, "c"}}),
+      {{2, "c"}, {0, "a"}, {2, "duplicate"}}, rows_read);
+  EXPECT_EQ(rows_read, 0);
+  for (size_t batch = 0; batch < input.chunk_num(); ++batch) {
+    auto chunk = supplier->GetNextChunk();
+    ASSERT_NE(chunk, nullptr);
+    EXPECT_EQ(chunk->col_num(), 3);
+    EXPECT_EQ(chunk->row_num(), batch + 1);
+    // Mapping is shallow, including repeated selections, and drops column b.
+    EXPECT_EQ(chunk->get(0), input.chunk(batch).get(2));
+    EXPECT_EQ(chunk->get(1), input.chunk(batch).get(0));
+    EXPECT_EQ(chunk->get(2), chunk->get(0));
+  }
+  EXPECT_EQ(rows_read, 3);
+  EXPECT_EQ(supplier->GetNextChunk(), nullptr);
+  EXPECT_EQ(supplier->GetNextChunk(), nullptr);
+  EXPECT_EQ(rows_read, 3);
 
-TEST_F(ArrowColumnTest, DataChunkSupplierBasic) {
+  auto result = ops::create_copy_result(rows_read);
+  EXPECT_EQ(result.row_num(), 3);
+  EXPECT_EQ(result.chunk_num(), 1);
+  EXPECT_EQ(result.col_num(), 0);
+  Context moved(std::move(result));
+  EXPECT_EQ(moved.row_num(), 3);
+  moved.clear();
+  EXPECT_EQ(moved.row_num(), 0);
+}
+
+TEST(CopyResultTest, UsesOnlyHeadForCardinality) {
+  for (size_t rows : {size_t{0}, size_t{3}, size_t{1'000'000'000}}) {
+    auto result = ops::create_copy_result(rows);
+    ASSERT_EQ(result.chunk_num(), 1);
+    EXPECT_EQ(result.row_num(), rows);
+    EXPECT_EQ(result.col_num(), 0);
+    EXPECT_TRUE(result.tag_ids.empty());
+    auto head = result.chunk(0).head();
+    ASSERT_NE(head, nullptr);
+    EXPECT_EQ(head->size(), rows);
+    EXPECT_EQ(head->elem_type().id(), DataType::SQLNULL);
+    EXPECT_TRUE(head->is_optional());
+    if (rows != 0) {
+      EXPECT_TRUE(head->get_elem(rows - 1).IsNull());
+      EXPECT_FALSE(head->has_value(rows - 1));
+    }
+  }
+}
+
+TEST(CopyResultTest, PreservesChunkTransformSemantics) {
+  auto result = ops::create_copy_result(3);
+  auto transformed = result.apply_chunks(
+      [](ContextChunk&& chunk) -> neug::result<ContextChunk> {
+        return std::move(chunk);
+      });
+  ASSERT_TRUE(transformed.has_value());
+  auto& ctx = transformed.value();
+  EXPECT_EQ(ctx.row_num(), 3);
+  ctx.chunk(0).reshuffle({2, 0});
+  EXPECT_EQ(ctx.row_num(), 2);
+  ctx.chunk(0).optional_reshuffle({std::numeric_limits<sel_t>::max(), 0, 1});
+  EXPECT_EQ(ctx.row_num(), 3);
+  EXPECT_FALSE(ctx.chunk(0).head()->has_value(0));
+
+  auto more = ops::create_copy_result(2);
+  ctx.append_chunk(std::move(more.chunk(0)));
+  auto empty = ops::create_copy_result(0);
+  ctx.append_chunk(std::move(empty.chunk(0)));
+  EXPECT_EQ(ctx.row_num(), 5);
+  ctx.flatten();
+  EXPECT_EQ(ctx.chunk_num(), 1);
+  EXPECT_EQ(ctx.row_num(), 5);
+  EXPECT_EQ(ctx.col_num(), 0);
+  EXPECT_TRUE(ctx.chunk(0).head()->get_elem(4).IsNull());
+  ctx.chunk(0).reshuffle({});
+  EXPECT_EQ(ctx.row_num(), 0);
+}
+
+TEST(DataChunkSupplierTest, CsvBasic) {
   const char* var = std::getenv("TEST_PATH");
   std::string test_path = var ? var : "/workspaces/neug/tests";
   std::string resource_path = test_path + "/execution/resources";
@@ -1464,7 +1613,7 @@ TEST_F(ArrowColumnTest, DataChunkSupplierBasic) {
   EXPECT_GT(total_rows, 0);
 }
 
-TEST_F(ArrowColumnTest, CsvCollectionNullElements) {
+TEST(DataChunkSupplierTest, CsvCollectionNullElements) {
   const char* var = std::getenv("TEST_PATH");
   std::string test_path = var ? var : "/workspaces/neug/tests";
   std::string file_path =

@@ -196,3 +196,11 @@ NeuG provides an Extension framework that enables dynamically adding new functio
 ### Namespace
 
 NeuG provides **Namespace** support for creating named, reusable logical views over a graph. A Namespace can restrict graph queries to selected node types, relationship types, and property conditions **without copying or materializing the underlying graph data**. Please refer to [Namespace](./namespace.md) section for more details.
+
+### Schema Introspection
+
+NeuG provides **Schema Introspection** procedures for inspecting the schema of
+the current graph. You can list node tables, list relationship triplets, and
+inspect the properties of a specific node or relationship table through
+`CALL SHOW_...` statements. See [Schema Introspection](./schema_introspection.md)
+for the complete syntax, result columns, and examples.

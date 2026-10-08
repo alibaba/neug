@@ -125,6 +125,7 @@ class RenameDependentVar final : public ExpressionVisitor {
   RenameDependentVar(const std::string& newVarName) : newVarName{newVarName} {}
 
  protected:
+  void visitFunctionExpr(std::shared_ptr<Expression> expr) override;
   void visitPropertyExpr(std::shared_ptr<Expression> expr) override;
 
  private:

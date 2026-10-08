@@ -461,9 +461,9 @@ class TestCopyFromDocs:
         assert rows == [[1, [1, 2, 3]]]
 
     def test_copy_from_batch_read(self):
-        """import_data.md: COPY FROM with batch_read and batch_size options.
+        """import_data.md: COPY FROM with batch_read and batch_rows options.
 
-        batch_read and batch_size are only supported in COPY FROM (not LOAD
+        batch_read and batch_rows are only supported in COPY FROM (not LOAD
         FROM), because COPY FROM feeds data directly into storage without
         downstream computation.
         """
@@ -477,7 +477,7 @@ class TestCopyFromDocs:
             COPY Person FROM "{Path(csv_path).as_posix()}" (
                 header = true,
                 batch_read = true,
-                batch_size = 2097152
+                batch_rows = 1024
             );
             """
         )

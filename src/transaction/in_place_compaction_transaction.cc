@@ -49,10 +49,17 @@ bool InPlaceCompactionTransaction::Commit() {
     header->timestamp = timestamp_;
     header->type = 1;
 
-    if (!wal_writer_.append(arc_.GetBuffer(), arc_.GetSize())) {
-      LOG(ERROR) << "Failed to append wal log";
-      Abort();
-      return false;
+    try {
+      if (!wal_writer_.append(arc_.GetBuffer(), arc_.GetSize())) {
+        LOG(ERROR) << "Failed to append wal log";
+        Abort();
+        return false;
+      }
+    } catch (const std::exception& e) {
+      LOG(FATAL) << "Compaction WAL append failed after commit append began: "
+                 << e.what();
+    } catch (...) {
+      LOG(FATAL) << "Compaction WAL append failed after commit append began";
     }
     arc_.Clear();
 

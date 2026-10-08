@@ -94,8 +94,13 @@ DDLVertexInfo::DDLVertexInfo(const std::string& vertexLabelName,
   }
   schemaEntry = std::make_unique<VertexSchema>(vertexLabelName, propertyTypes,
                                                propertyNames, primaryKeys);
+  std::vector<BoundPropertyDefinition> boundProperties;
+  boundProperties.reserve(propCopies.size());
+  for (const auto& property : propCopies) {
+    boundProperties.emplace_back(property.columnDefinition, nullptr);
+  }
   auto boundExtra = std::make_unique<BoundExtraCreateNodeTableInfo>(
-      primaryKeyName, std::move(propCopies));
+      primaryKeyName, std::move(boundProperties));
   createTableInfo = BoundCreateTableInfo(
       CatalogEntryType::NODE_TABLE_ENTRY, vertexLabelName,
       ConflictAction::ON_CONFLICT_THROW, std::move(boundExtra),
@@ -131,16 +136,19 @@ DDLEdgeInfo::DDLEdgeInfo(const std::string& edgeLabelName,
   // index lookup); they are not stored as edge table properties. Storage strips
   // the first two RecordBatch columns before applying edge property types.
   std::vector<PropertyDefinition> relProps;
+  std::vector<BoundPropertyDefinition> boundRelProps;
   for (size_t i = 2; i < columns.size(); ++i) {
     const auto& column = columns[i];
     const auto& colName = column->rawName();
     relProps.emplace_back(
         ColumnDefinition(colName, column->getDataType().copy()),
         get_default_value(column->getDataType()));
+    boundRelProps.emplace_back(
+        ColumnDefinition(colName, column->getDataType().copy()), nullptr);
   }
   auto boundExtra = std::make_unique<BoundExtraCreateRelTableInfo>(
       RelMultiplicity::MANY, RelMultiplicity::MANY, ExtendDirection::BOTH,
-      srcLabelID, dstLabelID, std::move(relProps));
+      srcLabelID, dstLabelID, std::move(boundRelProps));
   createTableInfo = BoundCreateTableInfo(
       CatalogEntryType::REL_TABLE_ENTRY, edgeLabelName,
       ConflictAction::ON_CONFLICT_THROW, std::move(boundExtra),
@@ -150,9 +158,7 @@ DDLEdgeInfo::DDLEdgeInfo(const std::string& edgeLabelName,
       edgeLabelName, RelMultiplicity::MANY, RelMultiplicity::MANY,
       INVALID_TABLE_ID, INVALID_TABLE_ID, srcLabelID, dstLabelID,
       ExtendDirection::BOTH);
-  for (const auto& p :
-       createTableInfo.extraInfo->constPtrCast<BoundExtraCreateRelTableInfo>()
-           ->propertyDefinitions) {
+  for (const auto& p : relProps) {
     relTableEntry->addProperty(p.copy());
   }
   std::vector<DataType> propertyTypes;
@@ -235,9 +241,8 @@ std::unique_ptr<BoundStatement> Binder::bindCopyFromClause(
 
   auto tableName = copyStatement.getTableName();
   auto catalog = clientContext->getCatalog();
-  auto transaction = clientContext->getTransaction();
-  if (catalog->containsRelGroup(transaction, tableName)) {
-    auto entry = catalog->getRelGroupEntry(transaction, tableName);
+  if (catalog->containsRelGroup(tableName)) {
+    auto entry = catalog->getRelGroupEntry(tableName);
     if (entry.size() == 1) {
       return bindCopyRelFrom(statement, entry[0]);
     } else {
@@ -264,8 +269,8 @@ std::unique_ptr<BoundStatement> Binder::bindCopyFromClause(
     }
     THROW_BINDER_EXCEPTION(
         stringFormat("REL GROUP {} does not exist.", tableName));
-  } else if (catalog->containsTable(transaction, tableName)) {
-    auto tableEntry = catalog->getTableCatalogEntry(transaction, tableName);
+  } else if (catalog->containsTable(tableName)) {
+    auto tableEntry = catalog->getTableCatalogEntry(tableName);
     switch (tableEntry->get_entry_type()) {
     case SchemaEntryType::NODE: {
       auto nodeTableEntry = dynamic_cast<VertexSchema*>(tableEntry);
@@ -565,13 +570,10 @@ void bindExpectedRelColumns(const EdgeSchema* relTableEntry,
                             const main::ClientContext* context) {
   NEUG_ASSERT(columnNames.empty() && columnTypes.empty());
   auto catalog = context->getCatalog();
-  auto transaction = context->getTransaction();
-  auto* srcTable =
-      dynamic_cast<const VertexSchema*>(catalog->getTableCatalogEntry(
-          transaction, relTableEntry->getSrcTableID()));
-  auto* dstTable =
-      dynamic_cast<const VertexSchema*>(catalog->getTableCatalogEntry(
-          transaction, relTableEntry->getDstTableID()));
+  auto* srcTable = dynamic_cast<const VertexSchema*>(
+      catalog->getTableCatalogEntry(relTableEntry->getSrcTableID()));
+  auto* dstTable = dynamic_cast<const VertexSchema*>(
+      catalog->getTableCatalogEntry(relTableEntry->getDstTableID()));
   NEUG_ASSERT(srcTable != nullptr);
   NEUG_ASSERT(dstTable != nullptr);
   columnNames.push_back("from");

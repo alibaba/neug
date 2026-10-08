@@ -58,10 +58,6 @@ namespace storage {
 class WAL;
 }  // namespace storage
 
-namespace transaction {
-class Transaction;
-}  // namespace transaction
-
 namespace extension {
 class ExtensionAPI;
 }
@@ -90,31 +86,20 @@ class NEUG_API Catalog {
   // ----------------------------- Tables ----------------------------
 
   // Check if table entry exists.
-  bool containsTable(const transaction::Transaction* transaction,
-                     const std::string& tableName,
+  bool containsTable(const std::string& tableName,
                      bool useInternal = true) const;
-  bool containsTable(const transaction::Transaction* transaction,
-                     common::table_id_t tableID, bool useInternal = true) const;
+  bool containsTable(common::table_id_t tableID, bool useInternal = true) const;
   // Get table entry with name.
-  SchemaEntry* getTableCatalogEntry(const transaction::Transaction* transaction,
-                                    const std::string& tableName,
+  SchemaEntry* getTableCatalogEntry(const std::string& tableName,
                                     bool useInternal = true) const;
   // Get table entry with id.
-  const SchemaEntry* getTableCatalogEntry(
-      const transaction::Transaction* transaction,
-      common::table_id_t tableID) const;
+  const SchemaEntry* getTableCatalogEntry(common::table_id_t tableID) const;
   // Get all node table entries.
-  std::vector<VertexSchema*> getNodeTableEntries(
-      const transaction::Transaction* transaction,
-      bool useInternal = true) const;
+  std::vector<VertexSchema*> getNodeTableEntries(bool useInternal = true) const;
   // Get all rel table entries.
-  std::vector<EdgeSchema*> getRelTableEntries(
-      const transaction::Transaction* transaction,
-      bool useInternal = true) const;
+  std::vector<EdgeSchema*> getRelTableEntries(bool useInternal = true) const;
   // Get all table entries.
-  std::vector<SchemaEntry*> getTableEntries(
-      const transaction::Transaction* transaction,
-      bool useInternal = true) const;
+  std::vector<SchemaEntry*> getTableEntries(bool useInternal = true) const;
 
   // ------------------------- Projected graphs -------------------------
 
@@ -126,58 +111,45 @@ class NEUG_API Catalog {
   // ----------------------------- Rel groups ----------------------------
 
   // Check if rel group entry exists.
-  bool containsRelGroup(const transaction::Transaction* transaction,
-                        const std::string& name) const;
+  bool containsRelGroup(const std::string& name) const;
   // Get rel group entry with name.
-  std::vector<EdgeSchema*> getRelGroupEntry(
-      const transaction::Transaction* transaction,
-      const std::string& name) const;
+  std::vector<EdgeSchema*> getRelGroupEntry(const std::string& name) const;
 
   // ----------------------------- Types ----------------------------
 
   // Check if type entry exists.
-  bool containsType(const transaction::Transaction* transaction,
-                    const std::string& name) const;
+  bool containsType(const std::string& name) const;
   // Get type entry with name.
-  common::DataType getType(const transaction::Transaction*,
-                           const std::string& name) const;
+  common::DataType getType(const std::string& name) const;
 
   // Create type entry.
-  void createType(transaction::Transaction* transaction, std::string name,
-                  common::DataType type);
+  void createType(std::string name, common::DataType type);
 
   // ----------------------------- Functions ----------------------------
 
   // Check if function exists.
-  bool containsFunction(const transaction::Transaction* transaction,
-                        const std::string& name,
+  bool containsFunction(const std::string& name,
                         bool useInternal = false) const;
   // Get function entry by name.
   // Note we cannot cast to FunctionEntry here because result could also be a
   // MacroEntry.
-  CatalogEntry* getFunctionEntry(const transaction::Transaction* transaction,
-                                 const std::string& name,
+  CatalogEntry* getFunctionEntry(const std::string& name,
                                  bool useInternal = false) const;
   // Get all function entries.
-  std::vector<FunctionCatalogEntry*> getFunctionEntries(
-      const transaction::Transaction* transaction) const;
+  std::vector<FunctionCatalogEntry*> getFunctionEntries() const;
 
-  bool containsRule(const transaction::Transaction* transaction,
-                    const std::string& name) const;
+  bool containsRule(const std::string& name) const;
   void addRule(
-      transaction::Transaction* transaction, std::string name,
+      std::string name,
       std::function<std::unique_ptr<optimizer::LogicalRule>()> ruleFactory);
-  std::vector<RuleCatalogEntry*> getRuleEntries(
-      const transaction::Transaction* transaction) const;
+  std::vector<RuleCatalogEntry*> getRuleEntries() const;
 
   // Add function with name.
-  void addFunction(transaction::Transaction* transaction,
-                   CatalogEntryType entryType, std::string name,
+  void addFunction(CatalogEntryType entryType, std::string name,
                    function::function_set functionSet, bool isInternal = false);
 
   // Drop function with name.
-  void dropFunction(transaction::Transaction* transaction,
-                    const std::string& name);
+  void dropFunction(const std::string& name);
 
   void incrementVersion() { version++; }
   uint64_t getVersion() const { return version; }

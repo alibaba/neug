@@ -24,6 +24,7 @@
 #include "neug/compiler/binder/expression/literal_expression.h"
 #include "neug/compiler/binder/expression/node_rel_expression.h"
 #include "neug/compiler/binder/expression/parameter_expression.h"
+#include "neug/compiler/binder/expression/path_expression.h"
 #include "neug/compiler/binder/expression/property_expression.h"
 #include "neug/compiler/binder/expression/scalar_function_expression.h"
 #include "neug/compiler/binder/expression/variable_expression.h"
@@ -38,9 +39,11 @@
 #include "neug/generated/proto/plan/common.pb.h"
 #include "neug/generated/proto/plan/expr.pb.h"
 #include "neug/generated/proto/plan/physical.pb.h"
-#include "neug/utils/property/property_definition.h"
 
 namespace neug {
+namespace binder {
+struct BoundPropertyDefinition;
+}  // namespace binder
 namespace gopt {
 
 class GExprConverter {
@@ -64,7 +67,7 @@ class GExprConverter {
       const planner::LogicalOperator& child);
   std::unique_ptr<::common::Variable> convertDefaultVar();
   std::unique_ptr<::common::Expression> convertDefaultValue(
-      const PropertyDefinition& propertyDef);
+      const binder::BoundPropertyDefinition& propertyDef);
   std::unique_ptr<::common::Property> convertPropertyExpr(
       const std::string& propName);
 
@@ -138,6 +141,9 @@ class GExprConverter {
   ::common::Logical convertCompare(common::ExpressionType type);
   std::unique_ptr<::common::Expression> convertPattern(
       const binder::NodeOrRelExpression& expr);
+  std::unique_ptr<::common::Expression> convertPath(
+      const binder::PathExpression& expr,
+      const std::vector<std::string>& schemaAlias);
   std::unique_ptr<::common::Expression> convertScalarFunc(
       const binder::Expression& expr,
       const std::vector<std::string>& schemaAlias);
@@ -151,11 +157,6 @@ class GExprConverter {
   std::unique_ptr<::common::Expression> convertUDFFunc(
       const std::string& funcName, const binder::Expression& expr,
       size_t paramNum, const std::vector<std::string>& schemaAlias);
-  std::unique_ptr<::common::Expression> convertRegexFunc(
-      const binder::Expression& expr, const GScalarType& scalarType,
-      const std::vector<std::string>& schemaAlias);
-  std::string convertRegexValue(const std::string& regex,
-                                const GScalarType& scalarType);
   std::unique_ptr<::common::Expression> convertListContainsFunc(
       const binder::Expression& expr, const GScalarType& scalarType,
       const std::vector<std::string>& schemaAlias);

@@ -28,7 +28,6 @@
 #include "neug/compiler/catalog/catalog_entry/catalog_entry_type.h"
 #include "neug/compiler/function/function.h"
 #include "neug/compiler/main/metadata_manager.h"
-#include "neug/compiler/transaction/transaction.h"
 #include "neug/utils/api.h"
 
 #define ADD_EXTENSION_OPTION(OPTION) \
@@ -78,12 +77,11 @@ template <typename T>
 void addFunc(main::MetadataManager& database, std::string name,
              catalog::CatalogEntryType functionType, bool isInternal = false) {
   auto catalog = database.getCatalog();
-  if (catalog->containsFunction(&transaction::DUMMY_TRANSACTION, name,
-                                isInternal)) {
+  if (catalog->containsFunction(name, isInternal)) {
     return;
   }
-  catalog->addFunction(&transaction::DUMMY_TRANSACTION, functionType,
-                       std::move(name), T::getFunctionSet(), isInternal);
+  catalog->addFunction(functionType, std::move(name), T::getFunctionSet(),
+                       isInternal);
 }
 
 struct NEUG_API ExtensionUtils {

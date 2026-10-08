@@ -1,4 +1,4 @@
-# Pattern Match Extension
+# Pattern Match
 
 Since NeuG **v0.2.0**, we have introduced the Pattern Match extension, which provides subgraph pattern matching over the current NeuG graph.
 

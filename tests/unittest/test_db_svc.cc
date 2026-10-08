@@ -23,6 +23,7 @@
 #include <string>
 #include <string_view>
 #include <thread>
+#include <type_traits>
 #include <utility>
 #include <vector>
 
@@ -36,6 +37,7 @@
 #include "neug/main/neug_db.h"
 #include "neug/main/query_request.h"
 #include "neug/server/neug_db_service.h"
+#include "neug/server/tp_execution_slot_pool.h"
 #include "neug/storages/graph/graph_interface.h"
 #include "utils.h"
 
@@ -46,6 +48,14 @@ namespace test {
 namespace {
 
 constexpr auto kBthreadTestTimeout = std::chrono::seconds(10);
+
+static_assert(std::is_constructible_v<
+              TpExecutionSlotPool, GraphSnapshotStore&,
+              std::shared_ptr<IGraphPlanner>,
+              std::shared_ptr<execution::GlobalQueryCache>, IVersionManager&,
+              CheckpointCoordinator&, ExtensionManager&,
+              const std::vector<std::shared_ptr<Allocator>>&, WalWriterSet&,
+              const NeugDBConfig&>);
 
 uint64_t ReadPlanningGeneration(GraphSnapshotStore& store) {
   SnapshotGuard current(store);
@@ -413,6 +423,21 @@ TEST_F(NeugDBServiceTest, DefaultServiceThreadsFollowDatabaseMaxThreadNum) {
   EXPECT_EQ(service.GetServiceConfig().thread_num, 0U);
   EXPECT_EQ(service.ExecutionSlotNum(),
             static_cast<size_t>(db_->config().max_thread_num));
+}
+
+TEST_F(NeugDBServiceTest, ExplicitServiceConcurrencyLimitsExecutionSlots) {
+  neug::ServiceConfig cfg;
+  cfg.query_port = 0;
+  cfg.host_str = "127.0.0.1";
+  cfg.thread_num = 2;
+
+  neug::NeugDBService service(*db_, cfg);
+
+  EXPECT_EQ(service.GetServiceConfig().thread_num, 2U);
+  EXPECT_EQ(service.ExecutionSlotNum(), 2U);
+  EXPECT_NO_THROW(service.Start());
+  EXPECT_TRUE(service.IsRunning());
+  service.Stop();
 }
 
 TEST_F(NeugDBServiceTest, AutoDatabaseMaxThreadNumFeedsServiceDefaults) {
@@ -998,7 +1023,7 @@ TEST_F(NeugDBServiceTest,
   const auto storage_modified_before = db_->graph().IsModified();
   const auto wal_dir = db_->graph().checkpoint().wal_dir();
   const auto wal_before = readWalPrefixes(wal_dir);
-  ASSERT_FALSE(wal_before.empty());
+  ASSERT_TRUE(wal_before.empty());
   ASSERT_FALSE(std::filesystem::exists(export_path));
   ASSERT_FALSE(db_->schema().is_vertex_label_valid("TempPerson"));
 
@@ -1038,7 +1063,7 @@ TEST_F(NeugDBServiceTest, InsertModeRejectsMixedPlanWithoutSideEffects) {
       db_->graph().VertexNum(person_label, MAX_TIMESTAMP);
   const auto wal_dir = db_->graph().checkpoint().wal_dir();
   const auto wal_before = readWalPrefixes(wal_dir);
-  ASSERT_FALSE(wal_before.empty());
+  ASSERT_TRUE(wal_before.empty());
 
   // A non-primary-key MATCH needs a graph scan, so the plan is genuinely
   // mixed read + CREATE rather than the atomic key lookup supported by
@@ -1066,6 +1091,8 @@ TEST_F(NeugDBServiceTest, InsertModeRejectsMixedPlanWithoutSideEffects) {
           "CREATE (:person {id: 90001, name: 'tp-insert', age: 1});", "insert",
           {}));
   ASSERT_TRUE(accepted) << accepted.error().ToString();
+  EXPECT_FALSE(readWalPrefixes(wal_dir).empty())
+      << "An accepted insert must create and append WAL";
 }
 
 TEST_F(NeugDBServiceTest, UnsupportedCapabilityMapsToHttp501) {

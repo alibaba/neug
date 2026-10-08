@@ -22,10 +22,7 @@
 
 #include "neug/compiler/catalog/catalog_entry/node_table_catalog_entry.h"
 
-#include "neug/compiler/binder/ddl/bound_create_table_info.h"
 #include "neug/compiler/common/serializer/deserializer.h"
-
-using namespace neug::binder;
 
 namespace neug {
 namespace catalog {
@@ -59,13 +56,6 @@ std::unique_ptr<TableCatalogEntry> NodeTableCatalogEntry::copy() const {
   other->primaryKeyName = primaryKeyName;
   other->copyFrom(*this);
   return other;
-}
-
-std::unique_ptr<BoundExtraCreateCatalogEntryInfo>
-NodeTableCatalogEntry::getBoundExtraCreateInfo(
-    transaction::Transaction*) const {
-  return std::make_unique<BoundExtraCreateNodeTableInfo>(
-      primaryKeyName, copyVector(getProperties()));
 }
 
 }  // namespace catalog

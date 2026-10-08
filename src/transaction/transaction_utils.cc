@@ -427,6 +427,16 @@ void ReplayCowGraphWal(PropertyGraph& graph, uint32_t timestamp, char* data,
     } else if (op_type == OpType::kCreateIndex) {
       auto meta =
           std::make_unique<IndexMeta>(CreateIndexRedo::Deserialize(arc));
+      // Temporary labels are absent during recovery, so runtime label IDs
+      // may differ. Old WAL metadata without a name keeps its numeric ID.
+      if (!meta->schema.label_name.empty()) {
+        if (!graph.schema().is_vertex_label_valid(meta->schema.label_name)) {
+          THROW_STORAGE_EXCEPTION("Index vertex type does not exist in redo: " +
+                                  meta->schema.label_name);
+        }
+        meta->schema.label_id =
+            graph.schema().get_vertex_label_id(meta->schema.label_name);
+      }
       GraphView view(graph);
       auto ret = CreateStorageIndex(graph, view, timestamp, std::move(meta), {},
                                     false);

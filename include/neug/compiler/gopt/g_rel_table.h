@@ -35,10 +35,7 @@ class GRelTable : public RelTable {
 
   ~GRelTable() override = default;
 
-  common::row_idx_t getNumTotalRows(
-      const transaction::Transaction* transaction) override {
-    return this->numRows;
-  }
+  common::row_idx_t getNumTotalRows() override { return this->numRows; }
 
   common::table_id_t getSrcTableId() const { return this->srcTableId; }
   common::table_id_t getDstTableId() const { return this->dstTableId; }

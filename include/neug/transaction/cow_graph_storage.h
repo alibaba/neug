@@ -167,7 +167,11 @@ class BulkCowGraphStorage final : public CowGraphStorage {
  public:
   using CowGraphStorage::CowGraphStorage;
 
+  // Explicit COPY transactions accept only persistent targets, even when empty.
+  void RequirePersistentTargets() { persistent_targets_only_ = true; }
+
  private:
+  Status validateTargetPersistence(bool is_temporary) const;
   Status CreateVertexTypeImpl(const CreateVertexTypeParam& config) override;
   Status CreateEdgeTypeImpl(const CreateEdgeTypeParam& config) override;
   result<std::vector<vid_t>> BatchAddVerticesImpl(
@@ -176,6 +180,8 @@ class BulkCowGraphStorage final : public CowGraphStorage {
   Status BatchAddEdgesImpl(
       label_t src_label, label_t dst_label, label_t edge_label,
       std::shared_ptr<IDataChunkSupplier> supplier) override;
+
+  bool persistent_targets_only_{false};
 };
 
 }  // namespace neug

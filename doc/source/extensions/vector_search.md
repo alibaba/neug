@@ -1,4 +1,4 @@
-# Vector Search Extension
+# Vector Search
 
 Since NeuG v0.2.0, NeuG provides vector search capabilities through the dedicated `vector_search` extension.
 
@@ -98,6 +98,29 @@ to `[0.0, 0.0, 0.0, ...]`, with one FP32 zero for each vector dimension. This
 may cause nodes containing the default vector to appear in vector similarity
 query results.
 
+To avoid relying on the implicit zero vector, explicitly declare a default
+that is appropriate for the application. NeuG supports `repeat(unit, count)`
+for high-dimensional LIST and ARRAY defaults, so repeated values do not need
+to be written or expanded individually while the query is compiled.
+
+Since v0.2.1, `repeat(unit, count)` can be used for vector property defaults.
+
+The first argument is the LIST or ARRAY unit to repeat, and the second argument
+is its repeat count. For constraints and more usage details, see
+[Property Default Values](../cypher_manual/ddl_clause.md#property-default-values)
+in the DDL documentation.
+
+For example, this definition initializes every omitted `vec` value to the
+four-dimensional vector `[-1.0, -1.0, -1.0, -1.0]`:
+
+```cypher
+CREATE NODE TABLE vector_node_with_default (
+    id INT64,
+    vec FLOAT[4] DEFAULT repeat([-1.0], 4),
+    PRIMARY KEY (id)
+);
+```
+
 ### Drop Vector Property
 
 Dropping a node type will automatically remove:
@@ -124,6 +147,14 @@ Example:
 // Add vector column
 ALTER TABLE vector_node
 ADD IF NOT EXISTS vec2 FLOAT[4];
+```
+
+An added vector property can also use a repeated default. Existing nodes
+receive the expanded default value when the property is added:
+
+```cypher
+ALTER TABLE vector_node
+ADD IF NOT EXISTS vec2 FLOAT[4] DEFAULT repeat([-1.0, 0.0], 2);
 ```
 
 ---
@@ -424,6 +455,72 @@ LIMIT 3;
 > Note: Vector properties that were not explicitly assigned use an implicit
 > all-zero vector and may therefore appear in similarity search results. See
 > [Create Vector Property](#create-vector-property) for details.
+
+#### Limit and Skip
+
+An HNSW index scan requires a nearest-neighbor query with both a compatible
+distance ordering and a finite upper bound supplied by `LIMIT`. Use ascending
+order for L2 and cosine distance, and descending order for inner product.
+
+`LIMIT` may be an integer literal, a constant integer expression, or a dynamic
+parameter. For range constraints and dynamic parameter rules, see the general
+[LIMIT and SKIP](../cypher_manual/query_clauses/limit_clause.md) documentation.
+The following query is eligible for HNSW index scan optimization:
+
+```cypher
+MATCH (n:vector_node)
+RETURN n.id,
+       vector_distance_l2(n.vec, $query_vector) AS distance
+ORDER BY distance ASC
+LIMIT $result_limit;
+```
+
+`SKIP ... LIMIT ...` also has a finite upper bound. NeuG requests up to
+`skip + limit` candidates from HNSW and then returns the requested window:
+
+```cypher
+MATCH (n:vector_node)
+RETURN n.id,
+       vector_distance_l2(n.vec, $query_vector) AS distance
+ORDER BY distance ASC
+SKIP $row_offset
+LIMIT $page_size;
+```
+
+For example, applications can bind all three parameters at execution time:
+
+```python
+statement = """
+MATCH (n:vector_node)
+RETURN n.id,
+       vector_distance_l2(n.vec, $query_vector) AS distance
+ORDER BY distance ASC
+SKIP $row_offset
+LIMIT $page_size
+"""
+
+result = connection.execute(
+    statement,
+    parameters={
+        "query_vector": [0.1, 0.2, 0.3, 0.4],
+        "row_offset": 10,
+        "page_size": 10,
+    },
+)
+```
+
+An `ORDER BY ... SKIP` query without `LIMIT` has no finite upper bound and is
+therefore not eligible for HNSW index scan optimization. It remains valid and
+falls back to scanning vectors, calculating every distance, sorting the full
+result, and then applying `SKIP`:
+
+```cypher
+MATCH (n:vector_node)
+RETURN n.id,
+       vector_distance_l2(n.vec, $query_vector) AS distance
+ORDER BY distance ASC
+SKIP $row_offset;
+```
 
 ### Graph + Vector Hybrid Search
 

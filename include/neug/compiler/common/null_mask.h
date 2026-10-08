@@ -31,7 +31,6 @@
 namespace neug {
 namespace common {
 
-class ArrowNullMaskTree;
 class Serializer;
 class Deserializer;
 

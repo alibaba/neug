@@ -46,6 +46,12 @@ struct CsvReadConfig {
   std::vector<std::string> null_values;
   std::vector<std::string> true_values;
   std::vector<std::string> false_values;
+
+  // Exact row counts are only a pre-allocation hint. Readers that consume all
+  // chunks without consulting IDataChunkSupplier::RowNum() can disable the
+  // extra full-file counting pass. Keep new fields appended so positional
+  // aggregate initializers remain source-compatible.
+  bool count_rows = true;
 };
 
 }  // namespace neug

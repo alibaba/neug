@@ -392,9 +392,10 @@ write_env_config() {
     echo "export NEUG_HOME=${install_prefix}"
     echo "export CMAKE_PREFIX_PATH=/opt/neug/"
     echo "export PATH=${install_prefix}/bin:\$HOME/.local/bin:\$HOME/.cargo/bin:\$PATH"
-    echo "export LD_LIBRARY_PATH=${LD_LIBRARY_PATH}:\${LD_LIBRARY_PATH}"
-    echo "export LIBRARY_PATH=${install_prefix}/lib:${install_prefix}/lib64:\${LIBRARY_PATH}"
-    echo "export DYLD_LIBRARY_PATH=${LD_LIBRARY_PATH}:\${DYLD_LIBRARY_PATH}"
+    # The generated file may be sourced by shells using `set -u` in CI.
+    echo "export LD_LIBRARY_PATH=${LD_LIBRARY_PATH}:\${LD_LIBRARY_PATH:-}"
+    echo "export LIBRARY_PATH=${install_prefix}/lib:${install_prefix}/lib64:\${LIBRARY_PATH:-}"
+    echo "export DYLD_LIBRARY_PATH=${LD_LIBRARY_PATH}:\${DYLD_LIBRARY_PATH:-}"
   } >> "${OUTPUT_ENV_FILE}"
   {
     if [[ "${OS_PLATFORM}" == *"Darwin"* ]]; then

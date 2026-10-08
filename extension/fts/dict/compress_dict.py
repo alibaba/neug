@@ -23,6 +23,10 @@ python3 extension/fts/dict/compress_dict.py \
 python3 extension/fts/dict/compress_dict.py \
     third_party/cppjieba/dict/hmm_model.utf8 \
     extension/fts/dict/hmm_model_zlib.inc kHmmModelCompressed
+
+python3 extension/fts/dict/compress_dict.py \
+    third_party/cppjieba/dict/stop_words.utf8 \
+    extension/fts/dict/jieba_stopwords_zlib.inc kJiebaStopwordsCompressed
 """
 
 import argparse

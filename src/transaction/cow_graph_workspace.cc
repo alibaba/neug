@@ -48,18 +48,39 @@ void CowGraphWorkspace::MarkBulkEdgeTableForCheckpoint(
   }
 }
 
-void CowGraphWorkspace::FinalizeBulkTablesForCheckpoint() {
+void CowGraphWorkspace::RemoveBulkVertexFinalizationTarget(
+    label_t vertex_label) noexcept {
+  std::erase(bulk_vertex_tables_for_checkpoint_, vertex_label);
+}
+
+void CowGraphWorkspace::RemoveBulkEdgeFinalizationTarget(
+    uint32_t edge_triplet_id) noexcept {
+  std::erase(bulk_edge_tables_for_checkpoint_, edge_triplet_id);
+}
+
+Status CowGraphWorkspace::FinalizeBulkTablesForCheckpoint() {
   auto& graph = *cow_graph_;
+  const auto& schema = graph.schema();
   for (label_t vertex_label : bulk_vertex_tables_for_checkpoint_) {
+    if (!schema.is_vertex_label_valid(vertex_label)) {
+      return Status::InternalError(
+          "Persistent COPY vertex finalization target no longer exists");
+    }
     graph.get_vertex_table(vertex_label).Compact();
   }
   for (uint32_t edge_triplet_id : bulk_edge_tables_for_checkpoint_) {
     const auto [src_label, dst_label, edge_label] =
-        graph.schema().parse_edge_label(edge_triplet_id);
+        schema.parse_edge_label(edge_triplet_id);
+    if (!schema.is_edge_triplet_valid(src_label, dst_label, edge_label) ||
+        !graph.HasEdgeTable(edge_triplet_id)) {
+      return Status::InternalError(
+          "Persistent COPY edge finalization target no longer exists");
+    }
     const auto& sort_key =
-        graph.schema().get_sort_key_for_nbr(src_label, dst_label, edge_label);
+        schema.get_sort_key_for_nbr(src_label, dst_label, edge_label);
     graph.get_edge_table_by_index(edge_triplet_id).Compact(sort_key);
   }
+  return Status::OK();
 }
 
 void CowGraphWorkspace::Reset() noexcept {

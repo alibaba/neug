@@ -118,10 +118,8 @@ class GScalarType {
     } else if (func.name == function::ListCreationFunction::name) {
       const auto& type = expr.getDataType();
       if (type.id() == common::DataTypeId::kList) {
-        LOG(INFO) << "type is list";
         return ScalarType::TO_LIST;
       } else if (type.id() == common::DataTypeId::kStruct) {
-        LOG(INFO) << "type is struct";
         return ScalarType::TO_TUPLE;
       } else if (type.id() == common::DataTypeId::kArray) {
         return ScalarType::TO_ARRAY;

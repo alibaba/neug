@@ -170,7 +170,7 @@ state.
 
 - `query`: The query string to be executed.
 - `access_mode`: The access mode for the query. When omitted, NeuG infers it
-  from the query text. Supported modes are:
+from the query text. Supported modes are:
 - `read` or `r`: Read-only queries
 - `insert` or `i`: Insert-only operations
 - `update` or `u`: Update/delete operations
@@ -219,3 +219,4 @@ def timeout()
 ```
 
 Get the timeout duration for the session, in seconds.
+

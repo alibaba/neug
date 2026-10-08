@@ -55,14 +55,12 @@ using common::PhysicalTypeID;
 using common::struct_entry_t;
 
 struct FileInfo;
-class ArrowRowBatch;
 
 class Value {
   friend class common::NodeVal;
   friend class common::RelVal;
   friend class common::NestedVal;
   friend class common::RecursiveRelVal;
-  friend class ArrowRowBatch;
   friend class common::ValueVector;
 
  public:
