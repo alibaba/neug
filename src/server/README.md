@@ -48,18 +48,20 @@ Admission, draining, and compaction controls remain on `TpServiceRuntime`.
 
 The facade serializes transport lifecycle calls. `Start()` returns only after
 listening succeeds, and returns the actual endpoint. Failed startup leaves no
-listener or active callback. `StopAndJoin()` is idempotent and returns only when
-handlers can no longer call `ITpOperations`. Restart is supported.
+listener or active callback. `StopAccepting()` closes the request entry point;
+`Join()` waits until handlers can no longer call `ITpOperations`. Both are
+idempotent. Restart is supported after `Join()`.
 
 The facade stops in this order:
 
 1. Close admission for new explicit transactions.
-2. Drain explicit transactions, waiting for their active operations and releasing
+2. Stop accepting new transport requests and make `IsRunning()` return false.
+3. Drain explicit transactions, waiting for their active operations and releasing
    locks needed by blocked auto-commit requests. Queued transaction operations
    may fail because their session has been closed.
-3. Stop accepting network requests and join active callbacks.
-4. Stop compaction.
-5. Publish the stopped state and notify blocking callers.
+4. Join active callbacks.
+5. Stop compaction.
+6. Notify blocking callers after cleanup completes.
 
 Blocking exit waiting belongs to the facade, not to the transport. A guard rejects
 new starts until an older blocking caller has completed its cleanup, even if

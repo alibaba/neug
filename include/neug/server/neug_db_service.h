@@ -137,9 +137,9 @@ class NeugDBService {
   /**
    * @brief Stops the service and drains its requests and transactions
    *
-   * Stops accepting new connections, joins active transport callbacks, drains
-   * transactions, and stops background compaction. Thread-safe, but not safe
-   * to call directly from an asynchronous signal handler.
+   * Stops accepting new requests, drains explicit transactions, joins active
+   * transport callbacks, and stops background compaction. Thread-safe, but
+   * not safe to call directly from an asynchronous signal handler.
    *
    * @note Prints status messages to stderr if service is not properly
    * initialized
@@ -181,11 +181,11 @@ class NeugDBService {
   neug::ExecutionSlotLease AcquireExecutionSlot();
 
   /**
-   * @brief Checks if the HTTP server is currently running
+   * @brief Checks if the service transport is accepting requests
    *
-   * @return true if the underlying BRPC server is accepting connections
+   * @return true after successful Start(), until the transport stops accepting
+   * requests during shutdown
    *
-   * @note This delegates to the HTTP handler manager's IsRunning() method
    * @note Thread-safe query of server state
    */
   bool IsRunning() const;

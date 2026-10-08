@@ -39,7 +39,8 @@ class BrpcTransport final : public IServiceTransport {
   ~BrpcTransport() override;
 
   std::string Start() override;
-  void StopAndJoin() noexcept override;
+  void StopAccepting() noexcept override;
+  void Join() noexcept override;
 
  private:
   std::string host_;
@@ -47,6 +48,7 @@ class BrpcTransport final : public IServiceTransport {
   // Destroy the server before the handlers it borrows.
   std::vector<std::unique_ptr<google::protobuf::Service>> handlers_;
   std::unique_ptr<brpc::Server> server_;
+  bool join_pending_{false};
 };
 
 }  // namespace neug

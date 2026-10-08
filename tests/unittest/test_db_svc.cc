@@ -77,6 +77,7 @@ struct TransportProbe {
   int stops = 0;
   bool fail_start = false;
   std::function<void()> on_start;
+  std::function<void()> on_stop_accepting;
   std::function<void()> on_stop;
 };
 
@@ -91,13 +92,23 @@ class ProbeTransport final : public IServiceTransport {
       throw std::runtime_error("Injected transport start failure");
     }
     active_ = true;
+    accepting_ = true;
     if (probe_.on_start) {
       probe_.on_start();
     }
     return "probe://service";
   }
-  void StopAndJoin() noexcept override {
+  void StopAccepting() noexcept override {
+    if (active_ && accepting_) {
+      accepting_ = false;
+      if (probe_.on_stop_accepting) {
+        probe_.on_stop_accepting();
+      }
+    }
+  }
+  void Join() noexcept override {
     if (active_) {
+      StopAccepting();
       ++probe_.stops;
       if (probe_.on_stop) {
         probe_.on_stop();
@@ -109,6 +120,7 @@ class ProbeTransport final : public IServiceTransport {
  private:
   TransportProbe& probe_;
   bool active_ = false;
+  bool accepting_ = false;
 };
 
 constexpr auto kBthreadTestTimeout = std::chrono::seconds(10);
@@ -271,7 +283,7 @@ class NeugDBServiceTest : public ::testing::Test {
   std::filesystem::path test_dir_;
 };
 
-TEST_F(NeugDBServiceTest, TransactionDrainPrecedesTransportJoin) {
+TEST_F(NeugDBServiceTest, TransportStopsAcceptingBeforeTransactionDrain) {
   TransportProbe probe;
   auto service =
       NeugDBServiceTestPeer::Create(*db_, config_, [&](ITpOperations& runtime) {
@@ -285,8 +297,19 @@ TEST_F(NeugDBServiceTest, TransactionDrainPrecedesTransportJoin) {
     ASSERT_TRUE(transaction);
     transaction_id = transaction->transaction_id;
   };
+  probe.on_stop_accepting = [&]() {
+    // Existing callbacks can still use the session until Drain() runs.
+    EXPECT_FALSE(probe.service->BeginTransaction(TransactionMode::kReadOnly));
+    QueryRequest request;
+    request.query = "RETURN 1;";
+    request.access_mode = AccessMode::kRead;
+    EXPECT_TRUE(probe.service->ExecuteInTransaction(transaction_id, request));
+  };
   probe.on_stop = [&]() {
-    // Admission must close before the transport drains its callbacks.
+    // The transport joins only after the explicit session has been drained.
+    EXPECT_FALSE(service->IsRunning());
+    EXPECT_EQ(service->service_status().value(),
+              "NeugDB service has not been started!");
     EXPECT_FALSE(probe.service->BeginTransaction(TransactionMode::kReadOnly));
     QueryRequest request;
     request.query = "RETURN 1;";
@@ -972,11 +995,21 @@ void CheckRealHttpRequestDrain() {
   std::promise<void> stopped;
   auto stop_finished = stopped.get_future();
   std::thread stopper([&]() {
+    transport.StopAccepting();
     stopping.set_value();
-    transport.StopAndJoin();
+    transport.Join();
     stopped.set_value();
   });
   stop_started.wait();
+  brpc::Channel rejected_channel;
+  options.timeout_ms = 1000;
+  const int init_status = rejected_channel.Init(endpoint.c_str(), &options);
+  EXPECT_EQ(init_status, 0);
+  if (init_status == 0) {
+    brpc::Controller rejected;
+    GetHttp(rejected_channel, endpoint, "/service_status", rejected);
+    EXPECT_TRUE(rejected.Failed());
+  }
   EXPECT_EQ(stop_finished.wait_for(std::chrono::milliseconds(200)),
             std::future_status::timeout);
   business.release.set_value();

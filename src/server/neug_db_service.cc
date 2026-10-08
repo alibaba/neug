@@ -101,10 +101,12 @@ class NeugDBService::Impl {
   // before the service was started.
   void StopResources() {
     runtime_.CloseAdmission();
+    transport_->StopAccepting();
+    running_.store(false, std::memory_order_relaxed);
     // Release session locks before joining callbacks: an auto-commit request
     // may be waiting for a write lease held by an idle explicit transaction.
     runtime_.Drain();
-    transport_->StopAndJoin();
+    transport_->Join();
     runtime_.StopCompaction();
   }
 
@@ -133,7 +135,6 @@ class NeugDBService::Impl {
       return;
     }
     StopResources();
-    running_.store(false, std::memory_order_relaxed);
     stopped_cv_.notify_all();
   }
   // Declaration order is intentional: the lease is acquired first and

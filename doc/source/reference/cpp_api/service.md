@@ -89,7 +89,7 @@ Binds to the configured host and port and begins accepting HTTP requests. Return
 
 Stops the service and drains its requests and transactions.
 
-Stops accepting new connections, joins active transport callbacks, drains transactions, and stops background compaction. Thread-safe, but not safe to call directly from an asynchronous signal handler.
+Stops accepting new requests, drains explicit transactions, joins active transport callbacks, and stops background compaction. Thread-safe, but not safe to call directly from an asynchronous signal handler.
 
 - **Notes:**
   - Prints status messages to stderr if service is not properly initialized
@@ -128,13 +128,12 @@ auto result = lease->ExecuteTransactionalRequest(
 
 #### `IsRunning() const`
 
-Checks if the HTTP server is currently running.
+Checks if the service transport is accepting requests.
 
 - **Notes:**
-  - This delegates to the HTTP handler manager's `IsRunning()` method
   - Thread-safe query of server state
 
-- **Returns:** `true` if the underlying BRPC server is accepting connections
+- **Returns:** `true` after successful `Start()`, until the transport stops accepting requests during shutdown
 
 #### `service_status()`
 

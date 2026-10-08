@@ -36,12 +36,18 @@ class IServiceTransport {
    */
   virtual std::string Start() = 0;
 
-  /**
-   * @brief Stops accepting requests and waits for all callbacks to finish.
-   * Idempotent, including before Start or after a failed Start. On return no
-   * handler may call the business service until the next successful Start.
-   */
-  virtual void StopAndJoin() noexcept = 0;
+  /** Stops accepting new requests without waiting for active callbacks. */
+  virtual void StopAccepting() noexcept = 0;
+
+  /** Waits for active callbacks after StopAccepting(). Idempotent. */
+  virtual void Join() noexcept = 0;
+
+  /** Stops the transport and waits until handlers can no longer call the
+   * service. */
+  void StopAndJoin() noexcept {
+    StopAccepting();
+    Join();
+  }
 };
 
 }  // namespace neug

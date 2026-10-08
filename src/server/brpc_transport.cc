@@ -55,6 +55,7 @@ std::string BrpcTransport::Start() {
   if (server_->Start(address.c_str(), &options) != 0) {
     THROW_RUNTIME_ERROR("Failed to start BRPC server on " + address);
   }
+  join_pending_ = true;
   try {
     const auto endpoint = "http://" + host_ + ":" +
                           std::to_string(server_->listen_address().port);
@@ -66,10 +67,17 @@ std::string BrpcTransport::Start() {
   }
 }
 
-void BrpcTransport::StopAndJoin() noexcept {
-  if (server_->IsRunning()) {
+void BrpcTransport::StopAccepting() noexcept {
+  if (join_pending_ && server_->IsRunning()) {
     server_->Stop(0);
+  }
+}
+
+void BrpcTransport::Join() noexcept {
+  if (join_pending_) {
+    StopAccepting();
     server_->Join();
+    join_pending_ = false;
   }
 }
 
