@@ -46,9 +46,9 @@ class StructPropertyColumn : public ColumnBase {
             const ModuleDescriptor& desc, MemoryLevel level) override;
 
   // Dump writes this column's descriptor (struct type + row count) and lets
-  // each field column dump itself under key/<field_name>. Children are dense
-  // with one slot per row, so a single sequential pass with no row-wise data
-  // movement suffices.
+  // each field column dump itself under key/field_<i> (positional child
+  // keys). Children are dense with one slot per row, so a single sequential
+  // pass with no row-wise data movement suffices.
   void Dump(Checkpoint& ckp, CheckpointManifest& meta,
             const std::string& key) override;
 

@@ -500,12 +500,31 @@ pybind11::object fetch_value_from_column(const neug::Array& column,
     const auto& col = column.struct_array();
     const auto& validity_map = col.validity();
     if (is_valid(validity_map, index)) {
-      pybind11::list list;
-      for (int i = 0; i < col.fields_size(); ++i) {
-        const auto& field = col.fields(i);
-        list.append(fetch_value_from_column(field, index));
+      // StructArrays also carry positional tuples (e.g. heterogeneous list
+      // literals), which have no field names and keep the historical list
+      // rendering. Named structs are returned as dicts keyed by field name,
+      // matching the Arrow path (to_pylist()).
+      bool named = false;
+      for (int i = 0; i < col.field_names_size() && !named; ++i) {
+        named = !col.field_names(i).empty();
       }
-      return list;
+      if (!named) {
+        pybind11::list list;
+        for (int i = 0; i < col.fields_size(); ++i) {
+          list.append(fetch_value_from_column(col.fields(i), index));
+        }
+        return list;
+      }
+      pybind11::dict dict;
+      for (int i = 0; i < col.fields_size(); ++i) {
+        const auto field_name =
+            i < col.field_names_size() && !col.field_names(i).empty()
+                ? col.field_names(i)
+                : "f" + std::to_string(i);
+        dict[pybind11::str(field_name)] =
+            fetch_value_from_column(col.fields(i), index);
+      }
+      return dict;
     } else {
       return pybind11::none();
     }

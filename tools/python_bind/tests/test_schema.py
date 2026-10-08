@@ -617,3 +617,55 @@ def test_struct_field_access_with_unrelated_layout(tmp_path, other_type):
     finally:
         conn.close()
         db.close()
+
+
+def test_struct_row_result_is_named_dict(tmp_path):
+    """Row-based results return structs as dicts keyed by field name,
+    consistent with the Arrow path (to_arrow().to_pylist())."""
+    db = Database(db_path=str(tmp_path / "struct_row_dict"), mode="w")
+    conn = db.connect()
+    try:
+        conn.execute(
+            "CREATE NODE TABLE T(id INT64, "
+            "s STRUCT(x INT64, addr STRUCT(city STRING, zip INT64), "
+            "tags STRUCT(v INT64)[]), PRIMARY KEY(id))"
+        )
+        conn.execute(
+            "CREATE (:T {id: 1, s: {x: 10, addr: {city: 'hz', zip: 310000}, "
+            "tags: CAST([{v: 1}, {v: 2}], 'STRUCT(v INT64)[]')}})"
+        )
+        records = list(conn.execute("MATCH (n:T) RETURN n.s"))
+        assert records == [
+            [
+                {
+                    "x": 10,
+                    "addr": {"city": "hz", "zip": 310000},
+                    "tags": [{"v": 1}, {"v": 2}],
+                }
+            ]
+        ]
+    finally:
+        conn.close()
+        db.close()
+
+
+def test_copy_from_struct_column_rejected(tmp_path):
+    """Bulk loading rejects STRUCT columns with a targeted error message."""
+    db = Database(db_path=str(tmp_path / "struct_copy_reject"), mode="w")
+    conn = db.connect()
+    try:
+        conn.execute(
+            "CREATE NODE TABLE T(id INT64, s STRUCT(x INT64), PRIMARY KEY(id))"
+        )
+        csv_path = tmp_path / "t.csv"
+        csv_path.write_text("id,s\n1,2\n")
+        with pytest.raises(
+            RuntimeError,
+            match="COPY/LOAD FROM does not support STRUCT columns yet",
+        ):
+            conn.execute(
+                f'COPY T FROM "{csv_path.as_posix()}" (HEADER TRUE, ' f'DELIMITER=",");'
+            )
+    finally:
+        conn.close()
+        db.close()

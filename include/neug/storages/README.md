@@ -196,8 +196,9 @@ touches the sibling columns.
 ### 6.2 Checkpoint Dump
 
 `Dump` writes the column descriptor (struct type + row count) and lets each field
-column dump itself under `key/<field_name>`. Children are dense with one slot per
-row, so a single sequential pass with no row-wise data movement suffices.
+column dump itself under `key/field_<i>` (positional child keys). Children are
+dense with one slot per row, so a single sequential pass with no row-wise data
+movement suffices.
 
 ### 6.3 Limitations
 

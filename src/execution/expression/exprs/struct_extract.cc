@@ -30,6 +30,9 @@ std::vector<std::shared_ptr<RefColumnBase>> narrow_to_field(
     const std::vector<std::shared_ptr<RefColumnBase>>& parent_columns,
     const DataType& struct_type, size_t field_idx) {
   std::vector<std::shared_ptr<RefColumnBase>> field_columns;
+  if (field_idx >= StructType::GetNumFields(struct_type)) {
+    return field_columns;
+  }
   field_columns.reserve(parent_columns.size());
   for (const auto& column : parent_columns) {
     if (column == nullptr) {
@@ -39,8 +42,7 @@ std::vector<std::shared_ptr<RefColumnBase>> narrow_to_field(
     auto* struct_column =
         dynamic_cast<const StructPropertyRefColumn*>(column.get());
     if (struct_column == nullptr ||
-        struct_column->struct_type() != struct_type ||
-        field_idx >= StructType::GetNumFields(struct_type)) {
+        struct_column->struct_type() != struct_type) {
       return {};
     }
     field_columns.push_back(struct_column->field_ref_ptr(field_idx));

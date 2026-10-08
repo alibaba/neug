@@ -290,10 +290,23 @@ static std::unique_ptr<ExprBase> build_expr(
       } else if (name == "gs.function.structExtract") {
         // parameters: [struct expression, field-name string literal]. The
         // binder guarantees the field name is a string literal that exists on
-        // the struct type.
+        // the struct type; validate the plan shape defensively anyway.
+        if (op.parameters_size() != 2 ||
+            op.parameters(1).operators_size() != 1 ||
+            !op.parameters(1).operators(0).has_const_() ||
+            !op.parameters(1).operators(0).const_().has_str()) {
+          THROW_INVALID_ARGUMENT_EXCEPTION(
+              "structExtract expects a struct expression and a literal "
+              "field name");
+        }
+        const auto& struct_type = expr->type();
+        if (struct_type.id() != DataTypeId::kStruct) {
+          THROW_INVALID_ARGUMENT_EXCEPTION(
+              "structExtract expects a struct-typed expression, got " +
+              struct_type.ToString());
+        }
         const std::string& field_name =
             op.parameters(1).operators(0).const_().str();
-        const auto& struct_type = expr->type();
         size_t field_idx = StructType::GetFieldIdx(struct_type, field_name);
         auto field_type =
             StructType::GetChildType(struct_type, field_idx).copy();

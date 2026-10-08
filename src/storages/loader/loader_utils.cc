@@ -536,6 +536,10 @@ FieldAppender make_appender(const DataType& type, void* builder,
     return {builder, column_name, &type, &append_typed_impl<cpp_type>};
     FOR_EACH_DATA_TYPE(MAKE_APPENDER)
 #undef MAKE_APPENDER
+  case DataTypeId::kStruct:
+    THROW_NOT_SUPPORTED_EXCEPTION(
+        "COPY/LOAD FROM does not support STRUCT columns yet: " +
+        type.ToString());
   default:
     THROW_NOT_SUPPORTED_EXCEPTION("Unsupported data type in CSV parser: " +
                                   type.ToString() + " is not supported");

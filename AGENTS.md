@@ -105,6 +105,7 @@ Cypher → ANTLR Parser → Binder → Logical Plan → gopt Converter → Physi
 - **Struct types cannot be primary keys**: Declaring a `PRIMARY KEY` on a `STRUCT(...)` column is rejected.
 - **No indexes on struct properties**: `CREATE INDEX` only supports HNSW indexes on `FLOAT[]` array properties; creating an index on a `STRUCT(...)` column is rejected with "HNSW index can only be created on VecColumn".
 - **Parquet does not support LIST properties**: `COPY FROM` / `LOAD FROM` on Parquet files only support fixed-size Arrow lists (`ARRAY` types like `FLOAT[3]`); variable-length LIST columns (`T[]`) are rejected by the parquet extension.
+- **COPY/LOAD FROM does not support STRUCT columns**: Bulk loading rejects `STRUCT(...)` columns with "COPY/LOAD FROM does not support STRUCT columns yet"; populate struct properties via `CREATE`/`SET` instead.
 - **Insert transactions may fail for non-empty list properties**: After loading a graph from a checkpoint directory, the `elements` column of a `ListPropertyColumn` has zero spare capacity (`elements_tail_ == elements_->size()`). The insert-transaction path always passes `insert_safe=false`, so inserting a **non-empty** list property will throw a `StorageException`. Workaround: insert with an empty list, then use an update-mode query (executed by `SnapshotCowWriteTransaction`, which allows resize), or pre-populate list data during bulk load. See `storages/README.md` §5.4 for details.
 
 ## Code Style

@@ -21,6 +21,8 @@
 
 #include <assert.h>
 
+#include <algorithm>
+
 #include <glog/logging.h>
 #include <unordered_set>
 
@@ -115,10 +117,24 @@ size_t StructType::GetFieldIdx(const DataType& type, const std::string& name) {
 
 DataType StructType::FromFields(std::vector<std::string> field_names,
                                 std::vector<DataType> child_types) {
-  if (field_names.empty()) {
+  // Names are either fully absent/blank (positional encoding, e.g. unnamed plan
+  // tuples) or present for every field; a mix is malformed data.
+  const bool all_unnamed =
+      std::all_of(field_names.begin(), field_names.end(),
+                  [](const std::string& name) { return name.empty(); });
+  if (all_unnamed) {
+    field_names.clear();
     field_names.reserve(child_types.size());
     for (size_t i = 0; i < child_types.size(); ++i) {
       field_names.push_back("field_" + std::to_string(i));
+    }
+  } else {
+    for (const auto& field_name : field_names) {
+      if (field_name.empty()) {
+        THROW_RUNTIME_ERROR(
+            "Struct field names must be either empty (positional) or "
+            "provided for every field");
+      }
     }
   }
   return DataType::Struct(std::move(field_names), std::move(child_types));
@@ -313,6 +329,21 @@ DataType parse_from_data_type(const ::common::DataType& ddt) {
     std::vector<DataType> data_types;
     for (const auto& component_type : tuple.component_types()) {
       data_types.push_back(parse_from_data_type(component_type));
+    }
+    // Positional tuples (e.g. heterogeneous list literals) carry no field
+    // names; keep them unnamed, as results must render positionally. Only
+    // named structs (schema properties, struct literals) get field names.
+    bool has_names = false;
+    for (const auto& field_name : tuple.field_names()) {
+      if (!field_name.empty()) {
+        has_names = true;
+        break;
+      }
+    }
+    if (!has_names) {
+      std::shared_ptr<ExtraTypeInfo> type_info =
+          std::make_shared<StructTypeInfo>(std::move(data_types));
+      return DataType(DataTypeId::kStruct, type_info);
     }
     std::vector<std::string> field_names(tuple.field_names().begin(),
                                          tuple.field_names().end());

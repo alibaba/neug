@@ -497,6 +497,9 @@ bool ExpressionUtil::tryCombineDataType(const expression_vector& expressions,
 
 bool ExpressionUtil::canCastStatically(const Expression& expr,
                                        const DataType& targetType) {
+  // Only expression kinds that override Expression::cast() can be retyped in
+  // place; the base cast() throws. Every other expression kind must go
+  // through implicitCast() so a real CAST node is inserted instead.
   switch (expr.expressionType) {
   case ExpressionType::LITERAL: {
     auto value = expr.constPtrCast<LiteralExpression>()->getValue();

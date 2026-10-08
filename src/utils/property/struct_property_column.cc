@@ -55,8 +55,8 @@ void StructPropertyColumn::openInternal(Checkpoint& ckp,
                                         const CheckpointManifest* manifest,
                                         const ModuleDescriptor& desc,
                                         MemoryLevel level) {
+  auto type_yaml = desc.get("struct_type");
   if (struct_type_.id() == DataTypeId::kInvalid) {
-    auto type_yaml = desc.get("struct_type");
     if (!type_yaml.has_value()) {
       THROW_RUNTIME_ERROR(
           "StructPropertyColumn::Open: missing struct_type in descriptor");
@@ -72,6 +72,18 @@ void StructPropertyColumn::openInternal(Checkpoint& ckp,
     }
     for (const auto& child_type : StructType::GetChildTypes(struct_type_)) {
       fields_.push_back(CreateColumn(child_type));
+    }
+  } else if (type_yaml.has_value()) {
+    // The column was constructed with a type; make sure the persisted
+    // descriptor agrees with it instead of silently opening a drifted layout.
+    DataType descriptor_type;
+    auto node = YAML::Load(*type_yaml);
+    if (!YAML::convert<DataType>::decode(node, descriptor_type) ||
+        descriptor_type != struct_type_) {
+      THROW_RUNTIME_ERROR(
+          "StructPropertyColumn::Open: descriptor struct_type does not match "
+          "column type " +
+          struct_type_.ToString());
     }
   }
 
