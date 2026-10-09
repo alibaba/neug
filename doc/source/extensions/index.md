@@ -10,15 +10,14 @@ The Extension framework in database systems is a mechanism that allows dynamical
 
 The following extensions are currently supported or planned to be supported in NeuG:
 
-| Category        | Extension                        | Description                                                               | Since Version |
-| --------------- | -------------------------------- | ------------------------------------------------------------------------- | ------------- |
-| Data Source     | [JSON](load_json.md)                | Import & export data from JSON file format (built-in since v0.1.2)        | v0.1          |
-| Data Source     | [PARQUET](load_parquet.md)          | Import & Export data from PARQUET format files                            | v0.1.1        |
-| File System     | [HTTP/HTTPS/S3/OSS](load_httpfs.md) | Provide data source based on HTTP/HTTPS/S3/OSS protocol                   | v0.1.2        |
-| Graph Algorithm | [GDS](load_gds.md)               | Graph Data Science algorithms (PageRank, BFS, SSSP, WCC, LCC, K-Core, Label Propagation, Louvain, Leiden) | v0.1.3 |
-| Graph Query     | [Pattern Match](pattern_match.md)   | Subgraph pattern matching with exact DAF matching and sampled FaSTest matching | v0.2.0          |
-| Vector Search   | [Vector Search](vector_search.md) | Vector distance functions and HNSW-based approximate nearest neighbor search | v0.2.0          |
-| Search          | [Full-Text Search](fts_search.md) | BM25-ranked full-text search over string properties with SQLite FTS5 indexes | v0.2.0          |
+| Category        | Extension                        | Description                                                               |
+| --------------- | -------------------------------- | ------------------------------------------------------------------------- |
+| Data Source     | [PARQUET](load_parquet.md)          | Import and export data in Parquet format                                  |
+| File System     | [HTTP/HTTPS/S3/OSS](load_httpfs.md) | Provide data sources over HTTP, HTTPS, S3, and OSS                         |
+| Graph Algorithm | [GDS](load_gds.md)                  | Graph Data Science algorithms (PageRank, BFS, SSSP, WCC, LCC, K-Core, Label Propagation, Louvain, Leiden) |
+| Graph Query     | [Pattern Match](pattern_match.md)    | Subgraph pattern matching with exact DAF matching and sampled FaSTest matching |
+| Vector Search   | [Vector Search](vector_search.md)    | Vector distance functions and HNSW-based approximate nearest neighbor search |
+| Search          | [Full-Text Search](fts_search.md)    | BM25-ranked full-text search over string properties with SQLite FTS5 indexes |
 
 To author a custom extension outside the NeuG tree (NeuG as submodule), see [Developing Extensions](../development/develop_extension.md).
 

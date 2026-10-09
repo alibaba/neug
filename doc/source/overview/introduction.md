@@ -2,7 +2,7 @@
 
 **NeuG** is a high-performance, graph-native transactional database that runs embedded in your application or behind a service. It provides durable storage, explicit transactions, Cypher-native querying, and in-place graph analytics.
 
-Starting with **NeuG v0.2**, NeuG introduces a storage-index framework with HNSW vector search and BM25 full-text search. Together with NeuG's native graph structure, these capabilities make NeuG **the one data index for your agentic applications**—bringing structure, semantics, and exact keywords together over the same managed data. These indexing capabilities are not available in NeuG v0.1.x. For questions and community support, visit the [NeuG repository](https://github.com/alibaba/neug).
+NeuG provides a storage-index framework with HNSW vector search and BM25 full-text search. Together with NeuG's native graph structure, these capabilities make NeuG **the one data index for your agentic applications**—bringing structure, semantics, and exact keywords together over the same managed data. For questions and community support, visit the [NeuG repository](https://github.com/alibaba/neug).
 
 ## Key Capabilities
 
@@ -30,7 +30,7 @@ All three operate over the same underlying data. Inserts, updates, and deletes m
 
 ## Quick Example
 
-The following NeuG v0.2 example indexes the same `Runbook` data by semantics and keywords, while keeping its graph structure directly queryable:
+The following example indexes the same `Runbook` data by semantics and keywords, while keeping its graph structure directly queryable:
 
 ```cypher
 LOAD vector_search;

@@ -60,4 +60,4 @@ At runtime, name-based `LOAD <name>` resolves under `$NEUG_EXTENSION_HOME_PYENV/
 LOAD my_ext;
 ```
 
-Build the extension against the same NeuG version as the runtime you load into.
+Build the extension against the NeuG runtime you load it into.

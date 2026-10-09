@@ -90,7 +90,7 @@ The import is atomic. If reading, validation, or checkpoint publication fails,
 none of the imported data becomes visible and the previous database state
 remains usable.
 
-Inside an explicit read-write transaction (since v0.2.1), a successful
+Inside an explicit read-write transaction, a successful
 `COPY ... FROM` does not publish on its own; the checkpoint is deferred to
 `commit()`, which may publish several COPY statements together. See
 [Explicit Transactions](explicit_transactions.mdx).
