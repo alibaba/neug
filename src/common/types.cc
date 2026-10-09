@@ -117,24 +117,11 @@ size_t StructType::GetFieldIdx(const DataType& type, const std::string& name) {
 
 DataType StructType::FromFields(std::vector<std::string> field_names,
                                 std::vector<DataType> child_types) {
-  // Names are either fully absent/blank (positional encoding, e.g. unnamed plan
-  // tuples) or present for every field; a mix is malformed data.
-  const bool all_unnamed =
-      std::all_of(field_names.begin(), field_names.end(),
-                  [](const std::string& name) { return name.empty(); });
-  if (all_unnamed) {
-    field_names.clear();
+  // Legacy Tuple messages without name entries use positional field_<i> names.
+  if (field_names.empty() && !child_types.empty()) {
     field_names.reserve(child_types.size());
     for (size_t i = 0; i < child_types.size(); ++i) {
       field_names.push_back("field_" + std::to_string(i));
-    }
-  } else {
-    for (const auto& field_name : field_names) {
-      if (field_name.empty()) {
-        THROW_RUNTIME_ERROR(
-            "Struct field names must be either empty (positional) or "
-            "provided for every field");
-      }
     }
   }
   return DataType::Struct(std::move(field_names), std::move(child_types));
@@ -183,6 +170,20 @@ DataType DataType::Struct(std::vector<std::string> field_names,
   if (field_names.size() != field_types.size()) {
     THROW_RUNTIME_ERROR(
         "Struct field name count does not match child type count");
+  }
+  // Preserve fully named or fully positional input. Mixed names are unsafe:
+  // output adapters synthesize names for blank fields, which can collide
+  // with an explicit name and overwrite a field in a dictionary result.
+  const bool has_blank =
+      std::any_of(field_names.begin(), field_names.end(),
+                  [](const std::string& name) { return name.empty(); });
+  const bool has_named =
+      std::any_of(field_names.begin(), field_names.end(),
+                  [](const std::string& name) { return !name.empty(); });
+  if (has_blank && has_named) {
+    THROW_RUNTIME_ERROR(
+        "Struct field names must be either empty (positional) or "
+        "provided for every field");
   }
   std::unordered_set<std::string> unique_names;
   for (const auto& field_name : field_names) {

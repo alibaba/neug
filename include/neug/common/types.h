@@ -124,6 +124,8 @@ struct NEUG_API DataType {
   ~DataType();
 
   static DataType Struct(std::vector<DataType> children);
+  // Named fields must all be nonempty and unique. An all-blank vector is
+  // allowed for positional tuples; mixed named/blank fields are rejected.
   static DataType Struct(std::vector<std::string> field_names,
                          std::vector<DataType> field_types);
   static DataType List(const DataType& child_type);
@@ -232,10 +234,11 @@ struct StructType {
   static bool HasField(const DataType& type, const std::string& name);
   static size_t GetFieldIdx(const DataType& type, const std::string& name);
   static uint64_t GetNumFields(const DataType& type);
-  // Builds a struct DataType from deserialized components. Positional names
+  // Legacy protobuf compatibility helper. Positional names
   // "field_<i>" are generated when `field_names` is empty (legacy proto data
   // carries no field names); a non-empty `field_names` must match the number
-  // of child types.
+  // of child types and must be either entirely blank or entirely named.
+  // YAML and archive decoding use Struct directly to preserve names.
   static DataType FromFields(std::vector<std::string> field_names,
                              std::vector<DataType> child_types);
 };

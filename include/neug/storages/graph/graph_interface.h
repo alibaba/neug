@@ -188,17 +188,6 @@ class StorageReadInterface : virtual public IStorageInterface {
     return view_.GetVertexPropertyColumn(label, prop_name);
   }
 
-  // Read-only ref indexed by the unbundled edge's property-row id.
-  // Returns nullptr for bundled properties. The caller must retain its
-  // snapshot lease for the lifetime of the ref, as for vertex property refs.
-  std::shared_ptr<RefColumnBase> GetEdgePropColumn(label_t src_label,
-                                                   label_t dst_label,
-                                                   label_t edge_label,
-                                                   int prop_id) const {
-    return view_.GetEdgePropertyColumn(src_label, dst_label, edge_label,
-                                       prop_id);
-  }
-
   /**
    * @brief Get all vertices of a specific label.
    *

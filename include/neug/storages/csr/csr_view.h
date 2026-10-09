@@ -283,6 +283,19 @@ struct EdgeDataAccessor {
   /** @brief Check if data is stored inline (bundled) vs column storage. */
   bool is_bundled() const { return data_column_ == nullptr; }
 
+  /** @brief The data type of the accessed edge property. */
+  DataTypeId data_type() const { return data_type_; }
+
+  // Narrows a struct-typed accessor to the child column at `field_idx`, so
+  // field-level reads (e.g. `e.payload.city`) touch only that column.
+  // Returns a default (kEmpty) accessor when this accessor is bundled, is
+  // not backed by a struct column matching `struct_type`, or `field_idx` is
+  // out of range; the caller then falls back to whole-struct evaluation.
+  // The returned accessor borrows the child column with the same lifetime
+  // as *this.
+  EdgeDataAccessor narrow_struct_field(size_t field_idx,
+                                       const DataType& struct_type) const;
+
   template <typename T>
   inline T get_typed_data(const NbrIterator& it) const {
     if constexpr (std::is_same<T, EmptyType>::value) {

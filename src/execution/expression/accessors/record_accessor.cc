@@ -183,13 +183,17 @@ class BindedEdgeRecordPropertyExpr : public RecordExprBase {
                                                      edge_label);
           for (size_t i = 0; i < names.size(); ++i) {
             if (names[i] == prop_name) {
+              // Binding scans the whole schema, including unrelated edge
+              // types. Struct field indices are valid only for the full type
+              // checked by the compiler, including names and nested fields.
+              if (type_.id() == DataTypeId::kStruct &&
+                  graph.schema().get_edge_properties(src_label, dst_label,
+                                                     edge_label)[i] != type_) {
+                break;
+              }
               LabelTriplet label{src_label, dst_label, edge_label};
               edge_accessors_[label] = graph.GetEdgeDataAccessor(
                   src_label, dst_label, edge_label, i);
-              if (type_.id() == DataTypeId::kStruct) {
-                struct_columns_[label] = graph.GetEdgePropColumn(
-                    src_label, dst_label, edge_label, i);
-              }
               break;
             }
           }
@@ -216,7 +220,7 @@ class BindedEdgeRecordPropertyExpr : public RecordExprBase {
 
   std::unique_ptr<BindedExprBase> bind_struct_field(
       size_t field_idx, const DataType& field_type) const override {
-    return bind_record_edge_struct_field(tag_, struct_columns_, type_,
+    return bind_record_edge_struct_field(tag_, edge_accessors_, type_,
                                          field_idx, field_type);
   }
 
@@ -224,7 +228,6 @@ class BindedEdgeRecordPropertyExpr : public RecordExprBase {
   int tag_;
   DataType type_;
   std::map<LabelTriplet, EdgeDataAccessor> edge_accessors_;
-  std::map<LabelTriplet, std::shared_ptr<RefColumnBase>> struct_columns_;
 };
 
 class BindedEdgeRecordLabelExpr : public RecordExprBase {

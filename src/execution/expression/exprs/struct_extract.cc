@@ -129,20 +129,23 @@ class BindedRecordVertexStructFieldExpr : public RecordExprBase {
   DataType type_;
 };
 
-using EdgeColumns = std::map<LabelTriplet, std::shared_ptr<RefColumnBase>>;
+using EdgeAccessors = std::map<LabelTriplet, EdgeDataAccessor>;
 
-EdgeColumns narrow_edge_to_field(const EdgeColumns& columns,
-                                 const DataType& struct_type,
-                                 size_t field_idx) {
-  EdgeColumns fields;
-  for (const auto& [label, column] : columns) {
-    std::shared_ptr<RefColumnBase> field;
-    // A null edge ref denotes bundled storage, which cannot be narrowed.
-    if (!column ||
-        !select_struct_field(column, struct_type, field_idx, field)) {
+// All accessors have the expression's struct type. If a backing column cannot
+// be narrowed, preserve the ordinary whole-expression fallback.
+EdgeAccessors narrow_edge_to_field(const EdgeAccessors& accessors,
+                                   const DataType& struct_type,
+                                   size_t field_idx) {
+  if (field_idx >= StructType::GetNumFields(struct_type)) {
+    return {};
+  }
+  EdgeAccessors fields;
+  for (const auto& [label, accessor] : accessors) {
+    auto field = accessor.narrow_struct_field(field_idx, struct_type);
+    if (field.data_type() == DataTypeId::kEmpty) {
       return {};
     }
-    fields.emplace(label, std::move(field));
+    fields.emplace(label, field);
   }
   return fields;
 }
@@ -151,7 +154,7 @@ EdgeColumns narrow_edge_to_field(const EdgeColumns& columns,
 // field's child column through the narrowed per-triplet accessor.
 class BindedEdgeStructFieldExpr : public EdgeExprBase {
  public:
-  BindedEdgeStructFieldExpr(EdgeColumns field_accessors, const DataType& type)
+  BindedEdgeStructFieldExpr(EdgeAccessors field_accessors, const DataType& type)
       : field_accessors_(std::move(field_accessors)), type_(type) {}
 
   Value eval_edge(const LabelTriplet& label, vid_t src, vid_t dst,
@@ -160,7 +163,7 @@ class BindedEdgeStructFieldExpr : public EdgeExprBase {
     if (it == field_accessors_.end()) {
       return Value(type_);  // the triplet has no such property
     }
-    return it->second->get_any(*static_cast<const size_t*>(data_ptr));
+    return it->second.get_data_from_ptr(data_ptr);
   }
   const DataType& type() const override { return type_; }
   std::unique_ptr<BindedExprBase> bind_struct_field(
@@ -174,7 +177,7 @@ class BindedEdgeStructFieldExpr : public EdgeExprBase {
   }
 
  private:
-  EdgeColumns field_accessors_;
+  EdgeAccessors field_accessors_;
   DataType type_;
 };
 
@@ -182,7 +185,7 @@ class BindedEdgeStructFieldExpr : public EdgeExprBase {
 // its field column.
 class BindedRecordEdgeStructFieldExpr : public RecordExprBase {
  public:
-  BindedRecordEdgeStructFieldExpr(int tag, EdgeColumns field_accessors,
+  BindedRecordEdgeStructFieldExpr(int tag, EdgeAccessors field_accessors,
                                   const DataType& type)
       : tag_(tag), field_accessors_(std::move(field_accessors)), type_(type) {}
 
@@ -196,7 +199,7 @@ class BindedRecordEdgeStructFieldExpr : public RecordExprBase {
     if (it == field_accessors_.end()) {
       return Value(type_);
     }
-    return it->second->get_any(*static_cast<const size_t*>(edge.prop));
+    return it->second.get_data_from_ptr(edge.prop);
   }
   const DataType& type() const override { return type_; }
   std::unique_ptr<BindedExprBase> bind_struct_field(
@@ -211,7 +214,7 @@ class BindedRecordEdgeStructFieldExpr : public RecordExprBase {
 
  private:
   int tag_;
-  EdgeColumns field_accessors_;
+  EdgeAccessors field_accessors_;
   DataType type_;
 };
 
@@ -293,7 +296,7 @@ std::unique_ptr<BindedExprBase> bind_record_vertex_struct_field(
 }
 
 std::unique_ptr<BindedExprBase> bind_edge_struct_field(
-    const std::map<LabelTriplet, std::shared_ptr<RefColumnBase>>& accessors,
+    const std::map<LabelTriplet, EdgeDataAccessor>& accessors,
     const DataType& struct_type, size_t field_idx, const DataType& field_type) {
   auto field_accessors =
       narrow_edge_to_field(accessors, struct_type, field_idx);
@@ -305,8 +308,7 @@ std::unique_ptr<BindedExprBase> bind_edge_struct_field(
 }
 
 std::unique_ptr<BindedExprBase> bind_record_edge_struct_field(
-    int tag,
-    const std::map<LabelTriplet, std::shared_ptr<RefColumnBase>>& accessors,
+    int tag, const std::map<LabelTriplet, EdgeDataAccessor>& accessors,
     const DataType& struct_type, size_t field_idx, const DataType& field_type) {
   auto field_accessors =
       narrow_edge_to_field(accessors, struct_type, field_idx);

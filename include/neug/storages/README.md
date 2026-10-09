@@ -193,6 +193,14 @@ whole struct value row by row. Nested field access (e.g., `n.loc.geo.lat`) recur
 through further `StructPropertyRefColumn` children, so reading one leaf field never
 touches the sibling columns.
 
+Edge struct properties use the same pushdown through
+`EdgeDataAccessor::narrow_struct_field`: since unbundled struct edge properties
+share one property-row id across all child columns, the accessor is narrowed to the
+field's child column and reads only that column. Property binding excludes
+unrelated same-name properties whose full struct type differs from the expression
+type. If a remaining backing column cannot be narrowed, the expression falls back
+to whole-struct evaluation.
+
 ### 6.2 Checkpoint Dump
 
 `Dump` writes the column descriptor (struct type + row count) and lets each field

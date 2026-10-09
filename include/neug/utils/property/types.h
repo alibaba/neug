@@ -641,8 +641,8 @@ struct convert<neug::DataType> {
         field_names.push_back(field["name"].as<std::string>());
         child_types.push_back(std::move(child_type));
       }
-      property_type = neug::StructType::FromFields(std::move(field_names),
-                                                   std::move(child_types));
+      property_type = neug::DataType::Struct(std::move(field_names),
+                                             std::move(child_types));
     } else if (config["date"]) {
       property_type = neug::DataTypeId::kDate;
     } else {

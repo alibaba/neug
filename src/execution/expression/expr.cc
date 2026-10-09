@@ -307,6 +307,14 @@ static std::unique_ptr<ExprBase> build_expr(
         }
         const std::string& field_name =
             op.parameters(1).operators(0).const_().str();
+        // Reject unknown fields before indexing: GetFieldIdx returns an
+        // invalid sentinel for absent fields, and a serialized plan is not
+        // trusted to name an existing one.
+        if (!StructType::HasField(struct_type, field_name)) {
+          THROW_INVALID_ARGUMENT_EXCEPTION(
+              "structExtract field \"" + field_name +
+              "\" not found on struct type " + struct_type.ToString());
+        }
         size_t field_idx = StructType::GetFieldIdx(struct_type, field_name);
         auto field_type =
             StructType::GetChildType(struct_type, field_idx).copy();

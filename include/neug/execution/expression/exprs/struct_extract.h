@@ -19,6 +19,7 @@
 #include <vector>
 
 #include "neug/execution/expression/expr.h"
+#include "neug/storages/csr/csr_view.h"
 #include "neug/utils/property/column.h"
 
 namespace neug {
@@ -58,14 +59,15 @@ std::unique_ptr<BindedExprBase> bind_record_vertex_struct_field(
     int tag, const std::vector<std::shared_ptr<RefColumnBase>>& parent_columns,
     const DataType& struct_type, size_t field_idx, const DataType& field_type);
 
-// Edge counterparts use read-only refs keyed by label triplet. A missing or
-// incompatible ref disables pushdown; whole-struct evaluation remains valid.
+// Edge counterparts narrow the per-triplet EdgeDataAccessors backing a
+// struct property down to the field's child column. Accessors must match the
+// expression's full struct type. If any column cannot be narrowed, return null
+// so the caller uses whole-struct evaluation.
 std::unique_ptr<BindedExprBase> bind_edge_struct_field(
-    const std::map<LabelTriplet, std::shared_ptr<RefColumnBase>>& accessors,
+    const std::map<LabelTriplet, EdgeDataAccessor>& accessors,
     const DataType& struct_type, size_t field_idx, const DataType& field_type);
 std::unique_ptr<BindedExprBase> bind_record_edge_struct_field(
-    int tag,
-    const std::map<LabelTriplet, std::shared_ptr<RefColumnBase>>& accessors,
+    int tag, const std::map<LabelTriplet, EdgeDataAccessor>& accessors,
     const DataType& struct_type, size_t field_idx, const DataType& field_type);
 
 }  // namespace execution

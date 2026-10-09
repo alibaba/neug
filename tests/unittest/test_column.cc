@@ -18,8 +18,11 @@
 #include <cmath>
 #include <cstring>
 #include <filesystem>
+#include <map>
 #include <memory>
 
+#include "neug/common/columns/edge_columns.h"
+#include "neug/execution/expression/exprs/struct_extract.h"
 #include "neug/storages/checkpoint.h"
 #include "neug/storages/checkpoint_manager.h"
 #include "neug/utils/exception/exception.h"
@@ -27,6 +30,7 @@
 #include "neug/utils/property/column.h"
 #include "neug/utils/property/list_property_column.h"
 #include "neug/utils/property/struct_property_column.h"
+#include "neug/utils/property/types.h"
 #include "neug/utils/property/vec_column.h"
 #include "neug/utils/serialization/in_archive.h"
 #include "neug/utils/serialization/out_archive.h"
@@ -873,6 +877,92 @@ TEST(StructPropertyColumnTest, RefColumnFieldAccess) {
   std::filesystem::remove_all(temp_dir);
 }
 
+TEST(StructPropertyColumnTest, EdgeBindingReadsNestedChildColumns) {
+  struct CountingStructColumn : StructPropertyColumn {
+    using StructPropertyColumn::StructPropertyColumn;
+    mutable size_t whole_reads = 0;
+    Value get_any(size_t row) const override {
+      ++whole_reads;
+      return StructPropertyColumn::get_any(row);
+    }
+  };
+  auto temp_dir =
+      std::filesystem::temp_directory_path() /
+      ("struct_edge_binding_" +
+       std::to_string(
+           std::chrono::steady_clock::now().time_since_epoch().count()));
+  std::filesystem::create_directories(temp_dir);
+  CheckpointManager checkpoint_mgr;
+  checkpoint_mgr.Open(temp_dir.string());
+  auto ckp = make_checkpoint(checkpoint_mgr);
+  auto inner_type = DataType::Struct({"y"}, {DataType::INT64});
+  auto type = DataType::Struct({"inner"}, {inner_type});
+  auto other_type = DataType::Struct({"other"}, {inner_type});
+  CountingStructColumn column(type), other(other_type);
+  for (auto* col : {&column, &other}) {
+    col->Open(*ckp, ModuleDescriptor{}, MemoryLevel::kInMemory);
+    col->resize(2);
+    for (size_t row = 0; row < 2; ++row) {
+      col->set_any(
+          row,
+          Value::STRUCT(col->struct_type(),
+                        {Value::STRUCT(inner_type, {Value::INT64(10 + row)})}),
+          false);
+    }
+  }
+  const LabelTriplet matching{0, 0, 0}, different{0, 0, 1}, bundled{0, 0, 2};
+  std::map<LabelTriplet, EdgeDataAccessor> accessors{
+      {matching, EdgeDataAccessor(DataTypeId::kStruct, &column)}};
+  auto parent =
+      execution::bind_edge_struct_field(accessors, type, 0, inner_type);
+  ASSERT_NE(parent, nullptr);
+  auto leaf = parent->bind_struct_field(0, DataType::INT64);
+  ASSERT_NE(leaf, nullptr);
+  size_t row = 1;
+  EXPECT_EQ(
+      leaf->Cast<execution::EdgeExprBase>().eval_edge(matching, 0, 1, &row),
+      Value::INT64(11));
+  EXPECT_EQ(column.whole_reads, 0);
+  auto record_parent = execution::bind_record_edge_struct_field(
+      0, accessors, type, 0, inner_type);
+  ASSERT_NE(record_parent, nullptr);
+  auto record_leaf = record_parent->bind_struct_field(0, DataType::INT64);
+  ASSERT_NE(record_leaf, nullptr);
+  BDMLEdgeColumnBuilder builder({matching});
+  builder.push_back_opt(matching, 0, 1, &row, Direction::kOut);
+  builder.push_back_opt(matching, 0, 1, &row, Direction::kIn);
+  builder.push_back_elem(Value(DataType::EDGE));
+  DataChunk chunk;
+  chunk.set(0, builder.finish());
+  EXPECT_EQ(
+      record_leaf->Cast<execution::RecordExprBase>().eval_record(chunk, 0),
+      Value::INT64(11));
+  EXPECT_EQ(
+      record_leaf->Cast<execution::RecordExprBase>().eval_record(chunk, 1),
+      Value::INT64(11));
+  EXPECT_TRUE(record_leaf->Cast<execution::RecordExprBase>()
+                  .eval_record(chunk, 2)
+                  .IsNull());
+  EXPECT_EQ(column.whole_reads, 0);
+  EXPECT_EQ(execution::bind_edge_struct_field(accessors, type, 1, inner_type),
+            nullptr);
+  // A column that cannot be narrowed leaves evaluation to the generic
+  // StructExtract expression rather than creating a per-triplet fallback.
+  for (const auto& entry : std::map<LabelTriplet, EdgeDataAccessor>{
+           {different, EdgeDataAccessor(DataTypeId::kStruct, &other)},
+           {bundled, EdgeDataAccessor(DataTypeId::kInt64, nullptr)}}) {
+    auto incompatible = accessors;
+    incompatible.insert(entry);
+    EXPECT_EQ(
+        execution::bind_edge_struct_field(incompatible, type, 0, inner_type),
+        nullptr);
+    EXPECT_EQ(execution::bind_record_edge_struct_field(0, incompatible, type, 0,
+                                                       inner_type),
+              nullptr);
+  }
+  std::filesystem::remove_all(temp_dir);
+}
+
 TEST(StructPropertyColumnTest, TypeRejectsInvalidNamedFields) {
   EXPECT_THROW(DataType::Struct({"x", "x"}, {DataType::INT32, DataType::INT64}),
                exception::RuntimeError);
@@ -880,6 +970,52 @@ TEST(StructPropertyColumnTest, TypeRejectsInvalidNamedFields) {
                exception::RuntimeError);
   EXPECT_NO_THROW(
       DataType::Struct({"", ""}, {DataType::INT32, DataType::VARCHAR}));
+}
+
+TEST(StructPropertyColumnTest, FromFieldsPreservesNamedAndPositionalNames) {
+  auto named =
+      StructType::FromFields({"x", "y"}, {DataType::INT64, DataType::VARCHAR});
+  EXPECT_EQ(StructType::GetFieldNames(named),
+            (std::vector<std::string>{"x", "y"}));
+  auto positional =
+      StructType::FromFields({"", ""}, {DataType::INT64, DataType::DOUBLE});
+  EXPECT_EQ(StructType::GetFieldNames(positional),
+            (std::vector<std::string>{"", ""}));
+  // Legacy input without any name entries falls back to positional names.
+  auto legacy = StructType::FromFields({}, {DataType::INT64, DataType::DOUBLE});
+  EXPECT_EQ(StructType::GetFieldNames(legacy),
+            (std::vector<std::string>{"field_0", "field_1"}));
+}
+
+TEST(StructPropertyColumnTest, ConstructionAndDecodeRejectMixedNames) {
+  // Reject mixtures even when they do not happen to collide today. Python
+  // uses f<i> for blank fields, while Parquet uses field_<i>.
+  for (const auto& names : std::vector<std::vector<std::string>>{
+           {"x", ""}, {"f1", ""}, {"", "field_0"}}) {
+    EXPECT_THROW(DataType::Struct(names, {DataType::INT64, DataType::DOUBLE}),
+                 exception::RuntimeError);
+    EXPECT_THROW(
+        StructType::FromFields(names, {DataType::INT64, DataType::DOUBLE}),
+        exception::RuntimeError);
+  }
+}
+
+TEST(StructPropertyColumnTest, YamlPreservesNamesAndRejectsMixedNames) {
+  const auto named =
+      DataType::Struct({"x", "y"}, {DataType::INT64, DataType::DOUBLE});
+  const auto positional =
+      DataType::Struct({"", ""}, {DataType::INT64, DataType::DOUBLE});
+  for (const auto& type : {named, positional}) {
+    DataType decoded;
+    const auto encoded = YAML::convert<DataType>::encode(type);
+    ASSERT_TRUE(YAML::convert<DataType>::decode(encoded, decoded));
+    EXPECT_EQ(decoded, type);
+  }
+  auto mixed = YAML::convert<DataType>::encode(named);
+  mixed["struct"]["fields"][1]["name"] = "";
+  DataType decoded;
+  EXPECT_THROW(YAML::convert<DataType>::decode(mixed, decoded),
+               exception::RuntimeError);
 }
 
 TEST(StructPropertyColumnTest, FactoryRejectsEmptyStruct) {
@@ -898,10 +1034,7 @@ TEST(StructPropertyColumnTest, DataTypeArchiveRoundTripPreservesNames) {
 
   auto positional =
       DataType::Struct({"", ""}, {DataType::INT64, DataType::DOUBLE});
-  auto partly_named =
-      DataType::Struct({"x", ""}, {DataType::INT64, DataType::DOUBLE});
-
-  for (const auto& type : {named, unnamed, positional, partly_named}) {
+  for (const auto& type : {named, unnamed, positional}) {
     InArchive in;
     in << type;
     OutArchive out;

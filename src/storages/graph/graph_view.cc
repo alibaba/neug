@@ -165,14 +165,6 @@ size_t EdgeTableView::EdgeNum() const {
   return 0;
 }
 
-std::shared_ptr<RefColumnBase> EdgeTableView::GetPropertyColumn(
-    int prop_id) const {
-  if (meta_->is_bundled()) {
-    return nullptr;
-  }
-  return view_.get_column(prop_id);
-}
-
 EdgeDataAccessor EdgeTableView::GetDataAccessor(int prop_id) const {
   if (prop_id < 0 || static_cast<size_t>(prop_id) >= meta_->properties.size()) {
     THROW_INVALID_ARGUMENT_EXCEPTION(
@@ -320,19 +312,6 @@ size_t GraphView::EdgeNum(label_t src_label, label_t dst_label,
       schema_->generate_edge_label(src_label, dst_label, edge_label);
   auto it = edge_views_.find(index);
   return it == edge_views_.end() ? 0 : it->second.EdgeNum();
-}
-
-std::shared_ptr<RefColumnBase> GraphView::GetEdgePropertyColumn(
-    label_t src_label, label_t dst_label, label_t edge_label,
-    int prop_id) const {
-  const auto index =
-      schema_->generate_edge_label(src_label, dst_label, edge_label);
-  auto it = edge_views_.find(index);
-  if (it == edge_views_.end()) {
-    THROW_INVALID_ARGUMENT_EXCEPTION(
-        "Edge table for edge label triplet not found");
-  }
-  return it->second.GetPropertyColumn(prop_id);
 }
 
 EdgeDataAccessor GraphView::GetEdgeDataAccessor(label_t src_label,

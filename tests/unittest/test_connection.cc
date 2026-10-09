@@ -37,6 +37,8 @@
 #include "neug/compiler/extension/extension_api.h"
 #include "neug/compiler/function/neug_call_function.h"
 #include "neug/compiler/main/metadata_registry.h"
+#include "neug/execution/expression/accessors/edge_accessor.h"
+#include "neug/execution/expression/accessors/record_accessor.h"
 #include "neug/main/connection.h"
 #include "neug/main/file_lock.h"
 #include "neug/main/neug_db.h"
@@ -2276,6 +2278,57 @@ TEST_F(ConnectionTest, TestParameterizedQuery) {
       conn->Query("MATCH (n:PERSON2) RETURN n.id;", "read", invalid_parameters);
   ASSERT_FALSE(res);
   EXPECT_EQ(res.error().error_code(), StatusCode::ERR_INVALID_ARGUMENT);
+}
+
+TEST_F(ConnectionTest, StructEdgeBindingIgnoresUnrelatedPropertyTypes) {
+  NeugDB db;
+  NeugDBConfig config;
+  config.data_dir = DB_DIR;
+  config.mode = DBMode::READ_WRITE;
+  db.Open(config);
+  auto conn = db.Connect();
+  for (const auto& statement :
+       {"CREATE NODE TABLE StructEndpoint(id INT64, PRIMARY KEY(id));",
+        "CREATE REL TABLE StructTarget(FROM StructEndpoint TO StructEndpoint, "
+        "payload STRUCT(inner STRUCT(y INT64)));",
+        "CREATE REL TABLE StructOther(FROM StructEndpoint TO StructEndpoint, "
+        "payload STRUCT(inner STRUCT(z INT64)));",
+        "CREATE REL TABLE StructScalar(FROM StructEndpoint TO StructEndpoint, "
+        "payload INT64);",
+        "CREATE (:StructEndpoint {id: 1}), (:StructEndpoint {id: 2});",
+        "MATCH (a:StructEndpoint {id: 1}), (b:StructEndpoint {id: 2}) "
+        "CREATE (a)-[:StructTarget {payload: CAST({inner: {y: 11}}, "
+        "'STRUCT(inner STRUCT(y INT64))')}]->(b);"}) {
+    auto result = conn->Query(statement);
+    ASSERT_TRUE(result) << statement << ": " << result.error().ToString();
+  }
+
+  auto result = conn->Query(
+      "MATCH (:StructEndpoint)-[e:StructTarget]->(:StructEndpoint) "
+      "RETURN e.payload.inner.y;",
+      "read");
+  ASSERT_TRUE(result) << result.error().ToString();
+  ASSERT_EQ(result.value().response().row_count(), 1);
+  EXPECT_EQ(result.value().response().arrays(0).int64_array().values(0), 11);
+
+  // Results alone cannot distinguish pushdown from whole-struct evaluation.
+  // Bind the real property accessors against this schema and require both
+  // levels to narrow, in edge and record contexts.
+  SnapshotGuard snapshot(db.graph_snapshot_store());
+  StorageReadInterface storage(snapshot.get().view(), 0);
+  auto inner_type = DataType::Struct({"y"}, {DataType::INT64});
+  auto type = DataType::Struct({"inner"}, {inner_type});
+  auto edge = execution::EdgeAccessor::create_property_accessor(type, "payload")
+                  ->bind(&storage, {});
+  auto edge_inner = edge->bind_struct_field(0, inner_type);
+  ASSERT_NE(edge_inner, nullptr);
+  EXPECT_NE(edge_inner->bind_struct_field(0, DataType::INT64), nullptr);
+  auto record = execution::RecordEdgeAccessor::create_property_accessor(
+                    0, type, "payload")
+                    ->bind(&storage, {});
+  auto record_inner = record->bind_struct_field(0, inner_type);
+  ASSERT_NE(record_inner, nullptr);
+  EXPECT_NE(record_inner->bind_struct_field(0, DataType::INT64), nullptr);
 }
 
 TEST_F(ConnectionTest, TestConnectionQueryResult) {
