@@ -185,21 +185,14 @@ value is stored as all-field defaults, and a null field value is stored as that
 field's default. No validity bitmap is kept, which keeps storage compact and `Dump`
 simple.
 
-### 6.1 Field-level access (projection pushdown)
+### 6.1 Field access
 
-A struct field expression such as `n.address.city` binds only the relevant child
-column through `StructPropertyRefColumn::field_ref_ptr`, instead of assembling the
-whole struct value row by row. Nested field access (e.g., `n.loc.geo.lat`) recurses
-through further `StructPropertyRefColumn` children, so reading one leaf field never
-touches the sibling columns.
-
-Edge struct properties use the same pushdown through
-`EdgeDataAccessor::narrow_struct_field`: since unbundled struct edge properties
-share one property-row id across all child columns, the accessor is narrowed to the
-field's child column and reads only that column. Property binding excludes
-unrelated same-name properties whose full struct type differs from the expression
-type. If a remaining backing column cannot be narrowed, the expression falls back
-to whole-struct evaluation.
+A struct field expression such as `n.address.city` evaluates the parent struct
+into a `Value` and then extracts `city`. Nested access repeats this step for
+each struct level. This keeps stored and computed structs on the same expression
+path without special binding hooks, but reading one field of a stored struct
+also reads and assembles its sibling fields. The same tradeoff applies to edge
+struct properties.
 
 Positional tuples and named structs share `kStruct`. Absent field names or an
 all-blank name vector denote positional tuples; fully named fields denote named
@@ -209,6 +202,11 @@ Partially named fields are rejected. This rule also applies recursively to neste
 types and across compiler/runtime protobuf conversion and archive round trips.
 Older protobuf tuples without `field_names` decode as positional tuples; their
 original field names cannot be recovered from the message.
+In `response.proto`, the wire contract requires either no names, one empty
+name per tuple field, or one distinct non-empty name per struct field. Other
+name layouts are invalid. Arrow represents either kind as a struct and assigns
+display names `f0`, `f1`, ... to positional fields; `to_pylist()` therefore
+returns dictionaries for them, while Python query iteration returns lists.
 
 ### 6.2 Checkpoint Dump
 

@@ -747,8 +747,7 @@ def test_copy_from_struct_column_rejected(tmp_path):
     "other_type", [None, "STRUCT(x INT64)", "STRUCT(inner STRING)", "INT64"]
 )
 def test_struct_edge_property_field_access(tmp_path, other_type):
-    """Struct edge properties support field-level access (incl. nested and
-    record context), backed by the per-field child column pushdown."""
+    """Struct edge fields work in direct, nested, and record contexts."""
     db = Database(db_path=str(tmp_path / "struct_edge_field"), mode="w")
     conn = db.connect()
     try:

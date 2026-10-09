@@ -462,3 +462,18 @@ def test_to_arrow_nested_struct_field_names(tmp_path):
     finally:
         conn.close()
         db.close()
+
+
+def test_to_arrow_positional_tuple_display_names(tmp_path):
+    db, conn = _make_db(tmp_path, "positional_tuple_names")
+    try:
+        result = conn.execute("RETURN [1, 'a'] AS pair")
+        assert list(result) == [[[1, "a"]]]
+
+        # Arrow has struct fields rather than positional tuples. Its display
+        # names do not change how the normal result decoder interprets them.
+        arrow = conn.execute("RETURN [1, 'a'] AS pair").to_arrow()
+        assert arrow.to_pylist() == [{"pair": {"f0": 1, "f1": "a"}}]
+    finally:
+        conn.close()
+        db.close()

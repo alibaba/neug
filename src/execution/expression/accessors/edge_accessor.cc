@@ -14,7 +14,6 @@
  */
 
 #include "neug/execution/expression/accessors/edge_accessor.h"
-#include "neug/execution/expression/exprs/struct_extract.h"
 #include "neug/utils/exception/exception.h"
 
 namespace neug {
@@ -76,12 +75,6 @@ class BindedEdgePropertyAccessor : public EdgeExprBase {
   }
 
   const DataType& type() const override { return type_; }
-
-  std::unique_ptr<BindedExprBase> bind_struct_field(
-      size_t field_idx, const DataType& field_type) const override {
-    return bind_edge_struct_field(edge_accessors_, type_, field_idx,
-                                  field_type);
-  }
 
  private:
   DataType type_;

@@ -94,16 +94,9 @@ class StructPropertyRefColumn : public RefColumnBase {
   DataTypeId type() const override { return DataTypeId::kStruct; }
   ColType col_type() const override { return ColType::kInternal; }
 
-  // Exposes the child ref column for field-level access: a struct field
-  // expression can bind only the relevant child column instead of assembling
-  // the whole struct. Nested structs recurse through further
-  // StructPropertyRefColumn children.
+  // Exposes child ref columns to storage callers. Expression field access
+  // currently materializes the whole struct through get_any() first.
   const RefColumnBase& field_ref(size_t idx) const { return *fields_[idx]; }
-  // Shares ownership of the child ref column so a struct field expression can
-  // bind only that column (projection pushdown).
-  const std::shared_ptr<RefColumnBase>& field_ref_ptr(size_t idx) const {
-    return fields_[idx];
-  }
   size_t field_idx(const std::string& name) const {
     return StructType::GetFieldIdx(struct_type_, name);
   }

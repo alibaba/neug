@@ -19,6 +19,8 @@
 #include <cstdint>
 #include <cstring>
 #include <memory>
+#include <stdexcept>
+#include <unordered_set>
 #include <vector>
 #include "neug/compiler/common/arrow/arrow.h"
 #include "neug/storages/graph/schema.h"
@@ -31,6 +33,42 @@
 // protobuf QueryResponse *without* touching any Arrow C++ symbol.
 // ---------------------------------------------------------------------------
 namespace neug {
+
+// response.proto uses field names to distinguish positional tuples from named
+// structs. Validate before decoding so malformed names cannot silently change
+// a list into a dict or overwrite a dict field.
+static bool has_named_struct_fields(const neug::StructArray& array) {
+  const int count = array.field_names_size();
+  if (count == 0) {
+    return false;  // legacy positional tuple
+  }
+  if (count != array.fields_size()) {
+    throw std::runtime_error(
+        "StructArray field_names count does not match fields");
+  }
+  const bool named = !array.field_names(0).empty();
+  std::unordered_set<std::string> names;
+  for (const auto& name : array.field_names()) {
+    if (name.empty() == named || (named && !names.insert(name).second)) {
+      throw std::runtime_error(
+          "StructArray field_names must be all empty or unique non-empty "
+          "names");
+    }
+  }
+  return named;
+}
+
+static void validate_nested_struct_fields(const neug::Array& array) {
+  if (array.has_list_array()) {
+    validate_nested_struct_fields(array.list_array().elements());
+  } else if (array.has_struct_array()) {
+    const auto& struct_array = array.struct_array();
+    has_named_struct_fields(struct_array);
+    for (const auto& field : struct_array.fields()) {
+      validate_nested_struct_fields(field);
+    }
+  }
+}
 
 // ---- Owned-resource wrappers for release callbacks ------------------------
 struct OwnedSchema {
@@ -168,6 +206,7 @@ static void build_column_schema(OwnedSchema& root, ArrowSchema& col,
     col.private_data = ch;
   } else if (pb_col.has_struct_array()) {
     const auto& sa = pb_col.struct_array();
+    const bool named = has_named_struct_fields(sa);
     int nf = sa.fields_size();
     init_schema(col, "+s", col_name);
     col.n_children = nf;
@@ -176,10 +215,10 @@ static void build_column_schema(OwnedSchema& root, ArrowSchema& col,
     ch->child_ptrs.resize(nf);
     for (int i = 0; i < nf; ++i) {
       ch->child_ptrs[i] = &ch->children[i];
+      // Arrow structs require child names. These are display names for a
+      // positional tuple; the protobuf field_names remain empty.
       const auto field_name =
-          i < sa.field_names_size() && !sa.field_names(i).empty()
-              ? sa.field_names(i)
-              : "f" + std::to_string(i);
+          named ? sa.field_names(i) : "f" + std::to_string(i);
       build_column_schema(*ch, ch->children[i], sa.fields(i),
                           dup_string(*ch, field_name));
     }
@@ -498,16 +537,9 @@ pybind11::object fetch_value_from_column(const neug::Array& column,
     }
   } else if (column.has_struct_array()) {
     const auto& col = column.struct_array();
+    const bool named = has_named_struct_fields(col);
     const auto& validity_map = col.validity();
     if (is_valid(validity_map, index)) {
-      // StructArrays also carry positional tuples (e.g. heterogeneous list
-      // literals), which have no field names and keep the historical list
-      // rendering. Named structs are returned as dicts keyed by field name,
-      // matching the Arrow path (to_pylist()).
-      bool named = false;
-      for (int i = 0; i < col.field_names_size() && !named; ++i) {
-        named = !col.field_names(i).empty();
-      }
       if (!named) {
         pybind11::list list;
         for (int i = 0; i < col.fields_size(); ++i) {
@@ -517,11 +549,7 @@ pybind11::object fetch_value_from_column(const neug::Array& column,
       }
       pybind11::dict dict;
       for (int i = 0; i < col.fields_size(); ++i) {
-        const auto field_name =
-            i < col.field_names_size() && !col.field_names(i).empty()
-                ? col.field_names(i)
-                : "f" + std::to_string(i);
-        dict[pybind11::str(field_name)] =
+        dict[pybind11::str(col.field_names(i))] =
             fetch_value_from_column(col.fields(i), index);
       }
       return dict;
@@ -787,6 +815,12 @@ pybind11::dict PyQueryResult::get_profile_metrics() const {
 pybind11::object PyQueryResult::to_arrow() const {
   // Zero-copy: share ownership of the QueryResponse protobuf.
   auto response = query_result_.shared_response();
+
+  // Reject invalid nested names before allocating any Arrow schema/array
+  // holders, which require explicit release callbacks on every error path.
+  for (const auto& column : response->arrays()) {
+    validate_nested_struct_fields(column);
+  }
 
   int64_t n_rows = static_cast<int64_t>(response->row_count());
   int n_cols = response->arrays_size();

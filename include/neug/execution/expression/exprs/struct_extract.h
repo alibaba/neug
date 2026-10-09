@@ -14,22 +14,16 @@
  */
 
 #pragma once
-#include <map>
 #include <memory>
-#include <vector>
 
 #include "neug/execution/expression/expr.h"
-#include "neug/storages/csr/csr_view.h"
-#include "neug/utils/property/column.h"
 
 namespace neug {
 namespace execution {
 
 // Extracts field `field_idx` from a struct-typed child expression, e.g. the
-// `city` in `n.address.city`. At bind time the access is pushed down to the
-// field's own property column when the child reads a struct column directly
-// (so only that column is scanned); otherwise the whole struct value is
-// evaluated and the field picked from it.
+// `city` in `n.address.city`. The child is evaluated to a complete struct
+// Value before selecting the field.
 class StructExtractExpr : public ExprBase {
  public:
   StructExtractExpr(std::unique_ptr<ExprBase> child, size_t field_idx,
@@ -46,29 +40,6 @@ class StructExtractExpr : public ExprBase {
   size_t field_idx_;
   DataType type_;
 };
-
-// Projection-pushdown factories used by property accessors. `parent_columns`
-// are the per-label struct ref columns backing a struct property; each is
-// narrowed to its `field_idx` child column. Returns nullptr when any present
-// column has a different struct layout, letting the caller fall back to
-// whole-struct evaluation.
-std::unique_ptr<BindedExprBase> bind_vertex_struct_field(
-    const std::vector<std::shared_ptr<RefColumnBase>>& parent_columns,
-    const DataType& struct_type, size_t field_idx, const DataType& field_type);
-std::unique_ptr<BindedExprBase> bind_record_vertex_struct_field(
-    int tag, const std::vector<std::shared_ptr<RefColumnBase>>& parent_columns,
-    const DataType& struct_type, size_t field_idx, const DataType& field_type);
-
-// Edge counterparts narrow the per-triplet EdgeDataAccessors backing a
-// struct property down to the field's child column. Accessors must match the
-// expression's full struct type. If any column cannot be narrowed, return null
-// so the caller uses whole-struct evaluation.
-std::unique_ptr<BindedExprBase> bind_edge_struct_field(
-    const std::map<LabelTriplet, EdgeDataAccessor>& accessors,
-    const DataType& struct_type, size_t field_idx, const DataType& field_type);
-std::unique_ptr<BindedExprBase> bind_record_edge_struct_field(
-    int tag, const std::map<LabelTriplet, EdgeDataAccessor>& accessors,
-    const DataType& struct_type, size_t field_idx, const DataType& field_type);
 
 }  // namespace execution
 }  // namespace neug

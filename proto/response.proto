@@ -75,8 +75,14 @@ message ListArray {
 
 
 message StructArray {
-  repeated Array fields = 1;  
+  // Carries both positional tuples and named structs, including nested ones.
+  // The order of fields is significant in either case.
+  repeated Array fields = 1;
   bytes validity = 2;
+  // Positional tuple: absent (legacy) or exactly fields_size empty strings.
+  // Named struct: exactly fields_size distinct, non-empty strings.
+  // Any other combination is invalid. Clients must not synthesize names when
+  // deciding whether to decode a value as a tuple or a struct.
   repeated string field_names = 3;
 }
 
@@ -157,4 +163,3 @@ message QueryResponse {
   repeated Array arrays = 3;
   ProfileResult profile_result = 4;
 };
-

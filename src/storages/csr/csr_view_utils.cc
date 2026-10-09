@@ -18,29 +18,9 @@
 #include <cassert>
 
 #include "neug/common/types/graph_types.h"
-#include "neug/utils/property/struct_property_column.h"
 #include "neug/utils/property/types.h"
 
 namespace neug {
-
-EdgeDataAccessor EdgeDataAccessor::narrow_struct_field(
-    size_t field_idx, const DataType& struct_type) const {
-  if (data_column_ == nullptr || data_type_ != DataTypeId::kStruct) {
-    return EdgeDataAccessor();
-  }
-  const auto* struct_column =
-      dynamic_cast<const StructPropertyColumn*>(data_column_);
-  // A layout mismatch (or a non-struct column behind a struct-typed plan)
-  // disables pushdown; the caller falls back to whole-struct evaluation.
-  if (struct_column == nullptr || struct_column->struct_type() != struct_type ||
-      field_idx >= struct_column->num_fields()) {
-    return EdgeDataAccessor();
-  }
-  // Unbundled struct edge properties share one property-row id across all
-  // child columns, so the narrowed accessor keeps reading the same row id.
-  const ColumnBase& child = struct_column->field_column(field_idx);
-  return EdgeDataAccessor(child.type(), const_cast<ColumnBase*>(&child));
-}
 
 bool nbr_data_eq(const char* data_ptr, const char* expected_ptr,
                  const DataTypeId& type) {
