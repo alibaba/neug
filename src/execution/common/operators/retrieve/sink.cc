@@ -119,9 +119,12 @@ void append_property_to_json(const std::string& key, const Value& prop,
                   Value::ToJson(prop, allocator), allocator);
     break;
   default:
-    THROW_NOT_SUPPORTED_EXCEPTION(
-        "JSON serialization of property " + key + " with type " +
-        std::to_string(static_cast<int>(type_id)) + " is not supported");
+    // Unreachable for storable property types: CreateColumn rejects every
+    // type not handled above (e.g. INT8/INT16/MAP), so failing loudly here
+    // cannot break a previously working query.
+    THROW_NOT_SUPPORTED_EXCEPTION("JSON serialization of property " + key +
+                                  " with type " + prop.type().ToString() +
+                                  " is not supported");
   }
 }
 
