@@ -87,7 +87,7 @@ ServiceTransactionManager::~ServiceTransactionManager() {
   }
 }
 
-result<ServiceTransactionManager::BeginResult> ServiceTransactionManager::Begin(
+result<ServiceTransactionInfo> ServiceTransactionManager::Begin(
     TransactionMode mode) {
   {
     std::lock_guard lock(mutex_);
@@ -158,7 +158,7 @@ result<ServiceTransactionManager::BeginResult> ServiceTransactionManager::Begin(
       entry->context.Rollback();
       RETURN_ERROR(ServiceUnavailable("Transaction service is stopping."));
     }
-    return BeginResult{std::move(transaction_id), expires_at};
+    return ServiceTransactionInfo{std::move(transaction_id), expires_at};
   } catch (const std::exception& e) {
     finish_pending_begin();
     RETURN_ERROR(Status::RuntimeError(e.what()));
@@ -168,18 +168,8 @@ result<ServiceTransactionManager::BeginResult> ServiceTransactionManager::Begin(
   }
 }
 
-result<std::string> ServiceTransactionManager::Execute(
-    std::string_view transaction_id, const std::string& request) {
-  std::string query;
-  AccessMode mode = AccessMode::kUnKnown;
-  rapidjson::Document parameters;
-  try {
-    RETURN_STATUS_ERROR_IF_NOT_OK(
-        RequestParser::ParseFromString(request, query, mode, parameters));
-  } catch (const std::exception& e) {
-    RETURN_ERROR(Status(StatusCode::ERR_INVALID_ARGUMENT, e.what()));
-  }
-
+result<QueryResult> ServiceTransactionManager::Execute(
+    std::string_view transaction_id, const QueryRequest& request) {
   auto locked_result = LockEntry(transaction_id);
   if (!locked_result) {
     RETURN_ERROR(locked_result.error());
@@ -191,23 +181,19 @@ result<std::string> ServiceTransactionManager::Execute(
                         "Transaction must be rolled back before reuse."));
   }
 
-  result<std::string> response = [&]() -> result<std::string> {
+  result<QueryResult> response = [&]() -> result<QueryResult> {
     try {
       auto slot = execution_slot_pool_.TryAcquireExecutionSlot();
       if (!slot) {
         RETURN_ERROR(ServiceUnavailable("No TP execution slot is available."));
       }
       auto query_result = slot->ExecuteQueryInTransaction(
-          query, mode, parameters, /*num_threads=*/0, entry->context);
+          request.query, request.access_mode, request.parameters,
+          /*num_threads=*/0, entry->context);
       if (!query_result) {
         RETURN_ERROR(query_result.error());
       }
-      try {
-        return query_result.value().Serialize();
-      } catch (const std::exception& e) {
-        entry->context.AbortAndMarkRollbackOnly();
-        RETURN_ERROR(Status::RuntimeError(e.what()));
-      }
+      return query_result;
     } catch (const std::exception& e) {
       RETURN_ERROR(Status::RuntimeError(e.what()));
     }
@@ -273,15 +259,19 @@ Status ServiceTransactionManager::Rollback(std::string_view transaction_id) {
 void ServiceTransactionManager::Close() {
   decltype(entries_) entries;
   {
-    std::unique_lock lock(mutex_);
+    std::lock_guard lock(mutex_);
     accepting_ = false;
-    changed_.wait(lock, [this] { return pending_begins_ == 0; });
     entries.swap(entries_);
   }
   for (const auto& [_, entry] : entries) {
     std::lock_guard lock(entry->mutex);
     entry->context.Rollback();
   }
+  // A pending begin may wait for compaction, which itself needs the sessions
+  // above to release their snapshots. Do not wait before rolling them back.
+  // Admission is closed, so pending begins cannot publish another session.
+  std::unique_lock lock(mutex_);
+  changed_.wait(lock, [this] { return pending_begins_ == 0; });
 }
 
 void ServiceTransactionManager::CloseAdmission() {
