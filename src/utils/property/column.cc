@@ -23,6 +23,7 @@
 #include "neug/utils/id_indexer.h"
 #include "neug/utils/property/array_column.h"
 #include "neug/utils/property/list_property_column.h"
+#include "neug/utils/property/struct_property_column.h"
 #include "neug/utils/property/table.h"
 #include "neug/utils/property/types.h"
 #include "neug/utils/property/vec_column.h"
@@ -82,6 +83,13 @@ std::unique_ptr<ColumnBase> CreateColumn(DataType type) {
   case DataTypeId::kList: {
     return std::make_unique<ListPropertyColumn>(type);
   }
+  case DataTypeId::kStruct: {
+    if (StructType::GetNumFields(type) == 0) {
+      THROW_NOT_SUPPORTED_EXCEPTION(
+          "Cannot create a column for a struct with no fields");
+    }
+    return std::make_unique<StructPropertyColumn>(type);
+  }
   case DataTypeId::kEmpty: {
     return std::make_unique<TypedColumn<EmptyType>>();
   }
@@ -115,6 +123,10 @@ std::shared_ptr<RefColumnBase> CreateRefColumn(const ColumnBase& column) {
   case DataTypeId::kList: {
     return std::make_shared<ListPropertyRefColumn>(
         dynamic_cast<const ListPropertyColumn&>(column));
+  }
+  case DataTypeId::kStruct: {
+    return std::make_shared<StructPropertyRefColumn>(
+        dynamic_cast<const StructPropertyColumn&>(column));
   }
   default: {
     THROW_NOT_SUPPORTED_EXCEPTION("Unsupported type for reference column: " +

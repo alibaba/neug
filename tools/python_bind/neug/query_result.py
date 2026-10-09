@@ -208,6 +208,10 @@ class QueryResult(object):
         """
         Convert the result to an Arrow table.
 
+        Positional tuples use Arrow struct columns with generated field names
+        (f0, f1, ...). Consequently, ``to_pylist()`` returns dictionaries for
+        those columns, while normal query iteration returns Python lists.
+
         Returns
         -------
         pyarrow.Table

@@ -812,7 +812,8 @@ rapidjson::Value Value::ToJson(const Value& value,
     return rapidjson::Value(value.GetValue<bool>());
   }
   case DataTypeId::kVarchar: {
-    return rapidjson::Value(value.GetValue<std::string>().c_str(), allocator);
+    const auto& str = StringValue::Get(value);
+    return rapidjson::Value(str.data(), str.size(), allocator);
   }
 #define TYPE_DISPATCHER(type_enum, cpp_type)                \
   case DataTypeId::type_enum: {                             \
@@ -837,6 +838,26 @@ rapidjson::Value Value::ToJson(const Value& value,
     }
     return array_doc;
   }
+  case DataTypeId::kStruct: {
+    const auto& children = StructValue::GetChildren(value);
+    const auto& names = StructType::GetFieldNames(value.type());
+    // A positional tuple has no names (or an all-blank name vector) and must
+    // remain distinguishable from a named struct in JSON.
+    if (names.empty() || names.front().empty()) {
+      rapidjson::Value tuple(rapidjson::kArrayType);
+      for (const auto& child : children) {
+        tuple.PushBack(ToJson(child, allocator), allocator);
+      }
+      return tuple;
+    }
+    rapidjson::Value object(rapidjson::kObjectType);
+    for (size_t i = 0; i < children.size(); ++i) {
+      object.AddMember(
+          rapidjson::Value(names[i].data(), names[i].size(), allocator),
+          ToJson(children[i], allocator), allocator);
+    }
+    return object;
+  }
   case DataTypeId::kDate: {
     return rapidjson::Value(value.GetValue<date_t>().to_string().c_str(),
                             allocator);
@@ -844,6 +865,10 @@ rapidjson::Value Value::ToJson(const Value& value,
   case DataTypeId::kTimestampMs: {
     return rapidjson::Value(
         value.GetValue<timestamp_ms_t>().to_string().c_str(), allocator);
+  }
+  case DataTypeId::kInterval: {
+    return rapidjson::Value(value.GetValue<interval_t>().to_string().c_str(),
+                            allocator);
   }
   default: {
     THROW_NOT_IMPLEMENTED_EXCEPTION("Serialization for parameter type " +
@@ -990,11 +1015,14 @@ InArchive& operator<<(InArchive& in_archive, const Value& value) {
     auto interval = value.GetValue<interval_t>();
     in_archive << type_id << interval.months << interval.days
                << interval.micros;
-  } else if (type_id == DataTypeId::kList || type_id == DataTypeId::kArray) {
+  } else if (type_id == DataTypeId::kList || type_id == DataTypeId::kArray ||
+             type_id == DataTypeId::kStruct) {
     in_archive << type_id << value.type();
     const auto& children = (type_id == DataTypeId::kList)
                                ? ListValue::GetChildren(value)
-                               : ArrayValue::GetChildren(value);
+                               : (type_id == DataTypeId::kArray)
+                                     ? ArrayValue::GetChildren(value)
+                                     : StructValue::GetChildren(value);
     in_archive << static_cast<uint32_t>(children.size());
     for (const auto& child : children) {
       in_archive << child;
@@ -1058,7 +1086,8 @@ OutArchive& operator>>(OutArchive& out_archive, Value& value) {
     Interval interval;
     out_archive >> interval.months >> interval.days >> interval.micros;
     value = Value::INTERVAL(interval);
-  } else if (type_id == DataTypeId::kList || type_id == DataTypeId::kArray) {
+  } else if (type_id == DataTypeId::kList || type_id == DataTypeId::kArray ||
+             type_id == DataTypeId::kStruct) {
     DataType dt;
     out_archive >> dt;
     uint32_t num_children;
@@ -1072,8 +1101,10 @@ OutArchive& operator>>(OutArchive& out_archive, Value& value) {
     }
     if (type_id == DataTypeId::kList) {
       value = Value::LIST(ListType::GetChildType(dt), std::move(children));
-    } else {
+    } else if (type_id == DataTypeId::kArray) {
       value = Value::ARRAY(dt, std::move(children));
+    } else {
+      value = Value::STRUCT(dt, std::move(children));
     }
   } else {
     THROW_NOT_SUPPORTED_EXCEPTION(

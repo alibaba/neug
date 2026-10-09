@@ -124,6 +124,8 @@ struct NEUG_API DataType {
   ~DataType();
 
   static DataType Struct(std::vector<DataType> children);
+  // Named fields must all be nonempty and unique. An all-blank vector is
+  // allowed for positional tuples; mixed named/blank fields are rejected.
   static DataType Struct(std::vector<std::string> field_names,
                          std::vector<DataType> field_types);
   static DataType List(const DataType& child_type);
@@ -232,6 +234,11 @@ struct StructType {
   static bool HasField(const DataType& type, const std::string& name);
   static size_t GetFieldIdx(const DataType& type, const std::string& name);
   static uint64_t GetNumFields(const DataType& type);
+  // Shared conversion helper: absent or all-blank names denote positional
+  // tuples and are preserved without synthesizing names. Nonempty name vectors
+  // must match the child count and be entirely blank or entirely named.
+  static DataType FromFields(std::vector<std::string> field_names,
+                             std::vector<DataType> child_types);
 };
 struct MapType {
   static const DataType& GetKeyType(const DataType& type);

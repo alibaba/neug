@@ -362,7 +362,6 @@ def test_to_arrow_list_column(tmp_path):
     db.close()
 
 
-@pytest.mark.skip(reason="STRUCT support not implemented yet")
 def test_to_arrow_struct_column(tmp_path):
     """to_arrow() handles STRUCT columns with multiple fields."""
     db, conn = _make_db(tmp_path, "struct")
@@ -380,8 +379,32 @@ def test_to_arrow_struct_column(tmp_path):
         .to_pylist()
     )
 
-    assert structs[0].get("f0", structs[0].get("x")) == 10
-    assert structs[1].get("f0", structs[1].get("x")) == 20
+    assert structs == [{"x": 10, "y": "hello"}, {"x": 20, "y": "world"}]
+
+    cast_structs = (
+        conn.execute(
+            "MATCH (n:ST) "
+            "RETURN CAST(n.info, 'STRUCT(x INT64, y STRING)') AS info "
+            "ORDER BY n.id;"
+        )
+        .to_arrow()
+        .column("info")
+        .to_pylist()
+    )
+    assert cast_structs == structs
+
+    conn.close()
+    db.close()
+
+    db = Database(db_path=str(tmp_path / "struct"), mode="w")
+    conn = db.connect()
+    reopened_structs = (
+        conn.execute("MATCH (n:ST) RETURN n.info AS info ORDER BY n.id;")
+        .to_arrow()
+        .column("info")
+        .to_pylist()
+    )
+    assert reopened_structs == structs
     conn.close()
     db.close()
 
@@ -411,3 +434,46 @@ def test_to_arrow_to_pandas(tmp_path):
 
     conn.close()
     db.close()
+
+
+def test_to_arrow_nested_struct_field_names(tmp_path):
+    db, conn = _make_db(tmp_path, "nested_struct_names")
+    try:
+        conn.execute(
+            "CREATE NODE TABLE ST(id INT64, "
+            "info STRUCT(address STRUCT(city STRING, zip INT64), "
+            "history STRUCT(city STRING, zip INT64)[]), PRIMARY KEY(id))"
+        )
+        conn.execute(
+            "CREATE (:ST {id:1, info:"
+            "{address:{city:'hz', zip:310000}, "
+            "history:CAST([{city:'sh', zip:200000}], "
+            "'STRUCT(city STRING, zip INT64)[]')}})"
+        )
+        result = conn.execute("MATCH (n:ST) RETURN n.info AS info").to_arrow()
+        assert result.to_pylist() == [
+            {
+                "info": {
+                    "address": {"city": "hz", "zip": 310000},
+                    "history": [{"city": "sh", "zip": 200000}],
+                }
+            }
+        ]
+    finally:
+        conn.close()
+        db.close()
+
+
+def test_to_arrow_positional_tuple_display_names(tmp_path):
+    db, conn = _make_db(tmp_path, "positional_tuple_names")
+    try:
+        result = conn.execute("RETURN [1, 'a'] AS pair")
+        assert list(result) == [[[1, "a"]]]
+
+        # Arrow has struct fields rather than positional tuples. Its display
+        # names do not change how the normal result decoder interprets them.
+        arrow = conn.execute("RETURN [1, 'a'] AS pair").to_arrow()
+        assert arrow.to_pylist() == [{"pair": {"f0": 1, "f1": "a"}}]
+    finally:
+        conn.close()
+        db.close()
