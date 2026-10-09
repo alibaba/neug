@@ -32,17 +32,15 @@ std::unique_ptr<IServiceTransport> CreateDefaultServiceTransport(
   const auto thread_num =
       config.thread_num != 0
           ? config.thread_num
-          : static_cast<uint32_t>(database_thread_num > 0
-                                      ? database_thread_num
-                                      : 1);
+          : static_cast<uint32_t>(database_thread_num > 0 ? database_thread_num
+                                                          : 1);
   return std::make_unique<HttplibTransport>(service, config.host_str,
                                             config.query_port, thread_num);
 }
 
 namespace {
 
-void SendQueryResponse(httplib::Response& res,
-                       result<std::string>&& response) {
+void SendQueryResponse(httplib::Response& res, result<std::string>&& response) {
   if (response) {
     res.status = 200;
     res.set_content(std::move(response).value(), "application/json");
@@ -85,11 +83,10 @@ void HttplibTransport::RegisterHandlers() {
                             "Query request is empty"));
       return;
     }
-    SendQueryResponse(
-        res, service_http::ParseAndExecuteQuery(
-                 req.body, [this](const auto& request) {
-                   return tp_operations_.ExecuteQuery(request);
-                 }));
+    SendQueryResponse(res, service_http::ParseAndExecuteQuery(
+                               req.body, [this](const auto& request) {
+                                 return tp_operations_.ExecuteQuery(request);
+                               }));
   });
 
   // GET /schema — Retrieve graph schema.
@@ -131,11 +128,9 @@ void HttplibTransport::RegisterHandlers() {
     }
     res.status = 201;
     res.set_content(
-        service_http::SerializeBeginResponse(transaction.value(),
-                                             mode.value()),
+        service_http::SerializeBeginResponse(transaction.value(), mode.value()),
         "application/json");
-    res.set_header("Location",
-                   "/transactions/" + transaction->transaction_id);
+    res.set_header("Location", "/transactions/" + transaction->transaction_id);
   });
 
   // POST /transactions/{id}/query — Execute inside an explicit transaction.
@@ -147,10 +142,10 @@ void HttplibTransport::RegisterHandlers() {
                 SendError(res, request.error());
                 return;
               }
-              SendQueryResponse(res, service_http::SerializeQueryResult(
-                                         tp_operations_.ExecuteInTransaction(
-                                             req.matches[1].str(),
-                                             request.value())));
+              SendQueryResponse(
+                  res, service_http::SerializeQueryResult(
+                           tp_operations_.ExecuteInTransaction(
+                               req.matches[1].str(), request.value())));
             });
 
   // POST /transactions/{id}/commit|rollback — Finish an explicit transaction.

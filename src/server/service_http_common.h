@@ -84,7 +84,8 @@ inline result<std::string_view> TransactionIdFromPath(
   return transaction_id;
 }
 
-inline std::string FormatExpiresAt(std::chrono::system_clock::time_point expires_at) {
+inline std::string FormatExpiresAt(
+    std::chrono::system_clock::time_point expires_at) {
   const auto epoch_milliseconds =
       std::chrono::duration_cast<std::chrono::milliseconds>(
           expires_at.time_since_epoch());
@@ -106,8 +107,8 @@ inline std::string FormatExpiresAt(std::chrono::system_clock::time_point expires
   return buffer;
 }
 
-inline std::string SerializeBeginResponse(const ServiceTransactionInfo& transaction,
-                                          TransactionMode mode) {
+inline std::string SerializeBeginResponse(
+    const ServiceTransactionInfo& transaction, TransactionMode mode) {
   rapidjson::StringBuffer buffer;
   rapidjson::Writer<rapidjson::StringBuffer> writer(buffer);
   writer.StartObject();
@@ -130,8 +131,7 @@ inline std::string SerializeBeginResponse(const ServiceTransactionInfo& transact
   return std::string(buffer.GetString(), buffer.GetSize());
 }
 
-inline result<TransactionMode> ParseTransactionMode(
-    const std::string& body) {
+inline result<TransactionMode> ParseTransactionMode(const std::string& body) {
   rapidjson::Document document;
   document.Parse(body.data(), body.size());
   if (document.HasParseError() || !document.IsObject() ||
@@ -159,7 +159,8 @@ inline Status RequireEmptyBody(const std::string& body) {
   return Status::OK();
 }
 
-inline result<std::string> SerializeQueryResult(result<QueryResult>&& query_result) {
+inline result<std::string> SerializeQueryResult(
+    result<QueryResult>&& query_result) {
   if (!query_result) {
     RETURN_ERROR(query_result.error());
   }

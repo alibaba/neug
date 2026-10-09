@@ -181,9 +181,9 @@ void BrpcHttpHandler::ExecuteTransactionQuery(
     SendHttpResponse(cntl, error);
     return;
   }
-  auto response = service_http::SerializeQueryResult(
-      tp_operations_.ExecuteInTransaction(transaction_id.value(),
-                                          request.value()));
+  auto response =
+      service_http::SerializeQueryResult(tp_operations_.ExecuteInTransaction(
+          transaction_id.value(), request.value()));
   SendHttpResponse(cntl, response);
 }
 
