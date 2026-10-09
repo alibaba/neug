@@ -17,6 +17,7 @@
 #
 
 import csv
+import json
 import logging
 import shutil
 from contextlib import closing
@@ -280,6 +281,47 @@ def test_checkpoint_reopen_changed_and_unchanged_data(tmp_path, buffer_strategy)
 
     with closing(open_db("r")) as db, closing(db.connect()) as conn:
         assert_graph(conn)
+
+
+@pytest.mark.parametrize(
+    "value", ["", "abc", "中文" + "x" * 300], ids=["empty", "ascii", "multi_block"]
+)
+def test_checkpoint_md5_matches_openssl(tmp_path, value):
+    """Compare NeuG's persisted MD5 with OpenSSL for the same input bytes."""
+    openssl = pytest.importorskip(
+        "_hashlib", reason="Requires Python's OpenSSL backend"
+    )
+    db_dir = tmp_path / "checkpoint_md5"
+    with closing(
+        Database(
+            db_path=str(db_dir),
+            mode="w",
+            checkpoint_on_close=False,
+            buffer_strategy="M_FULL",
+            max_thread_num=2,
+        )
+    ) as db, closing(db.connect()) as conn:
+        conn.execute(
+            "CREATE NODE TABLE Person(id INT32, name VARCHAR(512), PRIMARY KEY(id))"
+        )
+        conn.execute("CREATE (:Person {id: 1, name: $name})", "insert", {"name": value})
+        conn.execute("CHECKPOINT")
+
+    checkpoint = db_dir / "checkpoint"
+    checkpoint_id = (checkpoint / "CURRENT").read_text().strip()
+    manifest = json.loads(
+        (checkpoint / "manifests" / f"{checkpoint_id}.manifest").read_text()
+    )
+    column = manifest["modules"]["vertex_Person_prop_0"]
+    expected = openssl.openssl_md5(value.encode("utf-8"), usedforsecurity=False)
+    with (checkpoint / "objects" / column["objects"]["data"]).open("rb") as file:
+        actual = file.read(expected.digest_size)
+        # String files have spare capacity; only pos bytes belong to the digest.
+        payload = file.read(int(column["extra"]["pos"]))
+    assert payload == value.encode("utf-8")
+    assert (
+        actual == expected.digest()
+    ), f"NeuG={actual.hex()}, OpenSSL={expected.hexdigest()}"
 
 
 def test_dirty_vertex_links_clean_edge_on_close(tmp_path):
