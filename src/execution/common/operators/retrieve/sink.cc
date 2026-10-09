@@ -27,6 +27,7 @@
 
 #include "neug/storages/graph/graph_interface.h"
 
+#include "neug/utils/exception/exception.h"
 #include "neug/utils/property/types.h"
 
 #include "rapidjson/document.h"
@@ -111,9 +112,16 @@ void append_property_to_json(const std::string& key, const Value& prop,
                   rapidjson::Value(interval_str.c_str(), allocator), allocator);
     break;
   }
+  case DataTypeId::kStruct:
+  case DataTypeId::kList:
+  case DataTypeId::kArray:
+    doc.AddMember(rapidjson::Value(key.c_str(), allocator),
+                  Value::ToJson(prop, allocator), allocator);
+    break;
   default:
-    LOG(WARNING) << "append_property_to_json not support for type " +
-                        std::to_string(static_cast<int>(type_id));
+    THROW_NOT_SUPPORTED_EXCEPTION(
+        "JSON serialization of property " + key + " with type " +
+        std::to_string(static_cast<int>(type_id)) + " is not supported");
   }
 }
 

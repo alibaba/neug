@@ -812,7 +812,8 @@ rapidjson::Value Value::ToJson(const Value& value,
     return rapidjson::Value(value.GetValue<bool>());
   }
   case DataTypeId::kVarchar: {
-    return rapidjson::Value(value.GetValue<std::string>().c_str(), allocator);
+    const auto& str = StringValue::Get(value);
+    return rapidjson::Value(str.data(), str.size(), allocator);
   }
 #define TYPE_DISPATCHER(type_enum, cpp_type)                \
   case DataTypeId::type_enum: {                             \
@@ -837,6 +838,26 @@ rapidjson::Value Value::ToJson(const Value& value,
     }
     return array_doc;
   }
+  case DataTypeId::kStruct: {
+    const auto& children = StructValue::GetChildren(value);
+    const auto& names = StructType::GetFieldNames(value.type());
+    // A positional tuple has no names (or an all-blank name vector) and must
+    // remain distinguishable from a named struct in JSON.
+    if (names.empty() || names.front().empty()) {
+      rapidjson::Value tuple(rapidjson::kArrayType);
+      for (const auto& child : children) {
+        tuple.PushBack(ToJson(child, allocator), allocator);
+      }
+      return tuple;
+    }
+    rapidjson::Value object(rapidjson::kObjectType);
+    for (size_t i = 0; i < children.size(); ++i) {
+      object.AddMember(
+          rapidjson::Value(names[i].data(), names[i].size(), allocator),
+          ToJson(children[i], allocator), allocator);
+    }
+    return object;
+  }
   case DataTypeId::kDate: {
     return rapidjson::Value(value.GetValue<date_t>().to_string().c_str(),
                             allocator);
@@ -844,6 +865,10 @@ rapidjson::Value Value::ToJson(const Value& value,
   case DataTypeId::kTimestampMs: {
     return rapidjson::Value(
         value.GetValue<timestamp_ms_t>().to_string().c_str(), allocator);
+  }
+  case DataTypeId::kInterval: {
+    return rapidjson::Value(value.GetValue<interval_t>().to_string().c_str(),
+                            allocator);
   }
   default: {
     THROW_NOT_IMPLEMENTED_EXCEPTION("Serialization for parameter type " +

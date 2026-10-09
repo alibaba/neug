@@ -721,6 +721,52 @@ def test_struct_row_result_is_named_dict(tmp_path):
         db.close()
 
 
+def test_full_node_edge_and_path_include_composite_properties(tmp_path):
+    db = Database(db_path=str(tmp_path / "composite_entity_json"), mode="w")
+    conn = db.connect()
+    try:
+        conn.execute(
+            "CREATE NODE TABLE T(id INT64, "
+            "s STRUCT(x INT64, nested STRUCT(y STRING), tags STRUCT(v INT64)[]), "
+            "nums INT64[2], PRIMARY KEY(id))"
+        )
+        conn.execute(
+            "CREATE REL TABLE R(FROM T TO T, "
+            "s STRUCT(ok BOOL, nested STRUCT(z INT64)), nums INT64[2])"
+        )
+        conn.execute(
+            "CREATE (:T {id: 1, s: {x: 7, nested: {y: 'a'}, "
+            "tags: CAST([{v: 1}, {v: 2}], 'STRUCT(v INT64)[]')}, "
+            "nums: CAST([3, 4], 'INT64[2]')})"
+        )
+        conn.execute("CREATE (:T {id: 2})")
+        conn.execute(
+            "MATCH (a:T {id: 1}), (b:T {id: 2}) "
+            "CREATE (a)-[:R {s: {ok: true, nested: {z: 9}}, "
+            "nums: CAST([5, 6], 'INT64[2]')}]->(b)"
+        )
+
+        row = next(
+            iter(
+                conn.execute(
+                    "MATCH p = (a:T {id: 1})-[e:R]->(b:T {id: 2}) RETURN a, e, p"
+                )
+            )
+        )
+        node, edge, path = row
+        assert node["s"] == {"x": 7, "nested": {"y": "a"}, "tags": [{"v": 1}, {"v": 2}]}
+        assert node["nums"] == [3, 4]
+        assert edge["s"] == {"ok": True, "nested": {"z": 9}}
+        assert edge["nums"] == [5, 6]
+        assert any(item["s"] == node["s"] for item in path["nodes"] if "s" in item)
+        assert any(item["s"] == edge["s"] for item in path["rels"] if "s" in item)
+        assert path["nodes"][0]["nums"] == node["nums"]
+        assert path["rels"][0]["nums"] == edge["nums"]
+    finally:
+        conn.close()
+        db.close()
+
+
 def test_copy_from_struct_column_rejected(tmp_path):
     """Bulk loading rejects STRUCT columns with a targeted error message."""
     db = Database(db_path=str(tmp_path / "struct_copy_reject"), mode="w")
