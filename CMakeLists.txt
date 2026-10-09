@@ -117,8 +117,9 @@ add_definitions(-DNEUG_CMAKE_VERSION="${CMAKE_PROJECT_VERSION}")
 # Windows port: disable features that are not yet supported or unnecessary for the core library.
 if(WIN32)
     message(STATUS "Windows detected: disabling non-core features for core library build")
-    # BUILD_PYTHON is no longer forced off; pass -DBUILD_PYTHON=ON to enable.
-    set(BUILD_HTTP_SERVER OFF CACHE BOOL "HTTP server (brpc) is not supported on Windows yet" FORCE)
+    # BUILD_PYTHON and BUILD_HTTP_SERVER are no longer forced off; pass
+    # -DBUILD_PYTHON=ON / -DBUILD_HTTP_SERVER=ON to enable. On Windows
+    # BUILD_HTTP_SERVER selects the cpp-httplib implementation instead of brpc.
     set(BUILD_EXTENSIONS "" CACHE STRING "Extensions are not supported on Windows yet" FORCE)
     set(BUILD_EXECUTABLES OFF CACHE BOOL "Executables are disabled on Windows core build" FORCE)
     set(BUILD_EXAMPLES OFF CACHE BOOL "Examples are disabled on Windows core build" FORCE)
@@ -135,6 +136,10 @@ if(WIN32)
     # Windows headers define GetObject as GetObjectA/GetObjectW (in wingdi.h),
     # which conflicts with rapidjson::Value::GetObject(). Exclude GDI headers.
     add_compile_definitions(NOGDI)
+    # windows.h includes the legacy winsock.h by default, which conflicts with
+    # winsock2.h used by cpp-httplib. Define _WINSOCKAPI_ so windows.h skips
+    # winsock.h and winsock2.h remains the authoritative socket header.
+    add_compile_definitions(_WINSOCKAPI_)
     # yaml-cpp is built as a static third-party library; tell its headers not to
     # use __declspec(dllimport) on MSVC.
     add_compile_definitions(YAML_CPP_STATIC_DEFINE)
@@ -697,21 +702,23 @@ if (BUILD_HTTP_SERVER)
     set(LEVELDB_LIB leveldb)
     include_directories(${LEVELDB_INCLUDE_PATH})
 
-    find_library(CRYPTO_LIB NAMES crypto)
-    if (NOT CRYPTO_LIB)
-        message(FATAL_ERROR "Fail to find crypto lib")
-    endif()
-    find_library(PROTOC_LIB name protoc)
-    if (NOT PROTOC_LIB)
-        message(FATAL_ERROR "Fail to find protoc lib")
-    endif()
-    message(STATUS "ProtoC lib: ${PROTOC_LIB}")
+    if (NOT WIN32)
+        find_library(CRYPTO_LIB NAMES crypto)
+        if (NOT CRYPTO_LIB)
+            message(FATAL_ERROR "Fail to find crypto lib")
+        endif()
+        find_library(PROTOC_LIB name protoc)
+        if (NOT PROTOC_LIB)
+            message(FATAL_ERROR "Fail to find protoc lib")
+        endif()
+        message(STATUS "ProtoC lib: ${PROTOC_LIB}")
 
-    if((NOT BRPC_INCLUDE_PATH) OR (NOT BRPC_LIB))
-        include(cmake/BuildBRPCAsThirdParty.cmake)
-        build_brpc_as_third_party(${APPLY_BRPC_PATCH})
+        if((NOT BRPC_INCLUDE_PATH) OR (NOT BRPC_LIB))
+            include(cmake/BuildBRPCAsThirdParty.cmake)
+            build_brpc_as_third_party(${APPLY_BRPC_PATCH})
+        endif()
+        include_directories(${BRPC_INCLUDE_PATH})
     endif()
-    include_directories(${BRPC_INCLUDE_PATH})
 endif()
 
 #find arrow----------------------------------------------------------------------

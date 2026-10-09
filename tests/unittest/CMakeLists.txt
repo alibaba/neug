@@ -31,7 +31,14 @@ add_neug_test(test_column test_column.cc)
 add_neug_test(test_explain_profile test_explain_profile.cpp)
 
 if (BUILD_HTTP_SERVER)
-    add_neug_test(test_http_server test_http_server.cc)
-    add_neug_test(test_db_svc test_db_svc.cc)
+    if (WIN32)
+        # test_http_server drives the BRPC channel and test_db_svc links
+        # brpc/bthread; on Windows the httplib transport is exercised by
+        # httplib_http_server instead.
+        add_neug_test(httplib_http_server httplib_http_server.cc)
+    else()
+        add_neug_test(test_http_server test_http_server.cc)
+        add_neug_test(test_db_svc test_db_svc.cc)
+    endif()
     add_neug_test(test_array_service test_array_service.cc)
 endif()

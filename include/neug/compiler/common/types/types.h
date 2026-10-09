@@ -250,7 +250,7 @@ struct PhysicalTypeUtils {
 };
 
 // Maps DataTypeId to its physical storage type.
-PhysicalTypeID getPhysicalType(DataTypeId typeId);
+NEUG_API PhysicalTypeID getPhysicalType(DataTypeId typeId);
 
 struct NEUG_API LogicalTypeUtils {
   static constexpr int64_t MIN_STRING_LENGTH = 1;
