@@ -284,7 +284,39 @@ def test_checkpoint_reopen_changed_and_unchanged_data(tmp_path, buffer_strategy)
 
 
 @pytest.mark.parametrize(
-    "value", ["", "abc", "中文" + "x" * 300], ids=["empty", "ascii", "multi_block"]
+    "value",
+    [
+        pytest.param("", id="empty"),
+        pytest.param("abc", id="ascii"),
+        pytest.param("中文" + "x" * 300, id="multi_block_utf8"),
+        pytest.param("中文🙂", id="mixed_utf8"),
+        pytest.param("🙂" * 16, id="utf8_64_bytes"),
+        pytest.param("\tline1\r\nline2\n", id="whitespace"),
+        # NUL is excluded: the current string ingestion path truncates at NUL.
+        pytest.param("".join(chr(i) for i in range(1, 128)), id="nonzero_ascii_bytes"),
+    ]
+    + [
+        # MD5 reserves 8 bytes for length: padding boundaries occur at 56 mod 64.
+        pytest.param("x" * size, id=f"ascii_{size}_bytes")
+        for size in (
+            1,
+            54,
+            55,
+            56,
+            57,
+            63,
+            64,
+            65,
+            119,
+            120,
+            121,
+            127,
+            128,
+            129,
+            511,
+            512,
+        )
+    ],
 )
 def test_checkpoint_md5_matches_openssl(tmp_path, value):
     """Compare NeuG's persisted MD5 with OpenSSL for the same input bytes."""
@@ -316,7 +348,6 @@ def test_checkpoint_md5_matches_openssl(tmp_path, value):
     expected = openssl.openssl_md5(value.encode("utf-8"), usedforsecurity=False)
     with (checkpoint / "objects" / column["objects"]["data"]).open("rb") as file:
         actual = file.read(expected.digest_size)
-        # String files have spare capacity; only pos bytes belong to the digest.
         payload = file.read(int(column["extra"]["pos"]))
     assert payload == value.encode("utf-8")
     assert (
