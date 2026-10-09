@@ -4,7 +4,7 @@
 
 A variant — **`COPY TEMP`** — imports external data as a **temporary graph** whose lifetime is bound to the current connection. Temporary tables are automatically removed when the connection closes, making `COPY TEMP` ideal for ad-hoc analytics without polluting the persistent schema.
 
-> **Tip:** Since v0.2.1, you can group multiple `COPY FROM` statements (and interleave ordinary DML/DDL) into a single Embedded read-write explicit transaction so they publish as one checkpoint instead of one checkpoint per statement. See [Explicit Transactions](../transaction/explicit_transactions.mdx).
+> **Tip:** You can group multiple `COPY FROM` statements (and interleave ordinary DML/DDL) into a single Embedded read-write explicit transaction so they publish as one checkpoint instead of one checkpoint per statement. See [Explicit Transactions](../transaction/explicit_transactions.mdx).
 
 ## Schema Requirement
 

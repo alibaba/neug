@@ -121,7 +121,7 @@ The `WITH` clause accepts the following case-sensitive option names:
 | `jieba_dict` | Path to a Jieba user dictionary that supplements the built-in dictionary; valid only when `tokenizer = 'jieba'` | No user dictionary |
 | `prefix` | Space-separated token lengths for prefix indexes, such as `2 3` | No prefix index |
 
-### Stopwords (supported since v0.2.1)
+### Stopwords
 
 FTS indexes remove English stopwords by default. Set `stopwords` to `english`
 to select the built-in 670-word English stopword list explicitly, to `jieba`
