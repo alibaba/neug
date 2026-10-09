@@ -95,8 +95,6 @@ if (result.has_value()) {
 - `QueryResult` with query results on success
 - Error status with message on failure
 
-- **Since:** v0.1.0
-
 #### `BeginTransaction(TransactionMode mode=TransactionMode::kReadWrite)`
 
 Begin a Connection-owned embedded AP explicit transaction.
@@ -158,8 +156,6 @@ std::cout << "Schema:\n" << schema_yaml << std::endl;
 
 - **Returns:** `std::string` YAML-formatted schema definition
 
-- **Since:** v0.1.0
-
 #### `Close()`
 
 Close the connection and release resources.
@@ -178,13 +174,9 @@ conn->Close();
   - The connection is also automatically closed in the destructor.
   - An active or rollback-only explicit transaction is rolled back before temporary schema cleanup and execution-slot destruction.
 
-- **Since:** v0.1.0
-
 #### `IsClosed() const`
 
 Check if the connection is closed.
 
 - **Returns:** `true` if the connection has been closed, `false` if still active
-
-- **Since:** v0.1.0
 

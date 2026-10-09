@@ -1,6 +1,6 @@
 # Export Data
 
-The `COPY TO` command enables direct export of query results to various file formats. Currently, CSV export is fully supported, with additional formats available through the [Extension](../extensions/index) framework as they are developed.
+The `COPY TO` command exports query results directly to CSV, JSON, or JSONL files. Additional formats are available through the [Extension](../extensions/index) framework.
 
 ## Copy to CSV
 
@@ -39,7 +39,7 @@ e
 
 ## Copy to JSON
 
-Since NeuG v0.1.2, JSON export is a built-in feature. You can export query results to JSON or JSONL format:
+JSON export is built in. You can export query results to JSON or JSONL format:
 
 ```cypher
 COPY (MATCH (p:Person) RETURN p.*) TO 'person.json';
@@ -50,7 +50,21 @@ The output format is determined by the file extension:
 - `.json` — JSON array format (all rows in a single array)
 - `.jsonl` — JSON Lines format (one JSON object per line)
 
-> **Version Note:** Since version v0.1.2, we made JSON support a built-in functionality, so you do not need to install the JSON extension before using it. For NeuG version < 0.1.2, JSON export was provided via the JSON Extension and required `INSTALL json; LOAD json;` before use.
+JSON output looks like this:
+
+```json
+[{"id": 1, "name": "marko", "age": 29},{"id": 2, "name": "vadas", "age": 27}]
+```
+
+The equivalent JSONL output contains one object per line:
+
+```jsonl
+{"id": 1, "name": "marko", "age": 29}
+{"id": 2, "name": "vadas", "age": 27}
+```
+
+The common `BATCH_SIZE` option described above also applies to JSON and JSONL
+exports.
 
 ## Additional Export Formats
 

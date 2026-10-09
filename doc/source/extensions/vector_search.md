@@ -1,6 +1,6 @@
 # Vector Search
 
-Since NeuG v0.2.0, NeuG provides vector search capabilities through the dedicated `vector_search` extension.
+NeuG provides vector search capabilities through the dedicated `vector_search` extension.
 
 For syntax and guarantees shared by all index types, including inspection,
 transactions, and recovery, see [Storage Indexes](../storage_index/index.md).
@@ -103,7 +103,7 @@ that is appropriate for the application. NeuG supports `repeat(unit, count)`
 for high-dimensional LIST and ARRAY defaults, so repeated values do not need
 to be written or expanded individually while the query is compiled.
 
-Since v0.2.1, `repeat(unit, count)` can be used for vector property defaults.
+`repeat(unit, count)` can be used for vector property defaults.
 
 The first argument is the LIST or ARRAY unit to repeat, and the second argument
 is its repeat count. For constraints and more usage details, see

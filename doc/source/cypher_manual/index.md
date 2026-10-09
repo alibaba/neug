@@ -177,7 +177,7 @@ This allows users to explore multi-hop relationships without materializing the g
 
 At present, NeuG fully supports loading external data as **temporary tables** via `LOAD FROM`.
 You can refer to the [Load From](../data_io/load_data) for detailed usage and supported operations.
-Loading external data as **temporary graphs** via `LOAD AS` is currently under development, and detailed usage guidelines will be released in upcoming versions.
+Loading external data as **temporary graphs** via `LOAD AS` is currently under development, and detailed usage guidance is not yet available.
 
 ### Performance Debugging (EXPLAIN & PROFILE)
 
