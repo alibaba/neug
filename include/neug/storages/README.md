@@ -201,6 +201,15 @@ unrelated same-name properties whose full struct type differs from the expressio
 type. If a remaining backing column cannot be narrowed, the expression falls back
 to whole-struct evaluation.
 
+Positional tuples and named structs share `kStruct`. Absent field names or an
+all-blank name vector denote positional tuples; fully named fields denote named
+structs. Conversion preserves these names and never synthesizes them: Python row
+results expose positional tuples as lists and named structs as dictionaries.
+Partially named fields are rejected. This rule also applies recursively to nested
+types and across compiler/runtime protobuf conversion and archive round trips.
+Older protobuf tuples without `field_names` decode as positional tuples; their
+original field names cannot be recovered from the message.
+
 ### 6.2 Checkpoint Dump
 
 `Dump` writes the column descriptor (struct type + row count) and lets each field

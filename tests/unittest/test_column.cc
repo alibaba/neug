@@ -22,10 +22,16 @@
 #include <memory>
 
 #include "neug/common/columns/edge_columns.h"
+#include "neug/compiler/common/type_utils.h"
+#include "neug/compiler/common/types/value/value.h"
+#include "neug/compiler/common/vector/value_vector.h"
+#include "neug/compiler/function/cast/vector_cast_functions.h"
+#include "neug/compiler/gopt/g_type_converter.h"
 #include "neug/execution/expression/exprs/struct_extract.h"
 #include "neug/storages/checkpoint.h"
 #include "neug/storages/checkpoint_manager.h"
 #include "neug/utils/exception/exception.h"
+#include "neug/utils/pb_utils.h"
 #include "neug/utils/property/array_column.h"
 #include "neug/utils/property/column.h"
 #include "neug/utils/property/list_property_column.h"
@@ -34,6 +40,7 @@
 #include "neug/utils/property/vec_column.h"
 #include "neug/utils/serialization/in_archive.h"
 #include "neug/utils/serialization/out_archive.h"
+#include "neug/utils/yaml_utils.h"
 #include "unittest/utils.h"
 
 namespace neug {
@@ -981,10 +988,104 @@ TEST(StructPropertyColumnTest, FromFieldsPreservesNamedAndPositionalNames) {
       StructType::FromFields({"", ""}, {DataType::INT64, DataType::DOUBLE});
   EXPECT_EQ(StructType::GetFieldNames(positional),
             (std::vector<std::string>{"", ""}));
-  // Legacy input without any name entries falls back to positional names.
-  auto legacy = StructType::FromFields({}, {DataType::INT64, DataType::DOUBLE});
-  EXPECT_EQ(StructType::GetFieldNames(legacy),
-            (std::vector<std::string>{"field_0", "field_1"}));
+  auto unnamed =
+      StructType::FromFields({}, {DataType::INT64, DataType::DOUBLE});
+  EXPECT_TRUE(StructType::GetFieldNames(unnamed).empty());
+  EXPECT_EQ(unnamed, DataType::Struct({DataType::INT64, DataType::DOUBLE}));
+}
+
+TEST(StructPropertyColumnTest, ProtoRoundTripPreservesTupleAndStructTypes) {
+  const auto unnamed = DataType::Struct({DataType::INT64, DataType::VARCHAR});
+  const auto blank =
+      DataType::Struct({"", ""}, {DataType::INT64, DataType::VARCHAR});
+  const auto named =
+      DataType::Struct({"x", "text"}, {DataType::INT64, DataType::VARCHAR});
+  const auto nested_tuple = DataType::Struct({named, unnamed, blank});
+  const auto nested_struct =
+      DataType::Struct({"named", "tuple", "blank"}, {named, unnamed, blank});
+  gopt::GPhysicalTypeConverter encoder;
+  gopt::GLogicalTypeConverter decoder;
+  for (const auto& type :
+       {unnamed, blank, named, nested_tuple, nested_struct}) {
+    auto encoded = encoder.convertLogicalType(type);
+    ASSERT_TRUE(encoded->has_data_type());
+    // Include protobuf serialization, not just in-memory conversion.
+    ::common::DataType wire;
+    ASSERT_TRUE(wire.ParseFromString(encoded->data_type().SerializeAsString()));
+    EXPECT_EQ(wire.tuple().component_types_size(),
+              StructType::GetNumFields(type));
+    EXPECT_EQ(wire.tuple().field_names_size(),
+              StructType::GetFieldNames(type).size());
+    EXPECT_EQ(decoder.convertDataType(wire), type);
+    EXPECT_EQ(parse_from_data_type(wire), type);
+    // DDL property conversion uses the same tuple/struct interpretation.
+    google::protobuf::RepeatedPtrField<physical::PropertyDef> properties;
+    auto* property = properties.Add();
+    property->set_name("value");
+    property->mutable_type()->CopyFrom(wire);
+    auto defaults = property_defs_to_value(properties);
+    ASSERT_TRUE(defaults) << defaults.error().ToString();
+    ASSERT_EQ(defaults.value().size(), 1);
+    EXPECT_EQ(defaults.value()[0].second.type(), type);
+    // Check the reverse bridge too: runtime -> compiler -> runtime.
+    auto reencoded = encoder.convertLogicalType(parse_from_data_type(wire));
+    EXPECT_EQ(decoder.convertDataType(reencoded->data_type()), type);
+  }
+
+  auto invalid = encoder.convertLogicalType(named)->data_type();
+  invalid.mutable_tuple()->set_field_names(1, "");
+  EXPECT_THROW(decoder.convertDataType(invalid), exception::RuntimeError);
+  EXPECT_THROW(parse_from_data_type(invalid), exception::RuntimeError);
+  invalid.mutable_tuple()->clear_field_names();
+  invalid.mutable_tuple()->add_field_names("");
+  EXPECT_THROW(decoder.convertDataType(invalid), exception::RuntimeError);
+  EXPECT_THROW(parse_from_data_type(invalid), exception::RuntimeError);
+}
+
+TEST(StructPropertyColumnTest, PositionalCompilerOperationsKeepChildTypes) {
+  const auto narrow = DataType::Struct({DataType::INT32, DataType::INT64});
+  const auto wide = DataType::Struct({DataType::INT64, DataType::INT64});
+  const auto short_tuple = DataType::Struct({DataType::INT64});
+  EXPECT_TRUE(function::CastFunction::hasImplicitCast(narrow, wide));
+  EXPECT_FALSE(function::CastFunction::hasImplicitCast(wide, short_tuple));
+  EXPECT_FALSE(function::CastFunction::hasImplicitCast(short_tuple, wide));
+
+  DataType combined;
+  ASSERT_TRUE(
+      common::LogicalTypeUtils::tryGetMaxLogicalType(narrow, wide, combined));
+  EXPECT_EQ(combined, wide);
+  EXPECT_TRUE(StructType::GetFieldNames(combined).empty());
+  EXPECT_FALSE(common::LogicalTypeUtils::tryGetMaxLogicalType(wide, short_tuple,
+                                                              combined));
+  EXPECT_EQ(common::LogicalTypeUtils::combineTypes(narrow, wide), wide);
+  const auto blank_narrow =
+      DataType::Struct({"", ""}, {DataType::INT32, DataType::INT64});
+  const auto blank_wide =
+      DataType::Struct({"", ""}, {DataType::INT64, DataType::INT64});
+  ASSERT_TRUE(common::LogicalTypeUtils::tryGetMaxLogicalType(
+      blank_narrow, blank_wide, combined));
+  EXPECT_EQ(combined, blank_wide);
+
+  const auto with_unknown =
+      DataType::Struct({DataType(DataTypeId::kUnknown), DataType::INT64});
+  const auto purged =
+      common::LogicalTypeUtils::purgeAny(with_unknown, DataType::INT32);
+  EXPECT_EQ(purged, narrow);
+
+  std::vector<std::unique_ptr<compiler_impl::Value>> children;
+  children.push_back(std::make_unique<compiler_impl::Value>(int32_t{7}));
+  children.push_back(std::make_unique<compiler_impl::Value>(int64_t{9}));
+  compiler_impl::Value value(narrow, std::move(children));
+  EXPECT_EQ(value.toString(), "[7, 9]");
+  compiler_impl::Value blank_value(value);
+  blank_value.setDataType(blank_narrow);
+  EXPECT_EQ(blank_value.toString(), "[7, 9]");
+
+  common::ValueVector vector(narrow);
+  common::StructVector::getFieldVector(&vector, 0)->setValue<int32_t>(0, 7);
+  common::StructVector::getFieldVector(&vector, 1)->setValue<int64_t>(0, 9);
+  EXPECT_EQ(common::TypeUtils::toString(common::struct_entry_t{0}, &vector),
+            "[7, 9]");
 }
 
 TEST(StructPropertyColumnTest, ConstructionAndDecodeRejectMixedNames) {
@@ -1005,10 +1106,16 @@ TEST(StructPropertyColumnTest, YamlPreservesNamesAndRejectsMixedNames) {
       DataType::Struct({"x", "y"}, {DataType::INT64, DataType::DOUBLE});
   const auto positional =
       DataType::Struct({"", ""}, {DataType::INT64, DataType::DOUBLE});
-  for (const auto& type : {named, positional}) {
+  const auto unnamed = DataType::Struct({DataType::INT64, DataType::DOUBLE});
+  const auto nested = DataType::Struct({"named", "tuple", "blank"},
+                                       {named, unnamed, positional});
+  for (const auto& type : {named, positional, unnamed, nested}) {
     DataType decoded;
     const auto encoded = YAML::convert<DataType>::encode(type);
     ASSERT_TRUE(YAML::convert<DataType>::decode(encoded, decoded));
+    EXPECT_EQ(decoded, type);
+    const auto schema_encoded = property_type_to_yaml(type);
+    ASSERT_TRUE(YAML::convert<DataType>::decode(schema_encoded, decoded));
     EXPECT_EQ(decoded, type);
   }
   auto mixed = YAML::convert<DataType>::encode(named);
@@ -1016,6 +1123,9 @@ TEST(StructPropertyColumnTest, YamlPreservesNamesAndRejectsMixedNames) {
   DataType decoded;
   EXPECT_THROW(YAML::convert<DataType>::decode(mixed, decoded),
                exception::RuntimeError);
+  auto partially_unnamed = YAML::convert<DataType>::encode(unnamed);
+  partially_unnamed["struct"]["fields"][0]["name"] = "x";
+  EXPECT_FALSE(YAML::convert<DataType>::decode(partially_unnamed, decoded));
 }
 
 TEST(StructPropertyColumnTest, FactoryRejectsEmptyStruct) {
@@ -1034,7 +1144,9 @@ TEST(StructPropertyColumnTest, DataTypeArchiveRoundTripPreservesNames) {
 
   auto positional =
       DataType::Struct({"", ""}, {DataType::INT64, DataType::DOUBLE});
-  for (const auto& type : {named, unnamed, positional}) {
+  auto nested = DataType::Struct({"named", "tuple", "blank"},
+                                 {named, unnamed, positional});
+  for (const auto& type : {named, unnamed, positional, nested}) {
     InArchive in;
     in << type;
     OutArchive out;

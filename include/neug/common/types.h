@@ -234,11 +234,9 @@ struct StructType {
   static bool HasField(const DataType& type, const std::string& name);
   static size_t GetFieldIdx(const DataType& type, const std::string& name);
   static uint64_t GetNumFields(const DataType& type);
-  // Legacy protobuf compatibility helper. Positional names
-  // "field_<i>" are generated when `field_names` is empty (legacy proto data
-  // carries no field names); a non-empty `field_names` must match the number
-  // of child types and must be either entirely blank or entirely named.
-  // YAML and archive decoding use Struct directly to preserve names.
+  // Shared conversion helper: absent or all-blank names denote positional
+  // tuples and are preserved without synthesizing names. Nonempty name vectors
+  // must match the child count and be entirely blank or entirely named.
   static DataType FromFields(std::vector<std::string> field_names,
                              std::vector<DataType> child_types);
 };

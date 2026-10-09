@@ -71,6 +71,8 @@ static void validateStructCast(const DataType& inputType,
                                inputType.ToString(), resultType.ToString());
   if (inputType.id() != DataTypeId::kStruct ||
       resultType.id() != DataTypeId::kStruct ||
+      StructType::GetNumFields(inputType) !=
+          StructType::GetNumFields(resultType) ||
       StructType::GetFieldNames(inputType) !=
           StructType::GetFieldNames(resultType)) {
     THROW_CONVERSION_EXCEPTION(errorMsg);
@@ -191,13 +193,11 @@ static bool hasImplicitCastStruct(const DataType& srcType,
   const auto& dstFieldNames = StructType::GetFieldNames(dstType);
   const auto& srcFieldTypes = StructType::GetChildTypes(srcType);
   const auto& dstFieldTypes = StructType::GetChildTypes(dstType);
-  if (srcFieldNames.size() != dstFieldNames.size()) {
+  if (srcFieldTypes.size() != dstFieldTypes.size() ||
+      srcFieldNames != dstFieldNames) {
     return false;
   }
-  for (auto i = 0u; i < srcFieldNames.size(); i++) {
-    if (srcFieldNames[i] != dstFieldNames[i]) {
-      return false;
-    }
+  for (auto i = 0u; i < srcFieldTypes.size(); i++) {
     if (!CastFunction::hasImplicitCast(srcFieldTypes[i], dstFieldTypes[i])) {
       return false;
     }

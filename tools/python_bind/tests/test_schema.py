@@ -420,6 +420,70 @@ def test_alter_edge_table_drop_property(tmp_path):
     db.close()
 
 
+def test_alter_edge_struct_property_storage_transition(tmp_path):
+    path = str(tmp_path / "alter_edge_struct")
+    db = Database(db_path=path, mode="w")
+    conn = db.connect()
+    try:
+        conn.execute("CREATE NODE TABLE T(id INT64, PRIMARY KEY(id))")
+        conn.execute("CREATE REL TABLE R(FROM T TO T)")
+        conn.execute("CREATE (:T {id: 1})")
+        conn.execute("CREATE (:T {id: 2})")
+        conn.execute("MATCH (a:T {id: 1}), (b:T {id: 2}) CREATE (a)-[:R]->(b)")
+        conn.execute("ALTER TABLE R ADD s STRUCT(x INT64)")
+        assert list(conn.execute("MATCH ()-[e:R]->() RETURN e.s")) == [[{"x": 0}]]
+        conn.execute("MATCH ()-[e:R]->() SET e.s = {x: 7}")
+        conn.execute("ALTER TABLE R ADD weight INT64")
+        conn.execute("ALTER TABLE R DROP weight")
+        assert list(conn.execute("MATCH ()-[e:R]->() RETURN e.s.x")) == [[7]]
+        conn.execute("CHECKPOINT")
+        assert list(conn.execute("MATCH ()-[e:R]->() RETURN e.s.x")) == [[7]]
+    finally:
+        conn.close()
+        db.close()
+
+    db = Database(db_path=path, mode="w")
+    conn = db.connect()
+    try:
+        assert list(conn.execute("MATCH ()-[e:R]->() RETURN e.s.x")) == [[7]]
+    finally:
+        conn.close()
+        db.close()
+
+
+def test_alter_edge_struct_preserves_bundled_property(tmp_path):
+    path = str(tmp_path / "alter_edge_struct_from_bundled")
+    db = Database(db_path=path, mode="w")
+    conn = db.connect()
+    try:
+        conn.execute("CREATE NODE TABLE T(id INT64, PRIMARY KEY(id))")
+        conn.execute("CREATE REL TABLE R(FROM T TO T, weight INT64)")
+        conn.execute("CREATE (:T {id: 1})")
+        conn.execute("CREATE (:T {id: 2})")
+        conn.execute(
+            "MATCH (a:T {id: 1}), (b:T {id: 2}) " "CREATE (a)-[:R {weight: 9}]->(b)"
+        )
+        conn.execute("ALTER TABLE R ADD s STRUCT(x INT64)")
+        assert list(conn.execute("MATCH ()-[e:R]->() RETURN e.weight, e.s.x")) == [
+            [9, 0]
+        ]
+        conn.execute("MATCH ()-[e:R]->() SET e.s = {x: 7}")
+        conn.execute("ALTER TABLE R DROP weight")
+        assert list(conn.execute("MATCH ()-[e:R]->() RETURN e.s.x")) == [[7]]
+        conn.execute("CHECKPOINT")
+    finally:
+        conn.close()
+        db.close()
+
+    db = Database(db_path=path, mode="w")
+    conn = db.connect()
+    try:
+        assert list(conn.execute("MATCH ()-[e:R]->() RETURN e.s.x")) == [[7]]
+    finally:
+        conn.close()
+        db.close()
+
+
 # DB-003-07 DDL-DROP TABLE
 def test_drop_table(tmp_path):
     db_dir = tmp_path / "drop_table"
@@ -837,6 +901,44 @@ def test_struct_edge_field_refs_after_checkpoint_and_reopen(tmp_path):
     conn = db.connect()
     try:
         assert list(conn.execute(query)) == [[1, 10], [2, 20]]
+    finally:
+        conn.close()
+        db.close()
+
+
+@pytest.mark.parametrize(
+    "expression, expected",
+    [
+        ("[1, 'a']", [1, "a"]),
+        ("{x: 1, text: 'a'}", {"x": 1, "text": "a"}),
+        ("[{x: 1}, 'a']", [{"x": 1}, "a"]),
+        ("{pair: [1, 'a'], nested: {x: 2}}", {"pair": [1, "a"], "nested": {"x": 2}}),
+    ],
+)
+def test_tuple_and_struct_python_result_types(tmp_path, expression, expected):
+    """Conversion through a query plan preserves positional vs named results."""
+
+    def assert_value_and_type(actual, expected):
+        assert type(actual) is type(expected)
+        assert actual == expected
+        if isinstance(expected, dict):
+            assert list(actual) == list(expected)
+            for key in expected:
+                assert_value_and_type(actual[key], expected[key])
+        elif isinstance(expected, list):
+            for actual_child, expected_child in zip(actual, expected):
+                assert_value_and_type(actual_child, expected_child)
+
+    db = Database(db_path=str(tmp_path / "tuple_struct_results"), mode="w")
+    conn = db.connect()
+    try:
+        for query in (
+            f"RETURN {expression}",
+            f"WITH {expression} AS value RETURN value",
+        ):
+            rows = list(conn.execute(query))
+            assert len(rows) == 1
+            assert_value_and_type(rows[0][0], expected)
     finally:
         conn.close()
         db.close()

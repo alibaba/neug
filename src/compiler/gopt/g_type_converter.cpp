@@ -119,7 +119,7 @@ std::unique_ptr<::common::IrDataType> GPhysicalTypeConverter::convertStructType(
   auto& fieldNames = common::StructType::GetFieldNames(type);
   auto& childTypes = common::StructType::GetChildTypes(type);
   auto tupleType = std::make_unique<::common::Tuple>();
-  for (size_t i = 0; i < fieldNames.size(); i++) {
+  for (size_t i = 0; i < childTypes.size(); i++) {
     auto childType = convertLogicalType(childTypes[i]);
     if (!childType) {
       THROW_EXCEPTION_WITH_FILE_LINE(
@@ -131,7 +131,9 @@ std::unique_ptr<::common::IrDataType> GPhysicalTypeConverter::convertStructType(
     }
     // Otherwise, we can directly set the data type
     tupleType->add_component_types()->CopyFrom(childType->data_type());
-    tupleType->add_field_names(fieldNames[i]);
+    if (!fieldNames.empty()) {
+      tupleType->add_field_names(fieldNames[i]);
+    }
   }
   auto result = std::make_unique<::common::IrDataType>();
   result->mutable_data_type()->set_allocated_tuple(tupleType.release());

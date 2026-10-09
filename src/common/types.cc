@@ -117,12 +117,10 @@ size_t StructType::GetFieldIdx(const DataType& type, const std::string& name) {
 
 DataType StructType::FromFields(std::vector<std::string> field_names,
                                 std::vector<DataType> child_types) {
-  // Legacy Tuple messages without name entries use positional field_<i> names.
-  if (field_names.empty() && !child_types.empty()) {
-    field_names.reserve(child_types.size());
-    for (size_t i = 0; i < child_types.size(); ++i) {
-      field_names.push_back("field_" + std::to_string(i));
-    }
+  // Missing names denote a positional tuple, not a named struct. Preserve
+  // explicit all-blank names as well; never synthesize observable field names.
+  if (field_names.empty()) {
+    return DataType::Struct(std::move(child_types));
   }
   return DataType::Struct(std::move(field_names), std::move(child_types));
 }
@@ -330,21 +328,6 @@ DataType parse_from_data_type(const ::common::DataType& ddt) {
     std::vector<DataType> data_types;
     for (const auto& component_type : tuple.component_types()) {
       data_types.push_back(parse_from_data_type(component_type));
-    }
-    // Positional tuples (e.g. heterogeneous list literals) carry no field
-    // names; keep them unnamed, as results must render positionally. Only
-    // named structs (schema properties, struct literals) get field names.
-    bool has_names = false;
-    for (const auto& field_name : tuple.field_names()) {
-      if (!field_name.empty()) {
-        has_names = true;
-        break;
-      }
-    }
-    if (!has_names) {
-      std::shared_ptr<ExtraTypeInfo> type_info =
-          std::make_shared<StructTypeInfo>(std::move(data_types));
-      return DataType(DataTypeId::kStruct, type_info);
     }
     std::vector<std::string> field_names(tuple.field_names().begin(),
                                          tuple.field_names().end());

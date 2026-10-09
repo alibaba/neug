@@ -112,8 +112,10 @@ void StructPropertyColumn::openInternal(Checkpoint& ckp,
                                     "StructPropertyColumn::Open"),
         level);
     if (fields_[f]->size() != expected_rows) {
-      THROW_RUNTIME_ERROR("StructPropertyColumn::Open: field '" +
-                          field_names[f] + "' row count mismatch");
+      const auto field_name =
+          field_names.empty() ? std::to_string(f) : field_names[f];
+      THROW_RUNTIME_ERROR("StructPropertyColumn::Open: field '" + field_name +
+                          "' row count mismatch");
     }
   }
 }

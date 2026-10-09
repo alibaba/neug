@@ -207,6 +207,19 @@ template <bool SKIP_NULL_ENTRY>
 static std::string structToString(const struct_entry_t& val,
                                   ValueVector* vector) {
   const auto& fieldNames = StructType::GetFieldNames(vector->dataType);
+  if constexpr (!SKIP_NULL_ENTRY) {
+    if (fieldNames.empty() || fieldNames[0].empty()) {
+      std::string result = "[";
+      for (size_t i = 0; i < StructType::GetNumFields(vector->dataType); ++i) {
+        if (i != 0) {
+          result += ", ";
+        }
+        result += entryToStringWithPos(
+            val.pos, StructVector::getFieldVector(vector, i).get());
+      }
+      return result + "]";
+    }
+  }
   if (fieldNames.size() == 0) {
     return "{}";
   }

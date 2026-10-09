@@ -629,20 +629,32 @@ struct convert<neug::DataType> {
       }
       std::vector<std::string> field_names;
       std::vector<neug::DataType> child_types;
+      bool has_names = false;
+      bool has_unnamed_fields = false;
       for (const auto& field : fields_node) {
-        if (!field["name"] || !field["type"]) {
-          LOG(ERROR) << "struct field requires both name and type";
+        if (!field["type"]) {
+          LOG(ERROR) << "struct field requires a type";
           return false;
         }
         neug::DataType child_type;
         if (!decode(field["type"], child_type)) {
           return false;
         }
-        field_names.push_back(field["name"].as<std::string>());
+        if (field["name"]) {
+          has_names = true;
+          field_names.push_back(field["name"].as<std::string>());
+        } else {
+          has_unnamed_fields = true;
+        }
         child_types.push_back(std::move(child_type));
       }
-      property_type = neug::DataType::Struct(std::move(field_names),
-                                             std::move(child_types));
+      if (has_names && has_unnamed_fields) {
+        LOG(ERROR)
+            << "struct fields must either all have names or all omit them";
+        return false;
+      }
+      property_type = neug::StructType::FromFields(std::move(field_names),
+                                                   std::move(child_types));
     } else if (config["date"]) {
       property_type = neug::DataTypeId::kDate;
     } else {
@@ -687,7 +699,9 @@ struct convert<neug::DataType> {
       const auto& field_names = neug::StructType::GetFieldNames(type);
       for (size_t i = 0; i < child_types.size(); ++i) {
         YAML::Node field;
-        field["name"] = field_names[i];
+        if (!field_names.empty()) {
+          field["name"] = field_names[i];
+        }
         field["type"] = encode(child_types[i]);
         node["struct"]["fields"].push_back(field);
       }
