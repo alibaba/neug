@@ -122,6 +122,7 @@ jobs:
             -DCMAKE_TOOLCHAIN_FILE="$vcpkgToolchain" `
             -DVCPKG_TARGET_TRIPLET=x64-windows-static-md `
             -DBUILD_PYTHON=ON `
+            -DBUILD_HTTP_SERVER=ON `
             -DBUILD_TEST=ON `
             -DPython_EXECUTABLE="$pythonExe" `
             -DPYTHON_EXECUTABLE="$pythonExe" `
@@ -145,7 +146,10 @@ jobs:
       #   storage_test, csr_test, edge_table_test, utils_test, gopt_test,
       #   schema_test, test_connection, test_indexer, temporary_graph_test,
       #   copy_temp_test, graph_snapshot_store_test
-      # test_db_svc is skipped (BRPC not available on Windows).
+      # test_db_svc and test_http_server are not built on Windows: they drive
+      # the BRPC transport, while BUILD_HTTP_SERVER selects the cpp-httplib
+      # transport there (httplib_http_server is a manual load test needing
+      # CLI arguments, so it is compiled but not run under ctest).
       # ========================================
       - name: Run C++ tests
         id: cpp-tests
