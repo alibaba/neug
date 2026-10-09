@@ -47,7 +47,7 @@ TimestampReservation ReserveWriteTimestamp(
     std::atomic<uint32_t>& write_ts, const std::atomic<uint32_t>& read_ts) {
   uint32_t candidate = write_ts.load(std::memory_order_relaxed);
   while (true) {
-    if (candidate == std::numeric_limits<uint32_t>::max()) {
+    if (candidate >= VersionManager::kWriteTimestampWatermark) {
       return {TimestampReservationState::kExhausted};
     }
 
@@ -105,10 +105,11 @@ VersionManager::VersionManager() = default;
 void VersionManager::init_ts(PublishedReadView initial_read_view,
                              int thread_num) {
   const uint32_t ts = initial_read_view.visibility_ts;
-  if (ts == std::numeric_limits<uint32_t>::max()) {
+  if (ts >= VersionManager::kWriteTimestampWatermark) {
     THROW_RUNTIME_ERROR(
-        "Transaction timestamp space exhausted; checkpoint/reset the timeline "
-        "before reopening the database");
+        "Transaction timestamp space exhausted (maintenance watermark "
+        "reached); checkpoint/reset the timeline before reopening the "
+        "database");
   }
   write_ts_.store(ts + 1, std::memory_order_relaxed);
   read_ts_.store(ts, std::memory_order_relaxed);
