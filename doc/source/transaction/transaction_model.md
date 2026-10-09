@@ -50,7 +50,7 @@ view and keeps the previously published database unchanged. In auto-commit mode,
 on success NeuG creates and durably publishes a checkpoint containing the import
 before it replaces the current view and reports success. This pessimistic
 admission plus publish-after-checkpoint sequence preserves atomicity and
-durability even for a large import. Since v0.2.1, a persistent `COPY ... FROM`
+durability even for a large import. A persistent `COPY ... FROM`
 may instead run inside an Embedded read-write explicit transaction, where the
 checkpoint is deferred to `commit()` and may cover several COPY statements and
 interleaved ordinary writes at once; see
@@ -174,5 +174,5 @@ crash before publication leaves the legacy checkpoint usable and the next
 read-write open retries. After a successful open and recovery, normal garbage
 collection removes the legacy `checkpoint-N` and `checkpoint-N.next`
 directories. A legacy-only database must be opened once in read-write mode
-before it can be opened read-only. Unsupported legacy metadata versions are
+before it can be opened read-only. Unsupported legacy metadata is
 rejected rather than guessed.

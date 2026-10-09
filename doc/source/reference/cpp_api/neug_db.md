@@ -88,8 +88,6 @@ db.Open("/path/to/graph", 8, neug::DBMode::READ_WRITE, "gopt");
 
 - **Returns:** `true` if database opened successfully, `false` otherwise
 
-- **Since:** v0.1.0
-
 #### `Open(const NeugDBConfig &config)`
 
 Open the database with a configuration object.
@@ -111,8 +109,6 @@ db.Open(config);
   - `config`: Configuration object with all database settings
 
 - **Returns:** `true` if database opened successfully, `false` otherwise
-
-- **Since:** v0.1.0
 
 #### `Close()`
 
@@ -137,8 +133,6 @@ The caller must ensure no `Connection` operation is in progress.
 - **Notes:**
   - This method is idempotent after a successful close. If the optional shutdown checkpoint fails before consuming the live graph, `Close()` throws and leaves the database open so the caller can correct the failure and retry. A failure after consumption finishes teardown and is then rethrown; that instance cannot be reused.
   - After closing, the database cannot be reopened. Create a new `NeugDB` instance to open the database again.
-
-- **Since:** v0.1.0
 
 #### `IsClosed() const`
 
@@ -187,8 +181,6 @@ conn->Close();  // Optional: auto-closed on destruction
   - `std::runtime_error`: if database is not open or closed
 
 - **Returns:** `std::shared_ptr`<Connection> A shared pointer to the new `Connection`
-
-- **Since:** v0.1.0
 
 #### `PrepareForServing()`
 
