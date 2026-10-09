@@ -1,6 +1,6 @@
 # Full-Text Search
 
-Since NeuG **v0.2.0**, the `fts` extension provides full-text indexes and
+The `fts` extension provides full-text indexes and
 BM25-ranked search over node string properties, with automatic index
 maintenance and persistence.
 
@@ -121,7 +121,7 @@ The `WITH` clause accepts the following case-sensitive option names:
 | `jieba_dict` | Path to a Jieba user dictionary that supplements the built-in dictionary; valid only when `tokenizer = 'jieba'` | No user dictionary |
 | `prefix` | Space-separated token lengths for prefix indexes, such as `2 3` | No prefix index |
 
-### Stopwords (supported since v0.2.1)
+### Stopwords
 
 FTS indexes remove English stopwords by default. Set `stopwords` to `english`
 to select the built-in 670-word English stopword list explicitly, to `jieba`
@@ -150,8 +150,8 @@ is read only when the index is created. Its contents are stored in the index
 checkpoint, so the original file is not required when reopening the database.
 
 Stopwords are applied consistently while indexing documents and parsing
-queries. Index checkpoints created with NeuG v0.2.0 remain compatible and are
-treated as `stopwords = 'none'`.
+queries. Existing index checkpoints remain compatible and are treated as
+`stopwords = 'none'`.
 
 ### Tokenizers
 

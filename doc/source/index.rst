@@ -66,7 +66,6 @@ NeuG documentation
    extensions/index
    extensions/vector_search
    extensions/fts_search
-   extensions/load_json
    extensions/load_parquet
    extensions/pattern_match
 

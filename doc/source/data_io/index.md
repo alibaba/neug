@@ -16,7 +16,7 @@ External Files (CSV, JSON, Parquet, ...)
         │  Unified internal format
         ▼
    ┌───────────┐    Persist or temporarily import into graph storage
-   │ COPY FROM │    (auto_detect=true by default since v0.1.2)
+   │ COPY FROM │    (auto_detect=true by default)
    │ COPY TEMP │    (always auto-infers schema, session-scoped)
    └───────────┘
 ```
@@ -29,7 +29,7 @@ External Files (CSV, JSON, Parquet, ...)
 
 ## Embedded Mode Only
 
-> **Important:** `LOAD FROM`, `COPY FROM`, `COPY TEMP`, and `COPY TO` are supported **only in embedded mode**. They are not available when NeuG is running as a service (HTTP/TP mode). This is a current limitation; support for bulk loading in service mode is planned for a future release.
+> **Important:** `LOAD FROM`, `COPY FROM`, `COPY TEMP`, and `COPY TO` are supported **only in embedded mode**. They are not available when NeuG is running as a service (HTTP/TP mode).
 
 Bulk file I/O operations (`LOAD FROM`, `COPY FROM`, `COPY TO`) involve reading or writing large files, which are long-running, I/O-intensive operations that would block the transaction processing pipeline. For this reason, they are restricted to embedded mode.  Once the service is running, you can still insert individual records via `CREATE` statements, modify data with `MERGE`/`SET`/`DELETE`, and manage schema with `CREATE/DROP/ALTER TABLE`.
 
@@ -38,10 +38,8 @@ Bulk file I/O operations (`LOAD FROM`, `COPY FROM`, `COPY TO`) involve reading o
 | Format       | Supported | Availability                                    |
 | ------------ | --------- | ----------------------------------------------- |
 | CSV          | ✅        | Built-in                                        |
-| JSON / JSONL | ✅        | Built-in (since v0.1.2)                         |
+| JSON / JSONL | ✅        | Built-in                                        |
 | Parquet      | ✅        | Via[Parquet Extension](../extensions/load_parquet) |
-
-> **Version Note:** In NeuG < 0.1.2, JSON/JSONL support was provided via the [JSON Extension](../extensions/load_json) and required `INSTALL json; LOAD json;` before use. Since NeuG >= 0.1.2, JSON/JSONL is a built-in feature — no extension installation or loading is needed.
 
 > **Note:** As new format extensions are developed, both `LOAD FROM` and `COPY FROM` gain support automatically. See the [Extensions](../extensions/index) page for details.
 

@@ -18,7 +18,7 @@ behavior without changing its query code. Typical use cases include shorter
 connection timeouts in tests, longer read timeouts for heavy queries, and
 connection-pool tuning for service workloads.
 
-Depending on the driver version, `Config.Builder` can configure:
+Depending on the driver in use, `Config.Builder` can configure:
 
 - connection timeout
 - read timeout
