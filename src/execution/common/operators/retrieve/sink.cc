@@ -27,6 +27,7 @@
 
 #include "neug/storages/graph/graph_interface.h"
 
+#include "neug/utils/exception/exception.h"
 #include "neug/utils/property/types.h"
 
 #include "rapidjson/document.h"
@@ -111,9 +112,19 @@ void append_property_to_json(const std::string& key, const Value& prop,
                   rapidjson::Value(interval_str.c_str(), allocator), allocator);
     break;
   }
+  case DataTypeId::kStruct:
+  case DataTypeId::kList:
+  case DataTypeId::kArray:
+    doc.AddMember(rapidjson::Value(key.c_str(), allocator),
+                  Value::ToJson(prop, allocator), allocator);
+    break;
   default:
-    LOG(WARNING) << "append_property_to_json not support for type " +
-                        std::to_string(static_cast<int>(type_id));
+    // Unreachable for storable property types: CreateColumn rejects every
+    // type not handled above (e.g. INT8/INT16/MAP), so failing loudly here
+    // cannot break a previously working query.
+    THROW_NOT_SUPPORTED_EXCEPTION("JSON serialization of property " + key +
+                                  " with type " + prop.type().ToString() +
+                                  " is not supported");
   }
 }
 
@@ -473,9 +484,11 @@ static void add_column(const std::shared_ptr<IContextColumn>& col,
   case DataTypeId::kStruct: {
     auto casted = std::dynamic_pointer_cast<StructColumn>(col);
     auto struct_col = column->mutable_struct_array();
+    const auto& field_names = StructType::GetFieldNames(casted->elem_type());
     const auto& children = casted->children();
     struct_col->mutable_fields()->Reserve(children.size());
     for (size_t i = 0; i < children.size(); ++i) {
+      struct_col->add_field_names(i < field_names.size() ? field_names[i] : "");
       auto child_field = struct_col->add_fields();
       add_column(children[i], graph, child_field);
     }

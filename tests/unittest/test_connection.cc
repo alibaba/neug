@@ -2278,6 +2278,38 @@ TEST_F(ConnectionTest, TestParameterizedQuery) {
   EXPECT_EQ(res.error().error_code(), StatusCode::ERR_INVALID_ARGUMENT);
 }
 
+TEST_F(ConnectionTest, StructEdgeBindingIgnoresUnrelatedPropertyTypes) {
+  NeugDB db;
+  NeugDBConfig config;
+  config.data_dir = DB_DIR;
+  config.mode = DBMode::READ_WRITE;
+  db.Open(config);
+  auto conn = db.Connect();
+  for (const auto& statement :
+       {"CREATE NODE TABLE StructEndpoint(id INT64, PRIMARY KEY(id));",
+        "CREATE REL TABLE StructTarget(FROM StructEndpoint TO StructEndpoint, "
+        "payload STRUCT(inner STRUCT(y INT64)));",
+        "CREATE REL TABLE StructOther(FROM StructEndpoint TO StructEndpoint, "
+        "payload STRUCT(inner STRUCT(z INT64)));",
+        "CREATE REL TABLE StructScalar(FROM StructEndpoint TO StructEndpoint, "
+        "payload INT64);",
+        "CREATE (:StructEndpoint {id: 1}), (:StructEndpoint {id: 2});",
+        "MATCH (a:StructEndpoint {id: 1}), (b:StructEndpoint {id: 2}) "
+        "CREATE (a)-[:StructTarget {payload: CAST({inner: {y: 11}}, "
+        "'STRUCT(inner STRUCT(y INT64))')}]->(b);"}) {
+    auto result = conn->Query(statement);
+    ASSERT_TRUE(result) << statement << ": " << result.error().ToString();
+  }
+
+  auto result = conn->Query(
+      "MATCH (:StructEndpoint)-[e:StructTarget]->(:StructEndpoint) "
+      "RETURN e.payload.inner.y;",
+      "read");
+  ASSERT_TRUE(result) << result.error().ToString();
+  ASSERT_EQ(result.value().response().row_count(), 1);
+  EXPECT_EQ(result.value().response().arrays(0).int64_array().values(0), 11);
+}
+
 TEST_F(ConnectionTest, TestConnectionQueryResult) {
   NeugDB db;
   NeugDBConfig config;

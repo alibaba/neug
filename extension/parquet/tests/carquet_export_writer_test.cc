@@ -733,6 +733,74 @@ TEST(CarquetExportWriterTest,
   EXPECT_EQ(paths->GetString(3), "{\"path\":3}");
 }
 
+TEST(CarquetExportWriterTest, PreservesNamedStructFieldsInNestedValues) {
+  QueryResponse response;
+  response.set_row_count(1);
+  response.mutable_schema()->add_name("profile");
+  response.mutable_schema()->add_name("history");
+
+  auto* profile = response.add_arrays()->mutable_struct_array();
+  profile->add_field_names("address");
+  profile->add_field_names("age");
+  auto* address = profile->add_fields()->mutable_struct_array();
+  address->add_field_names("city");
+  address->add_fields()->mutable_string_array()->add_values("hz");
+  profile->add_fields()->mutable_int64_array()->add_values(30);
+
+  auto* history = response.add_arrays()->mutable_list_array();
+  history->add_offsets(0);
+  history->add_offsets(1);
+  auto* visit = history->mutable_elements()->mutable_struct_array();
+  visit->add_field_names("city");
+  visit->add_field_names("year");
+  visit->add_fields()->mutable_string_array()->add_values("sh");
+  visit->add_fields()->mutable_int64_array()->add_values(2025);
+
+  auto state = std::make_shared<OutputState>();
+  auto status = writeResponse(fileSchema("named_nested"), &response, state);
+  ASSERT_TRUE(status.ok()) << status.ToString();
+  auto table = readWithArrow(state->bytes);
+  ASSERT_NE(table, nullptr);
+  ASSERT_EQ(table->num_rows(), 1);
+
+  auto profile_type = std::static_pointer_cast<arrow::StructType>(
+      table->schema()->field(0)->type());
+  EXPECT_EQ(profile_type->field(0)->name(), "address");
+  EXPECT_EQ(profile_type->field(1)->name(), "age");
+  auto address_type = std::static_pointer_cast<arrow::StructType>(
+      profile_type->field(0)->type());
+  EXPECT_EQ(address_type->field(0)->name(), "city");
+
+  auto history_type = std::static_pointer_cast<arrow::ListType>(
+      table->schema()->field(1)->type());
+  auto visit_type =
+      std::static_pointer_cast<arrow::StructType>(history_type->value_type());
+  EXPECT_EQ(visit_type->field(0)->name(), "city");
+  EXPECT_EQ(visit_type->field(1)->name(), "year");
+
+  auto profile_values =
+      std::static_pointer_cast<arrow::StructArray>(table->column(0)->chunk(0));
+  auto address_values =
+      std::static_pointer_cast<arrow::StructArray>(profile_values->field(0));
+  auto cities =
+      std::static_pointer_cast<arrow::StringArray>(address_values->field(0));
+  auto ages =
+      std::static_pointer_cast<arrow::Int64Array>(profile_values->field(1));
+  EXPECT_EQ(cities->GetString(0), "hz");
+  EXPECT_EQ(ages->Value(0), 30);
+
+  auto history_values =
+      std::static_pointer_cast<arrow::ListArray>(table->column(1)->chunk(0));
+  ASSERT_EQ(history_values->value_length(0), 1);
+  auto visits =
+      std::static_pointer_cast<arrow::StructArray>(history_values->values());
+  auto visit_cities =
+      std::static_pointer_cast<arrow::StringArray>(visits->field(0));
+  auto years = std::static_pointer_cast<arrow::Int64Array>(visits->field(1));
+  EXPECT_EQ(visit_cities->GetString(0), "sh");
+  EXPECT_EQ(years->Value(0), 2025);
+}
+
 TEST(CarquetExportWriterTest, PreservesAllScalarTypesInMixedNestedBatches) {
   auto flat = makeFlatResponse();
   flat.mutable_arrays(7)->mutable_string_array()->set_values(

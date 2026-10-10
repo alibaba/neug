@@ -21,7 +21,10 @@
 
 #include <assert.h>
 
+#include <algorithm>
+
 #include <glog/logging.h>
+#include <unordered_set>
 
 #include "neug/common/types.h"
 
@@ -112,6 +115,16 @@ size_t StructType::GetFieldIdx(const DataType& type, const std::string& name) {
   return getStructInfo(type).getFieldIdx(name);
 }
 
+DataType StructType::FromFields(std::vector<std::string> field_names,
+                                std::vector<DataType> child_types) {
+  // Missing names denote a positional tuple, not a named struct. Preserve
+  // explicit all-blank names as well; never synthesize observable field names.
+  if (field_names.empty()) {
+    return DataType::Struct(std::move(child_types));
+  }
+  return DataType::Struct(std::move(field_names), std::move(child_types));
+}
+
 uint64_t StructType::GetNumFields(const DataType& type) {
   return getStructInfo(type).child_types.size();
 }
@@ -152,6 +165,30 @@ DataType DataType::Struct(std::vector<DataType> children) {
 
 DataType DataType::Struct(std::vector<std::string> field_names,
                           std::vector<DataType> field_types) {
+  if (field_names.size() != field_types.size()) {
+    THROW_RUNTIME_ERROR(
+        "Struct field name count does not match child type count");
+  }
+  // Preserve fully named or fully positional input. Mixed names are unsafe:
+  // output adapters synthesize names for blank fields, which can collide
+  // with an explicit name and overwrite a field in a dictionary result.
+  const bool has_blank =
+      std::any_of(field_names.begin(), field_names.end(),
+                  [](const std::string& name) { return name.empty(); });
+  const bool has_named =
+      std::any_of(field_names.begin(), field_names.end(),
+                  [](const std::string& name) { return !name.empty(); });
+  if (has_blank && has_named) {
+    THROW_RUNTIME_ERROR(
+        "Struct field names must be either empty (positional) or "
+        "provided for every field");
+  }
+  std::unordered_set<std::string> unique_names;
+  for (const auto& field_name : field_names) {
+    if (!field_name.empty() && !unique_names.insert(field_name).second) {
+      THROW_RUNTIME_ERROR("Duplicate struct field name: " + field_name);
+    }
+  }
   std::shared_ptr<ExtraTypeInfo> type_info = std::make_shared<StructTypeInfo>(
       std::move(field_names), std::move(field_types));
   return DataType(DataTypeId::kStruct, type_info);
@@ -287,14 +324,15 @@ DataType parse_from_data_type(const ::common::DataType& ddt) {
     return DataType::List(child_data_type);
   }
   case ::common::DataType::kTuple: {
-    const auto& component_types = ddt.tuple().component_types();
+    const auto& tuple = ddt.tuple();
     std::vector<DataType> data_types;
-    for (int i = 0; i < component_types.size(); ++i) {
-      data_types.push_back(parse_from_data_type(component_types.Get(i)));
+    for (const auto& component_type : tuple.component_types()) {
+      data_types.push_back(parse_from_data_type(component_type));
     }
-    std::shared_ptr<ExtraTypeInfo> type_info =
-        std::make_shared<StructTypeInfo>(data_types);
-    return DataType(DataTypeId::kStruct, type_info);
+    std::vector<std::string> field_names(tuple.field_names().begin(),
+                                         tuple.field_names().end());
+    return StructType::FromFields(std::move(field_names),
+                                  std::move(data_types));
   }
   default:
     THROW_NOT_SUPPORTED_EXCEPTION("unrecognized data type - " +
@@ -443,6 +481,11 @@ InArchive& operator<<(InArchive& in_archive, const DataType& type) {
       for (const auto& child_type : child_types) {
         in_archive << child_type;
       }
+      const auto& field_names = struct_type_info.field_names;
+      in_archive << (size_t) field_names.size();
+      for (const auto& field_name : field_names) {
+        in_archive << field_name;
+      }
     } else if (id == DataTypeId::kArray) {
       const auto& array_type_info = type_info->Cast<ArrayTypeInfo>();
       in_archive << array_type_info.child_type << array_type_info.num_elements;
@@ -477,7 +520,18 @@ OutArchive& operator>>(OutArchive& out_archive, DataType& type) {
       for (size_t i = 0; i < child_types_size; ++i) {
         out_archive >> child_types[i];
       }
-      type = DataType::Struct(child_types);
+      size_t field_names_size;
+      out_archive >> field_names_size;
+      std::vector<std::string> field_names(field_names_size);
+      for (size_t i = 0; i < field_names_size; ++i) {
+        out_archive >> field_names[i];
+      }
+      // Preserve both absent names and positional empty names exactly.
+      if (field_names.empty()) {
+        type = DataType::Struct(std::move(child_types));
+      } else {
+        type = DataType::Struct(std::move(field_names), std::move(child_types));
+      }
     } else if (id == DataTypeId::kArray) {
       DataType child_type;
       uint64_t array_size;

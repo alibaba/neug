@@ -343,6 +343,38 @@ TEST_F(ValueTest, JsonSerialization) {
   EXPECT_STREQ(json_str.GetString(), "hello");
 }
 
+TEST_F(ValueTest, JsonSerializationOfNestedStructAndTuple) {
+  rapidjson::Document::AllocatorType allocator;
+  const auto tuple_type =
+      DataType::Struct({DataType::INT64, DataType::VARCHAR});
+  const auto blank_tuple_type =
+      DataType::Struct({"", ""}, {DataType::INT64, DataType::VARCHAR});
+  const auto struct_type = DataType::Struct(
+      {"tuple", "blank", "items", "array", "missing"},
+      {tuple_type, blank_tuple_type, DataType::List(DataType::VARCHAR),
+       DataType::Array(DataType::INT32, 2), DataType::INT64});
+  Value value = Value::STRUCT(
+      struct_type,
+      {Value::STRUCT(tuple_type,
+                     {Value::INT64(7), Value::STRING(std::string("a\0b", 3))}),
+       Value::STRUCT(blank_tuple_type, {Value::INT64(8), Value::STRING("b")}),
+       Value::LIST(DataType::VARCHAR, {Value::STRING("x"), Value::STRING("y")}),
+       Value::ARRAY(DataType::Array(DataType::INT32, 2),
+                    {Value::INT32(1), Value::INT32(2)}),
+       Value(DataType::INT64)});
+  auto json = Value::ToJson(value, allocator);
+  ASSERT_TRUE(json.IsObject());
+  ASSERT_TRUE(json["tuple"].IsArray());
+  EXPECT_EQ(json["tuple"][0].GetInt64(), 7);
+  EXPECT_EQ(json["tuple"][1].GetStringLength(), 3);
+  EXPECT_EQ(std::string(json["tuple"][1].GetString(), 3),
+            std::string("a\0b", 3));
+  EXPECT_TRUE(json["blank"].IsArray());
+  EXPECT_STREQ(json["items"][1].GetString(), "y");
+  EXPECT_EQ(json["array"][1].GetInt(), 2);
+  EXPECT_TRUE(json["missing"].IsNull());
+}
+
 TEST_F(ValueTest, JsonDeserialization) {
   // Test from string
   Value int_from_json = Value::FromJson("42", DataType::INT32);

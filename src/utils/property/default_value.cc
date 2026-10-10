@@ -61,6 +61,15 @@ Value get_default_value(const DataType& type) {
     std::vector<Value> values(size, child_default);
     return Value::ARRAY(type, std::move(values));
   }
+  case DataTypeId::kStruct: {
+    const auto& child_types = StructType::GetChildTypes(type);
+    std::vector<Value> children;
+    children.reserve(child_types.size());
+    for (const auto& child_type : child_types) {
+      children.push_back(get_default_value(child_type));
+    }
+    return Value::STRUCT(type, std::move(children));
+  }
   default:
     THROW_NOT_SUPPORTED_EXCEPTION(
         "Unsupported property type for default value: " + type.ToString());

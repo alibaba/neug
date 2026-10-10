@@ -306,6 +306,7 @@ TypedColumnInserter make_inserter(const DataType& type,
     return {src, dst, &insert_varchar_impl};
   case DataTypeId::kArray:
   case DataTypeId::kList:
+  case DataTypeId::kStruct:
     return {src, dst, &insert_nested_impl};
   default:
     THROW_NOT_SUPPORTED_EXCEPTION(
@@ -764,13 +765,13 @@ void EdgeTable::AddProperties(Checkpoint& ckp,
   }
 
   if (table_->col_num() == 0) {
-    // NOTE: Rather than check meta_->is_bundled(),we check whether the table
-    // is empty.
-    if (meta_->properties.size() == 1 &&
-        meta_->properties[0].id() != DataTypeId::kVarchar) {
+    if (meta_->is_bundled()) {
       dropAndCreateNewBundledCSR(ckp, nullptr);
     } else {
-      dropAndCreateNewUnbundledCSR(ckp, false);
+      // The schema already includes the newly added properties. Only export
+      // inline data when the old relation actually had a bundled property.
+      dropAndCreateNewUnbundledCSR(
+          ckp, false, meta_->properties.size() > prop_names.size());
     }
   } else {
     size_t property_size = table_->get_column_by_id(0)->size();
@@ -814,7 +815,11 @@ void EdgeTable::DeleteProperties(Checkpoint& ckp,
       dropAndCreateNewUnbundledCSR(ckp, true);
     } else if (table_->col_num() == 1) {
       auto remaining_col = table_->get_column_by_id(0);
-      if (remaining_col->type() != DataTypeId::kVarchar) {
+      const auto remaining_type = remaining_col->type();
+      if (remaining_type != DataTypeId::kVarchar &&
+          remaining_type != DataTypeId::kArray &&
+          remaining_type != DataTypeId::kList &&
+          remaining_type != DataTypeId::kStruct) {
         dropAndCreateNewBundledCSR(ckp, remaining_col);
       }
     }
@@ -1079,7 +1084,8 @@ void EdgeTable::dropAndCreateNewBundledCSR(Checkpoint& ckp,
 }
 
 void EdgeTable::dropAndCreateNewUnbundledCSR(Checkpoint& ckp,
-                                             bool delete_property) {
+                                             bool delete_property,
+                                             bool preserve_bundled_property) {
   // In this method, the edge table must be bundled, so the table must be
   // opened opened. In open_in_memory method, table will try to read the
   // existing table file from checkpoint_dir, but it must not exist.
@@ -1092,13 +1098,13 @@ void EdgeTable::dropAndCreateNewUnbundledCSR(Checkpoint& ckp,
 
   ColumnBase* prev_data_col = nullptr;
 
-  if (!delete_property) {
+  if (!delete_property && preserve_bundled_property) {
     if (table_->col_num() >= 1 &&
         table_->get_column_by_id(0)->type() != DataTypeId::kVarchar &&
         table_->get_column_by_id(0)->type() != DataTypeId::kEmpty) {
       prev_data_col = table_->get_column_by_id(0);
     }
-  } else {
+  } else if (delete_property) {
     // delete_property == true, which means the EdgeTable will become use csr of
     // empty type. we need to reset capacity and table_idx to 0
     table_idx_.store(0);

@@ -283,6 +283,9 @@ struct EdgeDataAccessor {
   /** @brief Check if data is stored inline (bundled) vs column storage. */
   bool is_bundled() const { return data_column_ == nullptr; }
 
+  /** @brief The data type of the accessed edge property. */
+  DataTypeId data_type() const { return data_type_; }
+
   template <typename T>
   inline T get_typed_data(const NbrIterator& it) const {
     if constexpr (std::is_same<T, EmptyType>::value) {

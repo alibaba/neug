@@ -176,6 +176,14 @@ class BindedEdgeRecordPropertyExpr : public RecordExprBase {
                                                      edge_label);
           for (size_t i = 0; i < names.size(); ++i) {
             if (names[i] == prop_name) {
+              // Binding scans the whole schema, including unrelated edge
+              // types. Struct field indices are valid only for the full type
+              // checked by the compiler, including names and nested fields.
+              if (type_.id() == DataTypeId::kStruct &&
+                  graph.schema().get_edge_properties(src_label, dst_label,
+                                                     edge_label)[i] != type_) {
+                break;
+              }
               LabelTriplet label{src_label, dst_label, edge_label};
               edge_accessors_[label] = graph.GetEdgeDataAccessor(
                   src_label, dst_label, edge_label, i);

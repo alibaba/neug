@@ -115,6 +115,13 @@ message List {
 
 message Tuple {
     repeated DataType component_types = 1;
+    // Carries both positional tuples and named structs. Positional tuple:
+    // no field_names (including legacy messages) or exactly
+    // component_types_size empty strings. Both forms remain unnamed when
+    // decoded. Named struct: exactly component_types_size distinct,
+    // non-empty strings. Any other combination is invalid. Clients must not
+    // synthesize names to decide whether a value is a tuple or a struct.
+    repeated string field_names = 2;
 }
 
 message Map {
