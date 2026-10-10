@@ -44,12 +44,11 @@
  * will fill a supplied 16-byte array with the digest.
  */
 
-#include "neug/compiler/common/md5.h"
+#include "neug/utils/md5.h"
 
 #include <cstring>
 
 namespace neug {
-namespace common {
 
 void MD5::byteReverse(unsigned char* buf, unsigned longs) {
   uint32_t t = 0;
@@ -252,5 +251,4 @@ void MD5::DigestToBase16(const unsigned char* digest, char* zBuf) {
   zBuf[j] = 0;
 }
 
-}  // namespace common
 }  // namespace neug

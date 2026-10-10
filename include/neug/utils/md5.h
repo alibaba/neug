@@ -48,10 +48,11 @@
 
 #include <cstdint>
 
-namespace neug {
-namespace common {
+#include "neug/utils/api.h"
 
-class MD5 {
+namespace neug {
+
+class NEUG_API MD5 {
   struct Context {
     int isInit;
     uint32_t buf[4];
@@ -74,6 +75,9 @@ class MD5 {
   // the data and converts bytes into longwords for this routine.
   void MD5Transform(uint32_t buf[4], const uint32_t in[16]);
 
+ public:
+  // Raw digest API for storage. Use MD5Init/MD5Update/MD5Final together;
+  // do not mix this lifecycle with addToMD5/finishMD5.
   // Start MD5 accumulation.  Set bit count to 0 and buffer to mysterious
   // initialization constants.
   void MD5Init();
@@ -86,6 +90,7 @@ class MD5 {
   // 1 0* (64-bit count of bits processed, MSB-first)
   void MD5Final(unsigned char digest[16]);
 
+ private:
   // Convert a digest into base-16.  digest should be declared as
   // "unsigned char digest[16]" in the calling function.  The MD5
   // digest is stored in the first 16 bytes.  zBuf should
@@ -117,5 +122,4 @@ class MD5 {
   }
 };
 
-}  // namespace common
 }  // namespace neug
