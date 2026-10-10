@@ -36,7 +36,7 @@
 #include "neug/storages/container/file_mmap_container.h"
 #include "neug/utils/exception/exception.h"
 #include "neug/utils/io/file/file_utils.h"
-#include "neug/utils/md5.h"
+#include "neug/utils/md5_utils.h"
 #include "neug/utils/property/types.h"
 #include "neug/utils/spinlock.h"
 
@@ -93,13 +93,13 @@ bool is_nbr_list_unmodified(FileHeader& header,
                             const NBR_T* const* adj_lists, const int* cap_arr,
                             size_t vnum) {
   MD5 ctx;
+  ctx.MD5Init();
   for (size_t i = 0; i < vnum; ++i) {
     const char* data = reinterpret_cast<const char*>(adj_lists[i]);
     size_t len = cap_arr[i] * sizeof(NBR_T);
-    ctx.Update(data, len);
+    UpdateMD5(ctx, data, len);
   }
-  const auto md5 = ctx.Finalize();
-  memcpy(header.data_md5, md5.data(), md5.size());
+  ctx.MD5Final(header.data_md5);
   auto casted = dynamic_cast<const MMapContainer*>(nbr_container);
   if (casted && !casted->GetPath().empty() && casted->GetHeader()) {
     return memcmp(casted->GetHeader()->data_md5, header.data_md5,

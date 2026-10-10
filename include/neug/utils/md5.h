@@ -46,41 +46,80 @@
  * will fill a supplied 16-byte array with the digest.
  */
 
-#include <array>
-#include <cstddef>
 #include <cstdint>
 
 #include "neug/utils/api.h"
 
 namespace neug {
 
-// MD5 for compatibility with existing storage checksums.
-// Each instance owns its state and performs no heap allocations.
 class NEUG_API MD5 {
+  struct Context {
+    int isInit;
+    uint32_t buf[4];
+    uint32_t bits[2];
+    unsigned char in[64];
+  };
+  typedef struct Context MD5Context;
+
+  // Status of an MD5 hash. - changed from static global variables to private
+  // members
+  MD5Context ctx{};
+  int isInit = 0;
+  char zResult[34] = "";
+
+  // Note: this code is harmless on little-endian machines.
+  void byteReverse(unsigned char* buf, unsigned longs);
+
+  // The core of the MD5 algorithm, this alters an existing MD5 hash to
+  // reflect the addition of 16 longwords of new data.  MD5Update blocks
+  // the data and converts bytes into longwords for this routine.
+  void MD5Transform(uint32_t buf[4], const uint32_t in[16]);
+
  public:
-  static constexpr size_t kDigestSize = 16;
-  using Digest = std::array<unsigned char, kDigestSize>;
+  // Raw digest API for storage. Use MD5Init/MD5Update/MD5Final together;
+  // do not mix this lifecycle with addToMD5/finishMD5.
+  // Start MD5 accumulation.  Set bit count to 0 and buffer to mysterious
+  // initialization constants.
+  void MD5Init();
 
-  MD5() { Reset(); }
+  // Update context to reflect the concatenation of another buffer full
+  // of bytes.
+  void MD5Update(const unsigned char* buf, unsigned int len);
 
-  // A zero-size update is a no-op, including when data is nullptr.
-  // Otherwise data must point to at least size readable bytes.
-  void Update(const void* data, size_t size);
-
-  // Return the raw 16-byte digest without changing this context. Further
-  // updates continue the original input; repeated calls are identical.
-  Digest Finalize() const;
-
-  void Reset();
-  static Digest Compute(const void* data, size_t size);
+  // Final wrapup - pad to 64-byte boundary with the bit pattern
+  // 1 0* (64-bit count of bits processed, MSB-first)
+  void MD5Final(unsigned char digest[16]);
 
  private:
-  void ProcessBlock(const unsigned char* data);
-  static void MD5Transform(uint32_t buf[4], const uint32_t in[16]);
+  // Convert a digest into base-16.  digest should be declared as
+  // "unsigned char digest[16]" in the calling function.  The MD5
+  // digest is stored in the first 16 bytes.  zBuf should
+  // be "char zBuf[33]".
+  static void DigestToBase16(const unsigned char* digest, char* zBuf);
 
-  uint32_t state_[4];
-  uint64_t byte_count_;
-  unsigned char buffer_[64]{};
+ public:
+  // Add additional text to the current MD5 hash.
+  // note: original name changed from md5_add
+  void addToMD5(const char* z, uint32_t len) {
+    if (!isInit) {
+      MD5Init();
+      isInit = 1;
+    }
+    MD5Update((unsigned char*) z, len);
+  }
+
+  // Compute the final signature.  Reset the hash generator in preparation
+  // for the next round.
+  // note: original name changed from md5_finish
+  const char* finishMD5() {
+    if (isInit) {
+      unsigned char digest[16];
+      MD5Final(digest);
+      isInit = 0;
+      DigestToBase16(digest, zResult);
+    }
+    return zResult;
+  }
 };
 
 }  // namespace neug

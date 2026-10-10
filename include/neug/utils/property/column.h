@@ -44,7 +44,7 @@
 #include "neug/utils/exception/exception.h"
 #include "neug/utils/io/file/file_utils.h"
 #include "neug/utils/likely.h"
-#include "neug/utils/md5.h"
+#include "neug/utils/md5_utils.h"
 #include "neug/utils/property/types.h"
 #include "neug/utils/serialization/out_archive.h"
 
@@ -283,7 +283,7 @@ class TypedColumn<std::string_view> : public ColumnBase {
     auto casted_data = dynamic_cast<MMapContainer*>(data_buffer_.get());
     if (casted_data && !casted_data->GetPath().empty() &&
         casted_data->GetHeader()) {
-      const auto md5 = MD5::Compute(data_buffer_->GetData(), pos_.load());
+      const auto md5 = ComputeMD5(data_buffer_->GetData(), pos_.load());
       return memcmp(casted_data->GetHeader()->data_md5, md5.data(),
                     md5.size()) == 0;
     } else {
@@ -331,6 +331,8 @@ class TypedColumn<std::string_view> : public ColumnBase {
         reinterpret_cast<const string_item*>(items_buffer_->GetData());
     auto raw_data = reinterpret_cast<const char*>(data_buffer_->GetData());
     MD5 data_ctx, item_ctx;
+    data_ctx.MD5Init();
+    item_ctx.MD5Init();
     string_item cur_item = {0, 0};
     size_t offset = 0;
     size_t count_no_empty = 0;
@@ -340,7 +342,7 @@ class TypedColumn<std::string_view> : public ColumnBase {
       if (item.offset == pre_item.offset && item.length == pre_item.length) {
         // If the current item is the same as the previous one, we can reuse
         // the offset and length without writing duplicate data.
-        item_ctx.Update(&cur_item, sizeof(cur_item));
+        UpdateMD5(item_ctx, &cur_item, sizeof(cur_item));
         item_out.write(reinterpret_cast<const char*>(&cur_item),
                        sizeof(cur_item));
         continue;
@@ -348,8 +350,8 @@ class TypedColumn<std::string_view> : public ColumnBase {
       pre_item = item;
       data_out.write(raw_data + item.offset, item.length);
       cur_item = {offset, item.length};
-      data_ctx.Update(raw_data + item.offset, item.length);
-      item_ctx.Update(&cur_item, sizeof(cur_item));
+      UpdateMD5(data_ctx, raw_data + item.offset, item.length);
+      UpdateMD5(item_ctx, &cur_item, sizeof(cur_item));
       item_out.write(reinterpret_cast<const char*>(&cur_item),
                      sizeof(cur_item));
       offset += item.length;
@@ -358,14 +360,12 @@ class TypedColumn<std::string_view> : public ColumnBase {
       }
     }
 
-    const auto data_md5 = data_ctx.Finalize();
-    memcpy(header.data_md5, data_md5.data(), data_md5.size());
+    data_ctx.MD5Final(header.data_md5);
 
     data_out.seekp(0);
     data_out.write(reinterpret_cast<const char*>(&header.data_md5),
                    sizeof(header.data_md5));
-    const auto item_md5 = item_ctx.Finalize();
-    memcpy(header.data_md5, item_md5.data(), item_md5.size());
+    item_ctx.MD5Final(header.data_md5);
     item_out.seekp(0);
     item_out.write(reinterpret_cast<const char*>(&header.data_md5),
                    sizeof(header.data_md5));

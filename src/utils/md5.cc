@@ -46,21 +46,18 @@
 
 #include "neug/utils/md5.h"
 
-#include <algorithm>
 #include <cstring>
 
 namespace neug {
 
-void MD5::ProcessBlock(const unsigned char* data) {
-  uint32_t words[16];
-  for (size_t i = 0; i < 16; ++i) {
-    const auto* bytes = data + i * 4;
-    words[i] = static_cast<uint32_t>(bytes[0]) |
-               (static_cast<uint32_t>(bytes[1]) << 8) |
-               (static_cast<uint32_t>(bytes[2]) << 16) |
-               (static_cast<uint32_t>(bytes[3]) << 24);
-  }
-  MD5Transform(state_, words);
+void MD5::byteReverse(unsigned char* buf, unsigned longs) {
+  uint32_t t = 0;
+  do {
+    t = (uint32_t)((unsigned) buf[3] << 8 | buf[2]) << 16 |
+        ((unsigned) buf[1] << 8 | buf[0]);
+    *(uint32_t*) buf = t;
+    buf += 4;
+  } while (--longs);
 }
 
 // The four core functions - F1 is optimized somewhat
@@ -152,75 +149,106 @@ void MD5::MD5Transform(uint32_t buf[4], const uint32_t in[16]) {
   buf[3] += d;
 }
 
-#undef MD5STEP
-#undef F1
-#undef F2
-#undef F3
-#undef F4
-
-void MD5::Reset() {
-  state_[0] = 0x67452301;
-  state_[1] = 0xefcdab89;
-  state_[2] = 0x98badcfe;
-  state_[3] = 0x10325476;
-  byte_count_ = 0;
+void MD5::MD5Init() {
+  ctx.isInit = 1;
+  ctx.buf[0] = 0x67452301;
+  ctx.buf[1] = 0xefcdab89;
+  ctx.buf[2] = 0x98badcfe;
+  ctx.buf[3] = 0x10325476;
+  ctx.bits[0] = 0;
+  ctx.bits[1] = 0;
 }
 
-void MD5::Update(const void* data, size_t size) {
-  if (size == 0) {
-    return;
-  }
-  const auto* bytes = static_cast<const unsigned char*>(data);
-  const auto buffered = static_cast<size_t>(byte_count_ % sizeof(buffer_));
-  byte_count_ += static_cast<uint64_t>(size);
+void MD5::MD5Update(const unsigned char* buf, unsigned int len) {
+  // Update bitcount
 
-  if (buffered != 0) {
-    const auto count = std::min(size, sizeof(buffer_) - buffered);
-    std::memcpy(buffer_ + buffered, bytes, count);
-    bytes += count;
-    size -= count;
-    if (buffered + count < sizeof(buffer_)) {
+  uint32_t t = ctx.bits[0];
+  ctx.bits[0] = t + ((uint32_t) len << 3);
+  if (ctx.bits[0] < t)
+    ctx.bits[1]++;  // Carry from low to high
+  ctx.bits[1] += len >> 29;
+
+  t = (t >> 3) & 0x3f;  // Bytes already in shsInfo->data
+
+  // Handle any leading odd-sized chunks
+
+  if (t) {
+    unsigned char* p = (unsigned char*) ctx.in + t;
+
+    t = 64 - t;
+    if (len < t) {
+      std::memcpy(p, buf, len);
       return;
     }
-    ProcessBlock(buffer_);
+    std::memcpy(p, buf, t);
+    byteReverse(ctx.in, 16);
+    MD5Transform(ctx.buf, (uint32_t*) ctx.in);
+    buf += t;
+    len -= t;
   }
 
-  // Decode directly from the input, including unaligned input, without
-  // narrowing size_t or copying each complete block into the context.
-  while (size >= sizeof(buffer_)) {
-    ProcessBlock(bytes);
-    bytes += sizeof(buffer_);
-    size -= sizeof(buffer_);
+  // Process data in 64-byte chunks
+
+  while (len >= 64) {
+    std::memcpy(ctx.in, buf, 64);
+    byteReverse(ctx.in, 16);
+    MD5Transform(ctx.buf, (uint32_t*) ctx.in);
+    buf += 64;
+    len -= 64;
   }
-  if (size != 0) {
-    std::memcpy(buffer_, bytes, size);
-  }
+
+  // Handle any remaining bytes of data.
+
+  std::memcpy(ctx.in, buf, len);
 }
 
-MD5::Digest MD5::Finalize() const {
-  MD5 copy = *this;
-  const uint64_t bit_count = byte_count_ << 3;
-  const auto buffered = static_cast<size_t>(byte_count_ % sizeof(buffer_));
-  const unsigned char padding[64] = {0x80};
-  copy.Update(padding, buffered < 56 ? 56 - buffered : 120 - buffered);
+void MD5::MD5Final(unsigned char digest[16]) {
+  // Compute number of bytes mod 64 */
+  unsigned count = (ctx.bits[0] >> 3) & 0x3F;
 
-  unsigned char length[8];
-  for (size_t i = 0; i < sizeof(length); ++i) {
-    length[i] = static_cast<unsigned char>(bit_count >> (i * 8));
-  }
-  copy.Update(length, sizeof(length));
+  // Set the first char of padding to 0x80.  This is safe since there is
+  // always at least one byte free
+  unsigned char* p = ctx.in + count;
+  *p++ = 0x80;
 
-  Digest digest;
-  for (size_t i = 0; i < digest.size(); ++i) {
-    digest[i] = static_cast<unsigned char>(copy.state_[i / 4] >> ((i % 4) * 8));
+  // Bytes of padding needed to make 64 bytes
+  count = 64 - 1 - count;
+
+  // Pad out to 56 mod 64
+  if (count < 8) {
+    // Two lots of padding:  Pad the first block to 64 bytes
+    std::memset(p, 0, count);
+    byteReverse(ctx.in, 16);
+    MD5Transform(ctx.buf, (uint32_t*) ctx.in);
+
+    // Now fill the next block with 56 bytes
+    std::memset(ctx.in, 0, 56);
+  } else {
+    // Pad block to 56 bytes */
+    std::memset(p, 0, count - 8);
   }
-  return digest;
+  byteReverse(ctx.in, 14);
+
+  // Append length in bits and transform
+  ((uint32_t*) ctx.in)[14] = ctx.bits[0];
+  ((uint32_t*) ctx.in)[15] = ctx.bits[1];
+
+  MD5Transform(ctx.buf, (uint32_t*) ctx.in);
+  byteReverse((unsigned char*) ctx.buf, 4);
+  std::memcpy(digest, ctx.buf, 16);
+  std::memset(&ctx, 0, sizeof(ctx));  // In case it is sensitive
 }
 
-MD5::Digest MD5::Compute(const void* data, size_t size) {
-  MD5 context;
-  context.Update(data, size);
-  return context.Finalize();
+void MD5::DigestToBase16(const unsigned char* digest, char* zBuf) {
+  static char const zEncode[] = "0123456789abcdef";
+  int i = 0, j = 0;
+
+  for (j = i = 0; i < 16; i++) {
+    int a = digest[i];
+    zBuf[j++] = zEncode[(a >> 4) & 0xf];
+    zBuf[j++] = zEncode[a & 0xf];
+  }
+  zBuf[j] = 0;
 }
 
 }  // namespace neug

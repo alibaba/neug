@@ -28,7 +28,7 @@
 #include "neug/storages/container/file_header.h"
 #include "neug/storages/container/mmap_container.h"
 #include "neug/utils/io/file/file_utils.h"
-#include "neug/utils/md5.h"
+#include "neug/utils/md5_utils.h"
 
 #include <glog/logging.h>
 
@@ -134,7 +134,7 @@ void MMapContainer::Resize(size_t size) {
 
 void MMapContainer::Dump(const std::string& path) {
   FileHeader header;
-  const auto md5 = MD5::Compute(data_, size_);
+  const auto md5 = ComputeMD5(data_, size_);
   memcpy(header.data_md5, md5.data(), md5.size());
   std::unique_ptr<FILE, decltype(&fclose)> fp(fopen(path.c_str(), "wb"),
                                               &fclose);
@@ -169,7 +169,7 @@ bool MMapContainer::IsDirty() {
     // Header-only file: no payload to compare, so not dirty.
     return false;
   }
-  const auto md5 = MD5::Compute(data_, size_);
+  const auto md5 = ComputeMD5(data_, size_);
   return memcmp(md5.data(), reinterpret_cast<FileHeader*>(mmap_data_)->data_md5,
                 md5.size()) != 0;
 }

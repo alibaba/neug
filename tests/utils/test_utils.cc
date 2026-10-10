@@ -30,7 +30,7 @@
 #include "neug/utils/encoder.h"
 #include "neug/utils/exception/exception.h"
 #include "neug/utils/io/read/common/type_converter.h"
-#include "neug/utils/md5.h"
+#include "neug/utils/md5_utils.h"
 #include "neug/utils/pb_utils.h"
 #include "neug/utils/serialization/in_archive.h"
 #include "neug/utils/string_view_vector.h"
@@ -40,7 +40,7 @@ namespace neug {
 namespace test {
 namespace {
 
-std::string MD5Hex(const MD5::Digest& digest) {
+std::string MD5Hex(const MD5Digest& digest) {
   constexpr char hex[] = "0123456789abcdef";
   std::string result;
   result.reserve(digest.size() * 2);
@@ -49,6 +49,12 @@ std::string MD5Hex(const MD5::Digest& digest) {
     result.push_back(hex[byte & 0x0f]);
   }
   return result;
+}
+
+std::string FinalizeMD5Hex(MD5& context) {
+  MD5Digest digest;
+  context.MD5Final(digest.data());
+  return MD5Hex(digest);
 }
 
 }  // namespace
@@ -69,11 +75,17 @@ TEST(MD5Test, RFC1321Vectors) {
        "01234567890",
        "57edf4a22be3c955ac49da2e2107b67a"},
   };
+  MD5 text_digest;
   for (const auto& test_case : cases) {
     SCOPED_TRACE(test_case.input);
     EXPECT_EQ(
-        MD5Hex(MD5::Compute(test_case.input.data(), test_case.input.size())),
+        MD5Hex(ComputeMD5(test_case.input.data(), test_case.input.size())),
         test_case.expected);
+    // Preserve the original text API, including reuse after finishMD5.
+    text_digest.addToMD5(test_case.input.data(),
+                         static_cast<uint32_t>(test_case.input.size()));
+    EXPECT_STREQ(text_digest.finishMD5(), test_case.expected);
+    EXPECT_STREQ(text_digest.finishMD5(), test_case.expected);
   }
 }
 
@@ -101,13 +113,14 @@ TEST(MD5Test, BinaryPaddingBoundaries) {
   }
   for (const auto& test_case : cases) {
     SCOPED_TRACE(test_case.length);
-    EXPECT_EQ(MD5Hex(MD5::Compute(input.data(), test_case.length)),
+    EXPECT_EQ(MD5Hex(ComputeMD5(input.data(), test_case.length)),
               test_case.expected);
     // Splitting immediately before the last byte exercises a buffered tail.
     MD5 streamed;
-    streamed.Update(input.data(), test_case.length - 1);
-    streamed.Update(input.data() + test_case.length - 1, 1);
-    EXPECT_EQ(MD5Hex(streamed.Finalize()), test_case.expected);
+    streamed.MD5Init();
+    UpdateMD5(streamed, input.data(), test_case.length - 1);
+    UpdateMD5(streamed, input.data() + test_case.length - 1, 1);
+    EXPECT_EQ(FinalizeMD5Hex(streamed), test_case.expected);
   }
 }
 
@@ -118,49 +131,52 @@ TEST(MD5Test, UnalignedBinaryInputAndChunkSizes) {
     input[i] = static_cast<unsigned char>(i);
   }
   constexpr char expected[] = "e2c865db4162bed963bfaa9ef6ac18f0";
-  EXPECT_EQ(MD5Hex(MD5::Compute(input, 256)), expected);
+  EXPECT_EQ(MD5Hex(ComputeMD5(input, 256)), expected);
   for (size_t chunk_size : {1, 3, 7, 55, 56, 63, 64, 65, 127, 256}) {
     SCOPED_TRACE(chunk_size);
     MD5 streamed;
+    streamed.MD5Init();
     for (size_t offset = 0; offset < 256; offset += chunk_size) {
-      streamed.Update(nullptr, 0);
-      streamed.Update(input + offset, std::min(chunk_size, 256 - offset));
+      UpdateMD5(streamed, nullptr, 0);
+      UpdateMD5(streamed, input + offset, std::min(chunk_size, 256 - offset));
     }
-    EXPECT_EQ(MD5Hex(streamed.Finalize()), expected);
+    EXPECT_EQ(FinalizeMD5Hex(streamed), expected);
   }
 }
 
-TEST(MD5Test, EmptyResetAndNonMutatingFinalize) {
+TEST(MD5Test, EmptyAndReinitialize) {
   constexpr char empty[] = "d41d8cd98f00b204e9800998ecf8427e";
-  EXPECT_EQ(MD5Hex(MD5::Compute(nullptr, 0)), empty);
+  EXPECT_EQ(MD5Hex(ComputeMD5(nullptr, 0)), empty);
   MD5 digest;
-  EXPECT_EQ(MD5Hex(digest.Finalize()), empty);
-  digest.Update(nullptr, 0);
-  EXPECT_EQ(MD5Hex(digest.Finalize()), empty);
+  digest.MD5Init();
+  EXPECT_EQ(FinalizeMD5Hex(digest), empty);
 
-  digest.Update("a", 1);
-  const auto& snapshot = digest;
-  EXPECT_EQ(MD5Hex(snapshot.Finalize()), "0cc175b9c0f1b6a831c399e269772661");
-  EXPECT_EQ(MD5Hex(snapshot.Finalize()), "0cc175b9c0f1b6a831c399e269772661");
-  digest.Update("bc", 2);
-  EXPECT_EQ(MD5Hex(digest.Finalize()), "900150983cd24fb0d6963f7d28e17f72");
+  // MD5Final consumes the context. Reinitialize before starting a new hash.
+  digest.MD5Init();
+  UpdateMD5(digest, nullptr, 0);
+  UpdateMD5(digest, "a", 1);
+  UpdateMD5(digest, "bc", 2);
+  EXPECT_EQ(FinalizeMD5Hex(digest), "900150983cd24fb0d6963f7d28e17f72");
 
-  digest.Reset();
-  EXPECT_EQ(MD5Hex(digest.Finalize()), empty);
-  digest.Update("message digest", 14);
-  EXPECT_EQ(MD5Hex(digest.Finalize()), "f96b697d7cb7938d525a2f31aaf161d0");
+  digest.MD5Init();
+  UpdateMD5(digest, "discarded", 9);
+  digest.MD5Init();
+  UpdateMD5(digest, "message digest", 14);
+  EXPECT_EQ(FinalizeMD5Hex(digest), "f96b697d7cb7938d525a2f31aaf161d0");
 }
 
 TEST(MD5Test, MillionBytesInIndependentContexts) {
   const std::string block(1000, 'a');
   MD5 digest;
+  digest.MD5Init();
   MD5 independent;
-  independent.Update("abc", 3);
+  independent.MD5Init();
+  UpdateMD5(independent, "abc", 3);
   for (size_t i = 0; i < 1000; ++i) {
-    digest.Update(block.data(), block.size());
+    UpdateMD5(digest, block.data(), block.size());
   }
-  EXPECT_EQ(MD5Hex(digest.Finalize()), "7707d6ae4e027c70eea2a935c2296f21");
-  EXPECT_EQ(MD5Hex(independent.Finalize()), "900150983cd24fb0d6963f7d28e17f72");
+  EXPECT_EQ(FinalizeMD5Hex(digest), "7707d6ae4e027c70eea2a935c2296f21");
+  EXPECT_EQ(FinalizeMD5Hex(independent), "900150983cd24fb0d6963f7d28e17f72");
 }
 
 // Opt in with --gtest_also_run_disabled_tests and the exact test filter. This
@@ -172,16 +188,20 @@ TEST(MD5Test, DISABLED_LengthCounterBeyondFourGiB) {
     block[i] = static_cast<unsigned char>(i & 0xff);
   }
   MD5 digest;
+  digest.MD5Init();
   for (size_t i = 0; i < 4096; ++i) {
-    digest.Update(block.data(), block.size());
+    UpdateMD5(digest, block.data(), block.size());
     if (i == 511) {
       // 512 MiB is the first carry beyond a 32-bit bit counter.
-      EXPECT_EQ(MD5Hex(digest.Finalize()), "31077c1c4e040c748ac6aee4d1723b5e");
+      // Finalize a copy to inspect this prefix without consuming the stream.
+      MD5 snapshot = digest;
+      EXPECT_EQ(FinalizeMD5Hex(snapshot), "31077c1c4e040c748ac6aee4d1723b5e");
     }
   }
-  EXPECT_EQ(MD5Hex(digest.Finalize()), "fe86844fc3d92814461c48025d2bcb7c");
-  digest.Update("a", 1);
-  EXPECT_EQ(MD5Hex(digest.Finalize()), "2ea5f234554cdbfcde3c45aff80d1e02");
+  MD5 snapshot = digest;
+  EXPECT_EQ(FinalizeMD5Hex(snapshot), "fe86844fc3d92814461c48025d2bcb7c");
+  UpdateMD5(digest, "a", 1);
+  EXPECT_EQ(FinalizeMD5Hex(digest), "2ea5f234554cdbfcde3c45aff80d1e02");
 }
 
 class BitsetTest : public ::testing::Test {
