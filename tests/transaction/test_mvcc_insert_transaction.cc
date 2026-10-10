@@ -55,9 +55,7 @@ int OsOpen(const char* path, int flags, int mode) {
   return _open(path, flags, mode);
 }
 
-int OsClose(int fd) {
-  return _close(fd);
-}
+int OsClose(int fd) { return _close(fd); }
 
 int OsWrite(int fd, const void* buf, size_t count) {
   return _write(fd, buf, static_cast<unsigned int>(count));
@@ -67,9 +65,7 @@ int OsOpen(const char* path, int flags, int mode) {
   return ::open(path, flags, mode);
 }
 
-int OsClose(int fd) {
-  return ::close(fd);
-}
+int OsClose(int fd) { return ::close(fd); }
 
 ssize_t OsWrite(int fd, const void* buf, size_t count) {
   return ::write(fd, buf, count);
