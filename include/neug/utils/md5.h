@@ -70,8 +70,6 @@ class NEUG_API MD5 {
   void MD5Transform(uint32_t buf[4], const uint32_t in[16]);
 
  public:
-  // Raw digest API for storage. Use MD5Init/MD5Update/MD5Final together;
-  // do not mix this lifecycle with addToMD5/finishMD5.
   // Start MD5 accumulation.  Set bit count to 0 and buffer to mysterious
   // initialization constants.
   void MD5Init();
