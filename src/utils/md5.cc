@@ -12,22 +12,16 @@
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  * See the License for the specific language governing permissions and
  * limitations under the License.
- */
-
-/**
+ *
  * This file is originally from the Kùzu project
  * (https://github.com/kuzudb/kuzu) Licensed under the MIT License. Modified by
  * Zhou Xiaoli in 2025 to support Neug-specific features.
- */
-
-/*
-** This code taken from the SQLite test library (can be found at
-** https://www.sqlite.org/sqllogictest/doc/trunk/about.wiki).
-** Originally found on the internet. The original header comment follows this
-*comment.
-** The code has been refactored, but the algorithm stays the same.
-*/
-/*
+ *
+ * This code was taken from the SQLite test library (can be found at
+ * https://www.sqlite.org/sqllogictest/doc/trunk/about.wiki).
+ * Originally found on the internet. The original header comment follows.
+ * The code has been refactored, but the algorithm stays the same.
+ *
  * This code implements the MD5 message-digest algorithm.
  * The algorithm is due to Ron Rivest.  This code was
  * written by Colin Plumb in 1993, no copyright is claimed.
