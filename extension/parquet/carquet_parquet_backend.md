@@ -1,14 +1,14 @@
 # Carquet Parquet Backend
 
-NeuG's Parquet extension includes a Carquet-based reader and writer as a
-preparation step for replacing the Arrow backend. Both implement the existing
-input-stream, data-chunk and query-export interfaces, so the migration does not
-change the public supplier or stream interfaces.
+NeuG's Parquet extension uses a Carquet-based reader and writer. Both implement
+the existing input-stream, data-chunk and query-export interfaces, so the
+migration does not change the public supplier or stream interfaces.
 
-Both are currently built with `BUILD_TEST=ON` for validation only.
-`LOAD PARQUET`, `LOAD FROM` and `COPY TO` continue to use the existing Arrow
-backend; there is no user-facing backend selector. Production activation is a
-separate migration step.
+After `LOAD PARQUET`, `LOAD FROM` uses the Carquet reader for local files and
+remote streams supplied by HTTPFS. `COPY TO` invokes the Carquet writer through
+the existing query-export and output-stream interfaces for local and remote
+destinations. Backend selection is internal and does not add a SQL option.
+The previous Arrow implementation and dependencies remain during the migration.
 
 The user-facing type mappings and read/write options are documented in the
 [Parquet user documentation](../../doc/source/extensions/load_parquet.md).
@@ -18,7 +18,7 @@ The user-facing type mappings and read/write options are documented in the
 `CarquetSniffer` obtains the schema through an `InputStreamFactory`.
 `CarquetChunkSupplier` implements `IDataChunkSupplier` and returns NeuG-owned
 `DataChunk` columns. Returned values remain valid after subsequent reads or
-supplier destruction. The private `scanCarquet` entry point coordinates these
+supplier destruction. The `scanCarquet` entry point coordinates these
 suppliers for one or more files with compatible schemas.
 
 ### Reading and filtering
@@ -40,11 +40,12 @@ this exact-filtering path without native statistics evaluation.
 
 Carquet's `ArrowSchema` and `ArrowArray` structures are the C Data interchange
 ABI declared by Carquet; these adapters do not link against Arrow to convert
-values. The existing production backend still requires Arrow at this stage.
+values. The previous Arrow implementation remains in the source tree during the
+migration, but the registered Parquet read function uses Carquet.
 
 ### Batching, concurrency and memory
 
-The private scan accepts the existing `batch_read`, `parallel`, `BATCH_SIZE`,
+The scan accepts the existing `batch_read`, `parallel`, `BATCH_SIZE`,
 `BUFFERED_STREAM`, `PRE_BUFFER` and `ENABLE_IO_COALESCING` options.
 `batch_rows` controls the maximum rows returned in each supplier chunk
 (default 65,536); `PARQUET_BATCH_ROWS` is still honored as a deprecated alias.
@@ -65,7 +66,7 @@ bytes against the same projected read with pruning disabled.
 
 ## Writer
 
-`CarquetExportWriter` is a private Carquet implementation of
+`CarquetExportWriter` is the Carquet implementation of
 `QueryExportWriter`. Struct columns are written as an optional group with
 `field_0`, `field_1`, … children, and boolean leaves always use plain encoding
 regardless of the dictionary option.
@@ -96,12 +97,14 @@ materialized; this is not an end-to-end streaming export implementation.
 
 The writer uses the Carquet submodule and adjacent patch already present in
 NeuG. It does not depend on the Carquet reader implementation or alter public
-IO interfaces, production registrations, CSV/JSON writers or the Arrow writer.
+IO interfaces or CSV/JSON writers. The previous Arrow writer remains in the
+source tree during the migration, but the registered Parquet export function
+constructs the Carquet writer.
 
 ## Building and testing
 
-Enable `BUILD_TEST=ON` and include `parquet` in `BUILD_EXTENSIONS`, then build
-and run the reader tests:
+Include `parquet` in `BUILD_EXTENSIONS`. To build and run the focused tests,
+also enable `BUILD_TEST=ON`, then build and run the reader tests:
 
 ```sh
 cmake --build build --target parquet_carquet_test -j2
@@ -123,8 +126,8 @@ Writer tests generate Parquet in memory and use the existing Arrow reader as an
 independent format oracle. They cover scalar and nested values, timestamp units,
 NULL bitmaps, row group and page boundaries, compression and dictionary options,
 malformed responses and output failures. No new binary fixtures are required.
-Arrow is used by the test oracle and the current production backend, not by the
-Carquet writer implementation.
+Arrow is used only as an independent format oracle in this focused test; the
+Carquet writer implementation itself does not use it.
 
 ## Carquet submodule and patch
 
