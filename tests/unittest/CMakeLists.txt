@@ -9,6 +9,8 @@ find_package(OpenSSL REQUIRED)
 set(BRPC_WITH_GLOG 1)
 
 add_neug_test(test_extension test_extension.cc)
+target_compile_definitions(test_extension PRIVATE
+    NEUG_ENABLE_DYNAMIC_EXTENSIONS=$<BOOL:${NEUG_ENABLE_DYNAMIC_EXTENSIONS}>)
 
 # Schema tests
 add_neug_test(schema_test schema_test.cc)

@@ -37,6 +37,7 @@ option(NEUG_PACKAGE_BUILD "Whether to build portable distributable artifacts" OF
 option(NEUG_NATIVE_ARCH "Whether to enable host-specific CPU tuning for local builds" OFF)
 option(BUILD_EXECUTABLES "When to build executors" OFF) # Whether to build executables, default is OFF
 option(BUILD_HTTP_SERVER "Whether to build http server" OFF) # Whether to build http server, default is OFF
+option(NEUG_ENABLE_DYNAMIC_EXTENSIONS "Enable runtime extension installation, dynamic loading and uninstallation" ON)
 option(WITH_MIMALLOC "Whether to use mimalloc" ON) # Whether to use mimalloc, default is ON
 
 # Options to control the building of tools

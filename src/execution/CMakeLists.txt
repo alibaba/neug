@@ -3,8 +3,14 @@
 file(GLOB_RECURSE EXECUTION_SRC_FILES "${CMAKE_CURRENT_SOURCE_DIR}/common/*.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/execute/*.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/utils/*.cc"
-    "${CMAKE_CURRENT_SOURCE_DIR}/extension/*.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/expression/*.cc")
+
+list(APPEND EXECUTION_SRC_FILES "${CMAKE_CURRENT_SOURCE_DIR}/extension/extension.cc")
+if(NEUG_ENABLE_DYNAMIC_EXTENSIONS)
+    list(APPEND EXECUTION_SRC_FILES "${CMAKE_CURRENT_SOURCE_DIR}/extension/extension_dynamic.cc")
+else()
+    list(APPEND EXECUTION_SRC_FILES "${CMAKE_CURRENT_SOURCE_DIR}/extension/extension_static.cc")
+endif()
 
 add_library(neug_execution OBJECT ${EXECUTION_SRC_FILES})
 add_dependencies(neug_execution neug_proto)

@@ -61,3 +61,14 @@ LOAD my_ext;
 ```
 
 Build the extension against the NeuG runtime you load it into.
+
+## Disable dynamic extensions
+
+`NEUG_ENABLE_DYNAMIC_EXTENSIONS` defaults to `ON`, enabling `INSTALL`, `LOAD`,
+and `UNINSTALL`. To disable these operations:
+
+```bash
+EXTRA_CMAKE_FLAGS="-DNEUG_ENABLE_DYNAMIC_EXTENSIONS=OFF" make python-dev
+```
+
+With `OFF`, all three operations return `ERR_NOT_SUPPORTED`. `BUILD_EXTENSIONS` still builds shared libraries.
