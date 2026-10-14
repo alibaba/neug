@@ -81,7 +81,7 @@ class PyQueryResult {
    *
    * This method builds ArrowArray / ArrowSchema C structs directly from the
    * protobuf QueryResponse (no Arrow C++ symbols involved) and hands them to
-   * pyarrow through `pyarrow.RecordBatch._import_from_c()`. 
+   * pyarrow through `pyarrow.RecordBatch._import_from_c()`.
    *
    * @return pybind11::object  A `pyarrow.Table` Python object.
    * @throws pybind11::error_already_set if importing `pyarrow` fails or if
