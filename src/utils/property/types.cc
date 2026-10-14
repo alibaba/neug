@@ -543,31 +543,44 @@ Interval::Interval(std::string str) {
     str[i] = std::tolower(str[i]);
   }
   static const std::regex interval_regex(
-      R"((\d+)\s*(years?|year?|months?|month?|days?|day?|hours?|hour?|minutes?|minute?|seconds?|second?|milliseconds?|millisecond?|us?|microsecond?|microseconds?))");
+      R"(([+-]?\d+)\s*(years?|months?|weeks?|days?|hours?|minutes?|seconds?|milliseconds?|microseconds?|us)\b)");
   std::smatch match;
   months = days = micros = 0;
+  // Parse into a wide accumulator so overflow is rejected before narrowing.
+  auto add = [](auto& field, int64_t value, int64_t scale) {
+    using T = std::decay_t<decltype(field)>;
+    __int128 result = __int128(field) + __int128(value) * scale;
+    if (result < std::numeric_limits<T>::min() ||
+        result > std::numeric_limits<T>::max()) {
+      THROW_INVALID_ARGUMENT_EXCEPTION("Interval component out of range");
+    }
+    field = static_cast<T>(result);
+  };
   while (std::regex_search(str, match, interval_regex)) {
+    if (match.prefix().str().find_first_not_of(" \t\r\n") !=
+        std::string::npos) {
+      THROW_INVALID_ARGUMENT_EXCEPTION("Invalid interval format: " + str);
+    }
     int64_t num = std::stoll(match[1].str());
     std::string unit = match[2].str();
     if (unit == "year" || unit == "years") {
-      months += num * Interval::MONTHS_PER_YEAR;
+      add(months, num, Interval::MONTHS_PER_YEAR);
     } else if (unit == "month" || unit == "months") {
-      months += num;
+      add(months, num, 1);
+    } else if (unit == "week" || unit == "weeks") {
+      add(days, num, 7);
     } else if (unit == "day" || unit == "days") {
-      days = num;
+      add(days, num, 1);
     } else if (unit == "hour" || unit == "hours") {
-      micros += num * Interval::MICROS_PER_HOUR;
+      add(micros, num, Interval::MICROS_PER_HOUR);
     } else if (unit == "minute" || unit == "minutes") {
-      micros += num * Interval::MICROS_PER_MINUTE;
+      add(micros, num, Interval::MICROS_PER_MINUTE);
     } else if (unit == "second" || unit == "seconds") {
-      micros += num * Interval::MICROS_PER_SEC;
+      add(micros, num, Interval::MICROS_PER_SEC);
     } else if (unit == "millisecond" || unit == "milliseconds") {
-      micros += num * Interval::MICROS_PER_MSEC;
-    } else if (unit == "us" || unit == "microsecond" ||
-               unit == "microseconds") {
-      micros += num;
+      add(micros, num, Interval::MICROS_PER_MSEC);
     } else {
-      THROW_INVALID_ARGUMENT_EXCEPTION("Invalid interval unit: " + unit);
+      add(micros, num, 1);
     }
     str = match.suffix().str();
     // trim leading and trailing spaces

@@ -118,6 +118,7 @@ FunctionCollection* FunctionCollection::getFunctions() {
       SCALAR_FUNCTION(LessThanEqualsFunction),
 
       SCALAR_FUNCTION(DatePartFunction),
+      SCALAR_FUNCTION(TimeBucketFuncSet),
       SCALAR_FUNCTION_ALIAS(DatePartFunctionAlias),
       SCALAR_FUNCTION(StructExtractFunctions),
       SCALAR_FUNCTION(StructPackFunctions),

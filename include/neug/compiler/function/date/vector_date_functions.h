@@ -39,5 +39,22 @@ struct DatePartFunctionAlias {
   static constexpr const char* name = "DATEPART";
 };
 
+struct TimeBucketFunction {
+  static function_set getFunctionSet();
+};
+
+struct TimeBucketOffsetFunction {
+  static function_set getFunctionSet();
+};
+
+struct TimeBucketOriginFunction {
+  static function_set getFunctionSet();
+};
+
+struct TimeBucketFuncSet {
+  static constexpr const char* name = "TIME_BUCKET";
+  static function_set getFunctionSet();
+};
+
 }  // namespace function
 }  // namespace neug

@@ -705,7 +705,7 @@ Value performCast(const Value& input) {
 }
 
 template <>
-inline Value performCast<timestamp_t>(const Value& input) {
+inline Value performCast<timestamp_ms_t>(const Value& input) {
   DateTime val;
   bool ret = false;
   if (input.type().id() == DataTypeId::kVarchar) {

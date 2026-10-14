@@ -778,6 +778,12 @@ static Value castValue(const Value& input, const DataType& targetType) {
     return performCast<date_t>(input);
   case DataTypeId::kTimestampMs:
     return performCast<timestamp_ms_t>(input);
+  case DataTypeId::kInterval:
+    if (input.type().id() == DataTypeId::kVarchar) {
+      return Value::INTERVAL(Interval(std::string(StringValue::Get(input))));
+    }
+    THROW_CONVERSION_EXCEPTION(
+        "Only string type is supported for casting to Interval.");
   case DataTypeId::kUInt32:
     return performCast<uint32_t>(input);
   case DataTypeId::kUInt64:
