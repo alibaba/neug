@@ -13,14 +13,13 @@
  * limitations under the License.
  */
 
-#include <arrow/api.h>
-#include <arrow/io/api.h>
 #include <gtest/gtest.h>
-#include <parquet/arrow/reader.h>
-#include <parquet/file_reader.h>
 
-#include <algorithm>
 #include <cstdint>
+#include <cstdlib>
+#include <filesystem>
+#include <fstream>
+#include <map>
 #include <memory>
 #include <stdexcept>
 #include <string>
@@ -288,52 +287,32 @@ QueryResponse makeNestedResponse() {
   return response;
 }
 
-std::shared_ptr<arrow::Buffer> wrap(const std::vector<uint8_t>& bytes) {
-  return std::make_shared<arrow::Buffer>(bytes.data(),
-                                         static_cast<int64_t>(bytes.size()));
-}
-
-std::shared_ptr<arrow::Table> readWithArrow(const std::vector<uint8_t>& bytes) {
-  auto input = std::make_shared<arrow::io::BufferReader>(wrap(bytes));
-  std::unique_ptr<::parquet::arrow::FileReader> reader;
-  auto status =
-      ::parquet::arrow::OpenFile(input, arrow::default_memory_pool(), &reader);
-  if (!status.ok()) {
-    ADD_FAILURE() << status.ToString();
-    return nullptr;
+// Python interop tests run this executable with an output directory and read
+// these files using pyarrow. The C++ tests themselves require no Arrow library.
+void saveOutput(const std::shared_ptr<OutputState>& state) {
+  ASSERT_GE(state->bytes.size(), 8U);
+  EXPECT_EQ(std::string(state->bytes.begin(), state->bytes.begin() + 4),
+            "PAR1");
+  EXPECT_EQ(std::string(state->bytes.end() - 4, state->bytes.end()), "PAR1");
+  const char* directory = std::getenv("NEUG_PARQUET_EXPORT_TEST_DIR");
+  if (!directory || !*directory) {
+    return;
   }
-  std::shared_ptr<arrow::Table> table;
-  status = reader->ReadTable(&table);
-  if (!status.ok()) {
-    ADD_FAILURE() << status.ToString();
-    return nullptr;
-  }
-  auto combined = table->CombineChunks();
-  if (!combined.ok()) {
-    ADD_FAILURE() << combined.status().ToString();
-    return nullptr;
-  }
-  return *combined;
+  const auto* info = ::testing::UnitTest::GetInstance()->current_test_info();
+  static std::map<std::string, size_t> sequence;
+  const std::string name = info->name();
+  const auto path =
+      std::filesystem::path(directory) /
+      (name + "-" + std::to_string(sequence[name]++) + ".parquet");
+  std::ofstream output(path, std::ios::binary);
+  ASSERT_TRUE(output.is_open()) << path;
+  output.write(reinterpret_cast<const char*>(state->bytes.data()),
+               static_cast<std::streamsize>(state->bytes.size()));
+  output.close();
+  ASSERT_TRUE(output.good()) << path;
 }
 
-std::unique_ptr<::parquet::ParquetFileReader> openMetadata(
-    const std::vector<uint8_t>& bytes) {
-  return ::parquet::ParquetFileReader::Open(
-      std::make_shared<arrow::io::BufferReader>(wrap(bytes)));
-}
-
-template <typename ArrayType, typename Value>
-void expectScalar(const std::shared_ptr<arrow::Table>& table, int column,
-                  Value first, Value last) {
-  auto array =
-      std::static_pointer_cast<ArrayType>(table->column(column)->chunk(0));
-  ASSERT_EQ(array->length(), 5);
-  EXPECT_EQ(array->Value(0), first);
-  EXPECT_TRUE(array->IsNull(2));
-  EXPECT_EQ(array->Value(4), last);
-}
-
-TEST(CarquetExportWriterTest, WritesFlatValuesForIndependentArrowReader) {
+TEST(CarquetExportWriterTest, WritesFlatValues) {
   auto state = std::make_shared<OutputState>();
   auto schema = fileSchema("flat", {{"compression", "zstd"},
                                     {"row_group_size", "2"},
@@ -346,55 +325,18 @@ TEST(CarquetExportWriterTest, WritesFlatValuesForIndependentArrowReader) {
   EXPECT_EQ(state->aborts, 0);
   EXPECT_EQ(state->destroys, 1);
 
-  auto raw = openMetadata(state->bytes);
-  ASSERT_NE(raw, nullptr);
-  ASSERT_EQ(raw->metadata()->num_rows(), 5);
-  ASSERT_EQ(raw->metadata()->num_row_groups(), 3);
-  for (int group = 0; group < 3; ++group) {
-    EXPECT_EQ(raw->metadata()->RowGroup(group)->ColumnChunk(0)->compression(),
-              ::parquet::Compression::ZSTD);
-  }
-
-  auto table = readWithArrow(state->bytes);
-  ASSERT_NE(table, nullptr);
-  ASSERT_EQ(table->num_columns(), 10);
-  expectScalar<arrow::Int32Array>(table, 0, int32_t{-2}, int32_t{2});
-  expectScalar<arrow::UInt32Array>(table, 1, uint32_t{0}, UINT32_MAX);
-  expectScalar<arrow::Int64Array>(table, 2, int64_t{-9}, int64_t{9});
-  expectScalar<arrow::UInt64Array>(table, 3, uint64_t{0}, UINT64_MAX);
-  expectScalar<arrow::FloatArray>(table, 4, -1.5F, 4.0F);
-  expectScalar<arrow::DoubleArray>(table, 5, -4.5, 9.0);
-  expectScalar<arrow::BooleanArray>(table, 6, true, true);
-  auto text =
-      std::static_pointer_cast<arrow::StringArray>(table->column(7)->chunk(0));
-  EXPECT_EQ(text->GetString(0), "");
-  EXPECT_TRUE(text->IsNull(2));
-  EXPECT_EQ(text->GetString(3), "中文");
-  EXPECT_EQ(text->GetString(4), "tail");
-  expectScalar<arrow::Date32Array>(table, 8, int32_t{-1}, int32_t{2});
-  expectScalar<arrow::TimestampArray>(table, 9, int64_t{-1000001},
-                                      int64_t{1000001});
-  EXPECT_EQ(table->schema()->field(8)->type(), arrow::date32());
-  EXPECT_TRUE(table->schema()->field(9)->type()->Equals(
-      arrow::timestamp(arrow::TimeUnit::MILLI, "UTC")));
+  saveOutput(state);
 }
 
 TEST(CarquetExportWriterTest, HonorsCompressionDictionaryAndRowGroupOptions) {
-  struct Codec {
-    const char* option;
-    ::parquet::Compression::type expected;
-  };
-  for (const auto& codec : {Codec{"none", ::parquet::Compression::UNCOMPRESSED},
-                            Codec{"snappy", ::parquet::Compression::SNAPPY},
-                            Codec{"gzip", ::parquet::Compression::GZIP},
-                            Codec{"zstd", ::parquet::Compression::ZSTD}}) {
+  for (const char* codec : {"none", "snappy", "gzip", "zstd"}) {
     for (const bool dictionary : {false, true}) {
       auto state = std::make_shared<OutputState>();
-      auto schema = fileSchema(
-          std::string(codec.option) + (dictionary ? "-dict" : "-plain"),
-          {{"compression", codec.option},
-           {"row_group_size", "32"},
-           {"dictionary_encoding", dictionary ? "true" : "false"}});
+      auto schema =
+          fileSchema(std::string(codec) + (dictionary ? "-dict" : "-plain"),
+                     {{"compression", codec},
+                      {"row_group_size", "32"},
+                      {"dictionary_encoding", dictionary ? "true" : "false"}});
       QueryResponse response;
       response.set_row_count(96);
       response.mutable_schema()->add_name("category");
@@ -404,27 +346,8 @@ TEST(CarquetExportWriterTest, HonorsCompressionDictionaryAndRowGroupOptions) {
       }
 
       auto status = writeResponse(schema, &response, state);
-      ASSERT_TRUE(status.ok()) << codec.option << ": " << status.ToString();
-      auto raw = openMetadata(state->bytes);
-      ASSERT_NE(raw, nullptr);
-      ASSERT_EQ(raw->metadata()->num_row_groups(), 3);
-      auto chunk = raw->metadata()->RowGroup(0)->ColumnChunk(0);
-      EXPECT_EQ(chunk->compression(), codec.expected);
-      const auto encodings = chunk->encodings();
-      const bool hasDictionary =
-          std::find(encodings.begin(), encodings.end(),
-                    ::parquet::Encoding::RLE_DICTIONARY) != encodings.end() ||
-          std::find(encodings.begin(), encodings.end(),
-                    ::parquet::Encoding::PLAIN_DICTIONARY) != encodings.end();
-      EXPECT_EQ(hasDictionary, dictionary) << codec.option;
-      auto table = readWithArrow(state->bytes);
-      ASSERT_NE(table, nullptr);
-      auto actual = std::static_pointer_cast<arrow::StringArray>(
-          table->column(0)->chunk(0));
-      ASSERT_EQ(actual->length(), response.row_count());
-      for (int row = 0; row < response.row_count(); ++row) {
-        EXPECT_EQ(actual->GetString(row), values->values(row));
-      }
+      ASSERT_TRUE(status.ok()) << codec << ": " << status.ToString();
+      saveOutput(state);
     }
   }
 }
@@ -458,21 +381,7 @@ TEST(CarquetExportWriterTest,
   }
   auto state = std::make_shared<OutputState>();
   ASSERT_TRUE(writeResponse(fileSchema("temporal"), &response, state).ok());
-  auto table = readWithArrow(state->bytes);
-  ASSERT_NE(table, nullptr);
-  auto actual = std::static_pointer_cast<arrow::TimestampArray>(
-      table->column(0)->chunk(0));
-  EXPECT_TRUE(
-      actual->type()->Equals(arrow::timestamp(arrow::TimeUnit::MILLI, "UTC")));
-  for (int row = 0; row < response.row_count(); ++row) {
-    EXPECT_EQ(actual->Value(row), timestamps->values(row));
-  }
-  auto actualDates =
-      std::static_pointer_cast<arrow::Date32Array>(table->column(1)->chunk(0));
-  for (int row = 0; row < response.row_count(); ++row) {
-    EXPECT_EQ(actualDates->Value(row),
-              dateCases[static_cast<size_t>(row)].second);
-  }
+  saveOutput(state);
 }
 
 TEST(CarquetExportWriterTest, WritesAllNullScalarRowGroups) {
@@ -496,13 +405,7 @@ TEST(CarquetExportWriterTest, WritesAllNullScalarRowGroups) {
                                        {"dictionary_encoding", dictionary}});
     auto status = writeResponse(schema, &response, state);
     ASSERT_TRUE(status.ok()) << status.ToString();
-    auto table = readWithArrow(state->bytes);
-    ASSERT_NE(table, nullptr);
-    ASSERT_EQ(table->num_columns(), response.arrays_size());
-    ASSERT_EQ(table->num_rows(), response.row_count());
-    for (const auto& column : table->columns()) {
-      EXPECT_EQ(column->null_count(), response.row_count());
-    }
+    saveOutput(state);
   }
 }
 
@@ -518,11 +421,7 @@ TEST(CarquetExportWriterTest, ResolvesResponseEntryAndFallbackColumnNames) {
   writer.setStreamOpener(
       [state]() { return std::make_unique<MemoryOutput>(state); });
   ASSERT_TRUE(writer.writeTable(&response).ok());
-  auto table = readWithArrow(state->bytes);
-  ASSERT_NE(table, nullptr);
-  EXPECT_EQ(table->field(0)->name(), "response_name");
-  EXPECT_EQ(table->field(1)->name(), "entry_name");
-  EXPECT_EQ(table->field(2)->name(), "col_2");
+  saveOutput(state);
 }
 
 TEST(CarquetExportWriterTest,
@@ -551,26 +450,7 @@ TEST(CarquetExportWriterTest,
     auto state = std::make_shared<OutputState>();
     auto status = writeResponse(schema, &response, state);
     ASSERT_TRUE(status.ok()) << status.ToString();
-    auto table = readWithArrow(state->bytes);
-    ASSERT_NE(table, nullptr);
-    auto actualIntegers =
-        std::static_pointer_cast<arrow::Int64Array>(table->column(0)->chunk(0));
-    auto actualBooleans = std::static_pointer_cast<arrow::BooleanArray>(
-        table->column(1)->chunk(0));
-    auto actualStrings = std::static_pointer_cast<arrow::StringArray>(
-        table->column(2)->chunk(0));
-    ASSERT_EQ(table->num_rows(), response.row_count());
-    for (int row = 0; row < response.row_count(); ++row) {
-      const bool null = row % 3 == 0;
-      EXPECT_EQ(actualIntegers->IsNull(row), null);
-      EXPECT_EQ(actualBooleans->IsNull(row), null);
-      EXPECT_EQ(actualStrings->IsNull(row), null);
-      if (!null) {
-        EXPECT_EQ(actualIntegers->Value(row), integers->values(row));
-        EXPECT_EQ(actualBooleans->Value(row), booleans->values(row));
-        EXPECT_EQ(actualStrings->GetString(row), strings->values(row));
-      }
-    }
+    saveOutput(state);
   }
 }
 
@@ -592,24 +472,7 @@ TEST(CarquetExportWriterTest, WritesMultiplePagesAcrossExplicitRowGroups) {
 
   auto status = writeResponse(schema, &response, state);
   ASSERT_TRUE(status.ok()) << status.ToString();
-  auto raw = openMetadata(state->bytes);
-  ASSERT_NE(raw, nullptr);
-  ASSERT_EQ(raw->metadata()->num_row_groups(), 3);
-  EXPECT_EQ(raw->metadata()->RowGroup(0)->num_rows(), kRowsPerGroup);
-  EXPECT_EQ(raw->metadata()->RowGroup(1)->num_rows(), kRowsPerGroup);
-  EXPECT_EQ(raw->metadata()->RowGroup(2)->num_rows(), 1);
-  EXPECT_GT(state->bytes.size(), 4U * 1024U * 1024U);
-
-  auto table = readWithArrow(state->bytes);
-  ASSERT_NE(table, nullptr);
-  auto sequence =
-      std::static_pointer_cast<arrow::Int64Array>(table->column(0)->chunk(0));
-  ASSERT_EQ(sequence->length(), kRows);
-  EXPECT_EQ(sequence->Value(0), -5);
-  EXPECT_EQ(sequence->Value(kRowsPerGroup),
-            static_cast<int64_t>(kRowsPerGroup) * 17 - 5);
-  EXPECT_EQ(sequence->Value(kRows - 1),
-            static_cast<int64_t>(kRows - 1) * 17 - 5);
+  saveOutput(state);
 }
 
 TEST(CarquetExportWriterTest, RejectsOutOfRangeDatesAndNamesBeforeOpening) {
@@ -656,8 +519,7 @@ TEST(CarquetExportWriterTest, AbortsAndDestroysAfterPartialWrites) {
   }
 }
 
-TEST(CarquetExportWriterTest,
-     WritesNestedAndSpecialValuesForIndependentArrowReader) {
+TEST(CarquetExportWriterTest, WritesNestedAndSpecialValues) {
   auto state = std::make_shared<OutputState>();
   auto response = makeNestedResponse();
   auto schema = fileSchema("nested", {{"compression", "zstd"},
@@ -671,66 +533,7 @@ TEST(CarquetExportWriterTest,
   EXPECT_EQ(state->closes, 1);
   EXPECT_EQ(state->aborts, 0);
 
-  auto metadata = openMetadata(state->bytes);
-  ASSERT_NE(metadata, nullptr);
-  ASSERT_EQ(metadata->metadata()->num_row_groups(), 2);
-  ASSERT_EQ(metadata->metadata()->num_columns(), 8);
-
-  auto table = readWithArrow(state->bytes);
-  ASSERT_NE(table, nullptr);
-  ASSERT_EQ(table->num_rows(), 4);
-  ASSERT_EQ(table->num_columns(), 7);
-
-  auto numbers =
-      std::static_pointer_cast<arrow::ListArray>(table->column(0)->chunk(0));
-  ASSERT_EQ(numbers->length(), 4);
-  EXPECT_EQ(numbers->value_length(0), 3);
-  EXPECT_EQ(numbers->value_length(1), 0);
-  EXPECT_TRUE(numbers->IsNull(2));
-  EXPECT_EQ(numbers->value_length(3), 2);
-  auto numberValues =
-      std::static_pointer_cast<arrow::Int64Array>(numbers->values());
-  EXPECT_EQ(numberValues->Value(numbers->value_offset(0)), 1);
-  EXPECT_TRUE(numberValues->IsNull(numbers->value_offset(0) + 1));
-  EXPECT_EQ(numberValues->Value(numbers->value_offset(3) + 1), 5);
-
-  ASSERT_EQ(table->schema()->field(1)->type()->id(), arrow::Type::LIST);
-  auto matrix =
-      std::static_pointer_cast<arrow::ListArray>(table->column(1)->chunk(0));
-  EXPECT_EQ(matrix->value_length(0), 2);
-  EXPECT_TRUE(matrix->IsNull(1));
-  auto matrixRows =
-      std::static_pointer_cast<arrow::ListArray>(matrix->values());
-  EXPECT_EQ(matrixRows->value_length(0), 2);
-  EXPECT_TRUE(matrixRows->IsNull(matrix->value_offset(2) + 1));
-  auto matrixCells =
-      std::static_pointer_cast<arrow::Int32Array>(matrixRows->values());
-  EXPECT_EQ(matrixCells->Value(0), 100);
-  EXPECT_EQ(matrixCells->Value(1), 101);
-  EXPECT_TRUE(matrixCells->IsNull(2));
-  EXPECT_EQ(matrixCells->Value(matrixCells->length() - 1), 115);
-
-  auto record =
-      std::static_pointer_cast<arrow::StructArray>(table->column(2)->chunk(0));
-  EXPECT_TRUE(record->IsNull(1));
-  auto counts = std::static_pointer_cast<arrow::Int32Array>(record->field(0));
-  auto labels = std::static_pointer_cast<arrow::StringArray>(record->field(1));
-  EXPECT_EQ(counts->Value(0), 7);
-  EXPECT_TRUE(counts->IsNull(2));
-  EXPECT_EQ(labels->GetString(2), "c");
-  EXPECT_TRUE(labels->IsNull(3));
-
-  for (int column = 3; column < 7; ++column) {
-    auto values = std::static_pointer_cast<arrow::StringArray>(
-        table->column(column)->chunk(0));
-    EXPECT_TRUE(values->IsNull(2));
-  }
-  auto durations =
-      std::static_pointer_cast<arrow::StringArray>(table->column(3)->chunk(0));
-  EXPECT_EQ(durations->GetString(0), "P0D");
-  auto paths =
-      std::static_pointer_cast<arrow::StringArray>(table->column(6)->chunk(0));
-  EXPECT_EQ(paths->GetString(3), "{\"path\":3}");
+  saveOutput(state);
 }
 
 TEST(CarquetExportWriterTest, PreservesNamedStructFieldsInNestedValues) {
@@ -759,46 +562,7 @@ TEST(CarquetExportWriterTest, PreservesNamedStructFieldsInNestedValues) {
   auto state = std::make_shared<OutputState>();
   auto status = writeResponse(fileSchema("named_nested"), &response, state);
   ASSERT_TRUE(status.ok()) << status.ToString();
-  auto table = readWithArrow(state->bytes);
-  ASSERT_NE(table, nullptr);
-  ASSERT_EQ(table->num_rows(), 1);
-
-  auto profile_type = std::static_pointer_cast<arrow::StructType>(
-      table->schema()->field(0)->type());
-  EXPECT_EQ(profile_type->field(0)->name(), "address");
-  EXPECT_EQ(profile_type->field(1)->name(), "age");
-  auto address_type = std::static_pointer_cast<arrow::StructType>(
-      profile_type->field(0)->type());
-  EXPECT_EQ(address_type->field(0)->name(), "city");
-
-  auto history_type = std::static_pointer_cast<arrow::ListType>(
-      table->schema()->field(1)->type());
-  auto visit_type =
-      std::static_pointer_cast<arrow::StructType>(history_type->value_type());
-  EXPECT_EQ(visit_type->field(0)->name(), "city");
-  EXPECT_EQ(visit_type->field(1)->name(), "year");
-
-  auto profile_values =
-      std::static_pointer_cast<arrow::StructArray>(table->column(0)->chunk(0));
-  auto address_values =
-      std::static_pointer_cast<arrow::StructArray>(profile_values->field(0));
-  auto cities =
-      std::static_pointer_cast<arrow::StringArray>(address_values->field(0));
-  auto ages =
-      std::static_pointer_cast<arrow::Int64Array>(profile_values->field(1));
-  EXPECT_EQ(cities->GetString(0), "hz");
-  EXPECT_EQ(ages->Value(0), 30);
-
-  auto history_values =
-      std::static_pointer_cast<arrow::ListArray>(table->column(1)->chunk(0));
-  ASSERT_EQ(history_values->value_length(0), 1);
-  auto visits =
-      std::static_pointer_cast<arrow::StructArray>(history_values->values());
-  auto visit_cities =
-      std::static_pointer_cast<arrow::StringArray>(visits->field(0));
-  auto years = std::static_pointer_cast<arrow::Int64Array>(visits->field(1));
-  EXPECT_EQ(visit_cities->GetString(0), "sh");
-  EXPECT_EQ(years->Value(0), 2025);
+  saveOutput(state);
 }
 
 TEST(CarquetExportWriterTest, PreservesAllScalarTypesInMixedNestedBatches) {
@@ -807,8 +571,7 @@ TEST(CarquetExportWriterTest, PreservesAllScalarTypesInMixedNestedBatches) {
       1, std::string("a\0b", 3));
   auto flatState = std::make_shared<OutputState>();
   ASSERT_TRUE(writeResponse(fileSchema("flat"), &flat, flatState).ok());
-  auto expected = readWithArrow(flatState->bytes);
-  ASSERT_NE(expected, nullptr);
+  saveOutput(flatState);
 
   auto response = flat;
   response.mutable_schema()->add_name("record");
@@ -843,46 +606,7 @@ TEST(CarquetExportWriterTest, PreservesAllScalarTypesInMixedNestedBatches) {
                                {"row_group_size", "2"}}),
           &response, state);
       ASSERT_TRUE(status.ok()) << status.ToString();
-      auto actual = readWithArrow(state->bytes);
-      ASSERT_NE(actual, nullptr);
-      ASSERT_EQ(actual->num_rows(), 5);
-      ASSERT_EQ(actual->num_columns(), 13);
-      auto actualRecord = std::static_pointer_cast<arrow::StructArray>(
-          actual->column(10)->chunk(0));
-      auto actualList = std::static_pointer_cast<arrow::ListArray>(
-          actual->column(11)->chunk(0));
-      auto listRecords =
-          std::static_pointer_cast<arrow::StructArray>(actualList->values());
-      auto actualOuter = std::static_pointer_cast<arrow::StructArray>(
-          actual->column(12)->chunk(0));
-      auto innerList =
-          std::static_pointer_cast<arrow::ListArray>(actualOuter->field(0));
-      EXPECT_TRUE(actualRecord->IsNull(1));
-      EXPECT_TRUE(actualOuter->IsNull(1));
-      EXPECT_TRUE(innerList->IsNull(2));
-      EXPECT_EQ(innerList->value_length(0), 0);
-      EXPECT_EQ(innerList->value_length(4), 2);
-      EXPECT_TRUE(actualList->IsNull(2));
-      EXPECT_EQ(actualList->value_length(0), 0);
-      EXPECT_EQ(actualList->value_length(4), 2);
-      EXPECT_TRUE(listRecords->IsNull(1));
-      for (int column = 0; column < flat.arrays_size(); ++column) {
-        EXPECT_TRUE(actual->column(column)->Equals(expected->column(column)));
-        EXPECT_TRUE(actualRecord->field(column)->type()->Equals(
-            expected->column(column)->type()));
-        EXPECT_TRUE(listRecords->field(column)->type()->Equals(
-            expected->column(column)->type()));
-        for (int row : {0, 2, 3, 4}) {
-          auto value = expected->column(column)->GetScalar(row);
-          auto inRecord = actualRecord->field(column)->GetScalar(row);
-          auto inList = listRecords->field(column)->GetScalar(row);
-          ASSERT_TRUE(value.ok());
-          ASSERT_TRUE(inRecord.ok());
-          ASSERT_TRUE(inList.ok());
-          EXPECT_TRUE((*value)->Equals(**inRecord));
-          EXPECT_TRUE((*value)->Equals(**inList));
-        }
-      }
+      saveOutput(state);
     }
   }
 }
@@ -915,29 +639,7 @@ TEST(CarquetExportWriterTest, PreservesNestedValidityAcrossBytesAndRowGroups) {
   auto status = writeResponse(fileSchema("validity", {{"row_group_size", "3"}}),
                               &response, state);
   ASSERT_TRUE(status.ok()) << status.ToString();
-  auto metadata = openMetadata(state->bytes);
-  ASSERT_EQ(metadata->metadata()->num_row_groups(), 7);
-  auto table = readWithArrow(state->bytes);
-  ASSERT_NE(table, nullptr);
-  auto actual =
-      std::static_pointer_cast<arrow::ListArray>(table->column(0)->chunk(0));
-  auto values = std::static_pointer_cast<arrow::BooleanArray>(actual->values());
-  for (int row = 0; row < kRows; ++row) {
-    const bool valid = row % 4 != 0 && (row < 3 || row >= 6);
-    ASSERT_EQ(actual->IsValid(row), valid) << row;
-    if (!valid) {
-      continue;
-    }
-    ASSERT_EQ(actual->value_length(row), 3);
-    for (int child = 0; child < 3; ++child) {
-      const int source = row * 3 + child;
-      const int64_t target = actual->value_offset(row) + child;
-      ASSERT_EQ(values->IsNull(target), source % 5 == 0);
-      if (values->IsValid(target)) {
-        EXPECT_EQ(values->Value(target), source % 2 == 0);
-      }
-    }
-  }
+  saveOutput(state);
 }
 
 TEST(CarquetExportWriterTest, AbortsNestedOutputOnWriteAndCloseFailures) {
@@ -984,21 +686,7 @@ TEST(CarquetExportWriterTest, WritesSpecialStringsWithoutNestedColumns) {
   auto state = std::make_shared<OutputState>();
   auto status = writeResponse(fileSchema("special"), &response, state, nullptr);
   ASSERT_TRUE(status.ok()) << status.ToString();
-  auto table = readWithArrow(state->bytes);
-  ASSERT_NE(table, nullptr);
-  for (int column = 0; column < 4; ++column) {
-    auto values = std::static_pointer_cast<arrow::StringArray>(
-        table->column(column)->chunk(0));
-    EXPECT_TRUE(values->IsNull(1));
-  }
-  EXPECT_EQ(
-      std::static_pointer_cast<arrow::StringArray>(table->column(0)->chunk(0))
-          ->GetString(2),
-      "PT2S");
-  EXPECT_EQ(
-      std::static_pointer_cast<arrow::StringArray>(table->column(3)->chunk(0))
-          ->GetString(2),
-      "p2");
+  saveOutput(state);
 }
 
 TEST(CarquetExportWriterTest, ReleasesPartiallyBuiltCDataTreesOnFailure) {
