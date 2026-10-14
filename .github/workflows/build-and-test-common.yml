@@ -180,9 +180,6 @@ jobs:
         cd ${GITHUB_WORKSPACE}/
         echo "CCache stats before build"
         ccache --show-stats
-        if [[ "${{ inputs.os-type }}" == "linux" ]]; then
-          export CI=ON
-        fi
         export BUILD_TYPE=RELEASE
         if [[ "${{ inputs.os-type }}" == "macos" ]]; then
           export CMAKE_BUILD_PARALLEL_LEVEL=$(sysctl -n hw.ncpu)
@@ -469,9 +466,6 @@ jobs:
     - name: Test installation c++ sdk
       if: steps.scope.outputs.extension_only != 'true'
       run: |
-        if [[ "${{ inputs.os-type }}" == "linux" ]]; then
-          export CI=ON
-        fi
         cd ${GITHUB_WORKSPACE}/build
         sudo cmake --install .
         if [[ "${{ inputs.os-type }}" == "macos" ]]; then
