@@ -58,7 +58,8 @@ struct CSVReadFunction {
           "Can not run read function with empty column names and types");
     }
     auto& options = state->schema.file.options;
-    // Map 'DELIMITER' to 'DELIM' for the CSV reader. Options are case insensitive.
+    // Map 'DELIMITER' to 'DELIM' for the CSV reader. Options are case
+    // insensitive.
     auto it = options.find("DELIMITER");
     if (it != options.end()) {
       options["DELIM"] = it->second;
@@ -84,7 +85,8 @@ struct CSVReadFunction {
 
   static void validateAndConvertSniffOptions(reader::FileSchema& schema) {
     auto& options = schema.options;
-    // Map 'DELIMITER' to 'DELIM' for the CSV reader. Options are case insensitive.
+    // Map 'DELIMITER' to 'DELIM' for the CSV reader. Options are case
+    // insensitive.
     auto it = options.find("DELIMITER");
     if (it != options.end()) {
       options["DELIM"] = it->second;
