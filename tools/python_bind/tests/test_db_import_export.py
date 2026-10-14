@@ -197,6 +197,62 @@ def test_import_type_conversion_overflow(tmp_path):
     db.close()
 
 
+# DB-005-04b
+# Regression test for issue #1125: COPY FROM (LOAD FROM ...) must not silently
+# write garbage when a source column's type differs from the target column type.
+def test_copy_from_subquery_type_mismatch_raises(tmp_path):
+    db_dir = tmp_path / "copy_subquery_type_mismatch"
+    db_dir.mkdir()
+    db = Database(db_path=str(db_dir), mode="w")
+    conn = db.connect()
+    conn.execute(
+        "CREATE NODE TABLE bad_typed(id INT64 PRIMARY KEY, name INT64, price DOUBLE);"
+    )
+    csv_path = tmp_path / "item.csv"
+    with open(csv_path, "w") as f:
+        f.write("id|name|price\n1|apple|1.5\n2|banana|2.5\n")
+    # `name` is STRING in the source but INT64 in the target: no implicit cast
+    # exists, so COPY must reject it at bind time (ERR_TYPE_CONVERSION naming the
+    # column and both types) rather than reinterpret the raw bytes.
+    with pytest.raises(Exception) as excinfo:
+        conn.execute(
+            f'COPY bad_typed FROM (LOAD FROM "{Path(csv_path).as_posix()}" '
+            '(delim="|", header=true) RETURN id, name, price);'
+        )
+    assert str(ERR_TYPE_CONVERSION) in str(excinfo.value)
+    conn.close()
+    db.close()
+
+
+# DB-005-04c
+# Companion to #1125: a *compatible* source/target type mismatch must be cast to
+# the target type (previously the raw source buffer was reinterpreted, corrupting
+# the stored value).
+def test_copy_from_subquery_compatible_cast(tmp_path):
+    db_dir = tmp_path / "copy_subquery_compatible_cast"
+    db_dir.mkdir()
+    db = Database(db_path=str(db_dir), mode="w")
+    conn = db.connect()
+    conn.execute("CREATE NODE TABLE good_typed(id INT64 PRIMARY KEY, count DOUBLE);")
+    csv_path = tmp_path / "count.csv"
+    with open(csv_path, "w") as f:
+        f.write("id|count\n1|100\n2|250\n")
+    # `count` is sniffed as INT64 by LOAD FROM but the target column is DOUBLE.
+    conn.execute(
+        f'COPY good_typed FROM (LOAD FROM "{Path(csv_path).as_posix()}" '
+        '(delim="|", header=true) RETURN id, count);'
+    )
+    rows = [
+        list(r)
+        for r in conn.execute(
+            "MATCH (n:good_typed) RETURN n.id, n.count ORDER BY n.id;"
+        )
+    ]
+    assert rows == [[1, 100.0], [2, 250.0]]
+    conn.close()
+    db.close()
+
+
 def test_import_string_pk(tmp_path):
     db_dir = tmp_path / "import_type"
     db_dir.mkdir()

@@ -111,6 +111,13 @@ struct NEUG_API BoundCopyFromInfo {
   std::shared_ptr<Expression> offset;
   expression_vector columnExprs;
   std::vector<common::ColumnEvaluateType> columnEvaluateTypes;
+  // Per-column expressions to materialize before the copy operator when a
+  // source column's type differs from the target column's type. Empty when no
+  // cast is required (all columns are passed through by reference). When set,
+  // the planner appends a projection over these expressions so that mismatched
+  // columns are cast (raising ERR_TYPE_CONVERSION on incompatible values)
+  // instead of being reinterpreted as raw bytes by storage.
+  expression_vector columnCastExprs;
   std::unique_ptr<ExtraBoundCopyFromInfo> extraInfo;
   // extra table info to create vertex or edge type from inferred results
   std::shared_ptr<DDLTableInfo> ddlTableInfo;
@@ -155,7 +162,8 @@ struct NEUG_API BoundCopyFromInfo {
   BoundCopyFromInfo(const BoundCopyFromInfo& other)
       : offset{other.offset},
         columnExprs{other.columnExprs},
-        columnEvaluateTypes{other.columnEvaluateTypes} {
+        columnEvaluateTypes{other.columnEvaluateTypes},
+        columnCastExprs{other.columnCastExprs} {
     // ref to table entry in catalog or ddl table info
     tableEntry = other.tableEntry;
     // Shadow copy of ddl table info to avoid extra overhead

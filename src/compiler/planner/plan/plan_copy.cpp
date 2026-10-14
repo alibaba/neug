@@ -121,6 +121,11 @@ std::unique_ptr<LogicalPlan> Planner::planCopyNodeFrom(
   default:
     NEUG_UNREACHABLE;
   }
+  // Materialize casts for source columns whose type differs from the target
+  // column type, so storage never reinterprets a raw buffer as the wrong type.
+  if (!info->columnCastExprs.empty()) {
+    appendProjection(info->columnCastExprs, *plan);
+  }
   appendCopyFrom(*info, results, *plan);
   return plan;
 }
@@ -171,6 +176,11 @@ std::unique_ptr<LogicalPlan> Planner::planCopyRelFrom(
     NEUG_UNREACHABLE;
   }
   auto& extraInfo = info->extraInfo->constCast<ExtraBoundCopyRelInfo>();
+  // Materialize casts for source columns whose type differs from the target
+  // column type, so storage never reinterprets a raw buffer as the wrong type.
+  if (!info->columnCastExprs.empty()) {
+    appendProjection(info->columnCastExprs, *plan);
+  }
   appendCopyFrom(*info, results, *plan);
   return plan;
 }

@@ -314,23 +314,43 @@ static void bindExpectedRelColumns(const EdgeSchema* relTableEntry,
                                    std::vector<DataType>& columnTypes,
                                    const main::ClientContext* context);
 
-static std::pair<ColumnEvaluateType, std::shared_ptr<Expression>>
-matchColumnExpression(const expression_vector& columns,
-                      const PropertyDefinition& property,
-                      ExpressionBinder& expressionBinder) {
-  for (auto& column : columns) {
-    if (property.getName() == column->toString()) {
-      if (column->dataType == property.getType()) {
-        return {ColumnEvaluateType::REFERENCE, column};
-      } else {
-        return {ColumnEvaluateType::CAST,
-                expressionBinder.forceCast(column, property.getType())};
-      }
+// Compute how each source column must be evaluated against the target column
+// type. COPY maps source columns to target columns positionally, so we compare
+// types by position rather than by name. When a source column's type differs
+// from the target type we route it through implicitCast, which follows NeuG's
+// global implicit-conversion policy: an allowed conversion (e.g. INT64 ->
+// DOUBLE) is cast, while a disallowed one (e.g. STRING -> INT64) is rejected at
+// bind time with an error naming the offending column and target type. Either
+// way the raw source buffer is never reinterpreted as the wrong type by
+// storage. `evaluateTypes` is always filled (one entry per column). `castExprs`
+// is left empty when no cast is required; otherwise it holds the projection
+// expressions (cast where needed, pass-through otherwise).
+static void bindCopyColumnCasts(const expression_vector& columns,
+                                const std::vector<DataType>& expectedTypes,
+                                ExpressionBinder& expressionBinder,
+                                std::vector<ColumnEvaluateType>& evaluateTypes,
+                                expression_vector& castExprs) {
+  evaluateTypes.assign(columns.size(), ColumnEvaluateType::REFERENCE);
+  bool needCast = false;
+  for (auto i = 0u; i < columns.size(); ++i) {
+    if (i < expectedTypes.size() &&
+        columns[i]->getDataType() != expectedTypes[i]) {
+      evaluateTypes[i] = ColumnEvaluateType::CAST;
+      needCast = true;
     }
   }
-  return {ColumnEvaluateType::DEFAULT,
-          expressionBinder.createLiteralExpression(
-              compiler_impl::Value::createDefaultValue(property.getType()))};
+  if (!needCast) {
+    return;
+  }
+  castExprs.reserve(columns.size());
+  for (auto i = 0u; i < columns.size(); ++i) {
+    if (evaluateTypes[i] == ColumnEvaluateType::CAST) {
+      castExprs.push_back(
+          expressionBinder.implicitCast(columns[i], expectedTypes[i]));
+    } else {
+      castExprs.push_back(columns[i]);
+    }
+  }
 }
 
 std::unique_ptr<BoundStatement> Binder::bindCopyNodeFrom(
@@ -345,13 +365,16 @@ std::unique_ptr<BoundStatement> Binder::bindCopyNodeFrom(
                                     copyStatement.getParsingOptions(),
                                     expectedColumnNames, expectedColumnTypes);
   expression_vector columns = boundSource->getColumns();
-  std::vector<ColumnEvaluateType> evaluateTypes(columns.size(),
-                                                ColumnEvaluateType::REFERENCE);
+  std::vector<ColumnEvaluateType> evaluateTypes;
+  expression_vector castExprs;
+  bindCopyColumnCasts(columns, expectedColumnTypes, expressionBinder,
+                      evaluateTypes, castExprs);
   auto offset = createInvisibleVariable(
       std::string(InternalKeyword::ROW_OFFSET), DataType(DataTypeId::kInt64));
   auto boundCopyFromInfo = BoundCopyFromInfo(
       nodeTableEntry, std::move(boundSource), std::move(offset),
       std::move(columns), std::move(evaluateTypes), nullptr /* extraInfo */);
+  boundCopyFromInfo.columnCastExprs = std::move(castExprs);
   return std::make_unique<BoundCopyFrom>(std::move(boundCopyFromInfo));
 }
 
@@ -395,8 +418,10 @@ std::unique_ptr<BoundStatement> Binder::bindCopyRelFrom(
   auto dstOffset = createVariable(std::string(InternalKeyword::DST_OFFSET),
                                   DataType(DataTypeId::kInt64));
   expression_vector columns = boundSource->getColumns();
-  std::vector<ColumnEvaluateType> evaluateTypes(columns.size(),
-                                                ColumnEvaluateType::REFERENCE);
+  std::vector<ColumnEvaluateType> evaluateTypes;
+  expression_vector castExprs;
+  bindCopyColumnCasts(columns, expectedColumnTypes, expressionBinder,
+                      evaluateTypes, castExprs);
   std::shared_ptr<Expression> srcKey = nullptr, dstKey = nullptr;
   if (expectedColumnTypes[0] != columns[0]->getDataType()) {
     srcKey = expressionBinder.forceCast(columns[0], expectedColumnTypes[0]);
@@ -419,6 +444,7 @@ std::unique_ptr<BoundStatement> Binder::bindCopyRelFrom(
   auto boundCopyFromInfo = BoundCopyFromInfo(
       relTableEntry, boundSource->copy(), offset, std::move(columns),
       std::move(evaluateTypes), std::move(extraCopyRelInfo));
+  boundCopyFromInfo.columnCastExprs = std::move(castExprs);
   return std::make_unique<BoundCopyFrom>(std::move(boundCopyFromInfo));
 }
 
