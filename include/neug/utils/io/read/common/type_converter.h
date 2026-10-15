@@ -27,7 +27,7 @@ namespace reader {
  * @brief Template base class for converting types to target format
  *
  * This template class provides a generic interface for converting internal
- * common::DataType (protobuf) to target type systems (e.g., Arrow DataType).
+ * common::DataType (protobuf) to target type systems (e.g., Parquet types).
  * Derived classes implement the conversion logic for specific target formats.
  */
 template <class TargetType>
@@ -41,7 +41,7 @@ class TypeConverter {
 };
 
 /// Converts between common::DataType (protobuf) and neug::DataType without
-/// Arrow.
+/// external file formats.
 class NeuGTypeConverter {
  public:
   DataType convert(const ::common::DataType& type) const;

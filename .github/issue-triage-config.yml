@@ -62,7 +62,7 @@ umbrellas:
     scope_in: |
       End-to-end COPY FROM / LOAD FROM behavior: schema auto-detection, scalar &
       temporal type inference, CAST, performance (latency, batching, memory caps,
-      column remapping), reader options (Arrow ScanOptions, CSV ReadOptions),
+      column remapping), reader options (Parquet scan options, CSV ReadOptions),
       validation diagnostics for missing nodes / mis-named edge columns.
     scope_out: |
       LIST / composite (tuple, struct) types — both storage primitives and

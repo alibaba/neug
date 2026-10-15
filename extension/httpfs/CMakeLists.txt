@@ -4,7 +4,7 @@
 #
 # This extension is Arrow-free: the S3 protocol (SigV4 signing, ranged GET,
 # ListObjectsV2, PutObject/multipart) is implemented directly on top of
-# libcurl + OpenSSL. Arrow integration for Parquet lives in the parquet
+# libcurl + OpenSSL. Parquet decoding lives in the parquet
 # extension's adapter layer instead.
 
 # Find required dependencies.
