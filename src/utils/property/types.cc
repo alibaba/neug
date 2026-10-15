@@ -542,14 +542,28 @@ Interval::Interval(std::string str) {
   for (size_t i = 0; i < str.length(); ++i) {
     str[i] = std::tolower(str[i]);
   }
+  // A unit may be followed immediately by the next signed or unsigned number
+  // (e.g. "1year2months"); a word boundary would reject unsigned components.
   static const std::regex interval_regex(
-      R"(([+-]?\d+)\s*(years?|months?|weeks?|days?|hours?|minutes?|seconds?|milliseconds?|microseconds?|us)\b)");
+      R"(([+-]?\d+)\s*(years?|months?|weeks?|days?|hours?|minutes?|seconds?|milliseconds?|microseconds?|us)(?=$|[\s0-9+-]))");
   std::smatch match;
   months = days = micros = 0;
-  // Parse into a wide accumulator so overflow is rejected before narrowing.
-  auto add = [](auto& field, int64_t value, int64_t scale) {
+  // Unit conversion factors are always positive.
+  auto multiply = [](int64_t value, int64_t scale) {
+    if (value > std::numeric_limits<int64_t>::max() / scale ||
+        value < std::numeric_limits<int64_t>::min() / scale) {
+      THROW_INVALID_ARGUMENT_EXCEPTION("Interval component out of range");
+    }
+    return value * scale;
+  };
+  auto add = [](auto& field, int64_t value) {
     using T = std::decay_t<decltype(field)>;
-    __int128 result = __int128(field) + __int128(value) * scale;
+    const int64_t current = field;
+    if ((value > 0 && current > std::numeric_limits<int64_t>::max() - value) ||
+        (value < 0 && current < std::numeric_limits<int64_t>::min() - value)) {
+      THROW_INVALID_ARGUMENT_EXCEPTION("Interval component out of range");
+    }
+    const int64_t result = current + value;
     if (result < std::numeric_limits<T>::min() ||
         result > std::numeric_limits<T>::max()) {
       THROW_INVALID_ARGUMENT_EXCEPTION("Interval component out of range");
@@ -564,23 +578,23 @@ Interval::Interval(std::string str) {
     int64_t num = std::stoll(match[1].str());
     std::string unit = match[2].str();
     if (unit == "year" || unit == "years") {
-      add(months, num, Interval::MONTHS_PER_YEAR);
+      add(months, multiply(num, Interval::MONTHS_PER_YEAR));
     } else if (unit == "month" || unit == "months") {
-      add(months, num, 1);
+      add(months, num);
     } else if (unit == "week" || unit == "weeks") {
-      add(days, num, 7);
+      add(days, multiply(num, 7));
     } else if (unit == "day" || unit == "days") {
-      add(days, num, 1);
+      add(days, num);
     } else if (unit == "hour" || unit == "hours") {
-      add(micros, num, Interval::MICROS_PER_HOUR);
+      add(micros, multiply(num, Interval::MICROS_PER_HOUR));
     } else if (unit == "minute" || unit == "minutes") {
-      add(micros, num, Interval::MICROS_PER_MINUTE);
+      add(micros, multiply(num, Interval::MICROS_PER_MINUTE));
     } else if (unit == "second" || unit == "seconds") {
-      add(micros, num, Interval::MICROS_PER_SEC);
+      add(micros, multiply(num, Interval::MICROS_PER_SEC));
     } else if (unit == "millisecond" || unit == "milliseconds") {
-      add(micros, num, Interval::MICROS_PER_MSEC);
+      add(micros, multiply(num, Interval::MICROS_PER_MSEC));
     } else {
-      add(micros, num, 1);
+      add(micros, num);
     }
     str = match.suffix().str();
     // trim leading and trailing spaces

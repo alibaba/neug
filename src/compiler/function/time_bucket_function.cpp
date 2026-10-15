@@ -34,23 +34,23 @@ namespace {
 // origins, and subtract/bucket/add offsets. Arithmetic here uses NeuG millis.
 using common::DataType;
 using common::DataTypeId;
-using Wide = __int128;
 constexpr int64_t kDayMs = Interval::MSEC_PER_DAY;
 constexpr int64_t kDefaultOriginMs = 10959LL * kDayMs;
 constexpr int64_t kDefaultOriginMonths = 360;
 enum class BucketWidthKind { MilliSeconds, Month };
 enum class Form { Default, Offset, Origin };
 
-int64_t checkedInt64(Wide value) {
-  if (value < std::numeric_limits<int64_t>::min() ||
-      value > std::numeric_limits<int64_t>::max()) {
+int64_t checkedAdd(int64_t lhs, int64_t rhs) {
+  if ((rhs > 0 && lhs > std::numeric_limits<int64_t>::max() - rhs) ||
+      (rhs < 0 && lhs < std::numeric_limits<int64_t>::min() - rhs)) {
     THROW_INVALID_ARGUMENT_EXCEPTION(
         "TIME_BUCKET: time calculation out of range");
   }
-  return static_cast<int64_t>(value);
+  return lhs + rhs;
 }
 
-Wide floorDivide(Wide value, int64_t divisor) {
+// All callers use a positive divisor, so INT64_MIN / -1 cannot occur.
+int64_t floorDivide(int64_t value, int64_t divisor) {
   auto result = value / divisor;
   if (value < 0 && value % divisor != 0) {
     --result;
@@ -67,9 +67,9 @@ void checkPrecision(const Interval& interval) {
 
 int64_t intervalMillis(const Interval& interval) {
   checkPrecision(interval);
-  checkedInt64(Wide(interval.days) * kDayMs +
-               interval.micros / Interval::MICROS_PER_MSEC);
-  return interval.to_mill_seconds();
+  // An int32 day count times milliseconds per day fits in int64.
+  return checkedAdd(int64_t(interval.days) * kDayMs,
+                    interval.micros / Interval::MICROS_PER_MSEC);
 }
 
 struct BucketWidth {
@@ -101,14 +101,19 @@ BucketWidth classifyWidth(const Interval& width) {
 // ranges before invoking them, rather than detecting wrapped dates afterwards.
 void checkDayRange(int64_t days) {
   using Duration = std::chrono::system_clock::duration;
-  using Period = Duration::period;
+  using Days = std::chrono::duration<int64_t, std::ratio<86400>>;
   static const auto minDay =
       date::sys_days{date::year{1} / 1 / 1}.time_since_epoch().count();
   static const auto maxDay =
       date::sys_days{date::year::max() / 12 / 31}.time_since_epoch().count();
-  Wide ticks = Wide(days) * 86400 * Period::den / Period::num;
-  if (days < minDay || days > maxDay || ticks < Duration::min().count() ||
-      ticks > Duration::max().count()) {
+  // Convert the clock limits to whole days instead of multiplying days into
+  // ticks. Truncation toward zero gives the first/last representable midnight.
+  static const auto minClockDay =
+      std::chrono::duration_cast<Days>(Duration::min()).count();
+  static const auto maxClockDay =
+      std::chrono::duration_cast<Days>(Duration::max()).count();
+  if (days < minDay || days > maxDay || days < minClockDay ||
+      days > maxClockDay) {
     THROW_INVALID_ARGUMENT_EXCEPTION("TIME_BUCKET: date out of range");
   }
   const date::year_month_day ymd{date::sys_days{date::days{days}}};
@@ -157,15 +162,26 @@ int64_t epochMonths(int64_t millis) {
 }
 
 int64_t bucketMillis(int64_t width, int64_t ts, int64_t origin) {
-  return checkedInt64(Wide(origin) +
-                      floorDivide(Wide(ts) - origin, width) * width);
+  // Compute (ts - origin) mod width without subtracting the timestamps: that
+  // difference can overflow even when the resulting bucket is representable.
+  auto tsRemainder = ts % width;
+  auto originRemainder = origin % width;
+  if (tsRemainder < 0) {
+    tsRemainder += width;
+  }
+  if (originRemainder < 0) {
+    originRemainder += width;
+  }
+  auto distance = tsRemainder - originRemainder;
+  if (distance < 0) {
+    distance += width;
+  }
+  return checkedAdd(ts, -distance);
 }
 
 int64_t bucketMonths(int64_t width, int64_t ts, int64_t originMonths) {
-  const auto month = checkedInt64(
-      Wide(originMonths) +
-      floorDivide(Wide(epochMonths(ts)) - originMonths, width) * width);
-  const auto year = checkedInt64(1970 + floorDivide(month, 12));
+  const auto month = bucketMillis(width, epochMonths(ts), originMonths);
+  const auto year = checkedAdd(1970, floorDivide(month, 12));
   if (year < 1 || year > int(date::year::max())) {
     THROW_INVALID_ARGUMENT_EXCEPTION("TIME_BUCKET: date out of range");
   }
@@ -197,7 +213,7 @@ DateTime checkedShift(DateTime ts, const Interval& offset, bool subtract) {
     }
     delta.invert();
   }
-  Wide monthMillis = 0;
+  int64_t monthMillis = 0;
   if (delta.months != 0) {
     const auto oldDate = dateFromMillis(ts.milli_second);
     const auto oldDays = dateDays(oldDate);
@@ -234,14 +250,12 @@ DateTime checkedShift(DateTime ts, const Interval& offset, bool subtract) {
       THROW_INVALID_ARGUMENT_EXCEPTION(
           "TIME_BUCKET: date difference out of range");
     }
-    monthMillis = Wide(difference) * kDayMs;
+    monthMillis = difference * kDayMs;
   }
-  const auto dayMillis = Wide(delta.days) * kDayMs;
-  checkedInt64(monthMillis);
-  checkedInt64(monthMillis + dayMillis);
-  const auto shift = checkedInt64(monthMillis + dayMillis +
-                                  delta.micros / Interval::MICROS_PER_MSEC);
-  const auto result = checkedInt64(Wide(ts.milli_second) + shift);
+  const auto dayMillis = int64_t(delta.days) * kDayMs;
+  const auto shift = checkedAdd(checkedAdd(monthMillis, dayMillis),
+                                delta.micros / Interval::MICROS_PER_MSEC);
+  const auto result = checkedAdd(ts.milli_second, shift);
   if (delta.months != 0 && ts.milli_second < 0 &&
       ts.milli_second % kDayMs != 0) {
     return DateTime(result);

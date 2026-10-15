@@ -342,19 +342,28 @@ def test_duckdb_compatibility(conn, width, ts, origin, expected):
     [
         (9223372036854775807, -9223372036854775808),
         (-9223372036854775808, 9223372036854775807),
+        (-9223372036854775807, 9223372036854775807),
+        (9223372036854775807, 0),
+        (-9223372036854775808, 0),
+        (0, -9223372036854775808),
     ],
 )
-def test_int64_timestamp_difference_uses_wide_arithmetic(conn, ts, origin):
+@pytest.mark.parametrize("width", [1, 2, 3, 10, 9223372036854775])
+def test_int64_timestamp_bucket_boundaries(conn, ts, origin, width):
     # Compare in the engine: Python datetime cannot represent these timestamps.
-    assert (
-        scalar(
-            conn,
-            "time_bucket(INTERVAL('1 millisecond'), CAST($ts, 'TIMESTAMP'), "
-            "CAST($origin, 'TIMESTAMP')) = CAST($ts, 'TIMESTAMP')",
-            {"ts": ts, "origin": origin},
-        )
-        is True
+    # Python's arbitrary-precision arithmetic supplies an independent oracle.
+    expected = origin + ((ts - origin) // width) * width
+    expression = (
+        f"time_bucket(INTERVAL('{width} milliseconds'), CAST($ts, 'TIMESTAMP'), "
+        "CAST($origin, 'TIMESTAMP'))"
     )
+    parameters = {"ts": ts, "origin": origin}
+    if expected < -(2**63):
+        with pytest.raises(Exception, match="out of range"):
+            scalar(conn, expression, parameters)
+    else:
+        parameters["expected"] = expected
+        assert scalar(conn, expression + " = CAST($expected, 'TIMESTAMP')", parameters)
 
 
 @pytest.mark.parametrize(
@@ -389,6 +398,84 @@ def test_int64_timestamp_difference_uses_wide_arithmetic(conn, ts, origin):
 def test_checked_overflow(conn, expression, parameters):
     with pytest.raises(Exception, match="(?i)out of range"):
         scalar(conn, expression, parameters)
+
+
+@pytest.mark.parametrize("runtime", [False, True])
+@pytest.mark.parametrize(
+    "compact,spaced",
+    [
+        (
+            "1year2months3days4hours5minutes6seconds",
+            "1 year 2 months 3 days 4 hours 5 minutes 6 seconds",
+        ),
+        ("6months15days", "6 months 15 days"),
+        ("1week2days", "9 days"),
+        ("1day-2hours+3minutes", "1 day -2 hours 3 minutes"),
+        ("1millisecond2microseconds3us", "1005 microseconds"),
+        ("1DAY2HOURS", "1 day 2 hours"),
+    ],
+)
+def test_interval_compact_components(conn, runtime, compact, spaced):
+    expression = "CAST($value, 'INTERVAL')" if runtime else f"INTERVAL('{compact}')"
+    assert scalar(conn, f"{expression} = INTERVAL('{spaced}')", {"value": compact})
+
+
+@pytest.mark.parametrize("runtime", [False, True])
+@pytest.mark.parametrize(
+    "value",
+    ["1dayjunk", "junk1day", "1dayjunk2hours", "1day_2hours", "1day++2hours"],
+)
+def test_interval_rejects_invalid_components(conn, runtime, value):
+    expression = "CAST($value, 'INTERVAL')" if runtime else f"INTERVAL('{value}')"
+    with pytest.raises(Exception, match="Invalid interval format"):
+        scalar(conn, expression, {"value": value})
+
+
+@pytest.mark.parametrize("runtime", [False, True])
+@pytest.mark.parametrize(
+    "value,expected",
+    [
+        ("2147483647 months", "2147483647 months"),
+        ("-2147483648 days", "-2147483648 days"),
+        ("9223372036854775807 microseconds", "9223372036854775807 microseconds"),
+        ("-9223372036854775808 microseconds", "-9223372036854775808 microseconds"),
+        ("-2147483648 months 178956971 years", "4 months"),
+        ("-2147483648 days 306783379 weeks", "5 days"),
+        (
+            "-9223372036854775808 microseconds 9223372036854775 milliseconds",
+            "-808 microseconds",
+        ),
+        (
+            "9223372036854775807 microseconds -9223372036854775 milliseconds",
+            "807 microseconds",
+        ),
+    ],
+)
+def test_interval_checked_accumulation(conn, runtime, value, expected):
+    expression = "CAST($value, 'INTERVAL')" if runtime else f"INTERVAL('{value}')"
+    assert scalar(conn, f"{expression} = INTERVAL('{expected}')", {"value": value})
+
+
+@pytest.mark.parametrize("runtime", [False, True])
+@pytest.mark.parametrize(
+    "value",
+    [
+        "2147483648 months",
+        "-2147483649 days",
+        "9223372036854776 milliseconds",
+        "-9223372036854776 milliseconds",
+        "9223372036854775807 microseconds 1 microsecond",
+        "-9223372036854775808 microseconds -1 microsecond",
+        "9223372036854775807 years",
+        "-9223372036854775808 weeks",
+        "-9223372036854775808 microseconds 9223372036854776 milliseconds",
+        "9223372036854775807 microseconds -9223372036854776 milliseconds",
+    ],
+)
+def test_interval_accumulation_overflow(conn, runtime, value):
+    expression = "CAST($value, 'INTERVAL')" if runtime else f"INTERVAL('{value}')"
+    with pytest.raises(Exception, match="Interval component out of range"):
+        scalar(conn, expression, {"value": value})
 
 
 def test_interval_parser_and_runtime_temporal_cast_regressions(conn):
