@@ -64,17 +64,12 @@ Build the extension against the NeuG runtime you load it into.
 
 ## Lite builds
 
-`NEUG_LITE` defaults to `OFF` (full build). Enable it for the lite/mobile variant:
+Enable lite mode (default: `OFF`):
 
 ```bash
 EXTRA_CMAKE_FLAGS="-DNEUG_LITE=ON" make cpp-build
 ```
 
-Lite builds reject `INSTALL`, `LOAD`, and `UNINSTALL` with `ERR_NOT_SUPPORTED`.
-They also force `BUILD_HTTP_SERVER=OFF` and exclude OpenSSL from the core build
-and its exported CMake dependencies. `BUILD_EXTENSIONS` defaults to empty;
-explicitly selected extensions retain their own dependencies and still build
-shared libraries. Static extension linking is not implemented yet.
+Lite forces `BUILD_HTTP_SERVER=OFF`, removes the core's OpenSSL dependency, and rejects `INSTALL`, `LOAD`, and `UNINSTALL` with `ERR_NOT_SUPPORTED`.
 
-Set `NEUG_LITE=OFF` to restore the full build, and explicitly set
-`BUILD_HTTP_SERVER=ON` if needed; CMake caches these values.
+To restore the full build, set `NEUG_LITE=OFF` and re-enable `BUILD_HTTP_SERVER=ON` if needed.
