@@ -268,6 +268,8 @@ jobs:
       if: steps.scope.outputs.extension_only != 'true'
       env:
         FLEX_DATA_DIR: ${{ github.workspace }}/example_dataset/tinysnb
+        NEUG_BUILD_DIR: ${{ github.workspace }}/build-lite
+        NEUG_TEST_LITE: '1'
       run: |
         for env_file in /home/neug/.neug_env ~/.neug_env /github/home/.neug_env; do
           if [ -f "$env_file" ]; then
@@ -292,14 +294,17 @@ jobs:
           -DCMAKE_DISABLE_FIND_PACKAGE_OpenSSL=TRUE \
           -DBUILD_TEST=ON \
           -DBUILD_HTTP_SERVER=ON \
-          -DBUILD_PYTHON=OFF \
+          -DBUILD_PYTHON=ON \
+          -DPython_EXECUTABLE="$(command -v python3)" \
+          -DPYTHON_EXECUTABLE="$(command -v python3)" \
           -DBUILD_EXAMPLES=OFF \
           -DBUILD_EXTENSIONS= \
           -DWITH_MIMALLOC=OFF
         # Lite must override an explicit request to build the HTTP server.
         grep -q '^BUILD_HTTP_SERVER:BOOL=OFF$' build-lite/CMakeCache.txt
-        cmake --build build-lite --target test_extension --parallel "$build_jobs"
+        cmake --build build-lite --target test_extension neug_py_bind --parallel "$build_jobs"
         ctest --test-dir build-lite -R '^test_extension$' --output-on-failure --no-tests=error
+        python3 -m pytest -v tools/python_bind/tests/test_db_init.py::test_serve_unavailable_in_lite
 
     # ========================================
     # Phase 2: Bulk load test data

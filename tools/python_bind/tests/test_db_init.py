@@ -21,6 +21,7 @@ import multiprocessing
 import os
 import shutil
 import sys
+from pathlib import Path
 
 import pytest
 from conftest import HAS_LDBC
@@ -236,6 +237,27 @@ def test_zero_max_thread_num_with_unknown_cpu_count(tmp_path, monkeypatch):
     db = Database(db_path=str(db_dir), mode="w", max_thread_num=0)
     assert db is not None
     db.close()
+
+
+@pytest.mark.skipif(
+    os.environ.get("NEUG_TEST_LITE") != "1", reason="Requires a lite build"
+)
+def test_serve_unavailable_in_lite(tmp_path):
+    from neug import neug_py_bind
+
+    # CI also builds full bindings; ensure this test loads the requested build.
+    if build_dir := os.environ.get("NEUG_BUILD_DIR"):
+        expected_dir = (Path(build_dir) / "tools" / "python_bind").resolve()
+        assert Path(neug_py_bind.__file__).resolve().parent == expected_dir
+
+    db = Database(db_path=str(tmp_path / "lite_db"), mode="w", max_thread_num=1)
+    try:
+        with pytest.raises(
+            RuntimeError, match=r"HTTP server is not enabled in this build\."
+        ):
+            db.serve(port=0, blocking=False)
+    finally:
+        db.close()
 
 
 def test_serve_thread_num_clamped_to_max_thread_num(tmp_path, caplog):
