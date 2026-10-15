@@ -191,6 +191,15 @@ jobs:
           cd tools/python_bind
           python -m pytest -sv tests/test_merge.py --exitfirst
 
+      # Mirrors build-and-test-common.yml's Data I/O Documentation Test.
+      - name: Run Python data I/O docs tests
+        id: python-docs-tests
+        continue-on-error: true
+        run: |
+          cd tools/python_bind
+          $env:FLEX_DATA_DIR = "${{ github.workspace }}/example_dataset/modern_graph"
+          python -m pytest -sv tests/test_data_io_docs.py --exitfirst
+
       - name: Run Python LOAD FROM sniffer tests (CSV and JSON)
         id: python-sniffer-tests
         continue-on-error: true
@@ -247,6 +256,7 @@ jobs:
           if ('${{ steps.python-path-tests.outcome }}' -eq 'failure') { $failed += 'python-path-tests' }
           if ('${{ steps.python-dataset-tests.outcome }}' -eq 'failure') { $failed += 'python-dataset-tests' }
           if ('${{ steps.python-merge-tests.outcome }}' -eq 'failure') { $failed += 'python-merge-tests' }
+          if ('${{ steps.python-docs-tests.outcome }}' -eq 'failure') { $failed += 'python-docs-tests' }
           if ('${{ steps.python-sniffer-tests.outcome }}' -eq 'failure') { $failed += 'python-sniffer-tests' }
           if ('${{ steps.python-complex-query-tests.outcome }}' -eq 'failure') { $failed += 'python-complex-query-tests' }
           if ('${{ steps.python-list-array-tests.outcome }}' -eq 'failure') { $failed += 'python-list-array-tests' }

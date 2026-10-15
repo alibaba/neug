@@ -21,7 +21,11 @@
 #include "httplib.h"
 
 #include <atomic>
+#include <condition_variable>
+#include <functional>
 #include <memory>
+#include <mutex>
+#include <queue>
 #include <string>
 #include <thread>
 
@@ -29,6 +33,39 @@
 
 namespace neug {
 class ITpOperations;
+
+/**
+ * @brief Single-worker executor dedicated to transaction-control requests.
+ *
+ * httplib runs every handler on its fixed ThreadPool, and the underlying
+ * database can block a worker for an unbounded time while it waits for an
+ * update lease. If every worker ends up waiting for a lease held by an
+ * explicit transaction, the commit/rollback that would release that lease is
+ * itself queued behind them, and the transaction stalls. Routing
+ * begin/commit/rollback through this always-available executor keeps the
+ * lease-release path alive regardless of data-query load.
+ */
+class HttplibControlExecutor {
+ public:
+  HttplibControlExecutor();
+  ~HttplibControlExecutor();
+
+  HttplibControlExecutor(const HttplibControlExecutor&) = delete;
+  HttplibControlExecutor& operator=(const HttplibControlExecutor&) = delete;
+
+  // Runs `task` on the control worker; the returned future completes when
+  // the task has run.
+  void Execute(std::function<void()> task);
+
+ private:
+  void Loop();
+
+  std::thread worker_;
+  std::mutex mutex_;
+  std::condition_variable cv_;
+  std::queue<std::function<void()>> tasks_;
+  bool stopped_{false};
+};
 
 /**
  * @brief cpp-httplib based transport used where BRPC is unavailable (Windows).
@@ -52,6 +89,11 @@ class HttplibTransport final : public IServiceTransport {
 
  private:
   void RegisterHandlers();
+  // Runs `task` on the control worker and blocks the calling handler until it
+  // has completed. Transaction-control handlers use this so that commit and
+  // rollback stay executable even when every httplib worker is blocked
+  // waiting for an update lease held by an explicit transaction.
+  void RunOnControlWorker(std::function<void()> task);
   void HandleFinishTransaction(const httplib::Request& req,
                                httplib::Response& res, bool commit);
 
@@ -59,6 +101,9 @@ class HttplibTransport final : public IServiceTransport {
   std::string host_;
   uint32_t port_;
   uint32_t thread_num_;
+  // Declared before server_ so the server (whose handlers submit to it) is
+  // destroyed first.
+  HttplibControlExecutor control_executor_;
   std::unique_ptr<httplib::Server> server_;
   std::thread listen_thread_;
   // Set once a listener has been started; Join() drains it exactly once.

@@ -23,12 +23,11 @@
 
 #include <glog/logging.h>
 
+#include <algorithm>
 #include <chrono>
 #include <string>
 #include <thread>
 #include <vector>
-
-#include "gtest/gtest.h"
 
 int submit_query(const std::string& base_url, int thread_id, int query_num,
                  const std::vector<std::string>& queries) {
@@ -69,6 +68,15 @@ int submit_query(const std::string& base_url, int thread_id, int query_num,
               << duration_ms << "ms"
               << ", status=" << status_code << ", content_type=" << content_type
               << ", body_size=" << response_body.size();
+
+    // A non-2xx status is a failed request: remember it so the process exit
+    // code reflects it instead of silently reporting success.
+    if (status_code < 200 || status_code >= 300) {
+      LOG(ERROR) << "Thread " << thread_id << " request " << i
+                 << " failed: HTTP status " << status_code
+                 << ", body=" << response_body;
+      return 1;
+    }
   }
 
   auto end = std::chrono::steady_clock::now();
@@ -103,12 +111,14 @@ int main(int argc, char** argv) {
 
   std::vector<std::thread> threads;
   std::vector<std::string> queries = {"MATCH (n)-[e]-(m) return count(e);"};
+  std::vector<int> results(thread_num, 0);
 
   auto test_start = std::chrono::steady_clock::now();
 
   for (int i = 0; i < thread_num; ++i) {
-    threads.emplace_back(
-        [&, i]() { submit_query(base_url, i, request_num, queries); });
+    threads.emplace_back([&, i]() {
+      results[i] = submit_query(base_url, i, request_num, queries);
+    });
   }
 
   for (auto& t : threads) {
@@ -124,5 +134,12 @@ int main(int argc, char** argv) {
   LOG(INFO) << "Total requests: " << (thread_num * request_num);
   LOG(INFO) << "Average time per request: " << (total_ms / request_num) << "ms";
 
+  const int failed_threads = std::count_if(results.begin(), results.end(),
+                                           [](int r) { return r != 0; });
+  if (failed_threads > 0) {
+    LOG(ERROR) << failed_threads << " of " << thread_num
+               << " worker threads reported failures";
+    return 1;
+  }
   return 0;
 }

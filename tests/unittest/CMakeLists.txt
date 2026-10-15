@@ -34,8 +34,15 @@ if (BUILD_HTTP_SERVER)
     if (WIN32)
         # test_http_server drives the BRPC channel and test_db_svc links
         # brpc/bthread; on Windows the httplib transport is exercised by
-        # httplib_http_server instead.
-        add_neug_test(httplib_http_server httplib_http_server.cc)
+        # httplib_http_server instead. That tool is a manual load client
+        # requiring <uri> <thread_num> <request_num> arguments and a running
+        # server, so it is built for manual runs but not registered with
+        # CTest (an argumentless ctest invocation would just exit -1).
+        add_executable(httplib_http_server httplib_http_server.cc)
+        # Mirrors add_neug_test's WIN32 && BUILD_TEST link set (neug_static
+        # exposes all symbols, which the client's internal-API usage needs).
+        target_link_libraries(httplib_http_server PUBLIC neug::GTest
+            neug_static ${ARROW_LIB} ${OPENSSL_LIBRARIES} ${CRYPTO_LIB})
     else()
         add_neug_test(test_http_server test_http_server.cc)
         add_neug_test(test_db_svc test_db_svc.cc)

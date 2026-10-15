@@ -26,6 +26,42 @@
 
 namespace neug {
 
+HttplibControlExecutor::HttplibControlExecutor()
+    : worker_([this]() { Loop(); }) {}
+
+HttplibControlExecutor::~HttplibControlExecutor() {
+  {
+    std::lock_guard<std::mutex> lock(mutex_);
+    stopped_ = true;
+  }
+  cv_.notify_all();
+  worker_.join();
+}
+
+void HttplibControlExecutor::Execute(std::function<void()> task) {
+  {
+    std::lock_guard<std::mutex> lock(mutex_);
+    tasks_.push(std::move(task));
+  }
+  cv_.notify_one();
+}
+
+void HttplibControlExecutor::Loop() {
+  for (;;) {
+    std::function<void()> task;
+    {
+      std::unique_lock<std::mutex> lock(mutex_);
+      cv_.wait(lock, [this]() { return stopped_ || !tasks_.empty(); });
+      if (tasks_.empty()) {
+        return;
+      }
+      task = std::move(tasks_.front());
+      tasks_.pop();
+    }
+    task();
+  }
+}
+
 std::unique_ptr<IServiceTransport> CreateDefaultServiceTransport(
     ITpOperations& service, const ServiceConfig& config,
     int database_thread_num) {
@@ -75,6 +111,21 @@ HttplibTransport::~HttplibTransport() { StopAndJoin(); }
 void HttplibTransport::RegisterHandlers() {
   auto* svr = server_.get();
 
+  // Non-POST requests on the transaction endpoints must answer 405 with an
+  // Allow header to match the BRPC contract (asserted in test_db_svc.cc);
+  // httplib would otherwise fall through to its default 404.
+  svr->set_pre_routing_handler([](const httplib::Request& req,
+                                  httplib::Response& res) {
+    if (req.method != "POST" && (req.path == "/transactions" ||
+                                 req.path.rfind("/transactions/", 0) == 0)) {
+      res.status = 405;
+      res.set_header("Allow", "POST");
+      res.set_header("Cache-Control", "no-store");
+      return httplib::Server::HandlerResponse::Handled;
+    }
+    return httplib::Server::HandlerResponse::Unhandled;
+  });
+
   // POST /cypher — Execute Cypher queries.
   svr->Post("/cypher", [this](const httplib::Request& req,
                               httplib::Response& res) {
@@ -121,7 +172,9 @@ void HttplibTransport::RegisterHandlers() {
       SendError(res, mode.error());
       return;
     }
-    auto transaction = tp_operations_.BeginTransaction(mode.value());
+    result<ServiceTransactionInfo> transaction;
+    RunOnControlWorker(
+        [&] { transaction = tp_operations_.BeginTransaction(mode.value()); });
     if (!transaction) {
       SendError(res, transaction.error());
       return;
@@ -159,18 +212,41 @@ void HttplibTransport::RegisterHandlers() {
             });
 }
 
+void HttplibTransport::RunOnControlWorker(std::function<void()> task) {
+  // Blocks the calling (httplib worker) thread until the control worker has
+  // run `task`. The control worker is independent of the httplib thread pool,
+  // so transaction-control work stays executable even when every worker is
+  // blocked waiting for an update lease held by an explicit transaction.
+  std::mutex done_mutex;
+  std::condition_variable done_cv;
+  bool done = false;
+  control_executor_.Execute([&] {
+    task();
+    std::lock_guard<std::mutex> lock(done_mutex);
+    done = true;
+    done_cv.notify_one();
+  });
+  std::unique_lock<std::mutex> lock(done_mutex);
+  done_cv.wait(lock, [&done]() { return done; });
+}
+
 void HttplibTransport::HandleFinishTransaction(const httplib::Request& req,
                                                httplib::Response& res,
                                                bool commit) {
   res.set_header("Cache-Control", "no-store");
-  auto transaction_id =
-      service_http::TransactionIdFromPath(req.matches[1].str());
+  // Hold the extracted string for the whole request lifetime:
+  // TransactionIdFromPath returns a view into its argument, and
+  // req.matches[1].str() is a temporary that would dangle otherwise.
+  const std::string transaction_id_str = req.matches[1].str();
+  auto transaction_id = service_http::TransactionIdFromPath(transaction_id_str);
   Status status = transaction_id ? service_http::RequireEmptyBody(req.body)
                                  : transaction_id.error();
   if (status.ok()) {
-    status = commit
-                 ? tp_operations_.CommitTransaction(transaction_id.value())
-                 : tp_operations_.RollbackTransaction(transaction_id.value());
+    RunOnControlWorker([&] {
+      status = commit
+                   ? tp_operations_.CommitTransaction(transaction_id.value())
+                   : tp_operations_.RollbackTransaction(transaction_id.value());
+    });
   }
   if (status.ok()) {
     res.status = 200;
@@ -190,7 +266,16 @@ std::string HttplibTransport::Start() {
     return new httplib::ThreadPool(thread_num);
   };
 
-  if (!server_->bind_to_port(host_.c_str(), static_cast<int>(port_))) {
+  int bound_port = static_cast<int>(port_);
+  if (bound_port == 0) {
+    // Mirror the BRPC service behavior: port zero asks the OS for a free
+    // port, and the endpoint returned to callers must carry the port that
+    // was actually assigned.
+    bound_port = server_->bind_to_any_port(host_.c_str());
+    if (bound_port <= 0) {
+      THROW_RUNTIME_ERROR("Failed to bind httplib server on " + host_ + ":0");
+    }
+  } else if (!server_->bind_to_port(host_.c_str(), bound_port)) {
     THROW_RUNTIME_ERROR("Failed to bind httplib server on " + address);
   }
   join_pending_.store(true, std::memory_order_relaxed);
@@ -209,7 +294,7 @@ std::string HttplibTransport::Start() {
                         address);
   }
 
-  const auto endpoint = "http://" + host_ + ":" + std::to_string(port_);
+  const auto endpoint = "http://" + host_ + ":" + std::to_string(bound_port);
   LOG(INFO) << "httplib server started at " << endpoint;
   return endpoint;
 }
