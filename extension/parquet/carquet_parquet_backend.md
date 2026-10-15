@@ -122,7 +122,8 @@ files in memory; the C++ suite does not require PyArrow.
 Writer C++ tests cover successful writes, malformed responses, output failures
 and resource cleanup. Independent read-back checks run in Python with PyArrow:
 they verify scalar and nested values, timestamp units, NULL bitmaps, row-group
-and page boundaries, compression and dictionary settings. 
+and page boundaries, compression and dictionary settings.
+
 ## Carquet submodule and patch
 
 Carquet remains a pinned submodule with its local changes in the adjacent
