@@ -20,6 +20,7 @@
 
 #include "neug/main/execution_slot.h"
 #include "neug/server/service_config.h"
+#include "neug/utils/api.h"
 #include "neug/utils/result.h"
 
 namespace neug {
@@ -80,7 +81,7 @@ class IServiceTransport;
  * @see TpExecutionSlotPool for execution slot management
  * @since v0.1.0
  */
-class NeugDBService {
+class NEUG_API NeugDBService {
  public:
   /**
    * @brief Constructs a service around an existing database instance
