@@ -62,14 +62,4 @@ LOAD my_ext;
 
 Build the extension against the NeuG runtime you load it into.
 
-## Lite builds
-
-Enable lite mode (default: `OFF`):
-
-```bash
-EXTRA_CMAKE_FLAGS="-DNEUG_LITE=ON" make cpp-build
-```
-
-Lite forces `BUILD_HTTP_SERVER=OFF`, removes the core's OpenSSL dependency, and rejects `INSTALL`, `LOAD`, and `UNINSTALL` with `ERR_NOT_SUPPORTED`.
-
-To restore the full build, set `NEUG_LITE=OFF` and re-enable `BUILD_HTTP_SERVER=ON` if needed.
+In [lite builds](dev_guide.md#lite-builds), `INSTALL`, `LOAD`, and `UNINSTALL` return `ERR_NOT_SUPPORTED`.
