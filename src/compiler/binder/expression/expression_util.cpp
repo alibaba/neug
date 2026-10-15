@@ -513,8 +513,12 @@ bool ExpressionUtil::canCastStatically(const Expression& expr,
     return compatible(value, targetType);
   }
   case ExpressionType::PARAMETER: {
-    auto value = expr.constPtrCast<ParameterExpression>()->getValue();
-    return compatible(value, targetType);
+    // A typed parameter keeps its declared input type. Promotion (e.g. DATE
+    // to TIMESTAMP) needs a CAST node, not ParameterExpression::cast(), which
+    // can only infer the type of an as-yet untyped parameter.
+    return expr.getDataType().containsAny() &&
+           compatible(expr.constPtrCast<ParameterExpression>()->getValue(),
+                      targetType);
   }
   case ExpressionType::VARIABLE:
   case ExpressionType::LAMBDA:
