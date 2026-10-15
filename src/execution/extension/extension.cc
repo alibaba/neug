@@ -13,6 +13,10 @@
  * limitations under the License.
  */
 
+#ifndef NEUG_LITE
+#error "NEUG_LITE must be defined by the build system"
+#endif
+
 #if !NEUG_LITE
 #ifdef _WIN32
 // Include Winsock before any header that might include windows.h.
@@ -64,7 +68,7 @@ static inline char* dlerror() {
 #endif
 
 #include "neug/compiler/common/string_format.h"
-#endif
+#endif  // !NEUG_LITE
 
 #include "neug/compiler/extension/extension_manager.h"
 #include "neug/execution/extension/extension.h"
@@ -611,26 +615,21 @@ result<ExtensionManager::LoadResult> ExtensionManager::LoadExtension(
 namespace extension {
 
 Status install_extension(const std::string&, const std::string&) {
-  return Status(
-      StatusCode::ERR_NOT_SUPPORTED,
-      "INSTALL is unavailable in lite mode. "
-      "Extensions must be linked into the application at build time.");
+  return Status(StatusCode::ERR_NOT_SUPPORTED,
+                "INSTALL is unavailable in lite mode.");
 }
 
 Status uninstall_extension(const std::string&) {
   return Status(StatusCode::ERR_NOT_SUPPORTED,
-                "UNINSTALL is unavailable in lite mode. "
-                "Extensions must be removed at build time.");
+                "UNINSTALL is unavailable in lite mode.");
 }
 
 }  // namespace extension
 
 result<ExtensionManager::LoadResult> ExtensionManager::LoadExtension(
     const std::string&) {
-  RETURN_ERROR(Status(
-      StatusCode::ERR_NOT_SUPPORTED,
-      "LOAD is unavailable in lite mode. "
-      "Extensions must be linked and initialized at build/startup time."));
+  RETURN_ERROR(Status(StatusCode::ERR_NOT_SUPPORTED,
+                      "LOAD is unavailable in lite mode."));
 }
 
 #endif  // !NEUG_LITE
