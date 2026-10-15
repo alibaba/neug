@@ -211,7 +211,7 @@ TEST_F(ExtensionConfigTest, BuildSettingControlsInstaller) {
     SCOPED_TRACE(query);
     auto result = connection_->Query(query);
     ASSERT_FALSE(result);
-    if (NEUG_ENABLE_DYNAMIC_EXTENSIONS) {
+    if (!NEUG_LITE) {
       EXPECT_EQ(result.error().error_code(), neug::StatusCode::ERR_IO_ERROR);
       EXPECT_NE(result.error().error_message().find(
                     "Failed to create extension directory"),
@@ -226,7 +226,7 @@ TEST_F(ExtensionConfigTest, BuildSettingControlsInstaller) {
 TEST_F(ExtensionConfigTest, LocalLoadDoesNotAttemptInstallation) {
   auto result = connection_->Query("LOAD gds");
   ASSERT_FALSE(result);
-  if (NEUG_ENABLE_DYNAMIC_EXTENSIONS) {
+  if (!NEUG_LITE) {
     EXPECT_EQ(result.error().error_code(), neug::StatusCode::ERR_IO_ERROR);
     EXPECT_NE(result.error().error_message().find("not found"),
               std::string::npos);
@@ -243,7 +243,7 @@ TEST_F(ExtensionConfigTest, BuildSettingControlsUninstall) {
   std::filesystem::create_directories(extension_dir);
   std::ofstream(extension_dir / "libgds.neug_extension") << "local contents";
   auto result = connection_->Query("UNINSTALL gds");
-  if (NEUG_ENABLE_DYNAMIC_EXTENSIONS) {
+  if (!NEUG_LITE) {
     ASSERT_TRUE(result) << result.error().ToString();
     EXPECT_FALSE(std::filesystem::exists(extension_dir));
   } else {

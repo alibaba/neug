@@ -62,13 +62,19 @@ LOAD my_ext;
 
 Build the extension against the NeuG runtime you load it into.
 
-## Disable dynamic extensions
+## Lite builds
 
-`NEUG_ENABLE_DYNAMIC_EXTENSIONS` defaults to `ON`, enabling `INSTALL`, `LOAD`,
-and `UNINSTALL`. To disable these operations:
+`NEUG_LITE` defaults to `OFF` (full build). Enable it for the lite/mobile variant:
 
 ```bash
-EXTRA_CMAKE_FLAGS="-DNEUG_ENABLE_DYNAMIC_EXTENSIONS=OFF" make python-dev
+EXTRA_CMAKE_FLAGS="-DNEUG_LITE=ON" make cpp-build
 ```
 
-With `OFF`, all three operations return `ERR_NOT_SUPPORTED`. `BUILD_EXTENSIONS` still builds shared libraries.
+Lite builds reject `INSTALL`, `LOAD`, and `UNINSTALL` with `ERR_NOT_SUPPORTED`.
+They also force `BUILD_HTTP_SERVER=OFF` and exclude OpenSSL from the core build
+and its exported CMake dependencies. `BUILD_EXTENSIONS` defaults to empty;
+explicitly selected extensions retain their own dependencies and still build
+shared libraries. Static extension linking is not implemented yet.
+
+Set `NEUG_LITE=OFF` to restore the full build, and explicitly set
+`BUILD_HTTP_SERVER=ON` if needed; CMake caches these values.

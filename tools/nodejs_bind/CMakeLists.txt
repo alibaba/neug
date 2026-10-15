@@ -61,7 +61,6 @@ add_dependencies(neug_node_bind neug_proto)
 
 set(NEUG_LIBRARIES neug)
 
-find_package(OpenSSL REQUIRED)
 if (WIN32)
   set(NODE_IMPORT_LIB "" CACHE FILEPATH
     "Path to the Node.js import library (node.lib)")
@@ -77,8 +76,6 @@ if (WIN32)
     ${GLOG_LIBRARIES}
     ${Protobuf_LIBRARIES}
     $<TARGET_OBJECTS:neug_proto>
-    OpenSSL::SSL
-    OpenSSL::Crypto
     "${NODE_IMPORT_LIB}"
   )
 else()
@@ -86,8 +83,6 @@ else()
     ${NEUG_LIBRARIES}
     ${GLOG_LIBRARIES}
     ${Protobuf_LIBRARIES}
-    OpenSSL::SSL
-    OpenSSL::Crypto
   )
 endif()
 
