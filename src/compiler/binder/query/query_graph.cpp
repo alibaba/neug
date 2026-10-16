@@ -27,13 +27,14 @@
 namespace neug {
 namespace binder {
 
-std::size_t SubqueryGraphHasher::operator()(const SubqueryGraph& key) const {
-  if (0 == key.queryRelsSelector.count()) {
-    return std::hash<std::bitset<MAX_NUM_QUERY_VARIABLES>>{}(
-        key.queryNodesSelector);
+bool SubqueryGraphLess::operator()(const SubqueryGraph& lhs,
+                                   const SubqueryGraph& rhs) const {
+  const auto lhsNodes = lhs.queryNodesSelector.to_ullong();
+  const auto rhsNodes = rhs.queryNodesSelector.to_ullong();
+  if (lhsNodes != rhsNodes) {
+    return lhsNodes < rhsNodes;
   }
-  return std::hash<std::bitset<MAX_NUM_QUERY_VARIABLES>>{}(
-      key.queryRelsSelector);
+  return lhs.queryRelsSelector.to_ullong() < rhs.queryRelsSelector.to_ullong();
 }
 
 bool SubqueryGraph::containAllVariables(
@@ -51,8 +52,8 @@ bool SubqueryGraph::containAllVariables(
   return true;
 }
 
-std::unordered_set<uint32_t> SubqueryGraph::getNodeNbrPositions() const {
-  std::unordered_set<uint32_t> result;
+std::set<uint32_t> SubqueryGraph::getNodeNbrPositions() const {
+  std::set<uint32_t> result;
   for (auto relPos = 0u; relPos < queryGraph.getNumQueryRels(); ++relPos) {
     if (!queryRelsSelector[relPos]) {  // rel not in subgraph, no need to check
       continue;
@@ -70,8 +71,8 @@ std::unordered_set<uint32_t> SubqueryGraph::getNodeNbrPositions() const {
   return result;
 }
 
-std::unordered_set<uint32_t> SubqueryGraph::getRelNbrPositions() const {
-  std::unordered_set<uint32_t> result;
+std::set<uint32_t> SubqueryGraph::getRelNbrPositions() const {
+  std::set<uint32_t> result;
   for (auto relPos = 0u; relPos < queryGraph.getNumQueryRels(); ++relPos) {
     if (queryRelsSelector[relPos]) {  // rel already in subgraph, cannot be rel
                                       // neighbour
@@ -90,7 +91,7 @@ std::unordered_set<uint32_t> SubqueryGraph::getRelNbrPositions() const {
 subquery_graph_set_t SubqueryGraph::getNbrSubgraphs(uint32_t size) const {
   auto result = getBaseNbrSubgraph();
   for (auto i = 1u; i < size; ++i) {
-    std::unordered_set<SubqueryGraph, SubqueryGraphHasher> tmp;
+    subquery_graph_set_t tmp;
     for (auto& prevNbr : result) {
       for (auto& subgraph : getNextNbrSubgraphs(prevNbr)) {
         tmp.insert(subgraph);
@@ -117,9 +118,8 @@ std::vector<uint32_t> SubqueryGraph::getConnectedNodePos(
   return result;
 }
 
-std::unordered_set<uint32_t>
-SubqueryGraph::getNodePositionsIgnoringNodeSelector() const {
-  std::unordered_set<uint32_t> result;
+std::set<uint32_t> SubqueryGraph::getNodePositionsIgnoringNodeSelector() const {
+  std::set<uint32_t> result;
   for (auto nodePos = 0u; nodePos < queryGraph.getNumQueryNodes(); ++nodePos) {
     if (queryNodesSelector[nodePos]) {
       result.insert(nodePos);
@@ -136,7 +136,7 @@ SubqueryGraph::getNodePositionsIgnoringNodeSelector() const {
 }
 
 std::vector<common::idx_t> SubqueryGraph::getNbrNodeIndices() const {
-  std::unordered_set<common::idx_t> result;
+  std::set<common::idx_t> result;
   for (auto i = 0u; i < queryGraph.getNumQueryRels(); ++i) {
     if (!queryRelsSelector[i]) {
       continue;
