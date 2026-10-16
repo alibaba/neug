@@ -143,8 +143,8 @@ int main(int argc, char** argv) {
   LOG(INFO) << "All threads completed. Total time: " << total_ms << "ms";
   const int total_requests = thread_num * request_num;
   LOG(INFO) << "Total requests: " << total_requests;
-  LOG(INFO) << "Average time per request: "
-            << (total_ms / total_requests) << "ms";
+  LOG(INFO) << "Average time per request: " << (total_ms / total_requests)
+            << "ms";
 
   const int failed_threads = std::count_if(results.begin(), results.end(),
                                            [](int r) { return r != 0; });

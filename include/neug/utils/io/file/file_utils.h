@@ -23,10 +23,12 @@
 #include <fcntl.h>
 #include <io.h>
 #include <sys/types.h>
-// Include winsock2.h before windows.h so the legacy winsock.h is never
-// loaded, even in translation units that miss the global _WINSOCKAPI_
-// compile definition set in the root CMakeLists.txt.
+// winsock2.h must be included before windows.h, otherwise windows.h pulls
+// in the legacy winsock.h which conflicts with the winsock2.h used by
+// cpp-httplib and other socket code. The blank line below keeps clang-format
+// from re-sorting the two includes into the broken order.
 #include <winsock2.h>
+
 #include <windows.h>
 #include <cstdint>
 
