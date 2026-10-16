@@ -14,8 +14,8 @@ add_neug_test(ap_index_test test_ap_index.cc)
 
 # e2e_index_test relies on POSIX subprocess APIs (fork/waitpid/execl,
 # sys/wait.h, unistd.h) and the vec_index test extension.  Neither is
-# supported on Windows, and the test is not run in the Windows CI matrix.
-if(NOT WIN32)
+# supported on Windows, and lite does not support dynamic extension loading.
+if(NOT WIN32 AND NOT NEUG_LITE)
     add_neug_test(e2e_index_test test_e2e_index.cc)
     add_dependencies(e2e_index_test neug_test_vec_index_extension)
     target_compile_definitions(e2e_index_test PRIVATE

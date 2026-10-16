@@ -14,7 +14,9 @@ include(CMakeFindDependencyMacro)
 # automatically pick them up when calling find_package(neug).
 find_dependency(Threads)
 find_dependency(ZLIB)
-find_dependency(OpenSSL)
+if(NOT @NEUG_LITE@)
+    find_dependency(OpenSSL)
+endif()
 find_package(absl REQUIRED CONFIG)
 find_dependency(Protobuf CONFIG)
 

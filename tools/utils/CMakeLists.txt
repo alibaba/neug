@@ -4,11 +4,8 @@ if(NOT WIN32 OR BUILD_EXECUTABLES)
     add_executable(bulk_loader bulk_loader.cc)
     target_link_libraries(bulk_loader PRIVATE neug ${GLOG_LIBRARIES})
 
-    find_package(OpenSSL REQUIRED)
     target_link_libraries(bulk_loader
         PRIVATE
-        ${OPENSSL_LIBRARIES}
-        ${CRYPTO_LIB}
         ${GFLAGS_LIBRARIES}
     )
 

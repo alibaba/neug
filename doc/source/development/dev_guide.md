@@ -161,6 +161,18 @@ NEUG_PACKAGE_BUILD=OFF NEUG_NATIVE_ARCH=ON make -C tools/python_bind build
 NEUG_NATIVE_ARCH=ON make -C tools/nodejs_bind dev
 ```
 
+##### Lite builds
+
+Enable lite mode (default: `OFF`):
+
+```bash
+EXTRA_CMAKE_FLAGS="-DNEUG_LITE=ON" make cpp-build
+```
+
+The lite build minimizes NeuG's external dependencies, making it easier to use across different environments, including mobile platforms. It removes the core's OpenSSL dependency and disables HTTP server support and dynamic extension loading.
+
+To restore the full build, set `NEUG_LITE=OFF` and re-enable `BUILD_HTTP_SERVER=ON` if needed.
+
 #### Debugging
 
 By default, C++ logging is disabled. To enable logging, use:

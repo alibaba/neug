@@ -61,3 +61,5 @@ LOAD my_ext;
 ```
 
 Build the extension against the NeuG runtime you load it into.
+
+In [lite builds](dev_guide.md#lite-builds), `INSTALL`, `LOAD`, and `UNINSTALL` return `ERR_NOT_SUPPORTED`.

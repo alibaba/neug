@@ -1,0 +1,227 @@
+name: NeuG Test (Lite)
+
+on:
+  workflow_dispatch:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+concurrency:
+  group: ${{ github.repository }}-${{ github.event.number || github.head_ref || github.sha }}-${{ github.workflow }}
+  cancel-in-progress: true
+
+jobs:
+  build_and_test_lite:
+    name: Build and test lite
+    runs-on: ${{ github.repository == 'alibaba/neug' && fromJSON('["self-hosted", "daily", "linux", "x64"]') || 'ubuntu-22.04' }}
+    container:
+      image: neug-registry.cn-hongkong.cr.aliyuncs.com/neug/neug-dev:v0.1.3
+    defaults:
+      run:
+        shell: bash
+    env:
+      NEUG_BUILD_DIR: ${{ github.workspace }}/build-lite
+      NEUG_TEST_LITE: '1'
+      FLEX_DATA_DIR: ${{ github.workspace }}/example_dataset/modern_graph
+      GS_TEST_DIR: ${{ github.workspace }}/gstest
+      NEUG_RUN_EXTENSION_TESTS: '0'
+      CCACHE_DIR: ${{ github.workspace }}/.ccache
+      CCACHE_BASEDIR: ${{ github.workspace }}
+      CCACHE_MAXSIZE: 5G
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Install build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ccache libzstd-dev liblz4-dev zlib1g-dev
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+
+      - name: Install Python test dependencies
+        run: |
+          python3 -m pip install -r tools/python_bind/requirements.txt \
+            -r tools/python_bind/requirements_dev.txt pyarrow==18.0.0
+
+      - name: Cache CCache
+        uses: actions/cache@v4
+        with:
+          path: ${{ env.CCACHE_DIR }}
+          key: ${{ runner.os }}-${{ runner.arch }}-lite-ccache-${{ github.sha }}
+          restore-keys: |
+            ${{ runner.os }}-${{ runner.arch }}-lite-ccache-
+
+      - name: Build lite without OpenSSL
+        run: |
+          for env_file in /home/neug/.neug_env ~/.neug_env /github/home/.neug_env; do
+            if [ -f "$env_file" ]; then
+              source "$env_file"
+              break
+            fi
+          done
+          build_jobs=$(lscpu -p=CORE,SOCKET | awk '!/^#/ {print $0}' | sort -u | wc -l)
+          available_jobs=$(nproc)
+          if (( build_jobs > available_jobs )); then build_jobs=$available_jobs; fi
+          if (( build_jobs > 32 )); then build_jobs=32; fi
+
+          cmake -S . -B build-lite \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_C_COMPILER_LAUNCHER=ccache \
+            -DCMAKE_CXX_COMPILER_LAUNCHER=ccache \
+            -DCMAKE_INSTALL_PREFIX="$GITHUB_WORKSPACE/lite-install" \
+            -DNEUG_LITE=ON \
+            -DCMAKE_DISABLE_FIND_PACKAGE_OpenSSL=TRUE \
+            -DBUILD_TEST=ON \
+            -DBUILD_HTTP_SERVER=ON \
+            -DBUILD_PYTHON=ON \
+            -DPython_EXECUTABLE="$(command -v python3)" \
+            -DPYTHON_EXECUTABLE="$(command -v python3)" \
+            -DBUILD_EXAMPLES=ON \
+            -DBUILD_EXTENSIONS= \
+            -DWITH_MIMALLOC=OFF
+          # Lite must override an explicit request to build the HTTP server.
+          grep -q '^BUILD_HTTP_SERVER:BOOL=OFF$' build-lite/CMakeCache.txt
+          cmake --build build-lite --parallel "$build_jobs"
+
+      - name: Check lite library dependencies
+        run: |
+          ldd build-lite/src/libneug.so > build-lite/dependencies.txt
+          cat build-lite/dependencies.txt
+          if grep -Ei 'libssl|libcrypto|libbrpc' build-lite/dependencies.txt; then
+            echo "Unexpected network dependency in lite core"
+            exit 1
+          fi
+          nm -g build-lite/src/libneug.so > build-lite/symbols.txt
+          if grep -E '(^|[[:space:]])_?(SSL_|OPENSSL_|CRYPTO_|EVP_|X509_|BIO_|HMAC_)' build-lite/symbols.txt; then
+            echo "Unexpected OpenSSL symbol in lite core"
+            exit 1
+          fi
+
+      - name: Test C++ database functionality
+        env:
+          MODERN_GRAPH_DATA_DIR: ${{ github.workspace }}/example_dataset/modern_graph
+          COMPREHENSIVE_GRAPH_DATA_DIR: ${{ github.workspace }}/example_dataset/comprehensive_graph
+          TEST_PATH: ${{ github.workspace }}/tests
+          TEST_RESOURCE: ${{ github.workspace }}/tests/compiler
+        run: |
+          # Run each test binary once, rather than also repeating its individual
+          # GoogleTest cases registered with CTest. Server tests are not built.
+          cpp_tests=(
+            storage_test csr_test edge_table_test test_vertex_table
+            graph_view_test graph_snapshot_store_test ap_index_test tp_index_test
+            temporary_graph_test copy_temp_test
+            runtime_wait_test operation_gate_test read_view_publication_test
+            gopt_test execution_test utils_test
+            schema_test logical_delete_test test_indexer test_mmap_container
+            test_connection test_query_result test_query_result_list test_column
+            test_explain_profile test_request test_execution_slot test_file_lock
+          )
+          test_pattern=$(printf '%s|' "${cpp_tests[@]}")
+          ctest --test-dir build-lite -R "^(${test_pattern%|})$" \
+            --output-on-failure --no-tests=error
+
+      - name: Test extension management
+        env:
+          FLEX_DATA_DIR: ${{ github.workspace }}/example_dataset/tinysnb
+        run: |
+          ctest --test-dir build-lite -R '^test_extension$' --output-on-failure --no-tests=error
+
+      - name: Test Python serve rejection
+        run: |
+          python3 -m pytest -v tools/python_bind/tests/test_db_init.py::test_serve_unavailable_in_lite
+
+      - name: Prepare database test datasets
+        run: |
+          git clone -b master --single-branch --depth=1 https://github.com/GraphScope/gstest.git "$GS_TEST_DIR"
+          # These are the same input datasets used by the full Linux CI.
+          for dataset in modern_graph tinysnb comprehensive_graph; do
+            export FLEX_DATA_DIR="$GITHUB_WORKSPACE/example_dataset/$dataset"
+            rm -rf "/tmp/$dataset"
+            ./build-lite/tools/utils/bulk_loader \
+              -g "$FLEX_DATA_DIR/graph.yaml" -l "$FLEX_DATA_DIR/import.yaml" \
+              -d "/tmp/$dataset"
+          done
+          export FLEX_DATA_DIR="$GS_TEST_DIR/neug/lsqb-sf01"
+          rm -rf /tmp/lsqb
+          ./build-lite/tools/utils/bulk_loader \
+            -g "$FLEX_DATA_DIR/graph.yaml" -l "$FLEX_DATA_DIR/import.yaml" -d /tmp/lsqb
+          export FLEX_DATA_DIR="$GS_TEST_DIR/flex/ldbc-sf01-long-date"
+          rm -rf /tmp/ldbc
+          ./build-lite/tools/utils/bulk_loader \
+            -g example_dataset/ldbc/graph.yaml -l example_dataset/ldbc/import.yaml -d /tmp/ldbc
+
+      - name: Test Python embedded database functionality
+        env:
+          LSQB_DATA_DIR: /tmp/lsqb
+        run: |
+          cd tools/python_bind
+          # Reuse core tests, including local transactions/concurrency and
+          # persistence. Existing extension-only cases remain disabled.
+          python_tests=(
+            test_batch_loading test_alter_property test_ddl test_schema
+            test_schema_introspection test_dml test_query test_path test_merge
+            test_db_init test_db_connection test_db_transaction test_persistence
+            test_load test_load_array test_export test_copy_temp test_sniffer
+            test_db_import_export test_data_io_docs test_dataset
+            test_tinysnb_tutorial test_lsqb test_db_cases
+            test_db_list test_db_array test_list_func_docs test_call_string_literal
+            test_explain_profile test_to_arrow test_ngcli_basics test_ngcli_commands
+          )
+          test_files=()
+          for test_name in "${python_tests[@]}"; do
+            test_files+=("tests/$test_name.py")
+          done
+          # Exclude only cases that start or depend on the HTTP server.
+          # Keep test_serve_requires_closed_local_connections: it checks the
+          # Python API's validation before attempting to start a server.
+          python3 -m pytest -v -rs "${test_files[@]}" \
+            --deselect=tests/test_db_init.py::test_serve_thread_num_clamped_to_max_thread_num \
+            --deselect=tests/test_db_connection.py::test_remote_connection \
+            --deselect=tests/test_db_connection.py::test_remote_connection_params \
+            --deselect=tests/test_db_connection.py::test_remote_connection_wrong_ip_port \
+            --deselect=tests/test_db_connection.py::test_remote_connection_broken \
+            --deselect=tests/test_db_connection.py::test_tx_not_commit_connection_broken \
+            --deselect=tests/test_db_connection.py::test_server_load_overflow \
+            --deselect=tests/test_db_connection.py::test_remote_connection_after_close \
+            --deselect=tests/test_db_connection.py::test_server_restart \
+            --deselect=tests/test_db_connection.py::test_connection_pool_exhausted \
+            --deselect=tests/test_db_transaction.py::test_tp_read_concurrent \
+            --deselect=tests/test_db_transaction.py::test_tp_write_concurrent \
+            --deselect=tests/test_db_transaction.py::test_tp_read_write_concurrent \
+            --deselect=tests/test_persistence.py::test_sort_csr_compact \
+            --deselect=tests/test_copy_temp.py::test_copy_temp_rejected_in_session \
+            --deselect=tests/test_ngcli_commands.py::test_start_remote_database_neug_ui \
+            --deselect=tests/test_explain_profile.py::TestTPModeProfile \
+            --deselect=tests/test_explain_profile.py::TestTPModeExplain \
+            --deselect=tests/test_explain_profile.py::TestTPModeNormalExecution \
+            --deselect=tests/test_explain_profile.py::TestAPTPConsistency
+
+      - name: Test embedded E2E queries
+        env:
+          NEUG_ROOT_DIRECTORY: ${{ github.workspace }}
+        run: |
+          cd tests/e2e
+          ./scripts/run_e2e_test.sh neug_ap_test modern_graph /tmp/modern_graph basic_test,match,optional_match
+          ./scripts/run_e2e_test.sh neug_ap_test tinysnb /tmp/tinysnb '!update' true
+          ./scripts/run_e2e_test.sh neug_ap_test tinysnb /tmp/tinysnb update true
+          ./scripts/run_e2e_test.sh neug_ap_test lsqb /tmp/lsqb lsqb
+          ./scripts/run_e2e_test.sh neug_ap_test ldbc /tmp/ldbc agg,match,ldbc
+          ./scripts/run_e2e_test.sh neug_ap_test comprehensive_graph /tmp/comprehensive_graph path,dynamic_param
+
+      - name: Test C++ example and installed SDK
+        run: |
+          ./build-lite/examples/cpp/simple_example
+          cmake --install build-lite
+          cmake -S tests/test_cpp_installation -B build-lite-sdk \
+            -Dneug_DIR="$GITHUB_WORKSPACE/lite-install/lib/cmake/neug" \
+            -DCMAKE_PREFIX_PATH="$GITHUB_WORKSPACE/lite-install;/opt/neug" \
+            -DCMAKE_DISABLE_FIND_PACKAGE_OpenSSL=TRUE
+          cmake --build build-lite-sdk --parallel 1
+          cd build-lite-sdk
+          ./test

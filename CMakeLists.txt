@@ -37,7 +37,14 @@ option(NEUG_PACKAGE_BUILD "Whether to build portable distributable artifacts" OF
 option(NEUG_NATIVE_ARCH "Whether to enable host-specific CPU tuning for local builds" OFF)
 option(BUILD_EXECUTABLES "When to build executors" OFF) # Whether to build executables, default is OFF
 option(BUILD_HTTP_SERVER "Whether to build http server" OFF) # Whether to build http server, default is OFF
+option(NEUG_LITE "Build the lite variant for mobile" OFF)
 option(WITH_MIMALLOC "Whether to use mimalloc" ON) # Whether to use mimalloc, default is ON
+
+# Lite excludes the HTTP server and its brpc/OpenSSL dependencies.
+if(NEUG_LITE AND BUILD_HTTP_SERVER)
+    message(STATUS "NEUG_LITE disables BUILD_HTTP_SERVER")
+    set(BUILD_HTTP_SERVER OFF CACHE BOOL "Whether to build http server" FORCE)
+endif()
 
 # Options to control the building of tools
 option(BUILD_PYTHON "Whether to build python embedded" ON)
@@ -526,18 +533,16 @@ message(STATUS "CMAKE_CXX_COMPILER: ${CMAKE_CXX_COMPILER}")
 
 
 function(add_neug_test TEST_NAME)
-    find_package(OpenSSL REQUIRED)
     set(SRCS ${ARGN})
     add_executable(${TEST_NAME} ${SRCS})
     if(WIN32 AND BUILD_TEST)
         # neug_static contains the same object files as neug.dll but exposes all
         # symbols, which is required by tests that exercise internal APIs.
-        target_link_libraries(${TEST_NAME} PUBLIC neug::GTest neug_static
-            ${OPENSSL_LIBRARIES} ${CRYPTO_LIB})
+        target_link_libraries(${TEST_NAME} PUBLIC neug::GTest neug_static)
     else()
         target_link_libraries(${TEST_NAME} PUBLIC neug::GTest neug
-            ${Protobuf_LIBRARIES} ${GLOG_LIBRARIES} ${OPENSSL_LIBRARIES}
-            ${CRYPTO_LIB} ${YAML_CPP_LIBRARIES})
+            ${Protobuf_LIBRARIES} ${GLOG_LIBRARIES}
+            ${YAML_CPP_LIBRARIES})
     endif()
     # The bundled googletest (v1.13.0, fetched into _deps) must beat any
     # system/Homebrew gtest that leaks in via an -isystem include path; otherwise
@@ -587,15 +592,17 @@ else()
 endif()
 
 find_package(Threads REQUIRED)
-find_package(OpenSSL)
-if (NOT OpenSSL_FOUND)
-    if(WIN32)
-        message(FATAL_ERROR "Fail to find OpenSSL. On Windows, install OpenSSL via vcpkg (openssl:x64-windows-static-md) or set OPENSSL_ROOT_DIR.")
-    else()
-        message(FATAL_ERROR "Fail to find OpenSSL, try to install openssl development package. On macos: brew install openssl@3; on ubuntu: apt-get install libssl-dev")
+if(NOT NEUG_LITE)
+    find_package(OpenSSL)
+    if (NOT OpenSSL_FOUND)
+        if(WIN32)
+            message(FATAL_ERROR "Fail to find OpenSSL. On Windows, install OpenSSL via vcpkg (openssl:x64-windows-static-md) or set OPENSSL_ROOT_DIR.")
+        else()
+            message(FATAL_ERROR "Fail to find OpenSSL, try to install openssl development package. On macos: brew install openssl@3; on ubuntu: apt-get install libssl-dev")
+        endif()
     endif()
+    include_directories(SYSTEM ${OPENSSL_INCLUDE_DIR})
 endif()
-include_directories(SYSTEM ${OPENSSL_INCLUDE_DIR})
 
 if (BUILD_PYTHON)
     message("Build python embedded")
@@ -737,7 +744,9 @@ add_definitions(-DRAPIDJSON_HAS_CXX11=1)
 add_definitions(-DRAPIDJSON_HAS_STDSTRING=1)
 add_definitions(-DRAPIDJSON_HAS_CXX11_RVALUE_REFS=1)
 add_definitions(-DRAPIDJSON_HAS_CXX11_RANGE_FOR=1)
-add_compile_definitions(CPPHTTPLIB_OPENSSL_SUPPORT)
+if(NOT NEUG_LITE)
+    add_compile_definitions(CPPHTTPLIB_OPENSSL_SUPPORT)
+endif()
 
 include_directories(SYSTEM ${CMAKE_SOURCE_DIR}/third_party/flat_hash_map)
 include_directories(SYSTEM ${CMAKE_SOURCE_DIR}/third_party/parallel-hashmap)
@@ -1031,6 +1040,5 @@ install_neug_target(${GFLAGS_LIBRARIES})
 
 if(BUILD_EXTENSIONS)
     message(STATUS "Building extensions: ${BUILD_EXTENSIONS}")
-    find_package(OpenSSL REQUIRED)
     add_subdirectory(extension)
 endif()
