@@ -41,9 +41,11 @@ class ITpOperations;
  * database can block a worker for an unbounded time while it waits for an
  * update lease. If every worker ends up waiting for a lease held by an
  * explicit transaction, the commit/rollback that would release that lease is
- * itself queued behind them, and the transaction stalls. Routing
- * begin/commit/rollback through this always-available executor keeps the
- * lease-release path alive regardless of data-query load.
+ * itself queued behind them, and the transaction stalls. Routing commit and
+ * rollback through this always-available executor keeps the lease-release
+ * path alive regardless of data-query load. Begin is deliberately not routed
+ * here: it can block waiting for compaction to free snapshots, and the
+ * commit/rollback that release those snapshots must not queue behind it.
  */
 class HttplibControlExecutor {
  public:
