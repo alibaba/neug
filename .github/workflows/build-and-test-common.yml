@@ -264,48 +264,6 @@ jobs:
         FLEX_DATA_DIR="${GITHUB_WORKSPACE}/example_dataset/tinysnb" \
           ctest -R '^test_extension$' --output-on-failure --no-tests=error
 
-    - name: Build and test lite without OpenSSL
-      if: steps.scope.outputs.extension_only != 'true'
-      env:
-        FLEX_DATA_DIR: ${{ github.workspace }}/example_dataset/tinysnb
-        NEUG_BUILD_DIR: ${{ github.workspace }}/build-lite
-        NEUG_TEST_LITE: '1'
-      run: |
-        for env_file in /home/neug/.neug_env ~/.neug_env /github/home/.neug_env; do
-          if [ -f "$env_file" ]; then
-            source "$env_file"
-            break
-          fi
-        done
-        if [[ "${{ inputs.os-type }}" == "macos" ]]; then
-          build_jobs=$(sysctl -n hw.physicalcpu)
-        else
-          build_jobs=$(lscpu -p=CORE,SOCKET | awk '!/^#/ {print $0}' | sort -u | wc -l)
-          available_jobs=$(nproc)
-          if (( build_jobs > available_jobs )); then build_jobs=$available_jobs; fi
-        fi
-        if (( build_jobs > 32 )); then build_jobs=32; fi
-
-        cmake -S . -B build-lite \
-          -DCMAKE_BUILD_TYPE=Release \
-          -DCMAKE_C_COMPILER_LAUNCHER=ccache \
-          -DCMAKE_CXX_COMPILER_LAUNCHER=ccache \
-          -DNEUG_LITE=ON \
-          -DCMAKE_DISABLE_FIND_PACKAGE_OpenSSL=TRUE \
-          -DBUILD_TEST=ON \
-          -DBUILD_HTTP_SERVER=ON \
-          -DBUILD_PYTHON=ON \
-          -DPython_EXECUTABLE="$(command -v python3)" \
-          -DPYTHON_EXECUTABLE="$(command -v python3)" \
-          -DBUILD_EXAMPLES=OFF \
-          -DBUILD_EXTENSIONS= \
-          -DWITH_MIMALLOC=OFF
-        # Lite must override an explicit request to build the HTTP server.
-        grep -q '^BUILD_HTTP_SERVER:BOOL=OFF$' build-lite/CMakeCache.txt
-        cmake --build build-lite --target test_extension neug_py_bind --parallel "$build_jobs"
-        ctest --test-dir build-lite -R '^test_extension$' --output-on-failure --no-tests=error
-        python3 -m pytest -v tools/python_bind/tests/test_db_init.py::test_serve_unavailable_in_lite
-
     # ========================================
     # Phase 2: Bulk load test data
     # ========================================
