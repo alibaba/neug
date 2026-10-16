@@ -29,20 +29,29 @@ bool vertex_property_topN_impl(bool asc, size_t limit,
   std::vector<std::shared_ptr<StorageReadInterface::vertex_column_t<T>>>
       property_columns;
   label_t label_num = graph.schema().vertex_label_frontier();
+  // Index by the real label id: labels may be tombstoned below the frontier,
+  // so a compacted vector would shift every later label out of place.
+  property_columns.resize(label_num);
   for (label_t i = 0; i < label_num; ++i) {
     if (!graph.schema().is_vertex_label_valid(i)) {
       continue;
     }
-    property_columns.emplace_back(
+    property_columns[i] =
         std::dynamic_pointer_cast<StorageReadInterface::vertex_column_t<T>>(
-            graph.GetVertexPropColumn(i, prop_name)));
+            graph.GetVertexPropColumn(i, prop_name));
   }
   bool success = true;
+  std::vector<PropertyColumnReader<T>> readers(property_columns.size());
+  for (size_t i = 0; i < property_columns.size(); ++i) {
+    if (property_columns[i]) {
+      readers[i] = PropertyColumnReader<T>(*property_columns[i]);
+    }
+  }
   if (asc) {
     TopNGenerator<T, TopNAscCmp<T>> gen(limit);
     foreach_vertex(*col, [&](size_t idx, label_t label, vid_t v) {
       if (!(property_columns[label] == nullptr)) {
-        gen.push(property_columns[label]->get_view(v), idx);
+        gen.push(readers[label].get_view(v), idx);
       } else {
         success = false;
       }
@@ -54,7 +63,7 @@ bool vertex_property_topN_impl(bool asc, size_t limit,
     TopNGenerator<T, TopNDescCmp<T>> gen(limit);
     foreach_vertex(*col, [&](size_t idx, label_t label, vid_t v) {
       if (!(property_columns[label] == nullptr)) {
-        gen.push(property_columns[label]->get_view(v), idx);
+        gen.push(readers[label].get_view(v), idx);
       } else {
         success = false;
       }
