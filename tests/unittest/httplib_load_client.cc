@@ -97,6 +97,16 @@ int main(int argc, char** argv) {
   std::string uri = argv[1];
   int thread_num = atoi(argv[2]);
   int request_num = atoi(argv[3]);
+  // Reject nonpositive counts before allocating worker vectors or dividing:
+  // atoi also turns non-numeric input into 0, which would divide by zero
+  // below; a zero thread count would report success without sending any
+  // request; a negative count would create a huge (or invalid) vector.
+  if (thread_num <= 0 || request_num <= 0) {
+    LOG(ERROR) << "thread_num and request_num must be positive integers, got: "
+               << thread_num << " threads, " << request_num
+               << " requests per thread";
+    return -1;
+  }
 
   // Strip "http://" prefix if present for base_url
   std::string base_url = uri;
@@ -131,8 +141,10 @@ int main(int argc, char** argv) {
                       .count();
 
   LOG(INFO) << "All threads completed. Total time: " << total_ms << "ms";
-  LOG(INFO) << "Total requests: " << (thread_num * request_num);
-  LOG(INFO) << "Average time per request: " << (total_ms / request_num) << "ms";
+  const int total_requests = thread_num * request_num;
+  LOG(INFO) << "Total requests: " << total_requests;
+  LOG(INFO) << "Average time per request: "
+            << (total_ms / total_requests) << "ms";
 
   const int failed_threads = std::count_if(results.begin(), results.end(),
                                            [](int r) { return r != 0; });

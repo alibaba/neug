@@ -26,8 +26,13 @@
 
 namespace neug {
 
-HttplibControlExecutor::HttplibControlExecutor()
-    : worker_([this]() { Loop(); }) {}
+HttplibControlExecutor::HttplibControlExecutor() {
+  // Start the worker in the constructor body: members initialize in
+  // declaration order and worker_ is declared first, so a thread started in
+  // the initializer list could enter Loop() before mutex_, cv_, tasks_ and
+  // stopped_ are constructed.
+  worker_ = std::thread([this]() { Loop(); });
+}
 
 HttplibControlExecutor::~HttplibControlExecutor() {
   {
@@ -79,7 +84,10 @@ namespace {
 void SendQueryResponse(httplib::Response& res, result<std::string>&& response) {
   if (response) {
     res.status = 200;
-    res.set_content(std::move(response).value(), "application/json");
+    // QueryResult::Serialize() emits protobuf bytes, not JSON; label them
+    // accordingly so content-type-driven clients pick the right decoder.
+    // Schema, status, and begin responses stay JSON.
+    res.set_content(std::move(response).value(), "application/x-protobuf");
   } else {
     const auto& status = response.error();
     LOG(ERROR) << "Query failed: " << status.ToString();
@@ -173,8 +181,12 @@ void HttplibTransport::RegisterHandlers() {
       return;
     }
     result<ServiceTransactionInfo> transaction;
-    RunOnControlWorker(
-        [&] { transaction = tp_operations_.BeginTransaction(mode.value()); });
+    // Begin runs inline on this httplib worker instead of the control
+    // worker: a read-only begin can block waiting for compaction to free
+    // snapshots, while compaction waits for in-flight transactions to
+    // release theirs via commit/rollback. Occupying the single control
+    // worker would queue exactly those release operations behind the begin.
+    transaction = tp_operations_.BeginTransaction(mode.value());
     if (!transaction) {
       SendError(res, transaction.error());
       return;
