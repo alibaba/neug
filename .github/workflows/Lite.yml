@@ -220,7 +220,7 @@ jobs:
           cmake --install build-lite
           cmake -S tests/test_cpp_installation -B build-lite-sdk \
             -Dneug_DIR="$GITHUB_WORKSPACE/lite-install/lib/cmake/neug" \
-            -DCMAKE_PREFIX_PATH=/opt/neug \
+            -DCMAKE_PREFIX_PATH="$GITHUB_WORKSPACE/lite-install;/opt/neug" \
             -DCMAKE_DISABLE_FIND_PACKAGE_OpenSSL=TRUE
           cmake --build build-lite-sdk --parallel 1
           cd build-lite-sdk
