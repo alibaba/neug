@@ -169,7 +169,7 @@ Enable lite mode (default: `OFF`):
 EXTRA_CMAKE_FLAGS="-DNEUG_LITE=ON" make cpp-build
 ```
 
-Lite builds are intended for mobile use. They remove the core's OpenSSL dependency and disable HTTP server support and dynamic extension loading.
+The lite build minimizes NeuG's external dependencies, making it easier to use across different environments, including mobile platforms. It removes the core's OpenSSL dependency and disables HTTP server support and dynamic extension loading.
 
 To restore the full build, set `NEUG_LITE=OFF` and re-enable `BUILD_HTTP_SERVER=ON` if needed.
 
