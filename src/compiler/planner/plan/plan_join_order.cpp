@@ -169,7 +169,7 @@ Planner::enumerateQueryGraphCollection(
   std::vector<std::vector<std::unique_ptr<LogicalPlan>>> plansPerQueryGraph;
   for (auto i = 0u; i < queryGraphCollection.getNumQueryGraphs(); ++i) {
     auto queryGraph = queryGraphCollection.getQueryGraph(i);
-    std::unordered_set<uint32_t> predicateToEvaluateIndices;
+    std::set<uint32_t> predicateToEvaluateIndices;
     for (auto j = 0u; j < info.predicates.size(); ++j) {
       if (ExpressionUtil::isLiteralLike(*info.predicates[j])) {
         continue;
@@ -482,10 +482,10 @@ void Planner::appendExtend(std::shared_ptr<NodeExpression> boundNode,
   }
 }
 
-static std::unordered_map<uint32_t, std::vector<std::shared_ptr<RelExpression>>>
+static std::map<uint32_t, std::vector<std::shared_ptr<RelExpression>>>
 populateIntersectRelCandidates(const QueryGraph& queryGraph,
                                const SubqueryGraph& subgraph) {
-  std::unordered_map<uint32_t, std::vector<std::shared_ptr<RelExpression>>>
+  std::map<uint32_t, std::vector<std::shared_ptr<RelExpression>>>
       intersectNodePosToRelsMap;
   for (auto relPos : subgraph.getRelNbrPositions()) {
     auto rel = queryGraph.getQueryRel(relPos);
