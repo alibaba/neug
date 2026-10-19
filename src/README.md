@@ -49,7 +49,7 @@ The storage layer manages graph data persistence, indexing, and access patterns.
   - Vertex and edge table management
   - Schema definition and validation
 - **`loader/`** - Data loading and ingestion modules
-  - CSV and Arrow format loaders
+  - Native CSV and JSON format loaders
   - Bulk loading optimizations
   - Data transformation pipelines
 
@@ -75,7 +75,6 @@ Implements both embedded (global lock) and service (MVCC) transaction models.
 Common utilities and infrastructure components used throughout the system.
 
 - **Core Utilities:**
-  - `arrow_utils.cc` - Apache Arrow integration utilities
   - `file_utils.cc` - File system operations and management
   - `string_utils.cc` - String manipulation and processing
   - `yaml_utils.cc` - YAML configuration parsing

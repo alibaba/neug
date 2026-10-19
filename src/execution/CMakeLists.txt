@@ -7,6 +7,8 @@ file(GLOB_RECURSE EXECUTION_SRC_FILES "${CMAKE_CURRENT_SOURCE_DIR}/common/*.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/expression/*.cc")
 
 add_library(neug_execution OBJECT ${EXECUTION_SRC_FILES})
+target_compile_definitions(neug_execution PRIVATE
+    NEUG_LITE=$<BOOL:${NEUG_LITE}>)
 add_dependencies(neug_execution neug_proto)
 if(MSVC)
     target_compile_options(neug_execution PRIVATE /bigobj)

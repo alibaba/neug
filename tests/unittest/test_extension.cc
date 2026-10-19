@@ -1,7 +1,13 @@
 #include <gtest/gtest.h>
+#include <chrono>
 #include <cstdlib>
 #include <filesystem>
+#include <fstream>
+#include <iterator>
+#include <memory>
+#include <string>
 #include "column_assertions.h"
+#include "neug/main/connection.h"
 #include "neug/main/neug_db.h"
 
 class TestJsonExtension : public ::testing::Test {
@@ -144,4 +150,109 @@ TEST_F(TestJsonExtension, VPersonJsonl) {
   conn.reset();
   db.Close();
   std::filesystem::remove_all(db_path);
+}
+
+constexpr const char* kExtensionHome = "NEUG_EXTENSION_HOME_PYENV";
+static int SetExtensionHome(const char* value) {
+#ifdef _WIN32
+  return _putenv_s(kExtensionHome, value ? value : "");
+#else
+  return value ? setenv(kExtensionHome, value, 1) : unsetenv(kExtensionHome);
+#endif
+}
+
+class ExtensionConfigTest : public ::testing::Test {
+ protected:
+  void SetUp() override {
+    if (const char* value = std::getenv(kExtensionHome)) {
+      had_extension_home_ = true;
+      previous_extension_home_ = value;
+    }
+    root_ = std::filesystem::temp_directory_path() /
+            ("neug_install_config_" +
+             std::to_string(
+                 std::chrono::steady_clock::now().time_since_epoch().count()));
+    std::filesystem::create_directories(root_);
+    extension_home_ = root_ / "extensions_home";
+    ASSERT_EQ(SetExtensionHome(extension_home_.string().c_str()), 0);
+    neug::NeugDBConfig config((root_ / "db").string(), 1);
+    config.checkpoint_on_close = false;
+    ASSERT_TRUE(db_.Open(config));
+    connection_ = db_.Connect();
+  }
+
+  void TearDown() override {
+    connection_.reset();
+    db_.Close();
+    EXPECT_EQ(
+        SetExtensionHome(had_extension_home_ ? previous_extension_home_.c_str()
+                                             : nullptr),
+        0);
+    std::error_code ec;
+    std::filesystem::remove_all(root_, ec);
+  }
+
+  std::filesystem::path root_;
+  std::filesystem::path extension_home_;
+  neug::NeugDB db_;
+  std::shared_ptr<neug::Connection> connection_;
+
+ private:
+  bool had_extension_home_ = false;
+  std::string previous_extension_home_;
+};
+
+TEST_F(ExtensionConfigTest, BuildSettingControlsInstaller) {
+  // A file in place of the extension home stops the enabled installer before
+  // any network request. The disabled installer must not inspect that path.
+  std::ofstream(extension_home_) << "not a directory";
+  for (const auto* query :
+       {"INSTALL gds", "INSTALL gds FROM 'https://example.invalid/repo'"}) {
+    SCOPED_TRACE(query);
+    auto result = connection_->Query(query);
+    ASSERT_FALSE(result);
+    if (!NEUG_LITE) {
+      EXPECT_EQ(result.error().error_code(), neug::StatusCode::ERR_IO_ERROR);
+      EXPECT_NE(result.error().error_message().find(
+                    "Failed to create extension directory"),
+                std::string::npos);
+    } else {
+      EXPECT_EQ(result.error().error_code(),
+                neug::StatusCode::ERR_NOT_SUPPORTED);
+    }
+  }
+}
+
+TEST_F(ExtensionConfigTest, LocalLoadDoesNotAttemptInstallation) {
+  auto result = connection_->Query("LOAD gds");
+  ASSERT_FALSE(result);
+  if (!NEUG_LITE) {
+    EXPECT_EQ(result.error().error_code(), neug::StatusCode::ERR_IO_ERROR);
+    EXPECT_NE(result.error().error_message().find("not found"),
+              std::string::npos);
+  } else {
+    EXPECT_EQ(result.error().error_code(), neug::StatusCode::ERR_NOT_SUPPORTED);
+    EXPECT_NE(result.error().error_message().find("LOAD is unavailable"),
+              std::string::npos);
+  }
+  EXPECT_FALSE(std::filesystem::exists(extension_home_));
+}
+
+TEST_F(ExtensionConfigTest, BuildSettingControlsUninstall) {
+  const auto extension_dir = extension_home_ / "extension" / "gds";
+  std::filesystem::create_directories(extension_dir);
+  std::ofstream(extension_dir / "libgds.neug_extension") << "local contents";
+  auto result = connection_->Query("UNINSTALL gds");
+  if (!NEUG_LITE) {
+    ASSERT_TRUE(result) << result.error().ToString();
+    EXPECT_FALSE(std::filesystem::exists(extension_dir));
+  } else {
+    ASSERT_FALSE(result);
+    EXPECT_EQ(result.error().error_code(), neug::StatusCode::ERR_NOT_SUPPORTED);
+    EXPECT_NE(result.error().error_message().find("UNINSTALL is unavailable"),
+              std::string::npos);
+    std::ifstream input(extension_dir / "libgds.neug_extension");
+    EXPECT_EQ(std::string(std::istreambuf_iterator<char>(input), {}),
+              "local contents");
+  }
 }

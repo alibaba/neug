@@ -16,7 +16,5 @@ library vendored as a submodule with NeuG-local patches in
 [third_party/carquet.patch](../../third_party/carquet.patch). Backend selection
 is internal and does not add a SQL option.
 
-The previous Arrow implementation and dependencies remain during the migration.
-
 See [Carquet Parquet Backend](carquet_parquet_backend.md) for the design and
 implementation notes.

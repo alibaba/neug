@@ -144,7 +144,7 @@ jobs:
         export FLEX_DATA_DIR=${GITHUB_WORKSPACE}/example_dataset/modern_graph
         export TEST_PATH=${GITHUB_WORKSPACE}/tests
         cd ${GITHUB_WORKSPACE}/build
-        ctest --output-on-failure --no-tests=error -R '^(parquet_extension_test|parquet_carquet_.*)$'
+        ctest --output-on-failure --no-tests=error -R '^parquet_carquet_.*$'
         ctest -R httpfs_extension_test -V
         ctest -R pattern_matching_extension_test -V
         ctest -R fts_extension_test -V
@@ -173,6 +173,7 @@ jobs:
         NEUG_RUN_EXTENSION_TESTS=true python3 -m pytest -sv tests/test_hnsw_index.py
         NEUG_RUN_EXTENSION_TESTS=true python3 -m pytest -sv tests/test_hnsw_index_tp.py
         NEUG_RUN_EXTENSION_TESTS=true python3 -m pytest -sv tests/test_fts_index.py tests/test_fts_index_tp.py
+        NEUG_RUN_EXTENSION_TESTS=true python3 -m pytest -sv tests/test_parquet_export_interop.py
 
     - name: Run GDS Tests
       run: |
@@ -247,7 +248,7 @@ jobs:
           mkdir -p $NEUG_SITE/extension
           rm -rf $NEUG_SITE/extension
           cp -r extension_packages/extension $NEUG_SITE/
-          # Copy auditwheel-bundled shared libraries (e.g. libcurl, libarrow_s3)
+          # Copy auditwheel-bundled shared libraries (e.g. libcurl)
           # from the extension wheel.  auditwheel renames .so files with a
           # content hash (e.g. libcurl-34c6b10f.so.4.3.0) and places them in
           # <package>.libs/.  Without this step the extension .so files fail to

@@ -26,10 +26,6 @@
 #include "neug/compiler/common/types/types.h"
 #include "neug/utils/api.h"
 
-namespace arrow {
-class ChunkedArray;
-}  // namespace arrow
-
 namespace neug {
 namespace common {
 
@@ -90,13 +86,6 @@ class NEUG_API StructAuxiliaryBuffer : public AuxiliaryBuffer {
 
  private:
   std::vector<std::shared_ptr<ValueVector>> childrenVectors;
-};
-
-class ArrowColumnAuxiliaryBuffer : public AuxiliaryBuffer {
-  friend class ArrowColumnVector;
-
- private:
-  std::shared_ptr<arrow::ChunkedArray> column;
 };
 
 // ListVector layout:

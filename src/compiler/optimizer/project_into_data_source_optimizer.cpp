@@ -93,9 +93,8 @@ ProjectIntoDataSourceOptimizer::visitOperator(
     op->setChild(i, visitOperator(op->getChild(i)));
   }
   auto visitOp = LogicalOperatorVisitor::visitOperatorReplaceSwitch(op);
-  // if there is a non-copy operation after LOAD FROM, batch_read=true will not
-  // work, batch_read=true will produce a special ArrowStreamContext, which can
-  // only be processed by copy from, other operators do not support it.
+  // Only COPY FROM supports batch reading. Disable it for other operators
+  // following the file scan.
   if (visitOp->getNumChildren() > 0 &&
       visitOp->getChild(0)->getOperatorType() ==
           LogicalOperatorType::TABLE_FUNCTION_CALL) {

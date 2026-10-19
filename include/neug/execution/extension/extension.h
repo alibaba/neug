@@ -21,19 +21,10 @@
 
 namespace neug {
 namespace extension {
-
 Status install_extension(const std::string& extension_name,
                          const std::string& repository = {});
 
 Status uninstall_extension(const std::string& extension_name);
-
-Status downloadExtensionFile(const ExtensionRepoInfo& repoInfo,
-                             const std::string& localFilePath);
-
-result<std::string> computeFileSHA256(const std::string& path);
-
-Status verifyExtensionChecksum(const ExtensionRepoInfo& libRepoInfo,
-                               const std::string& localLibPath);
 
 }  // namespace extension
 }  // namespace neug

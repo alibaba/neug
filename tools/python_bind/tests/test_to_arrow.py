@@ -65,7 +65,7 @@ def test_symbol_isolation():
     assert table.num_rows == 5
     assert table.column("values").null_count == 1
 
-    # Exercise arrow::csv (neug also links arrow::csv statically)
+    # Exercise PyArrow CSV parsing alongside NeuG
     csv_data = "a,b\n1,hello\n2,world\n"
     table = pa.csv.read_csv(io.BytesIO(csv_data.encode()))
     assert table.num_rows == 2
