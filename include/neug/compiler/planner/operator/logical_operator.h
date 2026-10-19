@@ -77,6 +77,8 @@ struct LogicalOperatorUtils {
 
 class NEUG_API LogicalOperator {
  public:
+  LogicalOperator(const LogicalOperator&) = delete;
+  LogicalOperator& operator=(const LogicalOperator&) = delete;
   explicit LogicalOperator(LogicalOperatorType operatorType)
       : operatorType{operatorType}, cardinality{1} {}
   explicit LogicalOperator(

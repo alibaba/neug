@@ -97,6 +97,8 @@ class NEUG_API MemoryManager {
   friend class MemoryBuffer;
 
  public:
+  MemoryManager(const MemoryManager&) = delete;
+  MemoryManager& operator=(const MemoryManager&) = delete;
   MemoryManager() = default;
   MemoryManager(BufferManager* bm, common::VirtualFileSystem* vfs) {}
 

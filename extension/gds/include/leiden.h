@@ -22,7 +22,7 @@
 namespace neug {
 namespace gds {
 
-struct NEUG_API LeidenFunction {
+struct LeidenFunction {
   static constexpr const char* name = "leiden";
 
   static std::unique_ptr<function::CallFuncInputBase> bind(

@@ -452,8 +452,8 @@ static const DateTime DEFAULT_DATE_TIME_VALUE = DateTime(0);
 
 namespace std {
 
-std::string to_string(neug::DataTypeId type);
-std::string to_string(neug::MemoryLevel level);
+NEUG_API std::string to_string(neug::DataTypeId type);
+NEUG_API std::string to_string(neug::MemoryLevel level);
 
 inline ostream& operator<<(ostream& os, const neug::EdgeStrategy& strategy) {
   switch (strategy) {

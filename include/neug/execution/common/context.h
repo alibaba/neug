@@ -17,6 +17,7 @@
 #include <unordered_map>
 #include <utility>
 #include <vector>
+#include "neug/utils/api.h"
 
 #include "neug/common/types.h"
 #include "neug/common/types/container_types.h"
@@ -40,7 +41,7 @@ namespace execution {
  * always has exactly one chunk at index 0; multi-chunk support enables batch
  * IO scenarios where data arrives in chunks.
  */
-class Context {
+class NEUG_API Context {
  public:
   Context();
 

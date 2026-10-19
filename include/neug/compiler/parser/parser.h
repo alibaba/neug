@@ -26,6 +26,7 @@
 #include <string_view>
 #include <vector>
 
+#include "neug/utils/api.h"
 #include "statement.h"
 
 namespace neug {
@@ -34,7 +35,7 @@ class ClientContext;
 }
 namespace parser {
 
-class Parser {
+class NEUG_API Parser {
  public:
   static std::vector<std::shared_ptr<Statement>> parseQuery(
       std::string_view query);

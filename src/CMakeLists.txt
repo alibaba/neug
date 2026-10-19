@@ -12,6 +12,19 @@ if(ENABLE_GCOV)
         CACHE STRING "Lcov exclude patterns")
 endif()
 
+# Every target under src/ feeds into the neug SHARED (or neug_static) library:
+# ~60 object/static libraries across the tree, including the whole compiler
+# subtree (src/compiler/**). All of them must see NEUG_EXPORTS so NEUG_API in
+# their sources expands to the export side; a producer TU compiled on the
+# import side fails with C2491 ("definition of dllimport static data member
+# not allowed", e.g. date_t.cpp) or silently drops exports. Enumerating the
+# targets one by one is unmaintainable, so define it once at directory scope
+# here. This is safe: the definition only propagates into subdirectories added
+# from this scope (all of src/). Extensions, python/node bindings and tests
+# are added from the root scope and never inherit it, so their NEUG_API stays
+# on the dllimport consumer side.
+add_compile_definitions(NEUG_EXPORTS)
+
 add_subdirectory(utils)
 add_subdirectory(storages)
 add_subdirectory(transaction)

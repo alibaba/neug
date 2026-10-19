@@ -21,6 +21,7 @@
 #include "hnsw_index_scan.h"
 #include "neug/compiler/extension/extension_api.h"
 #include "neug/storages/module/module_factory.h"
+#include "neug/utils/api.h"
 #include "vector_distance_function.h"
 
 extern "C" {
@@ -30,7 +31,7 @@ void RegisterModules() {
       .Register<neug::vector_search_ext::HNSWIndex>();
 }
 
-void Init() {
+NEUG_EXTENSION_API void Init() {
   RegisterModules();
 
   neug::extension::ExtensionAPI::registerFunction<
@@ -56,6 +57,8 @@ void Init() {
   LOG(INFO) << "[vector_search extension] initialized";
 }
 
-const char* Name() { return neug::vector_search_ext::kExtensionName; }
+NEUG_EXTENSION_API const char* Name() {
+  return neug::vector_search_ext::kExtensionName;
+}
 
 }  // extern "C"

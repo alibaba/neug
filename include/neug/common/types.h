@@ -247,7 +247,7 @@ struct MapType {
 
 DataType parse_from_data_type(const ::common::DataType& ddt);
 
-DataType parse_from_ir_data_type(const ::common::IrDataType& dt);
+NEUG_API DataType parse_from_ir_data_type(const ::common::IrDataType& dt);
 
 InArchive& operator<<(InArchive& arc, const DataType& type);
 OutArchive& operator>>(OutArchive& arc, DataType& type);

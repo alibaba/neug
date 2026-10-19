@@ -1,11 +1,14 @@
 #pragma once
 
 #include "neug/compiler/planner/operator/logical_operator.h"
+#include "neug/utils/api.h"
 
 namespace neug {
 namespace planner {
-class LogicalLimit final : public LogicalOperator {
+class NEUG_API LogicalLimit final : public LogicalOperator {
  public:
+  LogicalLimit(const LogicalLimit&) = delete;
+  LogicalLimit& operator=(const LogicalLimit&) = delete;
   LogicalLimit(std::shared_ptr<binder::Expression> skipNum,
                std::shared_ptr<binder::Expression> limitNum,
                std::shared_ptr<LogicalOperator> child)

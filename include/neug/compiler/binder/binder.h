@@ -98,7 +98,7 @@ struct BoundTableScanInfo;
 // BinderScope keeps track of expressions in scope and their aliases. We
 // maintain the order of expressions in
 
-class Binder {
+class NEUG_API Binder {
   friend class ExpressionBinder;
 
  public:
@@ -121,16 +121,15 @@ class Binder {
     return expressionBinder.parameterMap;
   }
 
-  NEUG_API std::shared_ptr<Expression> createVariable(
-      const std::string& name, const common::DataType& dataType);
-  NEUG_API std::shared_ptr<Expression> createInvisibleVariable(
+  std::shared_ptr<Expression> createVariable(const std::string& name,
+                                             const common::DataType& dataType);
+  std::shared_ptr<Expression> createInvisibleVariable(
       const std::string& name, const common::DataType& dataType) const;
-  NEUG_API expression_vector
-  createVariables(const std::vector<std::string>& names,
-                  const std::vector<common::DataType>& types);
-  NEUG_API expression_vector
-  createInvisibleVariables(const std::vector<std::string>& names,
-                           const std::vector<common::DataType>& types) const;
+  expression_vector createVariables(const std::vector<std::string>& names,
+                                    const std::vector<common::DataType>& types);
+  expression_vector createInvisibleVariables(
+      const std::vector<std::string>& names,
+      const std::vector<common::DataType>& types) const;
 
   std::shared_ptr<Expression> bindWhereExpression(
       const parser::ParsedExpression& parsedExpression);
@@ -383,7 +382,7 @@ class Binder {
       expression_vector& namespacePredicates);
   std::shared_ptr<NodeExpression> createQueryNode(
       const parser::NodePattern& nodePattern);
-  NEUG_API std::shared_ptr<NodeExpression> createQueryNode(
+  std::shared_ptr<NodeExpression> createQueryNode(
       const std::string& parsedName, const std::vector<SchemaEntry*>& entries);
   static void bindQueryNodeProperties(NodeExpression& node);
   void collectNamespaceNodePredicate(
@@ -408,11 +407,11 @@ class Binder {
       const BoundProjectionBody& boundProjectionBody);
   static bool isOrderByKeyTypeSupported(const common::DataType& dataType);
 
-  NEUG_API static void validateTableExistence(
-      const main::ClientContext& context, const std::string& tableName);
-  NEUG_API static void validateNodeTableType(SchemaEntry* entry);
-  NEUG_API static void validateColumnExistence(SchemaEntry* entry,
-                                               const std::string& columnName);
+  static void validateTableExistence(const main::ClientContext& context,
+                                     const std::string& tableName);
+  static void validateNodeTableType(SchemaEntry* entry);
+  static void validateColumnExistence(SchemaEntry* entry,
+                                      const std::string& columnName);
 
   void validateNoIndexOnProperty(const std::string& tableName,
                                  const std::string& propertyName) const;
@@ -424,8 +423,7 @@ class Binder {
 
   void addToScope(const std::vector<std::string>& names,
                   const expression_vector& exprs);
-  NEUG_API void addToScope(const std::string& name,
-                           std::shared_ptr<Expression> expr);
+  void addToScope(const std::string& name, std::shared_ptr<Expression> expr);
   BinderScope saveScope() const;
   void restoreScope(BinderScope prevScope);
   void replaceExpressionInScope(const std::string& oldName,

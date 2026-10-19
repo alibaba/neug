@@ -27,6 +27,7 @@
 #include "neug/common/numeric_cast.h"
 #include "neug/common/types.h"
 #include "neug/common/types/graph_types.h"
+#include "neug/utils/api.h"
 
 namespace neug {
 class Encoder;
@@ -41,7 +42,7 @@ using vertex_t = VertexRecord;
 using edge_t = EdgeRecord;
 
 struct ExtraValueInfo;
-class Value {
+class NEUG_API Value {
   friend struct StringValue;
   friend struct StructValue;
   friend struct ListValue;
@@ -168,101 +169,101 @@ class Value {
   std::shared_ptr<ExtraValueInfo> value_info_;  // NOLINT
 };
 
-struct StringValue {
+struct NEUG_API StringValue {
   static const std::string& Get(const Value& value);
 };
 
-struct ListValue {
+struct NEUG_API ListValue {
   static const std::vector<Value>& GetChildren(const Value& value);
 };
 
-struct ArrayValue {
+struct NEUG_API ArrayValue {
   static const std::vector<Value>& GetChildren(const Value& value);
   static uint64_t GetSize(const Value& value);
 };
 
-struct StructValue {
+struct NEUG_API StructValue {
   static const std::vector<Value>& GetChildren(const Value& value);
 };
 
-struct PathValue {
+struct NEUG_API PathValue {
   static const Path& Get(const Value& value);
 };
 
 template <>
-Value Value::CreateValue(bool value);
+NEUG_API Value Value::CreateValue(bool value);
 
 template <>
-Value Value::CreateValue(uint32_t value);
+NEUG_API Value Value::CreateValue(uint32_t value);
 template <>
-Value Value::CreateValue(uint64_t value);
+NEUG_API Value Value::CreateValue(uint64_t value);
 template <>
-Value Value::CreateValue(int32_t value);
+NEUG_API Value Value::CreateValue(int32_t value);
 template <>
-Value Value::CreateValue(int64_t value);
+NEUG_API Value Value::CreateValue(int64_t value);
 
 template <>
-Value Value::CreateValue(date_t value);
+NEUG_API Value Value::CreateValue(date_t value);
 template <>
-Value Value::CreateValue(timestamp_t value);
+NEUG_API Value Value::CreateValue(timestamp_t value);
 template <>
-Value Value::CreateValue(timestamp_ms_t value);
+NEUG_API Value Value::CreateValue(timestamp_ms_t value);
 template <>
-Value Value::CreateValue(std::string value);
+NEUG_API Value Value::CreateValue(std::string value);
 template <>
-Value Value::CreateValue(std::string_view value);
+NEUG_API Value Value::CreateValue(std::string_view value);
 
 template <>
-Value Value::CreateValue(float value);
+NEUG_API Value Value::CreateValue(float value);
 template <>
-Value Value::CreateValue(double value);
+NEUG_API Value Value::CreateValue(double value);
 template <>
-Value Value::CreateValue(interval_t value);
+NEUG_API Value Value::CreateValue(interval_t value);
 template <>
-Value Value::CreateValue(Value value);
+NEUG_API Value Value::CreateValue(Value value);
 
 template <>
-Value Value::CreateValue(vertex_t value);
+NEUG_API Value Value::CreateValue(vertex_t value);
 
 template <>
-Value Value::CreateValue(edge_t value);
+NEUG_API Value Value::CreateValue(edge_t value);
 
 template <>
-bool Value::GetValue() const;
+NEUG_API bool Value::GetValue() const;
 template <>
-int32_t Value::GetValue() const;
+NEUG_API int32_t Value::GetValue() const;
 template <>
-int64_t Value::GetValue() const;
+NEUG_API int64_t Value::GetValue() const;
 template <>
-uint32_t Value::GetValue() const;
+NEUG_API uint32_t Value::GetValue() const;
 template <>
-uint64_t Value::GetValue() const;
+NEUG_API uint64_t Value::GetValue() const;
 template <>
-std::string Value::GetValue() const;
+NEUG_API std::string Value::GetValue() const;
 template <>
-std::string_view Value::GetValue() const;
+NEUG_API std::string_view Value::GetValue() const;
 template <>
-EmptyType Value::GetValue() const;
+NEUG_API EmptyType Value::GetValue() const;
 
 template <>
-float Value::GetValue() const;
+NEUG_API float Value::GetValue() const;
 template <>
-double Value::GetValue() const;
+NEUG_API double Value::GetValue() const;
 template <>
-date_t Value::GetValue() const;
+NEUG_API date_t Value::GetValue() const;
 template <>
-timestamp_ms_t Value::GetValue() const;
+NEUG_API timestamp_ms_t Value::GetValue() const;
 template <>
-interval_t Value::GetValue() const;
+NEUG_API interval_t Value::GetValue() const;
 
 template <>
-vertex_t Value::GetValue() const;
+NEUG_API vertex_t Value::GetValue() const;
 
 template <>
-edge_t Value::GetValue() const;
+NEUG_API edge_t Value::GetValue() const;
 
 template <>
-Value Value::GetValue() const;
+NEUG_API Value Value::GetValue() const;
 
 template <typename T>
 struct ValueConverter {

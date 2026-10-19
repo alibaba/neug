@@ -18,6 +18,7 @@
 #include <memory>
 #include <ostream>
 #include <string>
+#include "neug/utils/api.h"
 
 #ifdef _WIN32
 #include <fcntl.h>
@@ -191,8 +192,8 @@ enum class CopyResult {
   CopyFileRange,  // Used copy_file_range() - may use COW on some FS
   FallbackCopy    // Used traditional read/write copy
 };
-CopyResult copy_file(const std::string& src_path, const std::string& dst_path,
-                     bool overwrite);
+NEUG_API CopyResult copy_file(const std::string& src_path,
+                              const std::string& dst_path, bool overwrite);
 
 void create_file(const std::string& path, size_t size);
 

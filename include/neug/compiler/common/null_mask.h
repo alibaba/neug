@@ -27,6 +27,7 @@
 
 #include <span>
 #include "neug/compiler/common/assert.h"
+#include "neug/utils/api.h"
 
 namespace neug {
 namespace common {
@@ -253,8 +254,10 @@ const uint64_t NULL_HIGH_MASKS[65] = {0x0,
                                       0xfffffffffffffffe,
                                       0xffffffffffffffff};
 
-class NullMask {
+class NEUG_API NullMask {
  public:
+  NullMask(const NullMask&) = delete;
+  NullMask& operator=(const NullMask&) = delete;
   static constexpr uint64_t NO_NULL_ENTRY = 0;
   static constexpr uint64_t ALL_NULL_ENTRY = ~uint64_t(NO_NULL_ENTRY);
   static constexpr uint64_t NUM_BITS_PER_NULL_ENTRY_LOG2 = 6;

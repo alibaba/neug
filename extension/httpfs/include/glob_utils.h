@@ -16,13 +16,109 @@
 
 #pragma once
 
+#ifdef _WIN32
+#include <algorithm>
+#include <string>
+#else
 #include <fnmatch.h>
 #include <algorithm>
 #include <string>
+#endif
 
 namespace neug {
 namespace extension {
 namespace s3 {
+
+#ifdef _WIN32
+/**
+ * @brief Inline reimplementation of POSIX fnmatch(pattern, text, 0) for MSVC,
+ *        which has no <fnmatch.h>.
+ *
+ * Semantics mirror fnmatch(3) with flags=0: '*' matches any sequence
+ * (including '/'), '?' matches any single character (including '/'),
+ * and "[...]" classes support ranges ("a-z") and '!' negation. An
+ * unterminated '[' matches nothing (BSD/musl behaviour; glibc treats
+ * it as a literal -- an implementation-defined corner that malformed
+ * S3 patterns should never rely on).
+ */
+inline bool Fnmatch(const char* pattern, const char* text) {
+  while (*pattern != '\0') {
+    switch (*pattern) {
+    case '*': {
+      // Collapse consecutive '*' and try every suffix of text.
+      while (*pattern == '*') {
+        ++pattern;
+      }
+      if (*pattern == '\0') {
+        return true;
+      }
+      for (const char* t = text;; ++t) {
+        if (Fnmatch(pattern, t)) {
+          return true;
+        }
+        if (*t == '\0') {
+          return false;
+        }
+      }
+    }
+    case '?': {
+      if (*text == '\0') {
+        return false;
+      }
+      ++pattern;
+      ++text;
+      break;
+    }
+    case '[': {
+      if (*text == '\0') {
+        return false;
+      }
+      const char* start = pattern + 1;
+      bool negated = (*start == '!');
+      if (negated) {
+        ++start;
+      }
+      bool matched = false;
+      bool first = true;
+      const char* p = start;
+      while (*p != '\0' && (*p != ']' || first)) {
+        char lo = *p;
+        char hi = lo;
+        if (p[1] == '-' && p[2] != ']' && p[2] != '\0') {
+          hi = p[2];
+          p += 3;
+        } else {
+          ++p;
+        }
+        if (*text >= lo && *text <= hi) {
+          matched = true;
+        }
+        first = false;
+      }
+      if (*p == '\0') {
+        // Unterminated '[' matches nothing (see doc comment above).
+        return false;
+      }
+      if (matched == negated) {
+        return false;
+      }
+      pattern = p + 1;  // past the ']'
+      ++text;
+      break;
+    }
+    default: {
+      if (*text != *pattern) {
+        return false;
+      }
+      ++pattern;
+      ++text;
+      break;
+    }
+    }
+  }
+  return *text == '\0';
+}
+#endif  // _WIN32
 
 /**
  * @brief Match a file path against a glob pattern
@@ -40,7 +136,11 @@ inline bool MatchGlobPattern(const std::string& text,
                              const std::string& pattern) {
   // flags=0: '*' matches any character including '/', '?' matches any single
   // char
+#ifdef _WIN32
+  return Fnmatch(pattern.c_str(), text.c_str());
+#else
   return fnmatch(pattern.c_str(), text.c_str(), 0) == 0;
+#endif
 }
 
 /**

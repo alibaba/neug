@@ -28,21 +28,73 @@
 #else
 #include <windows.h>
 #include <cstdio>
+#include <string>
 // Windows shims for POSIX dlopen/dlsym/dlclose/dlerror.
 #define RTLD_NOW 0
 #define RTLD_LOCAL 0
-static inline void* dlopen(const char* path, int) { return LoadLibraryA(path); }
-static inline void* dlsym(void* handle, const char* name) {
-  return reinterpret_cast<void*>(
-      GetProcAddress(static_cast<HMODULE>(handle), name));
+// dlerror() must mirror the POSIX contract: return nullptr unless the last
+// dlopen/dlsym/dlclose failed, and return - then clear - the failure reason
+// otherwise. Reading GetLastError() unconditionally reports stale codes left
+// by unrelated APIs during DLL load (e.g. glog's environment lookups during
+// static init leave error 203), which turns successful dlsym calls into
+// spurious loader failures. The loader runs on a single thread, so a
+// thread-local state slot faithfully models the per-thread POSIX state.
+static thread_local DWORD dl_last_error = 0;
+static thread_local bool dl_error_pending = false;
+
+static inline void dl_record_failure(DWORD error) {
+  dl_last_error = error;
+  dl_error_pending = true;
 }
-static inline int dlclose(void* handle) {
-  return FreeLibrary(static_cast<HMODULE>(handle)) ? 0 : 1;
-}
+
 static inline char* dlerror() {
-  static char buf[256];
-  snprintf(buf, sizeof(buf), "Windows error code: %lu", GetLastError());
+  static thread_local char buf[256];
+  if (!dl_error_pending) {
+    return nullptr;
+  }
+  dl_error_pending = false;
+  snprintf(buf, sizeof(buf), "Windows error code: %lu",
+           static_cast<unsigned long>(dl_last_error));
   return buf;
+}
+
+// UTF-8 safe: LoadLibraryA interprets paths in the active ANSI code page, so
+// non-ASCII install paths would fail. Convert to a wide string and use
+// LoadLibraryW instead (mirrors the compiler-side loader).
+static inline void* dlopen(const char* path, int) {
+  if (path == nullptr) {
+    dl_record_failure(ERROR_INVALID_PARAMETER);
+    return nullptr;
+  }
+  int wlen = MultiByteToWideChar(CP_UTF8, 0, path, -1, nullptr, 0);
+  if (wlen <= 0) {
+    dl_record_failure(GetLastError());
+    return nullptr;
+  }
+  std::wstring wpath(static_cast<size_t>(wlen), L'\0');
+  MultiByteToWideChar(CP_UTF8, 0, path, -1, wpath.data(), wlen);
+  void* handle = LoadLibraryW(wpath.c_str());
+  if (handle == nullptr) {
+    dl_record_failure(GetLastError());
+  }
+  return handle;
+}
+
+static inline void* dlsym(void* handle, const char* name) {
+  void* sym = reinterpret_cast<void*>(
+      GetProcAddress(static_cast<HMODULE>(handle), name));
+  if (sym == nullptr) {
+    dl_record_failure(GetLastError());
+  }
+  return sym;
+}
+
+static inline int dlclose(void* handle) {
+  BOOL freed = FreeLibrary(static_cast<HMODULE>(handle));
+  if (!freed) {
+    dl_record_failure(GetLastError());
+  }
+  return freed ? 0 : 1;
 }
 #endif
 

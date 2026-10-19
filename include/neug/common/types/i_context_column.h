@@ -18,6 +18,7 @@
 #include <string>
 #include <unordered_map>
 #include <vector>
+#include "neug/utils/api.h"
 
 #include "neug/common/types/container_types.h"
 #include "neug/common/types/value.h"
@@ -37,7 +38,7 @@ enum class ContextColumnType {
 
 class IContextColumnBuilder;
 
-class IContextColumn {
+class NEUG_API IContextColumn {
  public:
   IContextColumn() = default;
   virtual ~IContextColumn() = default;

@@ -17,6 +17,7 @@
 #include "neug/common/columns/columns_utils.h"
 #include "neug/common/types/graph_types.h"
 #include "neug/common/types/i_context_column.h"
+#include "neug/utils/api.h"
 #include "neug/utils/property/column.h"
 #include "neug/utils/property/types.h"
 
@@ -57,7 +58,7 @@ class IEdgeColumn : public IContextColumn {
 class SDSLEdgeColumnBuilder;
 class MSEdgeColumnBuilder;
 
-class SDSLEdgeColumn : public IEdgeColumn {
+class NEUG_API SDSLEdgeColumn : public IEdgeColumn {
  public:
   SDSLEdgeColumn(Direction dir, const LabelTriplet& label)
       : dir_(dir), label_(label), is_optional_(false) {}
@@ -161,7 +162,7 @@ class SDSLEdgeColumnBuilder : public IContextColumnBuilder {
   bool is_optional_;
 };
 
-class MSEdgeColumn : public IEdgeColumn {
+class NEUG_API MSEdgeColumn : public IEdgeColumn {
  public:
   MSEdgeColumn() {}
   ~MSEdgeColumn() = default;

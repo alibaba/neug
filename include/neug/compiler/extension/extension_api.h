@@ -22,6 +22,7 @@
 #include "neug/compiler/gopt/g_catalog.h"
 #include "neug/compiler/main/metadata_manager.h"
 #include "neug/compiler/main/metadata_registry.h"
+#include "neug/utils/api.h"
 #include "neug/utils/exception/exception.h"
 
 namespace neug {
@@ -39,7 +40,7 @@ struct ExtensionInfo {
   std::string description;
 };
 
-class ExtensionAPI {
+class NEUG_API ExtensionAPI {
  public:
   template <typename T>
   static void registerFunction(catalog::CatalogEntryType entryType) {

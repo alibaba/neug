@@ -26,6 +26,7 @@
 #include <string>
 #include <unordered_map>
 #include <vector>
+#include "neug/utils/api.h"
 
 #include "neug/common/types.h"
 
@@ -134,7 +135,7 @@ struct StringTypeInfo : public ExtraTypeInfo {
   bool EqualsInternal(ExtraTypeInfo* other_p) const override;
 };
 
-struct GNodeTypeInfo : public StructTypeInfo {
+struct NEUG_API GNodeTypeInfo : public StructTypeInfo {
   explicit GNodeTypeInfo(std::vector<std::string> field_names_p,
                          std::vector<DataType> child_types_p,
                          std::shared_ptr<gopt::GNodeType> node_type_p);

@@ -16,12 +16,13 @@
 
 #include "neug/common/columns/columns_utils.h"
 #include "neug/common/types/i_context_column.h"
+#include "neug/utils/api.h"
 
 namespace neug {
 
 class PathColumnBuilder;
 
-class PathColumn : public IContextColumn {
+class NEUG_API PathColumn : public IContextColumn {
  public:
   PathColumn() : type_(DataType(DataTypeId::kPath)) {}
   ~PathColumn() {}
