@@ -8,7 +8,6 @@ After `LOAD PARQUET`, `LOAD FROM` uses the Carquet reader for local files and
 remote streams supplied by HTTPFS. `COPY TO` invokes the Carquet writer through
 the existing query-export and output-stream interfaces for local and remote
 destinations. Backend selection is internal and does not add a SQL option.
-The previous Arrow implementation and dependencies remain during the migration.
 
 The user-facing type mappings and read/write options are documented in the
 [Parquet user documentation](../../doc/source/extensions/load_parquet.md).
@@ -40,8 +39,7 @@ this exact-filtering path without native statistics evaluation.
 
 Carquet's `ArrowSchema` and `ArrowArray` structures are the C Data interchange
 ABI declared by Carquet; these adapters do not link against Arrow to convert
-values. The previous Arrow implementation remains in the source tree during the
-migration, but the registered Parquet read function uses Carquet.
+values. The registered Parquet read function uses Carquet.
 
 ### Batching, concurrency and memory
 
@@ -97,8 +95,7 @@ materialized; this is not an end-to-end streaming export implementation.
 
 The writer uses the Carquet submodule and adjacent patch already present in
 NeuG. It does not depend on the Carquet reader implementation or alter public
-IO interfaces or CSV/JSON writers. The previous Arrow writer remains in the
-source tree during the migration, but the registered Parquet export function
+IO interfaces or CSV/JSON writers. The registered Parquet export function
 constructs the Carquet writer.
 
 ## Building and testing
@@ -122,12 +119,10 @@ With `httpfs` also enabled, `httpfs_extension_test` includes a local HTTP Range
 integration test. Tests reuse the repository's datasets and generate additional
 files in memory; the C++ suite does not require PyArrow.
 
-Writer tests generate Parquet in memory and use the existing Arrow reader as an
-independent format oracle. They cover scalar and nested values, timestamp units,
-NULL bitmaps, row group and page boundaries, compression and dictionary options,
-malformed responses and output failures. No new binary fixtures are required.
-Arrow is used only as an independent format oracle in this focused test; the
-Carquet writer implementation itself does not use it.
+Writer C++ tests cover successful writes, malformed responses, output failures
+and resource cleanup. Independent read-back checks run in Python with PyArrow:
+they verify scalar and nested values, timestamp units, NULL bitmaps, row-group
+and page boundaries, compression and dictionary settings.
 
 ## Carquet submodule and patch
 

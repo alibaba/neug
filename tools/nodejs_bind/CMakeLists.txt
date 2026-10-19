@@ -101,7 +101,7 @@ if (CMAKE_CXX_COMPILER_ID MATCHES "Clang")
   target_compile_options(neug_node_bind PRIVATE -Wno-vla-extension)
 endif()
 
-# Hide protobuf/abseil/arrow symbols to avoid conflicts
+# Hide protobuf/abseil symbols to avoid conflicts
 if (COMMAND neug_apply_symbol_visibility)
   neug_apply_symbol_visibility(neug_node_bind)
 endif()

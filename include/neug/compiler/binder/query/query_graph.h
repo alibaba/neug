@@ -23,7 +23,10 @@
 #pragma once
 
 #include <bitset>
+#include <map>
+#include <set>
 #include <unordered_map>
+#include <unordered_set>
 
 #include "neug/compiler/binder/expression/rel_expression.h"
 
@@ -34,16 +37,14 @@ constexpr static uint8_t MAX_NUM_QUERY_VARIABLES = 64;
 
 class QueryGraph;
 struct SubqueryGraph;
-struct SubqueryGraphHasher;
-using subquery_graph_set_t =
-    std::unordered_set<SubqueryGraph, SubqueryGraphHasher>;
+struct SubqueryGraphLess;
+using subquery_graph_set_t = std::set<SubqueryGraph, SubqueryGraphLess>;
 template <typename T>
-using subquery_graph_V_map_t =
-    std::unordered_map<SubqueryGraph, T, SubqueryGraphHasher>;
+using subquery_graph_V_map_t = std::map<SubqueryGraph, T, SubqueryGraphLess>;
 
-// hash on node bitset if subgraph has no rel
-struct SubqueryGraphHasher {
-  std::size_t operator()(const SubqueryGraph& key) const;
+// Enumerate subgraphs in a stable order when candidate plans have equal cost.
+struct SubqueryGraphLess {
+  bool operator()(const SubqueryGraph& lhs, const SubqueryGraph& rhs) const;
 };
 
 struct SubqueryGraph {
@@ -74,16 +75,15 @@ struct SubqueryGraph {
   bool containAllVariables(
       const std::unordered_set<std::string>& variables) const;
 
-  std::unordered_set<common::idx_t> getNodeNbrPositions() const;
-  std::unordered_set<common::idx_t> getRelNbrPositions() const;
+  std::set<common::idx_t> getNodeNbrPositions() const;
+  std::set<common::idx_t> getRelNbrPositions() const;
   subquery_graph_set_t getNbrSubgraphs(uint32_t size) const;
   std::vector<uint32_t> getConnectedNodePos(const SubqueryGraph& nbr) const;
 
   // E.g. query graph (a)-[e1]->(b) and subgraph (a)-[e1], although (b) is not
   // in subgraph, we return both (a) and (b) regardless of node selector. See
   // needPruneJoin() in join_order_enumerator.cpp for its use case.
-  std::unordered_set<common::idx_t> getNodePositionsIgnoringNodeSelector()
-      const;
+  std::set<common::idx_t> getNodePositionsIgnoringNodeSelector() const;
 
   std::vector<common::idx_t> getNbrNodeIndices() const;
 

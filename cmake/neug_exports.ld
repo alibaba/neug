@@ -2,12 +2,6 @@
  *
  * Strategy: export everything by default, then selectively hide third-party
  * symbols that would conflict with pyarrow's bundled copies.
- *
- * NOTE: we intentionally do NOT use "local: *" (hide-everything-by-default)
- * because GNU ld applies local binding to UNDEF entries too.  Arrow's static
- * sub-libraries (dataset, acero, csv, io, parquet) contain cross-references
- * that remain as UNDEF in the .so; marking them local causes downstream
- * executables to fail with "undefined reference" errors.
  */
 {
   global:
@@ -15,15 +9,6 @@
     *;
 
   local:
-    /* Hide all Apache Arrow C++ symbols to avoid conflicts with pyarrow.
-     * Mangled C++ names in the arrow:: namespace start with _ZN5arrow. */
-    _ZN5arrow*;
-    _ZNK5arrow*;
-    _ZTI*5arrow*;
-    _ZTV*5arrow*;
-    _ZTS*5arrow*;
-    _ZTh*5arrow*;
-
     /* Protobuf symbols (google::protobuf::*) */
     _ZN6google8protobuf*;
     _ZNK6google8protobuf*;

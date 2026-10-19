@@ -27,7 +27,7 @@ add_subdirectory(execution)
 message(STATUS "Compiler libraries: ${COMPILER_LIBRARIES}")
 add_library(neug SHARED ${ALL_OBJECT_FILES})
 # Define NEUG_EXPORTS so that NEUG_API resolves to __attribute__((visibility("default")))
-# for symbols we want to export, while all other symbols (including Arrow) remain hidden
+# for symbols we want to export, while all other symbols remain hidden
 # due to CMAKE_CXX_VISIBILITY_PRESET=hidden.
 target_compile_definitions(neug PRIVATE NEUG_EXPORTS)
 if (ENABLE_GCOV)

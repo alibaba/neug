@@ -39,8 +39,8 @@ for DEP in $DEPENDENCIES; do
     echo "Processing dependency: $DEP"
     # if DEP start with @rpath
     if [[ "$DEP" == @rpath/* ]]; then
-        # if DEP contains arrow,boost,mimalloc, then replace @rpath with the destination directory
-        if [[ "$DEP" == *arrow* || "$DEP" == *boost* || "$DEP" == *mimalloc* || "$DEP" == *yaml-cpp* || "$DEP" == *gflag*  || "$DEP" == *glog* ]]; then
+        # if DEP contains boost,mimalloc, then replace @rpath with the destination directory
+        if [[ "$DEP" == *boost* || "$DEP" == *mimalloc* || "$DEP" == *yaml-cpp* || "$DEP" == *gflag*  || "$DEP" == *glog* ]]; then
             new_dep="${DEP/@rpath/$DST_DIR}"
         fi
     fi

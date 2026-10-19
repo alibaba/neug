@@ -62,9 +62,6 @@ if(BUILD_TEST)
         ${CMAKE_SOURCE_DIR}
         ${CMAKE_CURRENT_SOURCE_DIR}/include
         ${CMAKE_BINARY_DIR})
-    if(ARROW_INCLUDE_DIRS)
-        target_include_directories(${_sm_test_name} PRIVATE SYSTEM ${ARROW_INCLUDE_DIRS})
-    endif()
     target_include_directories(${_sm_test_name} PRIVATE SYSTEM
         ${CMAKE_CURRENT_SOURCE_DIR}/include/fastest_lib/src
         ${CMAKE_SOURCE_DIR}/third_party/rapidjson/include)
@@ -72,7 +69,6 @@ if(BUILD_TEST)
         neug::GTest
         neug
         ${GLOG_LIBRARIES}
-        ${ARROW_LIB}
         ${OPENSSL_LIBRARIES}
         ${CRYPTO_LIB})
     if(ENABLE_GCOV)

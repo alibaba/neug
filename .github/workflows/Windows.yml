@@ -5,6 +5,25 @@ on:
   release:
     types:
       - created
+  pull_request:
+    branches:
+      - main
+    paths:
+      - 'cmake/**'
+      - 'src/**'
+      - 'bin/**'
+      - 'proto/**'
+      - 'third_party/**'
+      - 'tools/python_bind/**'
+      - 'tools/utils/**'
+      - 'tests/**'
+      - '.github/workflows/Windows.yml'
+      - '.github/workflows/build-and-test-common.yml'
+      - 'scripts/install_deps.ps1'
+      - 'scripts/build_windows.bat'
+      - 'include/**'
+      - 'CMakeLists.txt'
+      - 'doc/source/tutorials/**'
   push:
     paths:
       - 'cmake/**'
@@ -46,10 +65,10 @@ jobs:
   # ============================================================
   build_and_test_windows:
     needs: format_check
-    # Enabled for manual (workflow_dispatch) runs only, so the Windows
-    # build/test pipeline can be exercised on demand. Other triggers
-    # (push/release) stay disabled.
-    if: ${{ (needs.format_check.result == 'success' || needs.format_check.result == 'skipped') && github.event_name == 'workflow_dispatch' }}
+    # Runs on manual (workflow_dispatch) dispatches and on pull requests
+    # targeting main, so every code-touching PR exercises the Windows x86
+    # build and its Python test suite. Release/push triggers stay disabled.
+    if: ${{ (needs.format_check.result == 'success' || needs.format_check.result == 'skipped') && (github.event_name == 'workflow_dispatch' || github.event_name == 'pull_request') }}
     runs-on: windows-2022
     timeout-minutes: 120
     defaults:
@@ -138,7 +157,7 @@ jobs:
           cmake --build build -j $jobs
 
       # ========================================
-      # Phase: Python Tests
+      # Python Tests
       # Mirrors build-and-test-common.yml Phase 3.
       # C++ tests are not built or run on Windows (BUILD_TEST=OFF):
       # tests/ gtest targets stay out of the Windows CI pipeline.
@@ -249,7 +268,6 @@ jobs:
         if: always()
         run: |
           $failed = @()
-          if ('${{ steps.cpp-tests.outcome }}' -eq 'failure') { $failed += 'cpp-tests' }
           if ('${{ steps.python-schema-tests.outcome }}' -eq 'failure') { $failed += 'python-schema-tests' }
           if ('${{ steps.python-dml-tests.outcome }}' -eq 'failure') { $failed += 'python-dml-tests' }
           if ('${{ steps.python-query-tests.outcome }}' -eq 'failure') { $failed += 'python-query-tests' }
@@ -262,6 +280,211 @@ jobs:
           if ('${{ steps.python-list-array-tests.outcome }}' -eq 'failure') { $failed += 'python-list-array-tests' }
           if ('${{ steps.python-pyarrow-tests.outcome }}' -eq 'failure') { $failed += 'python-pyarrow-tests' }
           if ('${{ steps.python-cli-tests.outcome }}' -eq 'failure') { $failed += 'python-cli-tests' }
+          if ($failed.Count -gt 0) {
+            Write-Error "The following test steps failed: $($failed -join ', ')"
+            exit 1
+          }
+          Write-Host "All test steps passed."
+
+  build_and_test_windows_arm64:
+    needs: format_check
+    if: ${{ (needs.format_check.result == 'success' || needs.format_check.result == 'skipped') && github.event_name == 'workflow_dispatch' }}
+    runs-on: windows-11-arm
+    timeout-minutes: 120
+    defaults:
+      run:
+        shell: pwsh
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          fetch-depth: 0
+
+      - name: Setup MSVC Developer Command Prompt
+        uses: ilammy/msvc-dev-cmd@v1
+        with:
+          arch: arm64
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install Python dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r tools/python_bind/requirements.txt
+          python -m pip install pytest pytest-cov coverage
+
+      # vcpkg is pre-installed on GitHub-hosted Windows runners at
+      # C:\vcpkg but ships with NO pre-built packages. In classic mode
+      # (no vcpkg.json) the toolchain does not auto-install missing
+      # packages, so we must install OpenSSL explicitly before CMake
+      # configure. Without this step CMake falls back to the system-level
+      # dynamic OpenSSL (DLL), which Python 3.8+ cannot load (PATH is not
+      # searched for DLLs).
+      - name: Setup vcpkg
+        run: |
+          echo "VCPKG_ROOT=$env:VCPKG_INSTALLATION_ROOT" >> $env:GITHUB_ENV
+          echo "Using vcpkg at: $env:VCPKG_INSTALLATION_ROOT"
+
+      - name: Cache vcpkg packages
+        uses: actions/cache@v4
+        with:
+          path: ${{ env.VCPKG_ROOT }}/installed
+          key: vcpkg-arm64-windows-static-md-openssl-${{ hashFiles('CMakeLists.txt') }}
+          restore-keys: |
+            vcpkg-arm64-windows-static-md-openssl-
+
+      - name: Install OpenSSL via vcpkg
+        run: |
+          $vcpkgExe = Join-Path $env:VCPKG_ROOT "vcpkg.exe"
+          $triplet = "arm64-windows-static-md"
+          $installDir = Join-Path $env:VCPKG_ROOT "installed\$triplet"
+          # Skip if already installed (cache hit)
+          if (Test-Path (Join-Path $installDir "lib\libssl.lib")) {
+            Write-Host "OpenSSL already installed in $installDir (cache hit)"
+          } else {
+            Write-Host "Installing openssl:$triplet via vcpkg"
+            & $vcpkgExe install "openssl:$triplet"
+            if ($LASTEXITCODE -ne 0) {
+              Write-Error "vcpkg failed to install openssl:$triplet"
+              exit 1
+            }
+          }
+
+      - name: Configure CMake
+        run: |
+          $pythonExe = (Get-Command python).Path
+          $vcpkgToolchain = Join-Path $env:VCPKG_ROOT "scripts\buildsystems\vcpkg.cmake"
+          cmake -B build -G Ninja `
+            -DCMAKE_BUILD_TYPE=Release `
+            -DCMAKE_TOOLCHAIN_FILE="$vcpkgToolchain" `
+            -DVCPKG_TARGET_TRIPLET=arm64-windows-static-md `
+            -DBUILD_PYTHON=ON `
+            -DBUILD_TEST=OFF `
+            -DPython_EXECUTABLE="$pythonExe" `
+            -DPYTHON_EXECUTABLE="$pythonExe" `
+            .
+
+      - name: Build
+        run: |
+          $cpuCount = [Environment]::ProcessorCount
+          $jobs = [Math]::Min($cpuCount, 8)
+          Write-Host "Building with $jobs parallel jobs"
+          cmake --build build -j $jobs
+
+      # ========================================
+      # Python Tests
+      # Same suite as build_and_test_windows.
+      # ========================================
+      - name: Install Python dev requirements
+        run: |
+          # clang-format==10.0.1 ships no win-arm64 wheel, so pip falls back to
+          # building it from source, which clones llvm and blows past the
+          # Windows MAX_PATH limit ("Filename too long"). It is a formatting
+          # tool unused by the tests, so drop it from the resolved set on
+          # this runner. The x64 job keeps the full requirements file.
+          Get-Content tools/python_bind/requirements_dev.txt |
+            Where-Object { $_ -notmatch '^\s*clang-format\s*==' } |
+            Set-Content -Path "$env:RUNNER_TEMP\requirements_dev_arm64.txt"
+          python -m pip install -r "$env:RUNNER_TEMP\requirements_dev_arm64.txt"
+
+      - name: Run Python schema tests
+        id: arm64-python-schema-tests
+        continue-on-error: true
+        run: |
+          cd tools/python_bind
+          python -m pytest -sv tests/test_schema.py --exitfirst
+
+      - name: Run Python DML tests
+        id: arm64-python-dml-tests
+        continue-on-error: true
+        run: |
+          cd tools/python_bind
+          python -m pytest -sv tests/test_dml.py --exitfirst
+
+      - name: Run Python query tests
+        id: arm64-python-query-tests
+        continue-on-error: true
+        run: |
+          cd tools/python_bind
+          python -m pytest -sv tests/test_query.py --exitfirst
+
+      - name: Run Python path tests
+        id: arm64-python-path-tests
+        continue-on-error: true
+        run: |
+          cd tools/python_bind
+          python -m pytest -sv tests/test_path.py --exitfirst
+
+      - name: Run Python dataset tests
+        id: arm64-python-dataset-tests
+        continue-on-error: true
+        run: |
+          cd tools/python_bind
+          python -m pytest -sv tests/test_dataset.py --exitfirst
+
+      - name: Run Python merge tests
+        id: arm64-python-merge-tests
+        continue-on-error: true
+        run: |
+          cd tools/python_bind
+          python -m pytest -sv tests/test_merge.py --exitfirst
+
+      - name: Run Python LOAD FROM sniffer tests (CSV and JSON)
+        id: arm64-python-sniffer-tests
+        continue-on-error: true
+        run: |
+          cd tools/python_bind
+          python -m pytest -sv tests/test_sniffer.py -k "csv or json" --exitfirst
+
+      - name: Run Python complex query tests
+        id: arm64-python-complex-query-tests
+        continue-on-error: true
+        run: |
+          cd tools/python_bind
+          python -m pytest -sv tests/test_db_cases.py --exitfirst
+
+      - name: Run Python list/array tests
+        id: arm64-python-list-array-tests
+        continue-on-error: true
+        run: |
+          cd tools/python_bind
+          python -m pytest -sv tests/test_db_list.py --exitfirst
+          python -m pytest -sv tests/test_db_array.py --exitfirst
+
+      # PyArrow tests are skipped on ARM64: pyarrow==18.0.0 ships no
+      # win-arm64 wheel, so pip would fall back to a full source build
+      # of Arrow. Re-enable once the pinned pyarrow gains arm64 wheels.
+
+      - name: Run Python CLI tool tests
+        id: arm64-python-cli-tests
+        continue-on-error: true
+        run: |
+          cd tools/python_bind
+          python -m pytest -sv tests/test_ngcli_commands.py --exitfirst
+          python -m pytest -sv tests/test_ngcli_basics.py --exitfirst
+
+      # ========================================
+      # Summary: fail the job if any test step actually failed.
+      # ========================================
+      - name: Check test results
+        if: always()
+        run: |
+          $failed = @()
+          if ('${{ steps.arm64-python-schema-tests.outcome }}' -eq 'failure') { $failed += 'arm64-python-schema-tests' }
+          if ('${{ steps.arm64-python-dml-tests.outcome }}' -eq 'failure') { $failed += 'arm64-python-dml-tests' }
+          if ('${{ steps.arm64-python-query-tests.outcome }}' -eq 'failure') { $failed += 'arm64-python-query-tests' }
+          if ('${{ steps.arm64-python-path-tests.outcome }}' -eq 'failure') { $failed += 'arm64-python-path-tests' }
+          if ('${{ steps.arm64-python-dataset-tests.outcome }}' -eq 'failure') { $failed += 'arm64-python-dataset-tests' }
+          if ('${{ steps.arm64-python-merge-tests.outcome }}' -eq 'failure') { $failed += 'arm64-python-merge-tests' }
+          if ('${{ steps.arm64-python-sniffer-tests.outcome }}' -eq 'failure') { $failed += 'arm64-python-sniffer-tests' }
+          if ('${{ steps.arm64-python-complex-query-tests.outcome }}' -eq 'failure') { $failed += 'arm64-python-complex-query-tests' }
+          if ('${{ steps.arm64-python-list-array-tests.outcome }}' -eq 'failure') { $failed += 'arm64-python-list-array-tests' }
+          if ('${{ steps.arm64-python-cli-tests.outcome }}' -eq 'failure') { $failed += 'arm64-python-cli-tests' }
           if ($failed.Count -gt 0) {
             Write-Error "The following test steps failed: $($failed -join ', ')"
             exit 1

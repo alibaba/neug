@@ -15,9 +15,9 @@ CHILD:
     PROJECTION[friend,birthday]
     DISTINCT[friend]
     PROJECTION[friend]
-    FILTER[NOT(EQUALS(friend,person)) Cardinality: 1]
     HASH_JOIN[_2_friend=_2_friend,_0_person=_0_person, SIP: NONE, Join Type: ANTI, Join Conditions: _2_friend=_2_friend,_0_person=_0_person]
     CHILD:
+        FILTER[NOT(EQUALS(friend,person)) Cardinality: 1]
         GET_V[GET_V() Cardinality: 1]
         RECURSIVE_EXTEND[rel=, bound=person, nbr=friend, nodePred=null, relPred=null]
         SCAN_NODE_TABLE[person._ID  PK_SCAN($personId)Type: INTERNAL_ID Cardinality: 1]
