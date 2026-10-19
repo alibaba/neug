@@ -4,11 +4,12 @@ file(GLOB GS_TEST_FILES RELATIVE "${CMAKE_CURRENT_SOURCE_DIR}" "${CMAKE_CURRENT_
 include_directories(${CMAKE_CURRENT_BINARY_DIR}/../../src/compiler)
 
 set(NEUG_LIBRARIES neug)
-find_package(OpenSSL REQUIRED)
 
 set(BRPC_WITH_GLOG 1)
 
 add_neug_test(test_extension test_extension.cc)
+target_compile_definitions(test_extension PRIVATE
+    NEUG_LITE=$<BOOL:${NEUG_LITE}>)
 
 # Schema tests
 add_neug_test(schema_test schema_test.cc)

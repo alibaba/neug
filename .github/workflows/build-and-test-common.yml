@@ -261,6 +261,8 @@ jobs:
         ctest -R temporary_graph_test -V
         ctest -R copy_temp_test -V
         ctest -R 'ap_index_test|tp_index_test|e2e_index_test' -V
+        FLEX_DATA_DIR="${GITHUB_WORKSPACE}/example_dataset/tinysnb" \
+          ctest -R '^test_extension$' --output-on-failure --no-tests=error
 
     # ========================================
     # Phase 2: Bulk load test data
