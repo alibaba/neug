@@ -714,7 +714,7 @@ inline Value performCast<timestamp_ms_t>(const Value& input) {
     ret = ValueConverter<timestamp_ms_t>::cast(input.GetValue<date_t>(), val);
   } else {
     THROW_CONVERSION_EXCEPTION(
-        "Only string type is supported for casting to DateTime.");
+        "Only string and DATE types are supported for casting to TIMESTAMP.");
   }
   if (ret) {
     return Value::CreateValue<timestamp_ms_t>(val);
