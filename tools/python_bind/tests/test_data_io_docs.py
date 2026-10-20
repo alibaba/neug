@@ -582,7 +582,8 @@ class TestCopyToDocs:
         'person.csv' (header=true)."""
         out_path = self.tmp_path / "person_export.csv"
         self.conn.execute(
-            f"COPY (MATCH (p:Person) RETURN p.*) " f"TO '{out_path}' (header=true);"
+            f"COPY (MATCH (p:Person) RETURN p.*) "
+            f"TO '{out_path.as_posix()}' (header=true);"
         )
         assert out_path.exists()
         content = out_path.read_text()
@@ -599,7 +600,7 @@ class TestCopyToDocs:
         out_path = self.tmp_path / "knows_export.csv"
         self.conn.execute(
             f"COPY (MATCH (:Person)-[e:KNOWS]->(:Person) RETURN e) "
-            f"TO '{out_path}' (header=true);"
+            f"TO '{out_path.as_posix()}' (header=true);"
         )
         assert out_path.exists()
         content = out_path.read_text()
@@ -612,7 +613,7 @@ class TestCopyToDocs:
         out_path = self.tmp_path / "person_comma.csv"
         self.conn.execute(
             f"COPY (MATCH (p:Person) RETURN p.id, p.name, p.age) "
-            f"TO '{out_path}' (header=true, delimiter=',');"
+            f"TO '{out_path.as_posix()}' (header=true, delimiter=',');"
         )
         assert out_path.exists()
         content = out_path.read_text()
@@ -626,7 +627,7 @@ class TestCopyToDocs:
         out_path = self.tmp_path / "person_no_header.csv"
         self.conn.execute(
             f"COPY (MATCH (p:Person) RETURN p.id, p.name) "
-            f"TO '{out_path}' (HEADER = false);"
+            f"TO '{out_path.as_posix()}' (HEADER = false);"
         )
         assert out_path.exists()
         content = out_path.read_text()
