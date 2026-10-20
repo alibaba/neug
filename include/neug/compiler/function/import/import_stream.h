@@ -14,6 +14,7 @@
  */
 #pragma once
 
+#include "neug/utils/api.h"
 #include "neug/utils/io/stream/input_stream.h"
 
 namespace neug {
@@ -28,7 +29,8 @@ namespace function {
 /// system (http/https/s3/oss, resolved through the VFS registry).
 /// Returns a null function when the file system has no remote backend
 /// (local paths); callers then keep plain local file IO.
-io::InputStreamOpener makeImportStreamOpener(const fsys::FileSystem& fs);
+NEUG_API io::InputStreamOpener makeImportStreamOpener(
+    const fsys::FileSystem& fs);
 
 }  // namespace function
 }  // namespace neug

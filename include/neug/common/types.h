@@ -222,7 +222,7 @@ struct NEUG_API DataType {
 struct ListType {
   static const DataType& GetChildType(const DataType& type);
 };
-struct ArrayType {
+struct NEUG_API ArrayType {
   static const DataType& GetChildType(const DataType& type);
   static uint64_t GetNumElements(const DataType& type);
 };

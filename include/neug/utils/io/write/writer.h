@@ -23,6 +23,7 @@
 #include "neug/execution/execute/ops/batch/batch_update_utils.h"
 #include "neug/generated/proto/response/response.pb.h"
 #include "neug/storages/graph/graph_interface.h"
+#include "neug/utils/api.h"
 #include "neug/utils/io/read/common/options.h"
 #include "neug/utils/io/read/common/schema.h"
 #include "neug/utils/io/stream/output_stream.h"
@@ -122,7 +123,7 @@ class CSVStringFormatBuffer : public StringFormatBuffer {
   static constexpr const char* COMMA_CHAR = ",";
 };
 
-class QueryExportWriter : public ExportWriter {
+class NEUG_API QueryExportWriter : public ExportWriter {
  public:
   explicit QueryExportWriter(
       const reader::FileSchema& schema,

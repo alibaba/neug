@@ -19,9 +19,10 @@
 #include <numeric>
 #include <vector>
 #include "neug/common/types/i_context_column.h"
+#include "neug/utils/api.h"
 
 namespace neug {
-class ColumnsUtils {
+class NEUG_API ColumnsUtils {
  public:
   template <typename T>
   static void generate_dedup_offset(const vector_t<T>& vec,

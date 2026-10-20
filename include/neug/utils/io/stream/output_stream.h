@@ -18,6 +18,7 @@
 #include <memory>
 #include <string>
 
+#include "neug/utils/api.h"
 #include "neug/utils/result.h"
 
 namespace neug {
@@ -36,7 +37,8 @@ class OutputStream {
 };
 
 /// Opens a local file for writing (strips optional file:// prefix).
-std::unique_ptr<OutputStream> openLocalOutputStream(const std::string& path);
+NEUG_API std::unique_ptr<OutputStream> openLocalOutputStream(
+    const std::string& path);
 
 }  // namespace io
 }  // namespace neug

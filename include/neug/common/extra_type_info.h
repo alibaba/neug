@@ -99,7 +99,7 @@ struct StructTypeInfo : public ExtraTypeInfo {
   void buildFieldNameIndex();
 };
 
-struct ListTypeInfo : public ExtraTypeInfo {
+struct NEUG_API ListTypeInfo : public ExtraTypeInfo {
   DataType child_type;
   explicit ListTypeInfo(DataType child_type_p);
 
