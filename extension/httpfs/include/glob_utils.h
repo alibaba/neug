@@ -30,93 +30,129 @@ namespace extension {
 namespace s3 {
 
 #ifdef _WIN32
+namespace detail {
+
+// Match a single character `c` against the bracket expression that begins at
+// `*pattern` (which must point at '['). On return `*pattern` is advanced just
+// past the closing ']'. Supports ranges ("a-z"), leading '!' negation, and
+// ']'/'-' as literals when they appear first in the class. An unterminated '['
+// consumes the remainder of the pattern and matches nothing. Comparisons use
+// unsigned char so bytes >= 0x80 (non-ASCII UTF-8 S3 keys) order the way
+// glibc's fnmatch does, instead of going negative under MSVC's signed char.
+inline bool MatchBracketClass(const char*& pattern, unsigned char c) {
+  const char* p = pattern + 1;  // step over '['
+  bool negated = (*p == '!');
+  if (negated) {
+    ++p;
+  }
+  bool matched = false;
+  bool first = true;
+  while (*p != '\0' && (*p != ']' || first)) {
+    first = false;
+    unsigned char lo = static_cast<unsigned char>(*p);
+    unsigned char hi = lo;
+    if (p[1] == '-' && p[2] != ']' && p[2] != '\0') {
+      hi = static_cast<unsigned char>(p[2]);
+      p += 3;
+    } else {
+      ++p;
+    }
+    if (c >= lo && c <= hi) {
+      matched = true;
+    }
+  }
+  if (*p == '\0') {
+    pattern = p;  // unterminated '[': consumed everything, matches nothing
+    return false;
+  }
+  pattern = p + 1;  // past the closing ']'
+  return matched != negated;
+}
+
+}  // namespace detail
+
 /**
  * @brief Inline reimplementation of POSIX fnmatch(pattern, text, 0) for MSVC,
  *        which has no <fnmatch.h>.
  *
  * Semantics mirror fnmatch(3) with flags=0: '*' matches any sequence
  * (including '/'), '?' matches any single character (including '/'),
- * and "[...]" classes support ranges ("a-z") and '!' negation. An
- * unterminated '[' matches nothing (BSD/musl behaviour; glibc treats
- * it as a literal -- an implementation-defined corner that malformed
- * S3 patterns should never rely on).
+ * "[...]" classes support ranges ("a-z") and '!' negation, and a backslash
+ * escapes the following character (so "\*" matches a literal '*'). An
+ * unterminated '[' matches nothing (BSD/musl behaviour; glibc treats it as a
+ * literal -- an implementation-defined corner that malformed S3 patterns
+ * should never rely on).
+ *
+ * Matching is the classic iterative greedy scan with a single backtrack point
+ * at the most recent '*': worst case O(len(pattern) * len(text)), no
+ * recursion. A naive "retry every suffix at each '*'" recursion is
+ * exponential on multi-wildcard patterns that fail to match (e.g. sixteen
+ * "*a" segments plus "b" against sixteen 'a's needs 2^17-1 calls), which
+ * would let one long non-matching S3 glob stall a COPY/LOAD query.
  */
 inline bool Fnmatch(const char* pattern, const char* text) {
-  while (*pattern != '\0') {
-    switch (*pattern) {
-    case '*': {
-      // Collapse consecutive '*' and try every suffix of text.
-      while (*pattern == '*') {
-        ++pattern;
+  const char* p = pattern;
+  const char* t = text;
+  const char* star_p = nullptr;  // pattern just past the most recent '*'
+  const char* star_t = nullptr;  // text to resume from when backtracking
+
+  while (*t != '\0') {
+    if (*p == '*') {
+      while (*p == '*') {
+        ++p;
       }
-      if (*pattern == '\0') {
-        return true;
+      star_p = p;
+      star_t = t;
+      continue;  // first try '*' matching zero characters
+    }
+
+    bool matched = false;
+    if (*p == '\0') {
+      matched = false;  // pattern exhausted before text
+    } else if (*p == '?') {
+      ++p;
+      ++t;
+      matched = true;
+    } else if (*p == '[') {
+      matched = detail::MatchBracketClass(p, static_cast<unsigned char>(*t));
+      if (matched) {
+        ++t;
       }
-      for (const char* t = text;; ++t) {
-        if (Fnmatch(pattern, t)) {
-          return true;
-        }
-        if (*t == '\0') {
-          return false;
-        }
+    } else if (*p == '\\' && p[1] != '\0') {
+      // Backslash escapes the next character (fnmatch without FNM_NOESCAPE).
+      matched =
+          static_cast<unsigned char>(p[1]) == static_cast<unsigned char>(*t);
+      p += 2;
+      if (matched) {
+        ++t;
+      }
+    } else {
+      matched =
+          static_cast<unsigned char>(*p) == static_cast<unsigned char>(*t);
+      if (matched) {
+        ++p;
+        ++t;
       }
     }
-    case '?': {
-      if (*text == '\0') {
-        return false;
-      }
-      ++pattern;
-      ++text;
-      break;
+
+    if (matched) {
+      continue;
     }
-    case '[': {
-      if (*text == '\0') {
-        return false;
-      }
-      const char* start = pattern + 1;
-      bool negated = (*start == '!');
-      if (negated) {
-        ++start;
-      }
-      bool matched = false;
-      bool first = true;
-      const char* p = start;
-      while (*p != '\0' && (*p != ']' || first)) {
-        char lo = *p;
-        char hi = lo;
-        if (p[1] == '-' && p[2] != ']' && p[2] != '\0') {
-          hi = p[2];
-          p += 3;
-        } else {
-          ++p;
-        }
-        if (*text >= lo && *text <= hi) {
-          matched = true;
-        }
-        first = false;
-      }
-      if (*p == '\0') {
-        // Unterminated '[' matches nothing (see doc comment above).
-        return false;
-      }
-      if (matched == negated) {
-        return false;
-      }
-      pattern = p + 1;  // past the ']'
-      ++text;
-      break;
+    if (star_p != nullptr) {
+      // Backtrack: let the most recent '*' absorb one more character.
+      p = star_p;
+      ++star_t;
+      t = star_t;
+      continue;
     }
-    default: {
-      if (*text != *pattern) {
-        return false;
-      }
-      ++pattern;
-      ++text;
-      break;
-    }
-    }
+    return false;
   }
-  return *text == '\0';
+
+  // Text exhausted; any trailing '*'s still match the empty remainder.
+  while (*p == '*') {
+    ++p;
+  }
+  return *p == '\0';
 }
 #endif  // _WIN32
 

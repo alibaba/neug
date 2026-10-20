@@ -88,6 +88,12 @@ endif()
 if(WIN32 AND BUILD_TEST)
     add_library(neug_static STATIC ${ALL_OBJECT_FILES})
     target_compile_definitions(neug_static PRIVATE NEUG_EXPORTS)
+    # Consumers of the static archive (Windows C++ tests) must NOT see NEUG_API
+    # as dllimport: they link neug_static directly, whose objects provide plain
+    # symbol names, whereas a dllimport reference resolves to __imp_* thunks the
+    # archive cannot satisfy (unresolved external at link time). NEUG_STATIC_DEFINE
+    # makes NEUG_API expand to nothing on the consumer side, matching the archive.
+    target_compile_definitions(neug_static INTERFACE NEUG_STATIC_DEFINE)
     if (ENABLE_GCOV)
         target_link_options(neug_static PRIVATE --coverage)
     endif()

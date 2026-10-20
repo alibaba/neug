@@ -46,6 +46,11 @@ EXTENSIONS = [
     "pattern_matching",
     "fts",
     "gds",
+    # test_out_of_tree is the reference out-of-tree extension. Loading it here
+    # (not just checking that the artifact exists) is what actually exercises
+    # the Init/Name entry points: on Windows they must be annotated with
+    # NEUG_EXTENSION_API or GetProcAddress fails and LOAD raises.
+    "test_out_of_tree",
 ]
 
 # TODO: httpfs currently does not appear in SHOW_LOADED_EXTENSIONS() even

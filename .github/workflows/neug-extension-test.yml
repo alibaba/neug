@@ -537,4 +537,4 @@ jobs:
                 \"title\": \"$TITLE\",
                 \"text\": \"## $TITLE\n\n- **extension_tests_default**: ${STATUS_DEFAULT}\n- **wheel_linux_x86_64**: ${STATUS_X86}\n- **wheel_linux_arm64**: ${STATUS_ARM}\n- **windows_x64_arm64**: ${STATUS_WIN}\n- **Repo**: ${{ github.repository }}\n- **Branch**: ${{ github.ref_name }}\n- **Commit**: ${{ github.sha }}\n- [View Run](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})\"
               }
-            }\"
+            }"

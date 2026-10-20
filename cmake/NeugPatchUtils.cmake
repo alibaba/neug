@@ -19,7 +19,27 @@ function(_neug_apply_patch source_dir patch_file patch_name)
     # Detect CRLF byte-wise via a HEX read (which bypasses CMake's text
     # normalization) and fail with the normalization recipe instead.
     file(READ "${patch_file}" _neug_patch_hex HEX)
-    string(FIND "${_neug_patch_hex}" "0d0a" _neug_patch_crlf)
+    # The HEX string holds two nibbles per byte, so a genuine CRLF ("0d0a")
+    # begins at an EVEN offset. A bare string(FIND) can also match "0d0a" at
+    # an ODD offset -- a false positive spanning two adjacent bytes (e.g.
+    # "...X0 d0 aY...") -- so scan for the first byte-aligned match.
+    string(LENGTH "${_neug_patch_hex}" _neug_hex_len)
+    set(_neug_patch_crlf -1)
+    set(_neug_hex_from 0)
+    while(_neug_hex_from LESS _neug_hex_len)
+        string(SUBSTRING "${_neug_patch_hex}" ${_neug_hex_from} -1 _neug_hex_tail)
+        string(FIND "${_neug_hex_tail}" "0d0a" _neug_hex_rel)
+        if(_neug_hex_rel EQUAL -1)
+            break()
+        endif()
+        math(EXPR _neug_hex_abs "${_neug_hex_from} + ${_neug_hex_rel}")
+        math(EXPR _neug_hex_parity "${_neug_hex_abs} % 2")
+        if(_neug_hex_parity EQUAL 0)
+            set(_neug_patch_crlf ${_neug_hex_abs})
+            break()
+        endif()
+        math(EXPR _neug_hex_from "${_neug_hex_abs} + 1")
+    endwhile()
     if(NOT _neug_patch_crlf EQUAL -1)
         message(FATAL_ERROR
             "${patch_name} has CRLF line endings, which git apply cannot "
