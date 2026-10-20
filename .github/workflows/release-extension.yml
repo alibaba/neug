@@ -153,7 +153,7 @@ jobs:
           export BUILD_TYPE=RELEASE
           python3 -m cibuildwheel ./tools/python_bind --output-dir extension_wheelhouse
 
-      - name: Extract repaired extensions and optionally publish to OSS
+      - name: Extract repaired extensions and publish to OSS
         shell: bash
         env:
           EXTENSIONS: ${{ needs.prepare.outputs.extensions }}
@@ -163,18 +163,202 @@ jobs:
           set -euo pipefail
           wheel=$(find extension_wheelhouse -maxdepth 1 -type f -name '*.whl' -print -quit)
           test -n "${wheel}"
-          publish_args=()
-          if [ "${OSS_PLATFORM}" != "linux_x86_64" ]; then
-            echo "Skipping OSS upload for ${OSS_PLATFORM}; artifacts will still be uploaded"
-            publish_args+=(--skip-upload)
-          fi
           python3 scripts/publish_extensions_from_wheel.py \
             --wheel "${wheel}" \
             --extensions "${EXTENSIONS}" \
             --version "${VERSION}" \
             --platform "${OSS_PLATFORM}" \
-            --output-dir extension_packages \
-            "${publish_args[@]}"
+            --output-dir extension_packages
+
+      - name: Upload extension packages as artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: extension-packages-${{ matrix.artifact_platform }}-${{ needs.prepare.outputs.version }}
+          path: |
+            extension_packages/*.neug_extension
+            extension_packages/*.sha256
+          retention-days: 1
+          if-no-files-found: error
+
+  # Windows legs (x86_64 + arm64): build the extension carrier wheel with
+  # cibuildwheel using the same MSVC + Ninja + vcpkg static-md toolchain proven
+  # by wheels-common.yml (core wheel) and PR #1136 (Windows extension build),
+  # then extract and publish to OSS under the getPlatform() names win_x86_64 /
+  # win_arm64. vector_search is excluded until the ZVec MSVC port lands.
+  #
+  # HARD DEPENDENCY on PR #1136: main still FORCE-clears BUILD_EXTENSIONS on
+  # Windows (CMakeLists.txt) and leaks NEUG_EXPORTS at root scope, so extensions
+  # cannot build until #1136 merges. Do not trigger a release before then.
+  build_extensions_windows:
+    needs: prepare
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: x64
+            runner: windows-2022
+            triplet: x64-windows-static-md
+            # The .neug_extension artifacts are Python-version independent, so a
+            # single CPython per arch suffices. x86_64 keeps cp39 for parity with
+            # the Linux legs; win_arm64 has no cp39/cp310 CPython (ARM64 builds
+            # start at 3.11), so it pins cp313 - the combination wheels-common.yml
+            # already produces for windows-arm64.
+            cibw_build: cp39-win_amd64
+            cibw_archs: AMD64
+            oss_platform: win_x86_64
+            artifact_platform: windows-x86_64
+          - arch: arm64
+            runner: windows-11-arm
+            triplet: arm64-windows-static-md
+            cibw_build: cp313-win_arm64
+            cibw_archs: ARM64
+            oss_platform: win_arm64
+            artifact_platform: windows-arm64
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 300
+    defaults:
+      run:
+        shell: pwsh
+    env:
+      CIBW_BUILD: ${{ matrix.cibw_build }}
+      CIBW_ARCHS_WINDOWS: ${{ matrix.cibw_archs }}
+      NEUG_COMMIT_SHA: ${{ github.sha }}
+      PYBIND11_FINDPYTHON: 'OFF'
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      # GitHub-hosted Windows runners default to core.autocrlf=true, so tracked
+      # *.patch files are checked out as CRLF and `git apply` (used by the
+      # parquet/carquet and other third-party integrations) fails with "corrupt
+      # patch", which is a FATAL_ERROR for carquet.patch. Rewrite the patch
+      # files to LF byte-exactly and re-init the patched submodules with
+      # autocrlf off. Mirrors PR #1136's normalization step.
+      - name: Normalize patch and submodule files to LF (byte-exact)
+        shell: bash
+        run: |
+          git config --global core.autocrlf false
+          git config --global core.eol lf
+          for f in third_party/*.patch third_party/zvec/thirdparty/antlr/antlr4.patch; do
+            [ -f "$f" ] || continue
+            tr -d '\r' < "$f" > "$f.tmp" && mv "$f.tmp" "$f"
+            cr_left=$(tr -dc '\r' < "$f" | wc -c)
+            echo "${f}: CR bytes after normalize = ${cr_left}"
+          done
+          git submodule deinit -f third_party/cppjieba third_party/zvec
+          git submodule update --init --force --recursive third_party/cppjieba third_party/zvec
+
+      # cibuildwheel builds C extensions in subprocesses that inherit this MSVC
+      # environment (cl.exe on PATH), required for the Ninja generator.
+      - name: Setup MSVC Developer Command Prompt
+        uses: ilammy/msvc-dev-cmd@v1
+        with:
+          arch: ${{ matrix.arch }}
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+
+      # The runner's vcpkg (classic mode) ships with no pre-built packages;
+      # without a static-MD OpenSSL CMake falls back to the system dynamic
+      # DLLs, which Python 3.8+ cannot load from an installed wheel.
+      - name: Setup vcpkg
+        run: |
+          echo "VCPKG_ROOT=$env:VCPKG_INSTALLATION_ROOT" >> $env:GITHUB_ENV
+          Write-Host "Using vcpkg at: $env:VCPKG_INSTALLATION_ROOT"
+
+      - name: Cache vcpkg packages
+        uses: actions/cache@v4
+        with:
+          path: ${{ env.VCPKG_ROOT }}/installed
+          key: vcpkg-ext-${{ matrix.triplet }}-openssl-curl-zlib-zstd-lz4-sqlite3-${{ hashFiles('CMakeLists.txt') }}
+          restore-keys: |
+            vcpkg-ext-${{ matrix.triplet }}-openssl-curl-zlib-zstd-lz4-sqlite3-
+
+      - name: Install Windows build dependencies via vcpkg
+        run: |
+          $vcpkgExe = Join-Path $env:VCPKG_ROOT "vcpkg.exe"
+          $triplet = "${{ matrix.triplet }}"
+          $installDir = Join-Path $env:VCPKG_ROOT "installed\$triplet"
+          # fts needs zlib + an FTS5-enabled sqlite3; httpfs needs curl; parquet
+          # (carquet) needs the zstd/lz4/zlib codecs; openssl is required by the
+          # core build and httpfs. Same set PR #1136 installs.
+          $packages = @("openssl", "curl", "zlib", "zstd", "lz4", "sqlite3[core,fts5]")
+          if (Test-Path (Join-Path $installDir "lib\libssl.lib")) {
+            Write-Host "vcpkg dependencies already installed in $installDir (cache hit)"
+          } else {
+            foreach ($pkg in $packages) {
+              Write-Host "Installing ${pkg}:$triplet via vcpkg"
+              & $vcpkgExe install "${pkg}:$triplet"
+              if ($LASTEXITCODE -ne 0) {
+                Write-Error "vcpkg failed to install ${pkg}:$triplet"
+                exit 1
+              }
+            }
+          }
+
+      - name: Install release tools
+        run: python -m pip install cibuildwheel==3.4.0 'urllib3<2' oss2
+
+      # Drop vector_search (no ZVec MSVC port yet) from the requested list while
+      # honoring any custom workflow_dispatch extensions input.
+      - name: Determine Windows extension list
+        run: |
+          $exts = "${{ needs.prepare.outputs.extensions }}" -split ';' |
+            Where-Object { $_ -and $_ -ne 'vector_search' }
+          if ($exts.Count -eq 0) {
+            Write-Error "No buildable extensions remain after excluding vector_search"
+            exit 1
+          }
+          $winExts = $exts -join ';'
+          echo "WIN_EXTENSIONS=$winExts" >> $env:GITHUB_ENV
+          Write-Host "Windows extensions: $winExts"
+
+      # CI_INSTALL_EXTENSIONS makes setup.py build the requested extensions and
+      # place them in a carrier wheel. The .neug_extension files are statically
+      # linked against the vcpkg static-md deps, so no runtime DLL bundling is
+      # needed. NEUG_PACKAGE_BUILD=OFF keeps parquet/carquet on the vcpkg-codec
+      # path validated by PR #1136 instead of carquet's FetchContent bundled
+      # codecs (CARQUET_BUNDLE_DEPS=ON), which is untested under MSVC.
+      - name: Build extension carrier wheel
+        env:
+          CI_INSTALL_EXTENSIONS: ${{ env.WIN_EXTENSIONS }}
+          CMAKE_GENERATOR: Ninja
+          CMAKE_ARGS: -DCMAKE_TOOLCHAIN_FILE=${{ env.VCPKG_ROOT }}/scripts/buildsystems/vcpkg.cmake -DVCPKG_TARGET_TRIPLET=${{ matrix.triplet }} -DOPENSSL_ROOT_DIR=${{ env.VCPKG_ROOT }}/installed/${{ matrix.triplet }}
+          NEUG_PACKAGE_BUILD: 'OFF'
+        run: |
+          $env:CMAKE_BUILD_PARALLEL_LEVEL = "$env:NUMBER_OF_PROCESSORS"
+          $env:BUILD_TYPE = "RELEASE"
+          python -m cibuildwheel ./tools/python_bind --output-dir extension_wheelhouse
+
+      - name: Extract extensions and publish to OSS
+        env:
+          EXTENSIONS: ${{ env.WIN_EXTENSIONS }}
+          VERSION: ${{ needs.prepare.outputs.version }}
+          # getPlatform() in src/compiler/extension/extension.cpp returns
+          # win_x86_64 / win_arm64; the OSS directory must match it exactly.
+          # OSS credentials (incl. OSS_BUCKET_NAME) come from the workflow-level
+          # env block, same as the Linux/macOS legs.
+          OSS_PLATFORM: ${{ matrix.oss_platform }}
+        run: |
+          $wheel = Get-ChildItem extension_wheelhouse -Filter *.whl | Select-Object -First 1
+          if (-not $wheel) {
+            Write-Error "No carrier wheel produced under extension_wheelhouse"
+            exit 1
+          }
+          python scripts/publish_extensions_from_wheel.py `
+            --wheel $wheel.FullName `
+            --extensions "$env:EXTENSIONS" `
+            --version "$env:VERSION" `
+            --platform "$env:OSS_PLATFORM" `
+            --output-dir extension_packages
+          if ($LASTEXITCODE -ne 0) {
+            Write-Error "publish_extensions_from_wheel.py failed"
+            exit 1
+          }
 
       - name: Upload extension packages as artifacts
         uses: actions/upload-artifact@v4
