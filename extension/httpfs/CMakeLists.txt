@@ -59,6 +59,15 @@ if(CURL_STATIC_LIB)
         set(CURL_OPENSSL_LIBS
             ${CURL_OPENSSL_SSL_LIB} ${CURL_OPENSSL_CRYPTO_LIB})
         message(STATUS "httpfs: pairing static cURL with OpenSSL at ${_curl_prefix}")
+    else()
+        # Pairing failed: a static libcurl was found but its prefix has no
+        # matching OpenSSL. find_library/find_path cache the misses as
+        # "<VAR>-NOTFOUND"; clear them so a -NOTFOUND path is never handed to
+        # target_include_directories below. The find_package(OpenSSL) fallback
+        # then resolves headers and libraries from one consistent OpenSSL.
+        unset(CURL_OPENSSL_SSL_LIB CACHE)
+        unset(CURL_OPENSSL_CRYPTO_LIB CACHE)
+        unset(CURL_OPENSSL_INCLUDE_DIR CACHE)
     endif()
     unset(_curl_prefix)
 
@@ -92,6 +101,11 @@ unset(_curl_search_paths)
 if(NOT CURL_OPENSSL_LIBS)
     find_package(OpenSSL REQUIRED)
     set(CURL_OPENSSL_LIBS OpenSSL::SSL OpenSSL::Crypto)
+    # Set the include dir alongside the libraries so the extension and its
+    # tests compile against the SAME OpenSSL they link, rather than an unset
+    # (or stale -NOTFOUND) CURL_OPENSSL_INCLUDE_DIR or headers retained from a
+    # different OpenSSL installation.
+    set(CURL_OPENSSL_INCLUDE_DIR "${OPENSSL_INCLUDE_DIR}")
 endif()
 
 # Collect source files for extension build

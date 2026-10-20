@@ -414,7 +414,8 @@ jobs:
       # packages and classic mode does not auto-install. fts needs zlib
       # plus an FTS5-enabled sqlite3 (the bundled amalgamation Makefile
       # cannot run in the MSVC toolchain); httpfs needs curl; openssl is
-      # required by the core build and by httpfs.
+      # required by the core build and by httpfs; parquet's Carquet
+      # implementation needs the zstd and lz4 codec libraries.
       - name: Setup vcpkg
         run: |
           echo "VCPKG_ROOT=$env:VCPKG_INSTALLATION_ROOT" >> $env:GITHUB_ENV
@@ -424,9 +425,9 @@ jobs:
         uses: actions/cache@v4
         with:
           path: ${{ env.VCPKG_ROOT }}/installed
-          key: vcpkg-${{ matrix.triplet }}-ext-openssl-curl-zlib-sqlite3-${{ hashFiles('CMakeLists.txt') }}
+          key: vcpkg-${{ matrix.triplet }}-ext-openssl-curl-zlib-zstd-lz4-sqlite3-${{ hashFiles('CMakeLists.txt') }}
           restore-keys: |
-            vcpkg-${{ matrix.triplet }}-ext-openssl-curl-zlib-sqlite3-
+            vcpkg-${{ matrix.triplet }}-ext-openssl-curl-zlib-zstd-lz4-sqlite3-
 
       - name: Install vcpkg packages
         run: |
@@ -437,11 +438,13 @@ jobs:
           if (Test-Path (Join-Path $installDir "lib\libssl.lib")) {
             Write-Host "vcpkg packages already installed in $installDir (cache hit)"
           } else {
-            Write-Host "Installing openssl/curl/zlib/sqlite3[core,fts5]:$triplet via vcpkg"
+            Write-Host "Installing openssl/curl/zlib/zstd/lz4/sqlite3[core,fts5]:$triplet via vcpkg"
             & $vcpkgExe install `
               "openssl:$triplet" `
               "curl:$triplet" `
               "zlib:$triplet" `
+              "zstd:$triplet" `
+              "lz4:$triplet" `
               "sqlite3[core,fts5]:$triplet"
             if ($LASTEXITCODE -ne 0) {
               Write-Error "vcpkg failed to install packages for $triplet"
@@ -457,10 +460,12 @@ jobs:
             $fixtureDir
           "NEUG_EXTENSION_CONFIGS=$(Join-Path $fixtureDir 'extension_config.cmake')" >> $env:GITHUB_ENV
 
-      # Everything except parquet (Arrow has no Windows port yet) and
-      # vector_search (the ZVec dependency needs a source-level MSVC port:
-      # 47+ files with pthread/mmap/__attribute__ usage; tracked as a
-      # separate effort, not a CMake-level fix).
+      # Everything except vector_search (the ZVec dependency needs a
+      # source-level MSVC port: 47+ files with pthread/mmap/__attribute__
+      # usage; tracked as a separate effort, not a CMake-level fix).
+      # parquet IS built now: its Arrow C++ dependency was removed (#1128) and
+      # it decodes via the Carquet C library, which supports MSVC; Carquet's
+      # zstd/lz4/zlib codecs are installed through vcpkg above.
       - name: Configure CMake
         run: |
           $pythonExe = (Get-Command python).Path
@@ -471,7 +476,7 @@ jobs:
             -DVCPKG_TARGET_TRIPLET=${{ matrix.triplet }} `
             -DBUILD_PYTHON=ON `
             -DBUILD_TEST=OFF `
-            -DBUILD_EXTENSIONS="fts;gds;httpfs;pattern_matching;test_out_of_tree" `
+            -DBUILD_EXTENSIONS="fts;gds;httpfs;parquet;pattern_matching;test_out_of_tree" `
             -DNEUG_EXTENSION_CONFIGS="${{ env.NEUG_EXTENSION_CONFIGS }}" `
             -DPython_EXECUTABLE="$pythonExe" `
             -DPYTHON_EXECUTABLE="$pythonExe" `
@@ -486,7 +491,7 @@ jobs:
 
       - name: Verify extension artifacts
         run: |
-          $expected = @("fts", "gds", "httpfs", "pattern_matching", "test_out_of_tree")
+          $expected = @("fts", "gds", "httpfs", "parquet", "pattern_matching", "test_out_of_tree")
           $missing = @()
           foreach ($ext in $expected) {
             $artifact = Join-Path "build/extension/$ext" "lib$ext.neug_extension"
