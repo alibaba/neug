@@ -18,6 +18,7 @@
 #include "http_filesystem.h"
 #include "neug/compiler/extension/extension_api.h"
 #include "neug/compiler/main/metadata_registry.h"
+#include "neug/utils/api.h"
 #include "neug/utils/exception/exception.h"
 #include "neug/utils/io/vfs/file_system.h"
 #include "s3_client.h"
@@ -62,7 +63,7 @@ extern "C" {
  * Init function - called when extension is loaded
  * This is the main entry point for the HTTPFS extension
  */
-void Init() {
+NEUG_EXTENSION_API void Init() {
   try {
     // Initialize libcurl globally before any HTTP/S3 request is issued.
     neug::extension::s3::EnsureCurlInitialized();
@@ -93,6 +94,6 @@ void Init() {
 /**
  * Name function - returns the extension name
  */
-const char* Name() { return "HTTPFS"; }
+NEUG_EXTENSION_API const char* Name() { return "HTTPFS"; }
 
 }  // extern "C"

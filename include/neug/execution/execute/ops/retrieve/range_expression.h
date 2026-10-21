@@ -22,6 +22,8 @@ struct ResolvedRange {
 
 class NEUG_API RangeExpression {
  public:
+  RangeExpression(const RangeExpression&) = delete;
+  RangeExpression& operator=(const RangeExpression&) = delete;
   RangeExpression(const algebra::Range& range, const ContextMeta& ctx_meta);
 
   ResolvedRange bind(const IStorageInterface* storage,

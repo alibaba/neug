@@ -24,6 +24,7 @@
 #include <unordered_map>
 #include <vector>
 
+#include "neug/utils/api.h"
 #include "neug/utils/io/read/common/read_state.h"
 #include "neug/utils/result.h"
 
@@ -107,10 +108,17 @@ class FileSystem {
 using FileSystemFactory =
     std::function<std::unique_ptr<FileSystem>(const reader::FileSchema&)>;
 
-class FileSystemRegistry {
+class NEUG_API FileSystemRegistry {
  public:
   FileSystemRegistry();
   ~FileSystemRegistry() = default;
+
+  // shared_mutex is neither copyable nor movable, so the implicit copy/move
+  // special members would be deleted anyway. Declare that explicitly: MSVC
+  // force-defines the implicit ones for dllexport classes and their member
+  // bodies would otherwise reference the deleted std operations (C2280).
+  FileSystemRegistry(const FileSystemRegistry&) = delete;
+  FileSystemRegistry& operator=(const FileSystemRegistry&) = delete;
 
   // Returns true when the factory is inserted. An existing protocol is left
   // unchanged so extension initialization can be replayed safely.

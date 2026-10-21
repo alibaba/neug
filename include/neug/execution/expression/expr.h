@@ -19,6 +19,7 @@
 #include "neug/execution/common/context.h"
 #include "neug/execution/common/params_map.h"
 #include "neug/storages/graph/graph_interface.h"
+#include "neug/utils/api.h"
 
 namespace neug {
 namespace execution {
@@ -108,9 +109,9 @@ class RecordExprBase : public virtual BindedExprBase {
   virtual Value eval_record(const DataChunk& chunk, size_t idx) const = 0;
 };
 
-std::unique_ptr<ExprBase> parse_expression(const ::common::Expression& expr,
-                                           const ContextMeta& ctx_meta,
-                                           VarType var_type);
+NEUG_API std::unique_ptr<ExprBase> parse_expression(
+    const ::common::Expression& expr, const ContextMeta& ctx_meta,
+    VarType var_type);
 
 }  // namespace execution
 }  // namespace neug

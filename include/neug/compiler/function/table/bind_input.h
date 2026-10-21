@@ -59,6 +59,8 @@ struct ExtraTableFuncBindInput {
 };
 
 struct NEUG_API TableFuncBindInput {
+  TableFuncBindInput(const TableFuncBindInput&) = delete;
+  TableFuncBindInput& operator=(const TableFuncBindInput&) = delete;
   binder::expression_vector params;
   optional_params_t optionalParams;
   binder::expression_vector optionalParamsLegacy;

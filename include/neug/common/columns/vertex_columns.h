@@ -15,6 +15,7 @@
 #pragma once
 
 #include "neug/common/types/i_context_column.h"
+#include "neug/utils/api.h"
 #include "neug/utils/platform.h"
 
 namespace neug {
@@ -230,7 +231,7 @@ class MSVertexColumn : public IVertexColumn {
   bool is_optional_ = false;
 };
 
-class MSVertexColumnBuilder : public IVertexColumnBuilder {
+class NEUG_API MSVertexColumnBuilder : public IVertexColumnBuilder {
  public:
   explicit MSVertexColumnBuilder(label_t label)
       : cur_label_(label), is_optional_(false) {

@@ -39,34 +39,18 @@ function(build_carquet_as_third_party)
         "${_carquet_source}/src/writer/file_writer.c"
         "${_carquet_source}/src/writer/page_writer.c"
         "${_carquet_source}/src/writer/row_group_writer.c")
-    execute_process(
-        COMMAND git apply --check "${_carquet_patch}"
-        WORKING_DIRECTORY "${_carquet_source}"
-        RESULT_VARIABLE _patch_check
-        OUTPUT_QUIET
-        ERROR_VARIABLE _patch_check_error)
-    if(_patch_check EQUAL 0)
-        execute_process(
-            COMMAND git apply "${_carquet_patch}"
-            WORKING_DIRECTORY "${_carquet_source}"
-            RESULT_VARIABLE _patch_result)
-        if(NOT _patch_result EQUAL 0)
-            message(FATAL_ERROR "Failed to apply carquet.patch")
-        endif()
-    else()
-        execute_process(
-            COMMAND git apply --reverse --check "${_carquet_patch}"
-            WORKING_DIRECTORY "${_carquet_source}"
-            RESULT_VARIABLE _patch_applied
-            OUTPUT_QUIET
-            ERROR_VARIABLE _patch_applied_error)
-        if(NOT _patch_applied EQUAL 0)
-            message(FATAL_ERROR
-                "carquet.patch does not apply cleanly.\n"
-                "Forward check: ${_patch_check_error}\n"
-                "Reverse check: ${_patch_applied_error}")
-        endif()
-    endif()
+    # Apply carquet.patch via the shared helper (same convention as
+    # fts/cppjieba) instead of a bare `git apply`. Inside a submodule the
+    # helper runs `git apply --ignore-whitespace`, which tolerates sources
+    # checked out with CRLF on Windows runners: core.autocrlf=true leaves
+    # carquet.h & co. CRLF, so a bare `git apply` fails with "patch does not
+    # apply". It also verifies carquet.patch has LF endings and surfaces the
+    # captured git output on failure instead of hiding it.
+    include(${CMAKE_SOURCE_DIR}/cmake/NeugPatchUtils.cmake)
+    _neug_apply_patch(
+        "${_carquet_source}"
+        "${_carquet_patch}"
+        "carquet.patch")
 
     if(NEUG_PACKAGE_BUILD)
         # Wheels and other distributable artifacts must not depend on codec

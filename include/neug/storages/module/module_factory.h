@@ -18,6 +18,7 @@
 #include <memory>
 #include <string>
 #include <unordered_map>
+#include "neug/utils/api.h"
 
 #include "neug/storages/module/module.h"
 
@@ -30,7 +31,7 @@ namespace neug {
  * deserialization from checkpoint files. Use NEUG_REGISTER_MODULE macro
  * to register module types.
  */
-class ModuleFactory {
+class NEUG_API ModuleFactory {
  public:
   /// Creator function: returns a default-constructed Module instance.
   using Creator = std::function<std::unique_ptr<Module>()>;

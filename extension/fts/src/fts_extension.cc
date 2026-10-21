@@ -19,10 +19,11 @@
 #include "fts_function.h"
 #include "fts_index_scan.h"
 #include "neug/compiler/extension/extension_api.h"
+#include "neug/utils/api.h"
 
 extern "C" {
 
-void Init() {
+NEUG_EXTENSION_API void Init() {
   neug::extension::ExtensionAPI::registerFunction<
       neug::fts_ext::FTSBM25Function>(
       neug::catalog::CatalogEntryType::SCALAR_FUNCTION_ENTRY);
@@ -38,6 +39,6 @@ void Init() {
           "Provides FTS indexes and full-text search."});
 }
 
-const char* Name() { return neug::fts_ext::kExtensionName; }
+NEUG_EXTENSION_API const char* Name() { return neug::fts_ext::kExtensionName; }
 
 }  // extern "C"

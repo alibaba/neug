@@ -16,10 +16,11 @@
 #pragma once
 
 #include "neug/compiler/catalog/catalog.h"
+#include "neug/utils/api.h"
 
 namespace neug {
 namespace catalog {
-class GCatalog : public Catalog {
+class NEUG_API GCatalog : public Catalog {
  public:
   GCatalog();
   ~GCatalog() = default;

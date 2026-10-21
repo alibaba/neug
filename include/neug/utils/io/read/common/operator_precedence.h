@@ -16,11 +16,12 @@
 #pragma once
 
 #include "neug/generated/proto/plan/expr.pb.h"
+#include "neug/utils/api.h"
 
 namespace neug {
 namespace reader {
 
-class OperatorPrecedence {
+class NEUG_API OperatorPrecedence {
  public:
   static int getPrecedence(const ::common::ExprOpr& opr);
 };

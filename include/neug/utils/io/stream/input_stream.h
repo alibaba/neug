@@ -22,6 +22,7 @@
 #include <string>
 #include <vector>
 
+#include "neug/utils/api.h"
 #include "neug/utils/result.h"
 
 namespace neug {
@@ -62,12 +63,13 @@ using InputStreamOpener =
     std::function<std::unique_ptr<InputStream>(const std::string& path)>;
 
 /// Opens a local file for reading (strips optional file:// prefix).
-std::unique_ptr<InputStream> openLocalInputStream(const std::string& path);
+NEUG_API std::unique_ptr<InputStream> openLocalInputStream(
+    const std::string& path);
 
 /// Binds an opener to a specific path, yielding a path-less factory.
 /// Returns a null factory when the opener is null (local files).
-InputStreamFactory bindInputStream(const InputStreamOpener& opener,
-                                   const std::string& path);
+NEUG_API InputStreamFactory bindInputStream(const InputStreamOpener& opener,
+                                            const std::string& path);
 
 /// Reads the first line (up to '\n', terminator stripped) from a fresh
 /// stream obtained from the factory. Throws an IO exception on error

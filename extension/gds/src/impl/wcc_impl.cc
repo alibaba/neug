@@ -17,6 +17,7 @@
 #include "impl/wcc_impl.h"
 
 #include <algorithm>
+#include <atomic>
 #include <cstdint>
 #include <limits>
 #include <unordered_map>
@@ -241,10 +242,11 @@ void WCC::compute() {
         vid_t root = parent_[v].load(std::memory_order_relaxed);
         int64_t id = ext_id_[v];
         int64_t* slot = &min_label[root];
-        int64_t old = __atomic_load_n(slot, __ATOMIC_ACQUIRE);
+        int64_t old = std::atomic_ref{*slot}.load(std::memory_order_acquire);
         while (id < old) {
-          if (__atomic_compare_exchange_n(slot, &old, id, true,
-                                          __ATOMIC_RELEASE, __ATOMIC_ACQUIRE)) {
+          if (std::atomic_ref{*slot}.compare_exchange_weak(
+                  old, id, std::memory_order_release,
+                  std::memory_order_acquire)) {
             return;
           }
         }

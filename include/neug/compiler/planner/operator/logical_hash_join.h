@@ -15,6 +15,8 @@ class NEUG_API LogicalHashJoin final : public LogicalOperator {
   static constexpr LogicalOperatorType type_ = LogicalOperatorType::HASH_JOIN;
 
  public:
+  LogicalHashJoin(const LogicalHashJoin&) = delete;
+  LogicalHashJoin& operator=(const LogicalHashJoin&) = delete;
   LogicalHashJoin(std::vector<join_condition_t> joinConditions,
                   common::JoinType joinType,
                   std::shared_ptr<binder::Expression> mark,

@@ -89,6 +89,8 @@ class NEUG_API ClientContext {
   friend class main::EmbeddedShell;
 
  public:
+  ClientContext(const ClientContext&) = delete;
+  ClientContext& operator=(const ClientContext&) = delete;
   explicit ClientContext(MetadataManager* database);
 
   ~ClientContext();

@@ -17,6 +17,7 @@
 #include "impl/bfs_impl.h"
 
 #include <algorithm>
+#include <atomic>
 #include <chrono>
 #include <limits>
 #include <thread>
@@ -80,9 +81,9 @@ void BFS::compute() {
           [&](vid_t src, int tid) {
             auto relax = [&](vid_t dst) {
               uint32_t expected = std::numeric_limits<uint32_t>::max();
-              if (__atomic_compare_exchange_n(&distances_[dst], &expected,
-                                              level, false, __ATOMIC_RELAXED,
-                                              __ATOMIC_RELAXED)) {
+              if (std::atomic_ref{distances_[dst]}.compare_exchange_strong(
+                      expected, level, std::memory_order_relaxed,
+                      std::memory_order_relaxed)) {
                 local_next[tid].push_back(dst);
               }
             };

@@ -86,6 +86,8 @@ class ExecutionSlot;
  */
 class NEUG_API Connection {
  public:
+  Connection(const Connection&) = delete;
+  Connection& operator=(const Connection&) = delete;
   using CloseCallback = std::function<void(Connection*)>;
 
   explicit Connection(std::unique_ptr<ExecutionSlot> execution_slot,

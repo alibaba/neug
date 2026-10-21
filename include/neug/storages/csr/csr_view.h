@@ -15,6 +15,7 @@
 #pragma once
 
 #include <glog/logging.h>
+#include "neug/utils/api.h"
 
 #include "neug/common/types/value.h"
 #include "neug/storages/csr/nbr.h"
@@ -549,7 +550,7 @@ struct TypedCsrView<T, CsrViewType::kMultipleMutable> {
  *
  * @since v0.1.0
  */
-struct CsrView {
+struct NEUG_API CsrView {
   CsrView()
       : adjlists_(nullptr),
         degrees_(nullptr),

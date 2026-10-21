@@ -35,15 +35,13 @@ set_target_properties(neug_py_bind PROPERTIES
 # protobuf is linked privately because pybind sources use protobuf-generated
 # headers whose inline/template code references absl/protobuf symbols;
 # libneug.dylib hides those symbols to avoid conflicts with pyarrow.
-# On Windows, also link neug_proto OBJECT files directly because protobuf's
-# _default_instance_ variables are at namespace scope and not exported
-# from neug.dll (dllexport_decl only marks class declarations, not these
-# file-scope static variables).
-if(WIN32)
-    target_link_libraries(neug_py_bind PRIVATE neug ${GLOG_LIBRARIES} ${Protobuf_LIBRARIES} $<TARGET_OBJECTS:neug_proto>)
-else()
-    target_link_libraries(neug_py_bind PRIVATE neug ${GLOG_LIBRARIES} ${Protobuf_LIBRARIES})
-endif()
+# The generated message classes and their namespace-scope default instances
+# are all exported from neug.dll (dllexport_decl plus the generated-header
+# patch), so every protobuf translation unit exists only inside neug.dll and
+# the bindings import the symbols through neug.lib. Never link the neug_proto
+# object files directly into this target: they would duplicate the descriptor
+# pools across modules and collide with the import library (LNK2005).
+target_link_libraries(neug_py_bind PRIVATE neug ${GLOG_LIBRARIES} ${Protobuf_LIBRARIES})
 
 # Suppress VLA warnings from brpc third-party headers (bvar/detail/percentile.h
 # uses DEFINE_SMALL_ARRAY which is a GCC VLA extension unsupported by Clang).

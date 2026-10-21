@@ -1,6 +1,7 @@
 #pragma once
 
 #include <unordered_map>
+#include "neug/utils/api.h"
 
 #include "neug/compiler/binder/expression/expression.h"
 
@@ -60,8 +61,13 @@ class FactorizationGroup {
   std::unordered_map<std::string, uint32_t> expressionNameToPos;
 };
 
-class Schema {
+class NEUG_API Schema {
  public:
+  Schema() = default;
+  Schema(const Schema&) = delete;
+  Schema& operator=(const Schema&) = delete;
+  Schema(Schema&&) = default;
+  Schema& operator=(Schema&&) = default;
   common::idx_t getNumGroups() const { return groups.size(); }
 
   FactorizationGroup* getGroup(

@@ -17,11 +17,12 @@
 
 #include "neug/compiler/gopt/g_catalog.h"
 #include "neug/compiler/main/metadata_manager.h"
+#include "neug/utils/api.h"
 
 namespace neug {
 namespace main {
 
-class MetadataRegistry {
+class NEUG_API MetadataRegistry {
  private:
   // MetadataManger is a single instance, there will be only one instance of
   // MetadataManager in the lifetime of the database.

@@ -127,7 +127,11 @@ if(WIN32)
     # BUILD_PYTHON and BUILD_HTTP_SERVER are no longer forced off; pass
     # -DBUILD_PYTHON=ON / -DBUILD_HTTP_SERVER=ON to enable. On Windows
     # BUILD_HTTP_SERVER selects the cpp-httplib implementation instead of brpc.
-    set(BUILD_EXTENSIONS "" CACHE STRING "Extensions are not supported on Windows yet" FORCE)
+    # Extensions build on Windows behind an explicit opt-in: pass
+    # -DBUILD_EXTENSIONS="name1;name2" (start with test_out_of_tree,
+    # pattern_matching, gds which have no external third-party deps).
+    # Their dependencies (OpenSSL, Arrow, curl, ...) must be provided via
+    # vcpkg or the system; the default remains empty (no extensions).
     set(BUILD_EXECUTABLES OFF CACHE BOOL "Executables are disabled on Windows core build" FORCE)
     set(BUILD_EXAMPLES OFF CACHE BOOL "Examples are disabled on Windows core build" FORCE)
     set(NEUG_NATIVE_ARCH OFF CACHE BOOL "Native architecture tuning is not supported on Windows" FORCE)
@@ -150,11 +154,16 @@ if(WIN32)
     # yaml-cpp is built as a static third-party library; tell its headers not to
     # use __declspec(dllimport) on MSVC.
     add_compile_definitions(YAML_CPP_STATIC_DEFINE)
-    # NEUG_EXPORTS must be visible to all object libraries that feed into the
-    # neug SHARED target, not just the final link step. Without this, NEUG_API
+    # NEUG_EXPORTS must be visible to all targets that feed into the neug
+    # SHARED target, not just the final link step. Without this, NEUG_API
     # resolves to __declspec(dllimport) in object files, causing C2491 when
     # defining static data members.
-    add_compile_definitions(NEUG_EXPORTS)
+    #
+    # NOTE: do NOT use add_compile_definitions(NEUG_EXPORTS) here. A directory
+    # definition at the root scope would leak into every target added
+    # afterwards (extensions, python bindings, tests), flipping their NEUG_API
+    # to the export side too. The definition lives at src/ directory scope in
+    # src/CMakeLists.txt, so only core-library producers see it.
     # Force-include platform.h so that GCC extensions such as __attribute__ are
     # neutralized for MSVC without touching every source file. Restrict to CXX
     # so the resource compiler (RC) does not see the option.

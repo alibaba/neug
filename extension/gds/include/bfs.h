@@ -21,7 +21,7 @@
 
 namespace neug {
 namespace gds {
-struct NEUG_API BFSFunction {
+struct BFSFunction {
   static constexpr const char* name = "bfs";
   static execution::Context exec(const function::CallFuncInputBase& input,
                                  IStorageInterface& graph);

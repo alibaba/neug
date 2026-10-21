@@ -1820,3 +1820,23 @@ index 92c906a..b77aae9 100644
  int carquet_row_group_writer_num_columns(const carquet_row_group_writer_t* writer) {
      return writer ? writer->num_columns : 0;
  }
+diff --git a/src/simd/dispatch.c b/src/simd/dispatch.c
+index 41637d2..9d128a8 100644
+--- a/src/simd/dispatch.c
++++ b/src/simd/dispatch.c
+@@ -92,7 +92,15 @@ typedef void (*copy_minmax_double_fn)(const double* values, int64_t count, doubl
+ /* Portable software prefetch */
+ #if defined(_MSC_VER)
+ #include <intrin.h>
++#if defined(_M_ARM64) || defined(_M_ARM)
++/* MSVC for ARM/ARM64 has no x86 SSE intrinsics: _mm_prefetch and the
++ * _MM_HINT_* enum are x86/x64-only, so using them here breaks the ARM64
++ * build with "error C2065: '_MM_HINT_T1': undeclared identifier". Use the
++ * ARM prefetch intrinsic instead (single argument; the hint is advisory). */
++#define CARQUET_PREFETCH(addr) __prefetch(addr)
++#else
+ #define CARQUET_PREFETCH(addr) _mm_prefetch((const char*)(addr), _MM_HINT_T1)
++#endif
+ #elif defined(__GNUC__) || defined(__clang__)
+ #define CARQUET_PREFETCH(addr) __builtin_prefetch((addr), 0, 1)
+ #else

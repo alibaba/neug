@@ -22,6 +22,42 @@ brew install cmake git python3 openssl@3
 # No need to install g++ since Apple Clang is also supported.
 ```
 
+#### On Windows
+
+NeuG builds natively on Windows with MSVC. The toolchain uses the Ninja
+generator and [vcpkg](https://github.com/microsoft/vcpkg) (classic mode) for
+the few dependencies that are not vendored under `third_party/` (currently
+OpenSSL). Prerequisites:
+
+- **Visual Studio 2022 Build Tools** with the "Desktop development with C++"
+  workload (provides `cl`/`link`, CMake, and Ninja)
+- **Python 3.8+**, **Git**
+
+A helper script installs the dependencies via vcpkg and writes an environment
+file. Run it from a *Developer PowerShell for VS 2022*:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts\install_deps.ps1
+# Load the generated environment (sets VCPKG_ROOT, OPENSSL_ROOT_DIR, etc.)
+. $HOME\.neug_env.ps1
+```
+
+Then build the core library and the Python binding:
+
+```powershell
+scripts\build_windows.bat
+```
+
+`build_windows.bat` invokes `vcvarsall.bat x64`, configures CMake with the
+Ninja generator and the vcpkg toolchain (triplet `x64-windows-static-md`), and
+builds the `neug` and `neug_py_bind` targets into `build\`. Set `VCPKG_ROOT`
+and `PYTHON_EXE` beforehand to override the defaults. For ARM64, use the
+`arm64-windows-static-md` triplet.
+
+> **NOTE**: The `make python-dev` / `make cpp-build` flows below are shell
+> targets and are not available natively on Windows; use the scripts above
+> (or the equivalent raw `cmake` commands) instead.
+
 #### On CentOS7
 
 ```bash

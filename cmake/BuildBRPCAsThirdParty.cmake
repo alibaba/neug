@@ -64,9 +64,14 @@ function(build_brpc_as_third_party)
     include(CheckCXXCompilerFlag)
     check_cxx_compiler_flag("-Wno-deprecated-builtins" BRPC_SUPPORTS_DEPRECATED_BUILTINS_FLAG)
 
-    set(_brpc_warning_flags -Wno-deprecated-declarations -Wno-nonnull -DDYNAMIC_ANNOTATIONS_ENABLED=0)
-    if(BRPC_SUPPORTS_DEPRECATED_BUILTINS_FLAG)
-        list(APPEND _brpc_warning_flags -Wno-deprecated-builtins)
+    # GCC/Clang warning suppressions only: brpc is not built with MSVC,
+    # and -W flags would be rejected by cl.exe anyway.
+    set(_brpc_warning_flags "")
+    if(NOT MSVC)
+        set(_brpc_warning_flags -Wno-deprecated-declarations -Wno-nonnull -DDYNAMIC_ANNOTATIONS_ENABLED=0)
+        if(BRPC_SUPPORTS_DEPRECATED_BUILTINS_FLAG)
+            list(APPEND _brpc_warning_flags -Wno-deprecated-builtins)
+        endif()
     endif()
 
     # Apply warning suppression flags to brpc targets

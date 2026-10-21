@@ -116,6 +116,8 @@ using physical_op_vector_t = std::vector<std::unique_ptr<PhysicalOperator>>;
 
 class NEUG_API PhysicalOperator {
  public:
+  PhysicalOperator(const PhysicalOperator&) = delete;
+  PhysicalOperator& operator=(const PhysicalOperator&) = delete;
   // Leaf operator
   PhysicalOperator(PhysicalOperatorType operatorType, physical_op_id id,
                    std::unique_ptr<OPPrintInfo> printInfo)

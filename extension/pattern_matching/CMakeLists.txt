@@ -53,7 +53,9 @@ target_link_libraries(neug_pattern_matching_extension PRIVATE
 # sources into the test binary and also dlopening the .so duplicates globals
 # (e.g. GraphDataCache) and breaks RTTI across the DSO boundary, which showed
 # up as a segfault right after CALL INITIALIZE() returned.
-if(BUILD_TEST)
+# Skipped on Windows, which does not build C++ test targets (BUILD_TEST=OFF
+# in CI); the extension itself and its LOAD-path coverage build everywhere.
+if(BUILD_TEST AND NOT WIN32)
     set(_sm_test_name pattern_matching_extension_test)
     find_package(OpenSSL REQUIRED)
     add_executable(${_sm_test_name}

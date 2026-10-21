@@ -23,11 +23,12 @@
 #pragma once
 
 #include "expression.h"
+#include "neug/utils/api.h"
 
 namespace neug {
 namespace binder {
 
-class VariableExpression final : public Expression {
+class NEUG_API VariableExpression final : public Expression {
   static constexpr common::ExpressionType expressionType_ =
       common::ExpressionType::VARIABLE;
 

@@ -33,6 +33,25 @@ function(set_extension_properties target_name output_name extension_name)
     set(extension_dir "${output_dir}/extension/${extension_name}")
     file(MAKE_DIRECTORY "${extension_dir}")
     message(STATUS "Setting LIBRARY_OUTPUT_DIRECTORY for ${target_name} to: ${extension_dir}")
+    if(WIN32)
+        # A Windows DLL is a runtime artifact: LIBRARY_OUTPUT_DIRECTORY does
+        # not apply to it, so route both the DLL (RUNTIME) and its import
+        # library (ARCHIVE) into the same extension directory. There is no
+        # RPATH on Windows; imports resolve via the default DLL search order
+        # (already-loaded modules first, then the DLL's own directory and
+        # PATH), so keep libneug.dll discoverable there. The cross-platform
+        # "lib<name>.neug_extension" naming is preserved so Python/Node
+        # bindings can locate extensions uniformly.
+        set_target_properties(${target_name}
+                PROPERTIES
+                RUNTIME_OUTPUT_DIRECTORY "${extension_dir}"
+                ARCHIVE_OUTPUT_DIRECTORY "${extension_dir}"
+                OUTPUT_NAME ${output_name}
+                PREFIX "lib"
+                SUFFIX ".neug_extension"
+        )
+        return()
+    endif()
     # macOS dyld uses @loader_path, Linux uses $ORIGIN. Multiple paths: semicolon-separated.
     if(APPLE)
         set(_ext_rpath 

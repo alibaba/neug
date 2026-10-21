@@ -56,3 +56,16 @@
 #ifndef NEUG_DEPRECATED_EXPORT
 #define NEUG_DEPRECATED_EXPORT NEUG_API NEUG_DEPRECATED
 #endif
+
+// Entry points of dynamically loaded extensions (Init, Name). These must be
+// exported from the extension module itself: extension translation units do
+// not define NEUG_EXPORTS, so NEUG_API would wrongly expand to dllimport on
+// Windows and the loader's dlsym/GetProcAddress lookup would fail with
+// ERROR_PROC_NOT_FOUND (error 127).
+#ifndef NEUG_EXTENSION_API
+#if defined _WIN32 || defined __CYGWIN__
+#define NEUG_EXTENSION_API __declspec(dllexport)
+#else
+#define NEUG_EXTENSION_API __attribute__((visibility("default")))
+#endif
+#endif

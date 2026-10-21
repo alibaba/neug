@@ -14,6 +14,7 @@
  */
 
 #include "neug/compiler/extension/extension_api.h"
+#include "neug/utils/api.h"
 #include "neug/utils/exception/exception.h"
 
 #include <memory>
@@ -46,7 +47,7 @@ extern "C" {
 // Entry point invoked by the extension loader. Registers the
 // pattern_matching table functions with the catalog and publishes the
 // extension metadata so SQL callers can invoke them.
-void Init() {
+NEUG_EXTENSION_API void Init() {
   try {
     // The extension DSO is process-wide, but registration and cache ownership
     // are catalog-local. Serialize concurrent LOADs so every registered
@@ -116,6 +117,6 @@ void Init() {
 }
 
 // Display name surfaced by the extension loader.
-const char* Name() { return "PATTERN_MATCHING"; }
+NEUG_EXTENSION_API const char* Name() { return "PATTERN_MATCHING"; }
 
 }  // extern "C"

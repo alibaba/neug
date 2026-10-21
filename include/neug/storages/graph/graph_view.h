@@ -19,6 +19,7 @@
 #include <string>
 #include <unordered_map>
 #include <vector>
+#include "neug/utils/api.h"
 
 #include "neug/storages/allocators.h"
 #include "neug/storages/csr/csr_view.h"
@@ -54,7 +55,7 @@ class TableView {
   std::vector<ColumnBase*> columns_;
 };
 
-class VertexTableView {
+class NEUG_API VertexTableView {
  public:
   VertexTableView() = default;
   explicit VertexTableView(VertexTable& table);
@@ -109,7 +110,7 @@ class EdgeTableView {
   TableView view_;
 };
 
-class GraphView {
+class NEUG_API GraphView {
  public:
   explicit GraphView(PropertyGraph& storage);
 

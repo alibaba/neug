@@ -1,6 +1,6 @@
 # Installation
 
-NeuG runs on modern Linux and macOS systems with support for both x86 and ARM architectures. For Windows users, we recommend using [WSL](https://learn.microsoft.com/en-us/windows/wsl/install).
+NeuG runs on modern Linux, macOS, and Windows systems with support for both x86 and ARM architectures.
 
 NeuG supports multiple language bindings. Choose your preferred language below to get started.
 
@@ -16,6 +16,12 @@ import { Tabs } from 'nextra/components'
 
 ```bash
 pip install neug
+```
+
+On Windows, install the prebuilt wheel explicitly to avoid attempting a source build:
+
+```bash
+pip install --only-binary=:all: neug
 ```
 
 Using a virtual environment (recommended):

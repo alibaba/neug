@@ -55,6 +55,8 @@ struct TableFuncBindInput;
 struct TableFuncBindData;
 
 struct NEUG_API TableFuncSharedState {
+  TableFuncSharedState(const TableFuncSharedState&) = delete;
+  TableFuncSharedState& operator=(const TableFuncSharedState&) = delete;
   common::row_idx_t numRows = 0;
   common::NodeOffsetMaskMap semiMasks;
   std::mutex mtx;

@@ -18,7 +18,9 @@
 
 #include <neug/main/neug_db.h>
 
+#ifndef _WIN32
 #include <unistd.h>
+#endif
 
 #include <cstdlib>
 #include <filesystem>
@@ -32,6 +34,9 @@
 
 #if defined(__APPLE__)
 #include <mach-o/dyld.h>
+#elif defined(_WIN32)
+#include <process.h>
+#include <windows.h>
 #endif
 
 namespace neug {
@@ -47,6 +52,12 @@ std::filesystem::path GetExecutablePath() {
   if (_NSGetExecutablePath(buf.data(), &size) != 0)
     return {};
   return std::filesystem::canonical(buf.c_str());
+#elif defined(_WIN32)
+  wchar_t buf[MAX_PATH];
+  DWORD size = GetModuleFileNameW(nullptr, buf, MAX_PATH);
+  if (size == 0 || size >= MAX_PATH)
+    return {};
+  return std::filesystem::canonical(std::wstring(buf, size));
 #else
   return std::filesystem::read_symlink("/proc/self/exe");
 #endif
@@ -67,6 +78,17 @@ std::string FindBuildRoot() {
 }
 
 std::filesystem::path MakeUniqueTempDir() {
+#if defined(_WIN32)
+  // mkdtemp is POSIX-only; emulate it with a per-process name, clearing any
+  // leftover from a previous crashed run so the test starts from a clean dir.
+  std::filesystem::path dir =
+      std::filesystem::temp_directory_path() /
+      ("neug_pattern_matching_" + std::to_string(_getpid()));
+  std::error_code ec;
+  std::filesystem::remove_all(dir, ec);
+  std::filesystem::create_directories(dir, ec);
+  return dir;
+#else
   auto tmpl =
       (std::filesystem::temp_directory_path() / "neug_pattern_matching_XXXXXX")
           .string();
@@ -75,6 +97,7 @@ std::filesystem::path MakeUniqueTempDir() {
   if (mkdtemp(buf.data()) == nullptr)
     return {};
   return std::filesystem::path(buf.data());
+#endif
 }
 
 constexpr const char* kSingleEdgePattern = R"({

@@ -36,6 +36,8 @@ struct LocalRelTableScanState;
 
 class NEUG_API RelTable : public Table {
  public:
+  RelTable(const RelTable&) = delete;
+  RelTable& operator=(const RelTable&) = delete;
   RelTable(EdgeSchema* relTableEntry, const GraphStats* storageManager)
       : Table{relTableEntry, storageManager},
         fromNodeTableID{relTableEntry->getSrcTableID()},

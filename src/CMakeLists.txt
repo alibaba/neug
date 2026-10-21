@@ -12,6 +12,19 @@ if(ENABLE_GCOV)
         CACHE STRING "Lcov exclude patterns")
 endif()
 
+# Every target under src/ feeds into the neug SHARED (or neug_static) library:
+# ~60 object/static libraries across the tree, including the whole compiler
+# subtree (src/compiler/**). All of them must see NEUG_EXPORTS so NEUG_API in
+# their sources expands to the export side; a producer TU compiled on the
+# import side fails with C2491 ("definition of dllimport static data member
+# not allowed", e.g. date_t.cpp) or silently drops exports. Enumerating the
+# targets one by one is unmaintainable, so define it once at directory scope
+# here. This is safe: the definition only propagates into subdirectories added
+# from this scope (all of src/). Extensions, python/node bindings and tests
+# are added from the root scope and never inherit it, so their NEUG_API stays
+# on the dllimport consumer side.
+add_compile_definitions(NEUG_EXPORTS)
+
 add_subdirectory(utils)
 add_subdirectory(storages)
 add_subdirectory(transaction)
@@ -80,6 +93,12 @@ endif()
 if(WIN32 AND BUILD_TEST)
     add_library(neug_static STATIC ${ALL_OBJECT_FILES})
     target_compile_definitions(neug_static PRIVATE NEUG_EXPORTS)
+    # Consumers of the static archive (Windows C++ tests) must NOT see NEUG_API
+    # as dllimport: they link neug_static directly, whose objects provide plain
+    # symbol names, whereas a dllimport reference resolves to __imp_* thunks the
+    # archive cannot satisfy (unresolved external at link time). NEUG_STATIC_DEFINE
+    # makes NEUG_API expand to nothing on the consumer side, matching the archive.
+    target_compile_definitions(neug_static INTERFACE NEUG_STATIC_DEFINE)
     if (ENABLE_GCOV)
         target_link_options(neug_static PRIVATE --coverage)
     endif()

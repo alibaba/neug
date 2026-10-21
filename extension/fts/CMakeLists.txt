@@ -16,30 +16,15 @@ if(NOT EXISTS "${CMAKE_SOURCE_DIR}/third_party/cppjieba/include/cppjieba/Jieba.h
         "--recursive third_party/cppjieba")
 endif()
 
-set(NEUG_CPPJIEBA_PATCH "${CMAKE_SOURCE_DIR}/third_party/cppjieba.patch")
-execute_process(
-    COMMAND git apply --check "${NEUG_CPPJIEBA_PATCH}"
-    WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}/third_party/cppjieba"
-    RESULT_VARIABLE NEUG_CPPJIEBA_PATCH_CHECK
-    OUTPUT_QUIET ERROR_QUIET)
-if(NEUG_CPPJIEBA_PATCH_CHECK EQUAL 0)
-    execute_process(
-        COMMAND git apply "${NEUG_CPPJIEBA_PATCH}"
-        WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}/third_party/cppjieba"
-        RESULT_VARIABLE NEUG_CPPJIEBA_PATCH_RESULT)
-    if(NOT NEUG_CPPJIEBA_PATCH_RESULT EQUAL 0)
-        message(FATAL_ERROR "Failed to apply cppjieba.patch")
-    endif()
-else()
-    execute_process(
-        COMMAND git apply --reverse --check "${NEUG_CPPJIEBA_PATCH}"
-        WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}/third_party/cppjieba"
-        RESULT_VARIABLE NEUG_CPPJIEBA_PATCH_APPLIED
-        OUTPUT_QUIET ERROR_QUIET)
-    if(NOT NEUG_CPPJIEBA_PATCH_APPLIED EQUAL 0)
-        message(FATAL_ERROR "cppjieba.patch does not apply cleanly")
-    endif()
-endif()
+# The shared helper verifies the patch has LF line endings before
+# applying it (git apply cannot parse CRLF patches, and CMake's file I/O
+# cannot normalize them portably on Windows) and reports the captured git
+# output on failure instead of hiding it.
+include(${CMAKE_SOURCE_DIR}/cmake/NeugPatchUtils.cmake)
+_neug_apply_patch(
+    "${CMAKE_SOURCE_DIR}/third_party/cppjieba"
+    "${CMAKE_SOURCE_DIR}/third_party/cppjieba.patch"
+    "cppjieba.patch")
 
 if(NOT TARGET neug_cppjieba)
     add_library(neug_cppjieba INTERFACE)
@@ -61,7 +46,9 @@ target_link_libraries(neug_fts_extension PRIVATE
     ${Protobuf_LIBRARIES})
 add_dependencies(neug_fts_extension neug_sqlite3_amalgamation)
 
-if(BUILD_TEST)
+# The C++ test suite is not built on Windows (consistent with the Windows CI
+# test policy; the test also relies on POSIX-only headers).
+if(BUILD_TEST AND NOT WIN32)
     add_extension_test(
         NAME fts
         TEST_SRCS "${CMAKE_CURRENT_SOURCE_DIR}/tests/fts_extension_test.cc"
