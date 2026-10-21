@@ -508,18 +508,6 @@ jobs:
         if: always() && steps.sccache.outcome == 'success'
         run: sccache --show-stats
 
-      - name: Upload Ninja timing logs
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: ninja-logs-windows-${{ matrix.arch }}-${{ github.run_id }}-${{ github.run_attempt }}
-          path: |
-            build/.ninja_log
-            build/**/.ninja_log
-          include-hidden-files: true
-          if-no-files-found: warn
-          retention-days: 14
-
       - name: Verify extension artifacts
         run: |
           $expected = @("fts", "gds", "httpfs", "parquet", "pattern_matching", "vector_search", "test_out_of_tree")
