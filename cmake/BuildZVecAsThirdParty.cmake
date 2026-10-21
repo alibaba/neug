@@ -131,6 +131,11 @@ function(build_zvec_as_third_party)
         "-DBUILD_C_BINDINGS=OFF"
         "-DAUTO_DETECT_ARCH=${_zvec_auto_detect_arch}"
         "-DBUILD_TOOLS=OFF")
+    if(MSVC)
+        # ExternalProject does not inherit NeuG's /MD runtime configuration.
+        # ZVec defaults to /MT, which cannot be linked into our /MD extensions.
+        list(APPEND _zvec_cmake_args "-DZVEC_USE_STATIC_CRT=OFF")
+    endif()
     if(APPLE AND CMAKE_OSX_ARCHITECTURES)
         list(APPEND _zvec_cmake_args
             "-DCMAKE_OSX_ARCHITECTURES=${CMAKE_OSX_ARCHITECTURES}"
@@ -141,6 +146,12 @@ function(build_zvec_as_third_party)
         SOURCE_DIR "${ZVEC_SOURCE_DIR}"
         BINARY_DIR "${_zvec_binary_dir}"
         INSTALL_COMMAND ""
+        # Ninja needs explicit file-producing rules for imported static libraries.
+        BUILD_BYPRODUCTS
+            "${_zvec_core_library}"
+            "${_zvec_ailego_library}"
+            "${_zvec_turbo_library}"
+            "${_zvec_roaring_library}"
         BUILD_COMMAND
             "${CMAKE_COMMAND}" --build <BINARY_DIR>
             --target zvec_core zvec_ailego zvec_turbo roaring

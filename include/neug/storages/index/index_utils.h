@@ -19,6 +19,7 @@
 #include <functional>
 #include <vector>
 
+#include "neug/utils/api.h"
 #include "neug/utils/property/types.h"
 #include "neug/utils/result.h"
 
@@ -28,7 +29,7 @@ struct IndexMeta;
 class PropertyGraph;
 class StorageIndex;
 
-bool IsHNSWIndex(const IndexMeta& meta);
+NEUG_API bool IsHNSWIndex(const IndexMeta& meta);
 bool IsCosineMetric(const IndexMeta& meta);
 bool ParseCosineNormalizeOption(IndexMeta& meta);
 bool UsesCosineNormalization(const IndexMeta& meta);
