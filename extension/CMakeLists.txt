@@ -67,15 +67,9 @@ function(set_extension_properties target_name output_name extension_name)
     else()
         set(_ext_rpath "$ORIGIN/../..")
     endif()
-    # On Windows a SHARED library's primary artifact (.dll, here renamed to
-    # lib<name>.neug_extension) is a RUNTIME artifact, so LIBRARY_OUTPUT_DIRECTORY
-    # alone would leave it in the default binary dir and setup.py would fail to
-    # package it. Set RUNTIME_OUTPUT_DIRECTORY too so the extension lands in
-    # extension_dir on every platform (it is a no-op for Unix .so/.dylib).
     set_target_properties(${target_name}
             PROPERTIES
             LIBRARY_OUTPUT_DIRECTORY "${extension_dir}"
-            RUNTIME_OUTPUT_DIRECTORY "${extension_dir}"
             OUTPUT_NAME ${output_name}
             PREFIX "lib"
             SUFFIX ".neug_extension"
