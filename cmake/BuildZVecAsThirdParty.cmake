@@ -131,6 +131,11 @@ function(build_zvec_as_third_party)
         "-DBUILD_C_BINDINGS=OFF"
         "-DAUTO_DETECT_ARCH=${_zvec_auto_detect_arch}"
         "-DBUILD_TOOLS=OFF")
+    if(MSVC)
+        # ExternalProject does not inherit NeuG's /MD runtime configuration.
+        # ZVec defaults to /MT, which cannot be linked into our /MD extensions.
+        list(APPEND _zvec_cmake_args "-DZVEC_USE_STATIC_CRT=OFF")
+    endif()
     if(APPLE AND CMAKE_OSX_ARCHITECTURES)
         list(APPEND _zvec_cmake_args
             "-DCMAKE_OSX_ARCHITECTURES=${CMAKE_OSX_ARCHITECTURES}"
