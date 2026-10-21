@@ -40,6 +40,8 @@ namespace common {
 
 struct NEUG_API BufferBlock {
  public:
+  BufferBlock(const BufferBlock&) = delete;
+  BufferBlock& operator=(const BufferBlock&) = delete;
   explicit BufferBlock(uint64_t size);
   ~BufferBlock();
 

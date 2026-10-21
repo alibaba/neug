@@ -23,11 +23,12 @@
 #pragma once
 
 #include "neug/compiler/planner/operator/logical_operator.h"
+#include "neug/utils/api.h"
 
 namespace neug {
 namespace optimizer {
 
-class LogicalOperatorVisitor {
+class NEUG_API LogicalOperatorVisitor {
  public:
   LogicalOperatorVisitor() = default;
   virtual ~LogicalOperatorVisitor() = default;

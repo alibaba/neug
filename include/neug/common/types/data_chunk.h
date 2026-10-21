@@ -21,6 +21,7 @@
 #include <vector>
 
 #include "neug/common/types/i_context_column.h"
+#include "neug/utils/api.h"
 #include "neug/utils/exception/exception.h"
 
 namespace neug {
@@ -38,7 +39,7 @@ class StorageReadInterface;
  * anonymous outputs / inputs with alias = -1) lives in ContextChunk, one
  * layer above. DataChunk itself never sees alias = -1.
  */
-class DataChunk {
+class NEUG_API DataChunk {
  public:
   DataChunk() = default;
   ~DataChunk() = default;

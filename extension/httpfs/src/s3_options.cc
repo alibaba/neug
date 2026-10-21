@@ -17,7 +17,11 @@
 #include "s3_options.h"
 #include <glog/logging.h>
 #include <sys/stat.h>
+#ifdef _WIN32
+#include <io.h>  // _access
+#else
 #include <unistd.h>
+#endif
 #include <algorithm>
 #include <cstdlib>
 #include <cstring>
@@ -39,12 +43,21 @@ namespace {
 bool fileExistsAndReadable(const std::string& path) {
   if (path.empty())
     return false;
+#ifdef _WIN32
+  struct _stat st;
+  if (::_stat(path.c_str(), &st) != 0)
+    return false;
+  if ((st.st_mode & _S_IFMT) != _S_IFREG)
+    return false;
+  return ::_access(path.c_str(), 04 /*R_OK*/) == 0;
+#else
   struct stat st;
   if (::stat(path.c_str(), &st) != 0)
     return false;
   if (!S_ISREG(st.st_mode))
     return false;
   return ::access(path.c_str(), R_OK) == 0;
+#endif
 }
 
 // Resolve a CA bundle path for libcurl. Priority:

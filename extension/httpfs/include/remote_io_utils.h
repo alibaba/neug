@@ -16,6 +16,12 @@
 
 #pragma once
 
+#ifdef _WIN32
+// <curl/curl.h> needs winsock2 types (curl_socket_t, fd_set, sockaddr) on
+// Windows; _WINSOCKAPI_ is defined project-wide. Include winsock2.h first
+// (see neug/utils/io/file/file_utils.h). #endif stops clang-format re-sorting.
+#include <winsock2.h>
+#endif
 #include <curl/curl.h>
 #include <cstdint>
 #include <memory>

@@ -21,6 +21,7 @@
 #include <optional>
 #include <string>
 #include <vector>
+#include "neug/utils/api.h"
 
 #include <rapidjson/document.h>
 
@@ -46,7 +47,7 @@ struct IndexBindColumn {
   bool operator==(const IndexBindColumn&) const = default;
 };
 
-struct IndexBindSchema {
+struct NEUG_API IndexBindSchema {
   label_t label_id = 0;
   // Stable identity used to remap label_id when persistence strips temporary
   // labels. Used by checkpoint metadata and WAL recovery.
@@ -115,8 +116,10 @@ using IndexValues = std::vector<Value>;
  * Extensions (e.g. zvec) provide concrete implementations by subclassing
  * Index and registering them through the ModuleFactory.
  */
-class StorageIndex : public Module {
+class NEUG_API StorageIndex : public Module {
  public:
+  StorageIndex(const StorageIndex&) = delete;
+  StorageIndex& operator=(const StorageIndex&) = delete;
   StorageIndex() = default;
 
   /**

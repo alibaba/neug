@@ -121,6 +121,8 @@ class TpServiceRuntime;
  */
 class NEUG_API NeugDB {
  public:
+  NeugDB(const NeugDB&) = delete;
+  NeugDB& operator=(const NeugDB&) = delete;
   NeugDB();
   ~NeugDB();
 

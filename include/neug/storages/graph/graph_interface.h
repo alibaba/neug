@@ -18,6 +18,7 @@
 #include <functional>
 #include <optional>
 #include <utility>
+#include "neug/utils/api.h"
 
 #include "neug/common/types/container_types.h"
 #include "neug/common/types/value.h"
@@ -142,7 +143,7 @@ class IStorageInterface {
  *
  * @since v0.1.0
  */
-class StorageReadInterface : virtual public IStorageInterface {
+class NEUG_API StorageReadInterface : virtual public IStorageInterface {
  public:
   /// Typed property column accessor
   template <typename PROP_T>

@@ -39,6 +39,8 @@ namespace common {
 
 class NEUG_API Deserializer {
  public:
+  Deserializer(const Deserializer&) = delete;
+  Deserializer& operator=(const Deserializer&) = delete;
   explicit Deserializer(std::unique_ptr<Reader> reader)
       : reader(std::move(reader)) {}
 

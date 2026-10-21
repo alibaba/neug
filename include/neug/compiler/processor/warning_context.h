@@ -58,6 +58,8 @@ using get_file_idx_func_t =
 
 class NEUG_API WarningContext {
  public:
+  WarningContext(const WarningContext&) = delete;
+  WarningContext& operator=(const WarningContext&) = delete;
   explicit WarningContext(main::ClientConfig* clientConfig) {}
 
   void appendWarningMessages(const std::vector<CopyFromFileError>& messages) {}

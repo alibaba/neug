@@ -15,9 +15,10 @@
 #pragma once
 #include "neug/common/types.h"
 #include "neug/common/types/value.h"
+#include "neug/utils/api.h"
 
 namespace neug {
 
-Value get_default_value(const DataType& type);
+NEUG_API Value get_default_value(const DataType& type);
 
 }  // namespace neug

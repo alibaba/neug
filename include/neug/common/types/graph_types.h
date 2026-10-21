@@ -22,6 +22,7 @@
 #include <tuple>
 #include <utility>
 #include <vector>
+#include "neug/utils/api.h"
 
 #include "neug/utils/property/types.h"
 
@@ -153,7 +154,7 @@ class EdgeRecord {
 };
 
 struct PathImpl;
-struct Path {
+struct NEUG_API Path {
  public:
   Path() : impl_(nullptr) {}
 

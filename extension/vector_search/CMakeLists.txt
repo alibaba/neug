@@ -46,6 +46,12 @@ elseif(UNIX)
         zvec_turbo_static
         -Wl,--no-whole-archive)
 else()
+    # MSVC: /WHOLEARCHIVE is the whole-archive equivalent; it keeps ZVec's
+    # static-initializer registration TUs in the extension DLL.
+    target_link_options(neug_vector_search_extension PRIVATE
+        "LINKER:/WHOLEARCHIVE:$<TARGET_FILE:zvec_core_static>"
+        "LINKER:/WHOLEARCHIVE:$<TARGET_FILE:zvec_ailego_static>"
+        "LINKER:/WHOLEARCHIVE:$<TARGET_FILE:zvec_turbo_static>")
     target_link_libraries(neug_vector_search_extension PRIVATE
         zvec_core_static
         zvec_ailego_static

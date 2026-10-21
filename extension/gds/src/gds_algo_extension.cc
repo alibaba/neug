@@ -18,11 +18,12 @@
 
 #include "gds_algo_function_collection.h"
 #include "neug/compiler/extension/extension_api.h"
+#include "neug/utils/api.h"
 #include "neug/utils/exception/exception.h"
 
 extern "C" {
 
-void Init() {
+NEUG_EXTENSION_API void Init() {
   try {
     // Register GDS CALL table functions.
     neug::extension::ExtensionAPI::registerFunction<neug::gds::CDLPFunction>(
@@ -57,6 +58,6 @@ void Init() {
   }
 }
 
-const char* Name() { return "GDS"; }
+NEUG_EXTENSION_API const char* Name() { return "GDS"; }
 
 }  // extern "C"

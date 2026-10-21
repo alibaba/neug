@@ -21,7 +21,7 @@
 
 namespace neug {
 namespace gds {
-struct NEUG_API PageRankFunction {
+struct PageRankFunction {
   static constexpr const char* name = "page_rank";
   static execution::Context exec(const function::CallFuncInputBase& input,
                                  IStorageInterface& graph);
