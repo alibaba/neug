@@ -364,6 +364,16 @@ jobs:
       run:
         shell: pwsh
 
+    env:
+      SCCACHE_GHA_ENABLED: 'true'
+      # Stable across commits/runners; sccache hashes compiler, inputs and flags.
+      SCCACHE_GHA_VERSION: windows-extensions-${{ matrix.triplet }}-v1
+      # Environment launchers also reach fresh ExternalProject configurations,
+      # including ZVec, without changing other jobs' CMake configuration.
+      CMAKE_C_COMPILER_LAUNCHER: sccache
+      CMAKE_CXX_COMPILER_LAUNCHER: sccache
+      NINJA_STATUS: '[%f/%t running=%r elapsed=%es] '
+
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -398,6 +408,12 @@ jobs:
         uses: ilammy/msvc-dev-cmd@v1
         with:
           arch: ${{ matrix.arch }}
+
+      - name: Setup compiler cache
+        id: sccache
+        uses: mozilla-actions/sccache-action@v0.0.11
+        with:
+          version: v0.18.0
 
       - name: Setup Python
         uses: actions/setup-python@v5
@@ -460,9 +476,6 @@ jobs:
             $fixtureDir
           "NEUG_EXTENSION_CONFIGS=$(Join-Path $fixtureDir 'extension_config.cmake')" >> $env:GITHUB_ENV
 
-      # Everything except vector_search (the ZVec dependency needs a
-      # source-level MSVC port: 47+ files with pthread/mmap/__attribute__
-      # usage; tracked as a separate effort, not a CMake-level fix).
       # parquet IS built now: its Arrow C++ dependency was removed (#1128) and
       # it decodes via the Carquet C library, which supports MSVC; Carquet's
       # zstd/lz4/zlib codecs are installed through vcpkg above.
@@ -475,8 +488,9 @@ jobs:
             -DCMAKE_TOOLCHAIN_FILE="$vcpkgToolchain" `
             -DVCPKG_TARGET_TRIPLET=${{ matrix.triplet }} `
             -DBUILD_PYTHON=ON `
+            -DBUILD_HTTP_SERVER=ON `
             -DBUILD_TEST=OFF `
-            -DBUILD_EXTENSIONS="fts;gds;httpfs;parquet;pattern_matching;test_out_of_tree" `
+            -DBUILD_EXTENSIONS="fts;gds;httpfs;parquet;pattern_matching;vector_search;test_out_of_tree" `
             -DNEUG_EXTENSION_CONFIGS="${{ env.NEUG_EXTENSION_CONFIGS }}" `
             -DPython_EXECUTABLE="$pythonExe" `
             -DPYTHON_EXECUTABLE="$pythonExe" `
@@ -489,9 +503,13 @@ jobs:
           Write-Host "Building with $jobs parallel jobs"
           cmake --build build -j $jobs
 
+      - name: Show compiler cache statistics
+        if: always() && steps.sccache.outcome == 'success'
+        run: sccache --show-stats
+
       - name: Verify extension artifacts
         run: |
-          $expected = @("fts", "gds", "httpfs", "parquet", "pattern_matching", "test_out_of_tree")
+          $expected = @("fts", "gds", "httpfs", "parquet", "pattern_matching", "vector_search", "test_out_of_tree")
           $missing = @()
           foreach ($ext in $expected) {
             $artifact = Join-Path "build/extension/$ext" "lib$ext.neug_extension"
@@ -504,6 +522,9 @@ jobs:
           Write-Host "All $($expected.Count) extension artifacts present."
 
       - name: Run extension load tests
+        env:
+          PYTHONPATH: ${{ github.workspace }}/tools/python_bind
+          NEUG_EXTENSION_HOME_PYENV: ${{ github.workspace }}/build
         run: |
           cd tools/python_bind
           python -m pytest -sv tests/test_extension_local_load.py

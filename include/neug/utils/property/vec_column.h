@@ -24,6 +24,7 @@
 #include "neug/common/types.h"
 #include "neug/storages/checkpoint_manifest.h"
 #include "neug/storages/index/index_id_accessor.h"
+#include "neug/utils/api.h"
 #include "neug/utils/property/array_column.h"
 #include "neug/utils/property/column.h"
 
@@ -42,7 +43,7 @@ class VectorNormalizer {
  public:
   static bool Sample(const VecColumn& column);
   static Status Ensure(VecColumn& column);
-  static Status ValueNormalize(const Value& value, Value& normalized);
+  NEUG_API static Status ValueNormalize(const Value& value, Value& normalized);
 
  private:
   static constexpr double kNormalizedTolerance = 1e-4;
@@ -100,11 +101,11 @@ class VecColumn : public ColumnBase {
   Value get_any(size_t vid) const override;
 
   // Exposes the offset accessor for use by HNSW indexes.
-  IndexIDAccessor* get_offset_accessor() const;
+  NEUG_API IndexIDAccessor* get_offset_accessor() const;
   // Exposes the vector-data buffer for use by HNSW indexes.
-  const void* get_buffer_ptr() const;
-  uint64_t array_size() const;
-  DataType array_type() const;
+  NEUG_API const void* get_buffer_ptr() const;
+  NEUG_API uint64_t array_size() const;
+  NEUG_API DataType array_type() const;
   VectorRepresentation representation() const { return representation_; }
   bool is_l2_normalized() const {
     return representation_ == VectorRepresentation::kL2Normalized;
