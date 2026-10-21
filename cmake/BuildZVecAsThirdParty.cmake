@@ -141,6 +141,12 @@ function(build_zvec_as_third_party)
         SOURCE_DIR "${ZVEC_SOURCE_DIR}"
         BINARY_DIR "${_zvec_binary_dir}"
         INSTALL_COMMAND ""
+        # Ninja needs explicit file-producing rules for imported static libraries.
+        BUILD_BYPRODUCTS
+            "${_zvec_core_library}"
+            "${_zvec_ailego_library}"
+            "${_zvec_turbo_library}"
+            "${_zvec_roaring_library}"
         BUILD_COMMAND
             "${CMAKE_COMMAND}" --build <BINARY_DIR>
             --target zvec_core zvec_ailego zvec_turbo roaring
