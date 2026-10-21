@@ -529,6 +529,42 @@ jobs:
           cd tools/python_bind
           python -m pytest -sv tests/test_extension_local_load.py
 
+      # End-to-end parity with the Linux wheel jobs (see "Run simple and
+      # complex tests" in extension_tests_wheel_linux_*): exercise the core
+      # read/write path (simple_example.py) and the built-in + extension
+      # capability suite (complex_test.py) against the source-built binding.
+      # PYTHONPATH / NEUG_EXTENSION_HOME_PYENV mirror the load-test step so
+      # `import neug` resolves to the source tree and LOAD finds the locally
+      # built build/extension/<name>/lib<name>.neug_extension artifacts.
+      - name: Run simple and complex tests
+        env:
+          PYTHONPATH: ${{ github.workspace }}/tools/python_bind
+          NEUG_EXTENSION_HOME_PYENV: ${{ github.workspace }}/build
+          TMP_DIR: ${{ github.workspace }}/${{ github.run_id }}
+          # Turns on the Parquet + HTTPFS sections of complex_test.py; both
+          # extensions are built for Windows in this job.
+          NEUG_RUN_EXTENSION_TESTS: '1'
+          # Windows Python defaults stdout to a legacy codepage (cp1252) that
+          # cannot encode the emoji complex_test.py prints (PASS/FAIL marks),
+          # raising UnicodeEncodeError; force UTF-8 mode instead.
+          PYTHONUTF8: '1'
+        run: |
+          Remove-Item -Recurse -Force "$env:TMP_DIR/test_example" -ErrorAction SilentlyContinue
+          # GLOG_v mirrors the Linux wheel job: verbose for the short
+          # simple_example.py run only, kept off complex_test.py to limit logs.
+          $env:GLOG_v = '10'
+          python tools/python_bind/example/simple_example.py example_dataset/modern_graph "$env:TMP_DIR/test_example"
+          if ($LASTEXITCODE -ne 0) {
+            Write-Error "simple_example.py failed"
+            exit 1
+          }
+          Remove-Item Env:\GLOG_v -ErrorAction SilentlyContinue
+          python tools/python_bind/example/complex_test.py
+          if ($LASTEXITCODE -ne 0) {
+            Write-Error "complex_test.py failed"
+            exit 1
+          }
+
   # ============================================================
   # Notify: Send results to DingTalk
   # ============================================================
