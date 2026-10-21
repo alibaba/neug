@@ -360,12 +360,19 @@ jobs:
             exit 1
           }
 
+      # Fallback: publish_extensions_from_wheel.py extracts the .neug_extension
+      # packages to extension_packages/ BEFORE uploading to OSS, so if the OSS
+      # upload fails the previous step fails but the built packages are already
+      # on disk. Run the artifact upload with if: always() (and a longer
+      # retention) so those Windows packages are preserved and can be uploaded
+      # to OSS manually later, instead of being discarded with the failed job.
       - name: Upload extension packages as artifacts
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: extension-packages-${{ matrix.artifact_platform }}-${{ needs.prepare.outputs.version }}
           path: |
             extension_packages/*.neug_extension
             extension_packages/*.sha256
-          retention-days: 1
+          retention-days: 14
           if-no-files-found: error
