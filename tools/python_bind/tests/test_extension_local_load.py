@@ -26,12 +26,7 @@ Unlike tests/test_extension_install_load.py they deliberately do NOT run
 INSTALL: the official extension repository does not publish Windows
 packages yet, so the Windows CI validates the build+load chain directly
 against the locally produced artifacts.
-
-The Windows job additionally validates the locally built vector_search
-extension and its registration.
 """
-
-import sys
 
 import pytest
 
@@ -42,6 +37,7 @@ EXTENSIONS = [
     "pattern_matching",
     "fts",
     "gds",
+    "vector_search",
     # parquet builds on Windows now that its Arrow C++ dependency is gone
     # (#1128); it decodes via the Carquet C library (MSVC-supported).
     "parquet",
@@ -94,12 +90,3 @@ def test_load_local_extension(ext_name: str, tmp_path):
             conn.close()
         if db is not None:
             db.close()
-
-
-@pytest.mark.skipif(
-    sys.platform != "win32",
-    reason="Additional vector_search load coverage for the Windows job",
-)
-def test_load_local_vector_search(tmp_path):
-    """Load the Windows build artifact and verify extension registration."""
-    test_load_local_extension("vector_search", tmp_path)

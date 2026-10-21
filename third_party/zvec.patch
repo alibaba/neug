@@ -8,3 +8,13 @@ index 2c5301f..0e88f02 100644
  cmake_policy(SET CMP0077 NEW)
  project(zvec)
  set(CC_CXX_STANDARD 17)
+diff --git a/cmake/bazel.cmake b/cmake/bazel.cmake
+--- a/cmake/bazel.cmake
++++ b/cmake/bazel.cmake
+@@ -419,5 +419,5 @@
+   if(ZVEC_USE_STATIC_CRT)
+     set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>" CACHE STRING "" FORCE)
+   else()
+-    set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreadedDLL$<$<CONFIG:Debug>:Debug>" CACHE STRING "" FORCE)
++    set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>DLL" CACHE STRING "" FORCE)
+   endif()
