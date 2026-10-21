@@ -19,7 +19,6 @@ on:
       - 'example_dataset/tinysnb/parquet/**'
       - 'example_dataset/comprehensive_graph/parquet/**'
       - 'extension/**'
-      - 'tools/python_bind/tests/hybrid_search_tp_smoke_test.py'
       - 'tools/python_bind/tests/test_hnsw_index.py'
       - 'tools/python_bind/tests/test_hnsw_index_tp.py'
       - 'tools/python_bind/tests/test_gds.py'
