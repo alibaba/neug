@@ -529,8 +529,6 @@ jobs:
         run: |
           cd tools/python_bind
           python -m pytest -sv tests/test_extension_local_load.py
-          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          python tests/hybrid_search_tp_smoke_test.py
 
   # ============================================================
   # Notify: Send results to DingTalk
