@@ -991,10 +991,13 @@ std::unique_ptr<::common::Expression> GExprConverter::convertCast(
   case common::ExpressionType::LITERAL: {
     return castLiteral(expr);
   }
-  case common::ExpressionType::PARAMETER: {  // cast dynamic param by
-                                             // setting its meta data with
-                                             // target type
-    return convert(*sourceExpr, schemaAlias);
+  case common::ExpressionType::PARAMETER: {
+    // Inference can assign the target type to an untyped parameter. An
+    // explicitly typed parameter still needs its runtime conversion.
+    if (sourceExpr->getDataType() == expr.getDataType()) {
+      return convert(*sourceExpr, schemaAlias);
+    }
+    return convertExtensionFunc(scalarExpr, schemaAlias);
   }
   default: {  // convert to cast extension function for other conditions
     return convertExtensionFunc(scalarExpr, schemaAlias);

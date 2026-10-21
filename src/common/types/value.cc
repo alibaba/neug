@@ -753,6 +753,12 @@ Value Value::FromJson(const rapidjson::Value& json_value,
           "Expected an (u)int64/string for TimestampMs type");
     }
   }
+  case DataTypeId::kInterval: {
+    if (!json_value.IsString()) {
+      THROW_INVALID_ARGUMENT_EXCEPTION("Expected a string for Interval type");
+    }
+    return Value::INTERVAL(Interval(std::string(json_value.GetString())));
+  }
   case DataTypeId::kList: {
     std::vector<Value> values;
     if (!json_value.IsArray()) {
