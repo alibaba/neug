@@ -27,9 +27,8 @@ INSTALL: the official extension repository does not publish Windows
 packages yet, so the Windows CI validates the build+load chain directly
 against the locally produced artifacts.
 
-vector_search is skipped on Windows: the ZVec dependency needs a
-source-level MSVC port (pthread/mmap/attribute usage across 47+ files),
-which is tracked separately from the CMake-level extension enablement.
+The Windows job additionally validates the locally built vector_search
+extension and its registration.
 """
 
 import sys
@@ -98,9 +97,9 @@ def test_load_local_extension(ext_name: str, tmp_path):
 
 
 @pytest.mark.skipif(
-    sys.platform == "win32",
-    reason="vector_search needs a source-level MSVC port of ZVec "
-    "(pthread/mmap/attribute usage); it stays testable on macOS/Linux",
+    sys.platform != "win32",
+    reason="Additional vector_search load coverage for the Windows job",
 )
-def test_vector_search_skipped_on_windows():
-    """Documents the intentional gap in the Windows extension matrix."""
+def test_load_local_vector_search(tmp_path):
+    """Load the Windows build artifact and verify extension registration."""
+    test_load_local_extension("vector_search", tmp_path)

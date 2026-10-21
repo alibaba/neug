@@ -365,6 +365,16 @@ jobs:
       run:
         shell: pwsh
 
+    env:
+      SCCACHE_GHA_ENABLED: 'true'
+      # Stable across commits/runners; sccache hashes compiler, inputs and flags.
+      SCCACHE_GHA_VERSION: windows-extensions-${{ matrix.triplet }}-v1
+      # Environment launchers also reach fresh ExternalProject configurations,
+      # including ZVec, without changing other jobs' CMake configuration.
+      CMAKE_C_COMPILER_LAUNCHER: sccache
+      CMAKE_CXX_COMPILER_LAUNCHER: sccache
+      NINJA_STATUS: '[%f/%t running=%r elapsed=%es] '
+
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -399,6 +409,12 @@ jobs:
         uses: ilammy/msvc-dev-cmd@v1
         with:
           arch: ${{ matrix.arch }}
+
+      - name: Setup compiler cache
+        id: sccache
+        uses: mozilla-actions/sccache-action@v0.0.11
+        with:
+          version: v0.18.0
 
       - name: Setup Python
         uses: actions/setup-python@v5
@@ -488,6 +504,22 @@ jobs:
           Write-Host "Building with $jobs parallel jobs"
           cmake --build build -j $jobs
 
+      - name: Show compiler cache statistics
+        if: always() && steps.sccache.outcome == 'success'
+        run: sccache --show-stats
+
+      - name: Upload Ninja timing logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ninja-logs-windows-${{ matrix.arch }}-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            build/.ninja_log
+            build/**/.ninja_log
+          include-hidden-files: true
+          if-no-files-found: warn
+          retention-days: 14
+
       - name: Verify extension artifacts
         run: |
           $expected = @("fts", "gds", "httpfs", "parquet", "pattern_matching", "vector_search", "test_out_of_tree")
@@ -508,6 +540,8 @@ jobs:
           NEUG_EXTENSION_HOME_PYENV: ${{ github.workspace }}/build
         run: |
           cd tools/python_bind
+          python -m pytest -sv tests/test_extension_local_load.py
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           python tests/hybrid_search_tp_smoke_test.py
 
   # ============================================================
