@@ -55,6 +55,11 @@ function(build_zvec_as_third_party)
     if(EXISTS "${_zvec_patch}")
         _neug_apply_patch("${ZVEC_SOURCE_DIR}" "${_zvec_patch}" "zvec.patch")
     endif()
+    if(MSVC)
+        _neug_apply_patch("${ZVEC_SOURCE_DIR}"
+            "${CMAKE_SOURCE_DIR}/third_party/zvec-msvc-runtime.patch"
+            "ZVec MSVC runtime patch")
+    endif()
 
     _neug_apply_zvec_patch(
         "${ZVEC_SOURCE_DIR}/thirdparty/antlr/antlr4"

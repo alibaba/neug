@@ -1,0 +1,12 @@
+diff --git a/cmake/bazel.cmake b/cmake/bazel.cmake
+--- a/cmake/bazel.cmake
++++ b/cmake/bazel.cmake
+@@ -419,7 +419,7 @@
+   if(ZVEC_USE_STATIC_CRT)
+     set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>" CACHE STRING "" FORCE)
+   else()
+-    set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreadedDLL$<$<CONFIG:Debug>:Debug>" CACHE STRING "" FORCE)
++    set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>DLL" CACHE STRING "" FORCE)
+   endif()
+ 
+   set(
