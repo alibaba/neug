@@ -501,15 +501,17 @@ pybind11::object fetch_value_from_column(const neug::Array& column,
     const auto& validity_map = col.validity();
     if (is_valid(validity_map, index)) {
       int64_t milliseconds_since_epoch = col.values(index);
-      pybind11::object datetime =
-          pybind11::module_::import("datetime").attr("datetime");
-      pybind11::object utcfromtimestamp = datetime.attr("utcfromtimestamp");
-      auto seconds_since_epoch = milliseconds_since_epoch / 1000;
-      auto remaining_ms = milliseconds_since_epoch % 1000;
-      return pybind11::cast<pybind11::object>(
-          utcfromtimestamp(seconds_since_epoch)
-              .attr("replace")(pybind11::arg("microsecond") =
-                                   remaining_ms * 1000));
+      // Build the datetime with pure epoch arithmetic instead of
+      // datetime.utcfromtimestamp(): the latter defers to the platform C
+      // library and raises OSError(EINVAL) on Windows for pre-1970 (negative)
+      // timestamps, and it is deprecated since Python 3.12. timedelta
+      // arithmetic is portable across platforms and yields the same naive
+      // datetime.
+      pybind11::object datetime_module = pybind11::module_::import("datetime");
+      pybind11::object epoch = datetime_module.attr("datetime")(1970, 1, 1);
+      pybind11::object delta = datetime_module.attr("timedelta")(
+          pybind11::arg("milliseconds") = milliseconds_since_epoch);
+      return epoch.attr("__add__")(delta);
     } else {
       return pybind11::none();
     }
