@@ -151,7 +151,11 @@ init_workspace_and_env() {
   fi
   #if macos
   if [[ "${OS_PLATFORM}" == *"Darwin"* ]]; then
-    export MACOSX_DEPLOYMENT_TARGET=10.15
+    local default_target=10.15
+    if [[ "${ARCH}" == "arm64" ]]; then
+      default_target=11.0
+    fi
+    export MACOSX_DEPLOYMENT_TARGET="${MACOSX_DEPLOYMENT_TARGET:-${default_target}}"
   fi
 }
 
@@ -242,8 +246,48 @@ install_openssl() {
   rm -rf "${tempdir:?}/${directory:?}" "${tempdir:?}/${file:?}"
 }
 
-# Keep cURL static for portable extensions, but use the same OpenSSL as NeuG.
-# macOS uses Homebrew OpenSSL 3; the Linux source-build path uses install_prefix.
+# Homebrew binaries may require a newer macOS than the wheels support.
+# Build OpenSSL for our deployment target in a prefix isolated from old 1.1 libs.
+install_openssl_macos() {
+  export OPENSSL_ROOT_DIR="${install_prefix}/openssl"
+  local version=3.5.9
+  local directory="openssl-${version}"
+  local file="${directory}.tar.gz"
+  local checksum=603f5602e2eef00d77fbd429d34dcd5822bb301757a1bc9cdb24c670f1eb859a
+  local stamp="${OPENSSL_ROOT_DIR}/.neug-build-config"
+  local build_config="${version} ${ARCH} ${MACOSX_DEPLOYMENT_TARGET}"
+  if [[ -f "${stamp}" && "$(cat "${stamp}")" == "${build_config}" &&
+        -f "${OPENSSL_ROOT_DIR}/include/openssl/ssl.h" &&
+        -f "${OPENSSL_ROOT_DIR}/lib/libssl.3.dylib" &&
+        -f "${OPENSSL_ROOT_DIR}/lib/libcrypto.3.dylib" ]]; then
+    info "OpenSSL already built for this architecture and macOS target, skip."
+    return 0
+  fi
+
+  mkdir -p "${OPENSSL_ROOT_DIR}"
+  : > "${stamp}"
+  pushd "${tempdir}" || exit
+  # Use the system downloader: an old curl in install_prefix may be broken.
+  /usr/bin/curl -fL --retry 3 -o "${file}" \
+    "https://github.com/openssl/openssl/releases/download/openssl-${version}/${file}"
+  printf '%s  %s\n' "${checksum}" "${file}" | shasum -a 256 -c -
+  tar zxf "${file}"
+  pushd "${directory}" || exit
+  if [[ -f Makefile ]]; then
+    make distclean
+  fi
+  ./Configure "darwin64-${ARCH}-cc" shared no-tests \
+    --prefix="${OPENSSL_ROOT_DIR}" --libdir=lib --openssldir=/etc/ssl \
+    "-mmacosx-version-min=${MACOSX_DEPLOYMENT_TARGET}"
+  make -j"$(sysctl -n hw.physicalcpu)"
+  make install_sw
+  printf '%s\n' "${build_config}" > "${stamp}"
+  popd || exit
+  popd || exit
+  rm -rf "${tempdir:?}/${directory:?}" "${tempdir:?}/${file:?}"
+}
+
+# Keep cURL static, using the same OpenSSL and deployment target as NeuG.
 install_curl() {
   local openssl_prefix="${OPENSSL_ROOT_DIR:?Select OpenSSL before building curl}"
   local stamp="${install_prefix}/share/neug/curl-openssl-config"
@@ -251,7 +295,7 @@ install_curl() {
   local build_config openssl_real_prefix openssl_header_checksum
   openssl_real_prefix=$(cd "${openssl_prefix}" && pwd -P)
   openssl_header_checksum=$(cksum < "${openssl_prefix}/include/openssl/opensslv.h")
-  build_config="${openssl_real_prefix} ${openssl_header_checksum}"
+  build_config="${openssl_real_prefix} ${openssl_header_checksum} ${ARCH} ${MACOSX_DEPLOYMENT_TARGET:-}"
   if [[ -f "${stamp}" && "$(cat "${stamp}")" == "${build_config}" &&
         -f "${install_prefix}/include/curl/curl.h" &&
         ( -f "${install_prefix}/lib/libcurl.a" || -f "${install_prefix}/lib64/libcurl.a" ) ]]; then
@@ -302,7 +346,7 @@ install_curl() {
   rm -rf "${tempdir:?}/${directory:?}" "${tempdir:?}/${file:?}"
 }
 
-INTERACTIVE_MACOS=("xsimd" "cmake" "zstd" "lz4" "zlib" "openssl@3")
+INTERACTIVE_MACOS=("xsimd" "cmake" "zstd" "lz4" "zlib")
 INTERACTIVE_UBUNTU=("cmake" "libssl-dev" "libzstd-dev" "liblz4-dev" "zlib1g-dev") # levedb for brpc
 INTERACTIVE_CENTOS=("libzstd-devel" "lz4-devel" "zlib-devel")
 
@@ -310,8 +354,7 @@ install_neug_dependencies() {
   # dependencies package
   if [[ "${OS_PLATFORM}" == *"Darwin"* ]]; then
     brew install ${INTERACTIVE_MACOS[*]}
-    OPENSSL_ROOT_DIR=$(brew --prefix openssl@3)
-    export OPENSSL_ROOT_DIR
+    install_openssl_macos
     install_curl
   elif [[ "${OS_PLATFORM}" == *"Ubuntu"* ]]; then
     DEBIAN_FRONTEND=noninteractive TZ=Etc/UTC ${SUDO} apt-get install -y ${INTERACTIVE_UBUNTU[*]}
@@ -343,6 +386,7 @@ write_env_config() {
   {
     if [[ "${OS_PLATFORM}" == *"Darwin"* ]]; then
       echo "export OPENSSL_ROOT_DIR=${OPENSSL_ROOT_DIR}"
+      echo "export MACOSX_DEPLOYMENT_TARGET=${MACOSX_DEPLOYMENT_TARGET}"
     elif [[ "${OS_PLATFORM}" == *"CentOS"* || "${OS_PLATFORM}" == *"Aliyun"* ]]; then
       if [[ "${OS_VERSION}" -eq "7" ]]; then
         echo "source /opt/rh/devtoolset-10/enable"
