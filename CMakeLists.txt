@@ -719,10 +719,8 @@ if (BUILD_HTTP_SERVER)
     include_directories(${LEVELDB_INCLUDE_PATH})
 
     if (NOT WIN32)
-        find_library(CRYPTO_LIB NAMES crypto)
-        if (NOT CRYPTO_LIB)
-            message(FATAL_ERROR "Fail to find crypto lib")
-        endif()
+        # Reuse the selected OpenSSL; a separate search can pick up Homebrew.
+        set(CRYPTO_LIB OpenSSL::Crypto)
         find_library(PROTOC_LIB name protoc)
         if (NOT PROTOC_LIB)
             message(FATAL_ERROR "Fail to find protoc lib")
