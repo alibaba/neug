@@ -184,11 +184,8 @@ jobs:
   # cibuildwheel using the same MSVC + Ninja + vcpkg static-md toolchain proven
   # by wheels-common.yml (core wheel) and PR #1136 (Windows extension build),
   # then extract and publish to OSS under the getPlatform() names win_x86_64 /
-  # win_arm64. vector_search is excluded until the ZVec MSVC port lands.
-  #
-  # HARD DEPENDENCY on PR #1136: main still FORCE-clears BUILD_EXTENSIONS on
-  # Windows (CMakeLists.txt) and leaks NEUG_EXPORTS at root scope, so extensions
-  # cannot build until #1136 merges. Do not trigger a release before then.
+  # win_arm64. All six extensions build here, including vector_search now that
+  # the ZVec MSVC port landed (#1141).
   build_extensions_windows:
     needs: prepare
     strategy:
@@ -303,14 +300,16 @@ jobs:
       - name: Install release tools
         run: python -m pip install cibuildwheel==3.4.0 'urllib3<2' oss2
 
-      # Drop vector_search (no ZVec MSVC port yet) from the requested list while
-      # honoring any custom workflow_dispatch extensions input.
+      # vector_search is buildable on Windows now that the ZVec MSVC port
+      # landed (#1141), so the Windows legs build the same extension set as the
+      # other platforms. This step only normalizes/validates the requested list
+      # and honors any custom workflow_dispatch extensions input.
       - name: Determine Windows extension list
         run: |
           $exts = "${{ needs.prepare.outputs.extensions }}" -split ';' |
-            Where-Object { $_ -and $_ -ne 'vector_search' }
+            Where-Object { $_ }
           if ($exts.Count -eq 0) {
-            Write-Error "No buildable extensions remain after excluding vector_search"
+            Write-Error "No extensions requested"
             exit 1
           }
           $winExts = $exts -join ';'
