@@ -25,6 +25,7 @@
 #include "neug/storages/graph_snapshot_store.h"
 #include "neug/transaction/timestamp_lease.h"
 #include "neug/transaction/version_manager.h"
+#include "neug/transaction/wal/local_wal_parser.h"
 #include "neug/transaction/wal/wal.h"
 
 #ifndef _WIN32
@@ -67,6 +68,83 @@ std::string make_test_dir() {
                         std::to_string(::getpid()) + "_" +
                         info->test_suite_name() + "_" + info->name();
   return (std::filesystem::temp_directory_path() / dir_name).string();
+}
+
+TEST(LegacyInsertWalReplayTest, ReusesDeletedVertexAfterSchemaReplay) {
+  const auto test_dir = make_test_dir();
+  std::filesystem::remove_all(test_dir);
+  neug::NeugDBConfig config(test_dir);
+  config.checkpoint_on_close = false;
+  {
+    neug::NeugDB db;
+    ASSERT_TRUE(db.Open(config));
+    {
+      neug::NeugDBService service(db);
+      auto slot = service.AcquireExecutionSlot();
+      // Keep schema creation in WAL: replay must create ChunkedColumn even
+      // though the legacy writer originally created TypedColumn.
+      for (
+          const auto& request : {
+              R"({"query":"CREATE NODE TABLE v(id INT64, val INT64, PRIMARY KEY(id));","access_mode":"schema","parameters":{}})",
+              R"({"query":"CREATE REL TABLE e(FROM v TO v, a INT64, b INT64);","access_mode":"schema","parameters":{}})",
+              R"({"query":"CREATE (:v {id:1, val:10});","access_mode":"insert","parameters":{}})",
+              R"({"query":"MATCH (n:v {id:1}) DELETE n;","access_mode":"update","parameters":{}})",
+          }) {
+        auto result = slot->ExecuteTransactionalRequest(request);
+        ASSERT_TRUE(result) << result.error().ToString();
+      }
+    }
+    db.Close();
+  }
+
+  // Old versions emitted type=0 WAL for deleted-key reinsertion. Construct
+  // that record explicitly; the current online path retries it through COW.
+  const auto wal_dir = (std::filesystem::path(test_dir) / "wal" / "0").string();
+  neug::LocalWalParser parser(wal_dir);
+  const auto timestamp = parser.last_ts() + 1;
+  parser.close();
+  neug::InArchive arc;
+  arc.Resize(sizeof(neug::WalHeader));
+  neug::InsertVertexRedo::Serialize(arc, "v", Value::INT64(1),
+                                    {Value::INT64(20)});
+  neug::InsertVertexRedo::Serialize(arc, "v", Value::INT64(2),
+                                    {Value::INT64(30)});
+  neug::InsertEdgeRedo::Serialize(arc, "v", Value::INT64(1), "v",
+                                  Value::INT64(2), "e",
+                                  {Value::INT64(40), Value::INT64(50)});
+  auto* header = reinterpret_cast<neug::WalHeader*>(arc.GetBuffer());
+  header->timestamp = timestamp;
+  header->type = 0;
+  header->length = arc.GetSize() - sizeof(neug::WalHeader);
+  auto writer = neug::WalWriterFactory::CreateWalWriter(wal_dir, 100);
+  writer->open(wal_dir);
+  ASSERT_TRUE(writer->append(arc.GetBuffer(), arc.GetSize()));
+  writer->close();
+
+  // Verify both WAL recovery and the checkpoint produced from recovered data.
+  for (int reopen = 0; reopen < 2; ++reopen) {
+    neug::NeugDB db;
+    ASSERT_TRUE(db.Open(config));
+    auto conn = db.Connect();
+    auto vertices = conn->Query("MATCH (n:v) RETURN n.val ORDER BY n.id;");
+    ASSERT_TRUE(vertices) << vertices.error().ToString();
+    const auto& values = vertices.value().response().arrays(0).int64_array();
+    ASSERT_EQ(values.values_size(), 2);
+    EXPECT_EQ(values.values(0), 20);
+    EXPECT_EQ(values.values(1), 30);
+    auto edges =
+        conn->Query("MATCH (:v {id:1})-[r:e]->(:v {id:2}) RETURN r.a, r.b;");
+    ASSERT_TRUE(edges) << edges.error().ToString();
+    ASSERT_EQ(edges.value().response().row_count(), 1);
+    EXPECT_EQ(edges.value().response().arrays(0).int64_array().values(0), 40);
+    EXPECT_EQ(edges.value().response().arrays(1).int64_array().values(0), 50);
+    if (reopen == 0) {
+      ASSERT_TRUE(conn->Query("CHECKPOINT;"));
+    }
+    conn->Close();
+    db.Close();
+  }
+  std::filesystem::remove_all(test_dir);
 }
 
 TEST(WalWriterTest, ReopensSameInstanceOnNewTimeline) {
@@ -435,6 +513,39 @@ TEST(WalReplayVersionManagerTest, ResetTimelineAfterMakeUpdateExclusive) {
 
   auto read = version_manager.acquire_read_operation();
   EXPECT_EQ(read.published_view.visibility_ts, 0);
+}
+
+// The maintenance watermark must sit below the reserved sentinel encodings so
+// ordinary write timestamps can never collide with MAX_TIMESTAMP.
+TEST(WalReplayVersionManagerTest, WatermarkStaysBelowReservedEncodings) {
+  EXPECT_LT(neug::VersionManager::kWriteTimestampWatermark,
+            neug::MAX_TIMESTAMP);
+  // The guard band must cover at least the in-flight reservation window.
+  EXPECT_GE(neug::VersionManager::kTimestampGuardBand,
+            neug::TimestampWindow::kWindowSize);
+}
+
+// The last reservable ordinary timestamp is watermark-1 (below MAX_TIMESTAMP);
+// the next reservation reaches the watermark and is rejected.
+TEST(WalReplayVersionManagerTest, OrdinaryTimestampsStopAtWatermark) {
+  neug::VersionManager version_manager;
+  version_manager.init_ts(
+      {neug::VersionManager::kWriteTimestampWatermark - 2, 0}, 1);
+  const auto ts = version_manager.acquire_insert_timestamp();
+  EXPECT_EQ(ts, neug::VersionManager::kWriteTimestampWatermark - 1);
+  EXPECT_LT(ts, neug::MAX_TIMESTAMP);
+  version_manager.release_insert_timestamp(ts);
+  // write_ts now equals the watermark; the next reservation must be rejected.
+  EXPECT_THROW(version_manager.acquire_insert_timestamp(), std::exception);
+}
+
+// A recovered timestamp at/above the watermark must be rejected at init so a
+// writable open cannot silently proceed into the reserved-encoding range.
+TEST(WalReplayVersionManagerTest, InitRejectsRecoveredTimestampAtWatermark) {
+  neug::VersionManager version_manager;
+  EXPECT_THROW(version_manager.init_ts(
+                   {neug::VersionManager::kWriteTimestampWatermark, 0}, 1),
+               std::exception);
 }
 
 TEST(WalReplayVersionManagerTest,
