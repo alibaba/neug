@@ -1,0 +1,281 @@
+name: Release
+
+on:
+  release:
+    types:
+      - published
+
+permissions:
+  contents: read
+  actions: read
+  pull-requests: read
+  id-token: write
+
+concurrency:
+  group: ci-release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  package:
+    name: Build and Verify Release Packages
+    uses: ./.github/workflows/package.yml
+    secrets: inherit
+
+  publish_wheel:
+    name: Publish Wheel
+    needs: package
+    if: github.repository == 'alibaba/neug' && github.event_name == 'release' && github.event.action == 'published'
+    runs-on: ubuntu-22.04
+    permissions:
+      contents: read
+      actions: read
+    steps:
+    # ========================================
+    # Phase 1: Prepare
+    # ========================================
+
+    - uses: actions/checkout@v4
+    - uses: actions/setup-python@v5
+      with:
+        python-version: '3.13'
+    - uses: actions/download-artifact@v4
+      with:
+        pattern: wheels-*${{ github.run_id }}
+        path: downloaded
+        merge-multiple: true
+
+    # ========================================
+    # Phase 2: Publish
+    # ========================================
+
+    - name: Check Wheel Metadata
+      shell: bash
+      run: |-
+        python3 -m pip install twine
+        python3 -m twine check downloaded/*.whl
+
+    - name: Publish Verified Wheels
+      shell: bash
+      run: python3 -m twine upload downloaded/*.whl
+      env:
+        TWINE_USERNAME: __token__
+        TWINE_PASSWORD: ${{ secrets.PYPI_PASSWORD }}
+
+  publish_npm:
+    name: Publish npm
+    needs: package
+    if: github.repository == 'alibaba/neug' && github.event_name == 'release' && github.event.action == 'published'
+    runs-on: ubuntu-22.04
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+    # ========================================
+    # Phase 1: Prepare
+    # ========================================
+
+
+    - name: Checkout
+      uses: actions/checkout@v4
+
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '20'
+        registry-url: https://registry.npmjs.org
+
+    - name: Download npm Tarballs
+      uses: actions/download-artifact@v4
+      with:
+        pattern: nodejs-*-${{ github.run_id }}
+        path: dist/npm
+        merge-multiple: true
+
+    - name: List npm Tarballs
+      shell: bash
+      run: |
+        find dist/npm -maxdepth 2 -name '*.tgz' -print | sort
+
+    - name: Prepare Main Package
+      shell: bash
+      run: |
+        MAIN_DIR="dist/npm-main"
+        mkdir -p "$MAIN_DIR"
+        cp tools/nodejs_bind/assets/package.json "$MAIN_DIR/package.json"
+        cp tools/nodejs_bind/assets/index.js "$MAIN_DIR/index.js"
+
+    # ========================================
+    # Phase 2: Publish
+    # ========================================
+
+    - name: Publish npm Packages
+      env:
+        NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        RELEASE_TAG: ${{ github.event_name == 'release' && github.event.release.tag_name || github.ref_name }}
+      shell: bash
+      run: |
+        set -euo pipefail
+
+        # These names are npm pack outputs inside the downloaded artifact containers.
+        linux_x86_64=(dist/npm/graphscope-neug-linux-x86_64-*.tgz)
+        osx_arm64=(dist/npm/graphscope-neug-osx-arm64-*.tgz)
+
+        # Fail early if a required platform package was not built or downloaded.
+        if [ ! -f "${linux_x86_64[0]}" ]; then
+          echo "No linux-x86_64 npm tarball found."
+          exit 1
+        fi
+
+        if [ ! -f "${osx_arm64[0]}" ]; then
+          echo "No osx-arm64 npm tarball found."
+          exit 1
+        fi
+
+        # The tag version must match every package version before publish is attempted.
+        VERSION="${RELEASE_TAG#v}"
+        python3 tools/nodejs_bind/scripts/validate_npm_version.py \
+          "${linux_x86_64[0]}" '@graphscope-neug/linux-x86_64' "$VERSION"
+        python3 tools/nodejs_bind/scripts/validate_npm_version.py \
+          "${osx_arm64[0]}" '@graphscope-neug/osx-arm64' "$VERSION"
+        python3 tools/nodejs_bind/scripts/validate_npm_version.py \
+          dist/npm-main '@graphscope-neug/neug' "$VERSION" \
+          --optional-dependency '@graphscope-neug/linux-x86_64' \
+          --optional-dependency '@graphscope-neug/osx-arm64'
+
+        # npm publish must run from package directories, so unpack platform tarballs first.
+        mkdir -p dist/npm-packages/linux-x86_64 dist/npm-packages/osx-arm64
+        tar -xzf "${linux_x86_64[0]}" -C dist/npm-packages/linux-x86_64
+        tar -xzf "${osx_arm64[0]}" -C dist/npm-packages/osx-arm64
+
+        npm publish ./dist/npm-packages/linux-x86_64/package --access public
+        npm publish ./dist/npm-packages/osx-arm64/package --access public
+        npm publish ./dist/npm-main --access public
+
+  publish_extension:
+    name: Publish Extension
+    needs: package
+    if: github.repository == 'alibaba/neug' && github.event_name == 'release' && github.event.action == 'published'
+    runs-on: ubuntu-22.04
+    permissions:
+      contents: read
+      actions: read
+    steps:
+    # ========================================
+    # Phase 1: Prepare
+    # ========================================
+
+    - uses: actions/checkout@v4
+    - uses: actions/setup-python@v5
+      with:
+        python-version: '3.13'
+    - uses: actions/download-artifact@v4
+      with:
+        pattern: extension-packages-linux-x86_64-*
+        path: extension_packages
+        merge-multiple: true
+
+    - name: Install OSS Client
+      shell: bash
+      run: python3 -m pip install oss2
+
+    # ========================================
+    # Phase 2: Publish
+    # ========================================
+
+    - name: Upload Extensions using Original OSS Helper
+      shell: bash
+      run: |
+        python3 - <<'PYCODE'
+        import importlib.util
+        import os
+        from pathlib import Path
+        spec = importlib.util.spec_from_file_location('extensions', 'scripts/publish_extensions_from_wheel.py')
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        # Preserve the original OSS publishing platform; other platforms remain artifacts.
+        folder = Path('extension_packages')
+        files = {p.name.removeprefix('lib').removesuffix('.neug_extension'):
+                 (p, p.with_name(p.name + '.sha256')) for p in folder.glob('*.neug_extension')}
+        if not files:
+            raise RuntimeError('No Linux x86_64 extension artifacts')
+        module.upload_artifacts(files, os.environ['RELEASE_TAG'], 'linux_x86_64')
+        PYCODE
+      env:
+        OSS_ACCESS_KEY_ID: ${{ secrets.OSS_ACCESS_KEY_ID }}
+        OSS_ACCESS_KEY_SECRET: ${{ secrets.OSS_ACCESS_KEY_SECRET }}
+        OSS_ENDPOINT: ${{ secrets.OSS_ENDPOINT }}
+        OSS_BUCKET_NAME: ${{ secrets.OSS_BUCKET_NAME }}
+        RELEASE_TAG: ${{ github.event.release.tag_name }}
+
+  publish_java:
+    name: Publish Java
+    needs: package
+    if: github.repository == 'alibaba/neug' && github.event_name == 'release' && github.event.action == 'published'
+    runs-on: ubuntu-22.04
+    permissions:
+      contents: read
+      actions: read
+    steps:
+    # ========================================
+    # Phase 1: Prepare
+    # ========================================
+
+
+    - name: Checkout Repository
+      uses: actions/checkout@v4
+      with:
+        submodules: recursive
+
+    - name: Set Up JDK
+      uses: actions/setup-java@v4
+      with:
+        java-version: '17'
+        distribution: temurin
+        server-id: central
+        server-username: MAVEN_CENTRAL_USERNAME
+        server-password: MAVEN_CENTRAL_PASSWORD
+        gpg-private-key: ${{ secrets.GPG_PRIVATE_KEY }}
+        gpg-passphrase: GPG_PASSPHRASE
+
+    - name: Download Tested Java Packages
+      uses: actions/download-artifact@v4
+      with:
+        name: java-${{ github.run_id }}
+        path: tools/java_driver
+
+    # ========================================
+    # Phase 2: Publish
+    # ========================================
+
+    - name: Remove SNAPSHOT from Version
+      working-directory: tools/java_driver
+      shell: bash
+      run: mvn -B versions:set -DremoveSnapshot -DgenerateBackupPoms=false
+
+    - name: Publish to Maven Central
+      working-directory: tools/java_driver
+      shell: bash
+      run: mvn -B deploy -DskipTests
+      env:
+        MAVEN_CENTRAL_USERNAME: ${{ secrets.MAVEN_CENTRAL_USERNAME }}
+        MAVEN_CENTRAL_PASSWORD: ${{ secrets.MAVEN_CENTRAL_PASSWORD }}
+        GPG_PASSPHRASE: ${{ secrets.GPG_PASSPHRASE }}
+
+  report:
+    if: always()
+    needs:
+      - package
+      - publish_wheel
+      - publish_npm
+      - publish_extension
+      - publish_java
+    runs-on: ubuntu-22.04
+    steps:
+
+    - name: Summarize Results
+      shell: bash
+      env:
+        RESULTS: ${{ toJSON(needs) }}
+      run: |
+        set -euo pipefail
+        printf '## CI result\n```json\n%s\n```\n' "$RESULTS" >> "$GITHUB_STEP_SUMMARY"

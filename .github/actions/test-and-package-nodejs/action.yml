@@ -1,0 +1,87 @@
+name: Node.js Tests and Packaging
+
+description: Run tests, then optionally package and upload existing build outputs.
+
+inputs:
+  package:
+    description: Enable packaging tests
+    default: 'false'
+  upload_artifacts:
+    description: Upload tested packages
+    default: 'false'
+  artifact_platform:
+    description: Platform identifier used in artifact names
+    required: true
+
+runs:
+  using: composite
+  steps:
+
+  - name: Run Node.js Tests
+    shell: bash
+    run: |-
+      set -euo pipefail
+      cd tools/nodejs_bind
+      node tests/test-shim.js
+
+  - name: Install npm Packaging Dependency
+    if: inputs.package == 'true'
+    shell: bash
+    run: |
+      python3 -m pip install "$REPAIR_TOOL"
+    env:
+      REPAIR_TOOL: ${{ runner.os == 'macOS' && 'delocate' || 'patchelf' }}
+
+  - name: Pack Current Node.js Binding
+    if: inputs.package == 'true'
+    shell: bash
+    run: |
+      set -euo pipefail
+      case "$RUNNER_OS" in
+        Linux) source /home/neug/.neug_env ;;
+        macOS) source "$HOME/.neug_env" ;;
+      esac
+      cd tools/nodejs_bind
+      make bundle BUILD_TYPE=Release
+      cp package.json "$RUNNER_TEMP/ci-package.json"
+      trap 'cp "$RUNNER_TEMP/ci-package.json" package.json' EXIT
+      export ARTIFACT_PLATFORM=$(make --no-print-directory -s --eval 'ci-package-platform:;@echo $(OS_TAG)-$(ARCH_TAG)' ci-package-platform)
+      node <<'JS'
+      const fs = require('fs');
+      const p = JSON.parse(fs.readFileSync('package.json'));
+      p.name = '@graphscope-neug/' + process.env.ARTIFACT_PLATFORM;
+      p.os = [process.platform];
+      p.cpu = [process.arch];
+      fs.writeFileSync('package.json', JSON.stringify(p, null, 2) + '\n');
+      JS
+      npm pack
+
+  - name: Validate npm Package
+    if: inputs.package == 'true'
+    shell: bash
+    env:
+      ARTIFACT_PLATFORM: ${{ inputs.artifact_platform }}
+    run: |
+      set -euo pipefail
+      test_dir=$(mktemp -d "$RUNNER_TEMP/neug-npm-validate.XXXXXX")
+      cd "$test_dir"
+      npm install "$GITHUB_WORKSPACE/tools/nodejs_bind/graphscope-neug-${ARTIFACT_PLATFORM}-"*.tgz
+      node <<'JS'
+      const { Database } = require('@graphscope-neug/' + process.env.ARTIFACT_PLATFORM);
+      const db = new Database({ databasePath: '', mode: 'w' });
+      const conn = db.connect();
+      const result = conn.execute('RETURN 1');
+      console.log(result.toString());
+      result.close();
+      conn.close();
+      db.close();
+      JS
+
+  - name: Upload Node.js
+    if: inputs.package == 'true' && inputs.upload_artifacts == 'true'
+    uses: actions/upload-artifact@v4
+    with:
+      name: nodejs-${{ inputs.artifact_platform }}-${{ github.run_id }}
+      path: tools/nodejs_bind/*.tgz
+      if-no-files-found: error
+      retention-days: 7

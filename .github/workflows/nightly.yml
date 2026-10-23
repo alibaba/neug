@@ -1,0 +1,75 @@
+name: nightly-test
+
+on:
+  schedule:
+    # Run at 22:00 CST Tuesday through Sunday; Monday is covered by package.yml.
+    - cron: 0 14 * * 0,2-6
+
+permissions:
+  contents: read
+  pull-requests: read
+
+concurrency:
+  group: ci-nightly-test
+  cancel-in-progress: false
+
+jobs:
+  linux_x86_64:
+    uses: ./.github/workflows/Linux.yml
+    with:
+      architectures: '["x86_64"]'
+      extensions: parquet;httpfs;gds;pattern_matching;vector_search;fts
+      packages: '["wheel","npm","java"]'
+      python_versions: '3.13'
+      coverage: true
+    secrets: inherit
+
+  linux_arm64:
+    uses: ./.github/workflows/Linux.yml
+    with:
+      architectures: '["arm64"]'
+      extensions: parquet;httpfs;gds;pattern_matching;vector_search;fts
+      packages: '["wheel","npm"]'
+      python_versions: '3.13'
+    secrets: inherit
+
+  macos:
+    uses: ./.github/workflows/OSX.yml
+    with:
+      extensions: parquet;httpfs;gds;pattern_matching;vector_search;fts
+      packages: '["wheel","npm"]'
+      python_versions: '3.13'
+    secrets: inherit
+
+  # Windows CI is still being updated; re-enable this job and its report dependency together.
+  # windows:
+  #   uses: ./.github/workflows/Windows.yml
+  #   with:
+  #     python_versions: '3.13'
+  #     upload_artifacts: true
+  #   secrets: inherit
+
+  report:
+    if: always()
+    needs:
+      - linux_x86_64
+      - linux_arm64
+      - macos
+      # - windows
+    runs-on: ubuntu-22.04
+    steps:
+
+    - name: Summarize and Notify Results
+      shell: bash
+      env:
+        RESULTS: ${{ toJSON(needs) }}
+        DINGTALK_TOKEN: ${{ secrets.DINGTALK_TOKEN }}
+      run: |
+        set -euo pipefail
+        printf '## CI result\n```json\n%s\n```\n' "$RESULTS" >> "$GITHUB_STEP_SUMMARY"
+        if [ -n "$DINGTALK_TOKEN" ] && [ "$GITHUB_REPOSITORY" = alibaba/neug ]; then
+          text="NeuG CI: $GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"
+          curl --fail -sS -X POST "https://oapi.dingtalk.com/robot/send?access_token=$DINGTALK_TOKEN" \
+            -H 'Content-Type: application/json' \
+            -d "{\"msgtype\":\"text\",\"text\":{\"content\":\"$text\"}}"
+        fi

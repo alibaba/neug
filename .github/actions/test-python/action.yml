@@ -1,0 +1,369 @@
+name: Python Tests
+
+description: Run Python core tests and tests for the compiled extensions.
+
+inputs:
+  platform:
+    description: Test platform selected by the caller (linux, macos, windows)
+    required: true
+  extensions:
+    description: Semicolon-separated compiled extension names
+    default: ''
+
+runs:
+  using: composite
+  steps:
+
+  - name: Run Python Test
+    if: inputs.platform != 'windows'
+    shell: bash
+    run: |
+      set -euo pipefail
+      cd ${GITHUB_WORKSPACE}/tools/python_bind/
+      export FLEX_DATA_DIR=${GITHUB_WORKSPACE}/example_dataset/modern_graph
+      python3 -m pytest --cov=neug --cov-report=term --exitfirst --cov-append --cov-config=.coveragerc -sv tests/test_batch_loading.py
+      python3 -m pytest --cov=neug --cov-report=term --exitfirst --cov-append --cov-config=.coveragerc -sv tests/test_alter_property.py
+      python3 -m pytest --cov=neug --cov-report=term --exitfirst --cov-append --cov-config=.coveragerc -sv tests/test_ddl.py
+      export NEUG_DB_DIR=/tmp/tinysnb
+      export NEUG_QUERY='MATCH (n1:person)-[:knows]-(n2:person)-[:knows]-(n3:person), (n1)-[:knows]-(n3) RETURN n1.fName, n2.fName, n3.fName'
+      python3 -m pytest --cov=neug --cov-report=term --exitfirst --cov-append --cov-config=.coveragerc -sv tests/test_query.py
+      export NEUG_DB_DIR=/tmp/modern_graph
+      export NEUG_QUERY='MATCH (n1:person)-[:knows]-(n2:person)-[:knows]-(n3:person), (n1)-[:knows]-(n3) RETURN n1.name, n2.name, n3.name'
+      python3 -m pytest --cov=neug --cov-report=term --exitfirst --cov-append --cov-config=.coveragerc -sv tests/test_query.py
+      python3 -m pytest --cov=neug --cov-report=term --exitfirst --cov-append --cov-config=.coveragerc -sv tests/test_tp_service.py
+      python3 -m pytest --cov=neug --cov-report=term --exitfirst --cov-append --cov-config=.coveragerc -sv tests/test_load.py
+      python3 -m pytest --cov=neug --cov-report=term --exitfirst --cov-append --cov-config=.coveragerc -sv tests/test_load_array.py
+      python3 -m pytest --cov=neug --cov-report=term --exitfirst --cov-append --cov-config=.coveragerc -sv tests/test_export.py
+      python3 -m pytest --cov=neug --cov-report=term --exitfirst --cov-append --cov-config=.coveragerc -sv tests/test_copy_temp.py
+
+  - name: Run LSQB Test
+    if: inputs.platform != 'windows'
+    shell: bash
+    run: |
+      set -euo pipefail
+      cd ${GITHUB_WORKSPACE}/tools/python_bind/
+      export LSQB_DATA_DIR=/tmp/lsqb
+      python3 -m pytest --cov=neug --cov-report=term --exitfirst --cov-append --cov-config=.coveragerc -sv tests/test_lsqb.py
+
+  - name: Run DB Init Test
+    if: inputs.platform != 'windows'
+    shell: bash
+    run: |
+      set -euo pipefail
+      cd ${GITHUB_WORKSPACE}/tools/python_bind/
+      python3 -m pytest --cov=neug --cov-report=term --exitfirst --cov-append --cov-config=.coveragerc -sv tests/test_db_init.py
+
+  - name: Run DB Connection Test
+    if: inputs.platform != 'windows'
+    shell: bash
+    run: |
+      set -euo pipefail
+      cd ${GITHUB_WORKSPACE}/tools/python_bind/
+      python3 -m pytest --cov=neug --cov-report=term --exitfirst --cov-append --cov-config=.coveragerc -sv tests/test_db_connection.py
+
+  - name: Run Query Test
+    if: inputs.platform != 'windows'
+    shell: bash
+    run: |
+      set -euo pipefail
+      cd ${GITHUB_WORKSPACE}/tools/python_bind/
+      python3 -m pytest --cov=neug --cov-report=term --exitfirst --cov-append --cov-config=.coveragerc -sv tests/test_schema.py
+      python3 -m pytest --cov=neug --cov-report=term --exitfirst --cov-append --cov-config=.coveragerc -sv tests/test_dml.py
+      python3 -m pytest --cov=neug --cov-report=term --exitfirst --cov-append --cov-config=.coveragerc -sv tests/test_query.py
+      python3 -m pytest --cov=neug --cov-report=term --exitfirst --cov-append --cov-config=.coveragerc -sv tests/test_path.py
+      python3 -m pytest --cov=neug --cov-report=term --exitfirst --cov-append --cov-config=.coveragerc -sv tests/test_persistence.py
+      python3 -m pytest --cov=neug --cov-report=term --exitfirst --cov-append --cov-config=.coveragerc -sv tests/test_call_string_literal.py
+      python3 -m pytest --cov=neug --cov-report=term --exitfirst --cov-append --cov-config=.coveragerc -sv tests/test_dataset.py
+      python3 -m pytest --cov=neug --cov-report=term --exitfirst --cov-append --cov-config=.coveragerc -sv tests/test_merge.py
+
+  - name: Run TinySNB Tutorial Test
+    if: inputs.platform != 'windows'
+    shell: bash
+    run: |
+      set -euo pipefail
+      cd ${GITHUB_WORKSPACE}/tools/python_bind/
+      python3 -m pytest --cov=neug --cov-report=term --exitfirst --cov-append --cov-config=.coveragerc -sv tests/test_tinysnb_tutorial.py
+
+  - name: Run Transaction Test
+    if: inputs.platform != 'windows'
+    shell: bash
+    run: |
+      set -euo pipefail
+      cd ${GITHUB_WORKSPACE}/tools/python_bind/
+      python3 -m pytest --cov=neug --cov-report=term --exitfirst --cov-append --cov-config=.coveragerc -sv tests/test_db_transaction.py
+
+  - name: Run Import/Export Test
+    if: inputs.platform != 'windows'
+    shell: bash
+    run: |
+      set -euo pipefail
+      cd ${GITHUB_WORKSPACE}/tools/python_bind/
+      python3 -m pytest --cov=neug --cov-report=term --exitfirst --cov-append --cov-config=.coveragerc -sv tests/test_db_import_export.py
+
+  - name: Run Data I/O Documentation Test
+    if: inputs.platform != 'windows'
+    shell: bash
+    run: |
+      set -euo pipefail
+      cd ${GITHUB_WORKSPACE}/tools/python_bind/
+      export FLEX_DATA_DIR=${GITHUB_WORKSPACE}/example_dataset/modern_graph
+      python3 -m pytest --cov=neug --cov-report=term --exitfirst --cov-append --cov-config=.coveragerc -sv tests/test_data_io_docs.py
+
+  - name: Run LOAD from Sniffer Tests (CSV and JSON)
+    if: inputs.platform != 'windows'
+    shell: bash
+    run: |
+      set -euo pipefail
+      cd ${GITHUB_WORKSPACE}/tools/python_bind/
+      python3 -m pytest --cov=neug --cov-report=term --exitfirst --cov-append --cov-config=.coveragerc -sv tests/test_sniffer.py -k "csv or json"
+
+  - name: Run Complex Query Test
+    if: inputs.platform != 'windows'
+    shell: bash
+    run: |
+      set -euo pipefail
+      cd ${GITHUB_WORKSPACE}/tools/python_bind/
+      python3 -m pytest --cov=neug --cov-report=term --exitfirst --cov-append --cov-config=.coveragerc -sv tests/test_db_cases.py
+
+  - name: Run List/Array Test
+    if: inputs.platform != 'windows'
+    shell: bash
+    run: |
+      set -euo pipefail
+      cd ${GITHUB_WORKSPACE}/tools/python_bind/
+      python3 -m pytest --cov=neug --cov-report=term --exitfirst --cov-append --cov-config=.coveragerc -sv tests/test_db_list.py
+      python3 -m pytest --cov=neug --cov-report=term --exitfirst --cov-append --cov-config=.coveragerc -sv tests/test_db_array.py
+
+  - name: Run Concurrency Test
+    if: inputs.platform != 'windows'
+    shell: bash
+    run: |
+      set -euo pipefail
+      cd ${GITHUB_WORKSPACE}/tools/python_bind/
+      python3 -m pytest --cov=neug --cov-report=term --exitfirst --cov-append --cov-config=.coveragerc -sv tests/test_db_concurrent.py
+
+  - name: Run Transaction Concurrent Test
+    if: inputs.platform != 'windows'
+    shell: bash
+    run: |
+      set -euo pipefail
+      cd ${GITHUB_WORKSPACE}/tools/python_bind/
+      python3 -m pytest --cov=neug --cov-report=term --exitfirst --cov-append --cov-config=.coveragerc -sv tests/transaction/elle_tester_insert.py
+
+  - name: Run PyArrow Related Test
+    if: inputs.platform != 'windows'
+    shell: bash
+    run: |
+      set -euo pipefail
+      cd ${GITHUB_WORKSPACE}/tools/python_bind/
+      python3 -m pip install pyarrow==18.0.0
+      python3 -m pytest --cov=neug --cov-report=term --exitfirst --cov-append --cov-config=.coveragerc -sv tests/test_to_arrow.py
+      python3 -m pip uninstall -y pyarrow
+
+  - name: Test CLI Tool
+    if: inputs.platform != 'windows'
+    shell: bash
+    run: |
+      set -euo pipefail
+      cd ${GITHUB_WORKSPACE}/tools/python_bind/
+      python3 -m pytest --cov=neug --cov-report=term --exitfirst --cov-append --cov-config=.coveragerc -sv tests/test_ngcli_commands.py
+      python3 -m pytest --cov=neug --cov-report=term --exitfirst --cov-append --cov-config=.coveragerc -sv tests/test_ngcli_basics.py
+
+  - name: Run Python Schema Tests
+    if: inputs.platform == 'windows'
+    shell: pwsh
+    run: |
+      $ErrorActionPreference = "Stop"
+      $PSNativeCommandUseErrorActionPreference = $true
+      $ErrorActionPreference = 'Stop'
+      cd tools/python_bind
+      python -m pytest -sv tests/test_schema.py --exitfirst
+
+      if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+  - name: Run Python DML Tests
+    if: inputs.platform == 'windows'
+    shell: pwsh
+    run: |
+      $ErrorActionPreference = "Stop"
+      $PSNativeCommandUseErrorActionPreference = $true
+      $ErrorActionPreference = 'Stop'
+      cd tools/python_bind
+      python -m pytest -sv tests/test_dml.py --exitfirst
+
+      if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+  - name: Run Python Query Tests
+    if: inputs.platform == 'windows'
+    shell: pwsh
+    run: |
+      $ErrorActionPreference = "Stop"
+      $PSNativeCommandUseErrorActionPreference = $true
+      $ErrorActionPreference = 'Stop'
+      cd tools/python_bind
+      python -m pytest -sv tests/test_query.py --exitfirst
+
+      if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+  - name: Run Python Path Tests
+    if: inputs.platform == 'windows'
+    shell: pwsh
+    run: |
+      $ErrorActionPreference = "Stop"
+      $PSNativeCommandUseErrorActionPreference = $true
+      $ErrorActionPreference = 'Stop'
+      cd tools/python_bind
+      python -m pytest -sv tests/test_path.py --exitfirst
+
+      if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+  - name: Run Python Dataset Tests
+    if: inputs.platform == 'windows'
+    shell: pwsh
+    run: |
+      $ErrorActionPreference = "Stop"
+      $PSNativeCommandUseErrorActionPreference = $true
+      $ErrorActionPreference = 'Stop'
+      cd tools/python_bind
+      python -m pytest -sv tests/test_dataset.py --exitfirst
+
+      if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+  - name: Run Python Merge Tests
+    if: inputs.platform == 'windows'
+    shell: pwsh
+    run: |
+      $ErrorActionPreference = "Stop"
+      $PSNativeCommandUseErrorActionPreference = $true
+      $ErrorActionPreference = 'Stop'
+      cd tools/python_bind
+      python -m pytest -sv tests/test_merge.py --exitfirst
+
+      if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+  - name: Run Python LOAD from Sniffer Tests (CSV and JSON)
+    if: inputs.platform == 'windows'
+    shell: pwsh
+    run: |
+      $ErrorActionPreference = "Stop"
+      $PSNativeCommandUseErrorActionPreference = $true
+      $ErrorActionPreference = 'Stop'
+      cd tools/python_bind
+      python -m pytest -sv tests/test_sniffer.py -k "csv or json" --exitfirst
+
+      if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+  - name: Run Python Complex Query Tests
+    if: inputs.platform == 'windows'
+    shell: pwsh
+    run: |
+      $ErrorActionPreference = "Stop"
+      $PSNativeCommandUseErrorActionPreference = $true
+      $ErrorActionPreference = 'Stop'
+      cd tools/python_bind
+      python -m pytest -sv tests/test_db_cases.py --exitfirst
+
+      if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+  - name: Run Python list/array Tests
+    if: inputs.platform == 'windows'
+    shell: pwsh
+    run: |
+      $ErrorActionPreference = "Stop"
+      $PSNativeCommandUseErrorActionPreference = $true
+      $ErrorActionPreference = 'Stop'
+      cd tools/python_bind
+      python -m pytest -sv tests/test_db_list.py --exitfirst
+      python -m pytest -sv tests/test_db_array.py --exitfirst
+
+      if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+  - name: Run Python PyArrow Related Tests
+    if: inputs.platform == 'windows'
+    shell: pwsh
+    run: |
+      $ErrorActionPreference = "Stop"
+      $PSNativeCommandUseErrorActionPreference = $true
+      $ErrorActionPreference = 'Stop'
+      cd tools/python_bind
+      python -m pip install pyarrow==18.0.0
+      python -m pytest -sv tests/test_to_arrow.py --exitfirst
+      python -m pip uninstall -y pyarrow
+
+      if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+  - name: Run Python CLI Tool Tests
+    if: inputs.platform == 'windows'
+    shell: pwsh
+    run: |
+      $ErrorActionPreference = "Stop"
+      $PSNativeCommandUseErrorActionPreference = $true
+      $ErrorActionPreference = 'Stop'
+      cd tools/python_bind
+      python -m pytest -sv tests/test_ngcli_commands.py --exitfirst
+      python -m pytest -sv tests/test_ngcli_basics.py --exitfirst
+
+      if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+  - name: Run Extension Python Test
+    if: inputs.platform != 'windows' && inputs.extensions != ''
+    shell: bash
+    env:
+      EXTENSIONS: ${{ inputs.extensions }}
+      TEST_PLATFORM: ${{ inputs.platform }}
+    run: |
+      set -euo pipefail
+      cd ${GITHUB_WORKSPACE}/tools/python_bind/
+      pip3 install -r requirements.txt
+      pip3 install -r requirements_dev.txt
+      python3 -m pip install pyarrow==24.0.0
+      # Reuse the datasets prepared once by the platform workflow.
+      export NEUG_RUN_EXTENSION_TESTS=true
+      if [[ ";$EXTENSIONS;" == *";parquet;"* ]]; then
+        python3 -m pytest -sv tests/test_parquet_backend_contract.py
+        python3 -m pytest -sv tests/test_load_array.py -k "parquet"
+        python3 -m pytest -sv tests/test_db_import_export.py -k "copy_from_parquet"
+        python3 -m pytest -sv tests/test_sniffer.py -k "parquet"
+      fi
+      if [[ ";$EXTENSIONS;" == *";parquet;"* ]]; then
+        filter='parquet or httpfs'
+        if [[ ";$EXTENSIONS;" != *";httpfs;"* ]]; then filter='parquet and not httpfs'; fi
+        python3 -m pytest -sv tests/test_load.py -k "$filter"
+        python3 -m pytest -sv tests/test_export.py -k "$filter"
+        python3 -m pytest -sv tests/test_copy_temp.py -k "$filter"
+      elif [[ ";$EXTENSIONS;" == *";httpfs;"* ]]; then
+        python3 -m pytest -sv tests/test_load.py -k 'test_httpfs_appears_in_show_loaded_extensions'
+      fi
+      if [[ ";$EXTENSIONS;" == *";gds;"* ]]; then
+        python3 -m pytest -sv tests/test_gds_temp_graph.py
+      fi
+      if [ "$TEST_PLATFORM" = linux ]; then
+        python3 -m pytest -sv tests/test_call_params.py
+      fi
+      if [[ ";$EXTENSIONS;" == *";vector_search;"* ]]; then
+        filter='not parquet'
+        if [[ ";$EXTENSIONS;" == *";parquet;"* ]]; then filter=''; fi
+        python3 -m pytest -sv tests/test_hnsw_index.py tests/test_hnsw_index_tp.py -k "$filter"
+      fi
+      if [[ ";$EXTENSIONS;" == *";fts;"* ]]; then
+        python3 -m pytest -sv tests/test_fts_index.py tests/test_fts_index_tp.py
+      fi
+
+  - name: Run GDS Tests
+    if: inputs.platform != 'windows' && contains(format(';{0};', inputs.extensions), ';gds;')
+    shell: bash
+    run: |
+      set -euo pipefail
+      cd ${GITHUB_WORKSPACE}/tools/python_bind/
+      python3 -m pytest -sv tests/test_gds.py
+      python3 -m pytest -sv tests/test_gds_path.py
+      python3 -m pytest -sv tests/test_gds_concurrency.py
+      python3 -m pytest -sv tests/test_gds_yield.py
+
+  - name: Run LDBC Graphalytics Conformance Tests
+    if: inputs.platform != 'windows' && contains(format(';{0};', inputs.extensions), ';gds;')
+    shell: bash
+    run: |
+      set -euo pipefail
+      cd ${GITHUB_WORKSPACE}/tools/python_bind/
+      python3 -m pytest -sv tests/test_graphalytics.py

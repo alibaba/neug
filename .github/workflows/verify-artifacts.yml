@@ -1,0 +1,208 @@
+name: Verify Artifacts
+
+on:
+  workflow_call:
+    inputs:
+      platforms:
+        description: JSON array of artifact platforms to verify.
+        type: string
+        default: '["linux-x86_64","linux-arm64","osx-arm64"]'
+      python_versions:
+        description: JSON array of Python versions to verify.
+        type: string
+        default: '["3.13"]'
+
+env:
+  EXTENSIONS: parquet;httpfs;gds;pattern_matching;vector_search;fts
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  # ========================================
+  # Verify wheel, extension, and npm artifacts in one independent environment per platform.
+  # ========================================
+  verify:
+    name: Installed Packages / ${{ matrix.platform }}
+    strategy:
+      fail-fast: true
+      matrix:
+        platform: ${{ fromJSON(inputs.platforms) }}
+    container: ${{ startsWith(matrix.platform, 'linux-') && 'ubuntu:22.04' || '' }}
+    runs-on: ${{ matrix.platform == 'linux-x86_64' && 'ubuntu-22.04' || matrix.platform == 'linux-arm64' && 'ubuntu-22.04-arm' || 'macos-15' }}
+    defaults:
+      run:
+        shell: bash
+    steps:
+
+    - name: Prepare Independent Linux Test Image
+      if: runner.os == 'Linux'
+      run: |
+        apt-get update
+        apt-get install -y git curl ca-certificates libssl3 libbz2-1.0 libffi8 libsqlite3-0 liblzma5
+    - uses: actions/checkout@v4
+
+    - name: Select Python Versions
+      env:
+        PYTHON_VERSIONS: ${{ join(fromJSON(inputs.python_versions), ' ') }}
+      run: |
+        set -euo pipefail
+        printf '%s\n' $PYTHON_VERSIONS > "$RUNNER_TEMP/.python-version"
+
+    - name: Setup Python Versions
+      uses: actions/setup-python@v5
+      with:
+        python-version-file: ${{ runner.temp }}/.python-version
+
+    - name: Download Wheels
+      uses: actions/download-artifact@v4
+      with:
+        name: ${{ github.event_name == 'schedule' && format('cibw-wheels-{0}-{1}', matrix.platform == 'osx-arm64' && 'macos-arm64' || matrix.platform, github.sha) || format('wheels-{0}-{1}', matrix.platform == 'osx-arm64' && 'macos-arm64' || matrix.platform, github.run_id) }}
+        path: core_wheelhouse
+
+    - name: Download Extension Packages
+      uses: actions/download-artifact@v4
+      with:
+        pattern: extension-packages-${{ matrix.platform }}-*
+        merge-multiple: true
+        path: extension-packages
+
+    - name: Smoke Test Installed Wheels and Extensions
+      env:
+        PYTHON_VERSIONS: ${{ join(fromJSON(inputs.python_versions), ' ') }}
+      run: |
+        set -euo pipefail
+        # Make a source import impossible for every Python version.
+        mv tools/python_bind/neug "$RUNNER_TEMP/source-neug"
+        unset PYTHONPATH NEUG_BUILD_DIR NEUG_EXTENSION_HOME_PYENV
+        cd "$RUNNER_TEMP"
+        for version in $PYTHON_VERSIONS; do
+          echo "Verifying wheel and extensions with Python $version"
+          test_dir="$RUNNER_TEMP/verify-python-$version"
+          "python$version" -m venv "$test_dir"
+          py="$test_dir/bin/python"
+          "$py" -m pip install "$GITHUB_WORKSPACE"/core_wheelhouse/*cp${version/./}-*.whl
+          "$py" - <<'PYCODE'
+        import hashlib
+        import os
+        import shutil
+        import sysconfig
+        from pathlib import Path
+        site = Path(sysconfig.get_path('platlib')).resolve()
+        os.environ['NEUG_EXTENSION_HOME_PYENV'] = str(site)
+        import neug
+        import neug_py_bind
+        location = Path(neug.__file__).resolve()
+        assert site in location.parents, f'Loaded source package: {location}'
+        binding = Path(neug_py_bind.__file__).resolve()
+        assert site in binding.parents, f'Loaded source binding: {binding}'
+        print(f'Testing installed artifact: {location}')
+        folder = Path(os.environ['GITHUB_WORKSPACE']) / 'extension-packages'
+        with neug.Database() as db:
+            conn = db.connect()
+            for name in os.environ['EXTENSIONS'].split(';'):
+                package = folder / f'lib{name}.neug_extension'
+                expected = package.with_name(package.name + '.sha256').read_text().split()[0]
+                assert hashlib.sha256(package.read_bytes()).hexdigest() == expected, package
+                target = site / 'extension' / name
+                target.mkdir(parents=True, exist_ok=True)
+                shutil.copy2(package, target / package.name)
+                conn.execute(f'LOAD EXTENSION {name}')
+        PYCODE
+          "$py" -c 'import neug; db=neug.Database(); c=db.connect(); print(c.execute("RETURN 1"))'
+          "$test_dir/bin/neug-cli" --help
+          "$test_dir/bin/neug-cli" --version
+        done
+
+    - name: Download npm Package
+      uses: actions/download-artifact@v4
+      with:
+        name: nodejs-${{ matrix.platform }}-${{ github.run_id }}
+        path: downloaded/npm
+
+    - name: Setup Node.js 20
+      id: node20
+      uses: actions/setup-node@v4
+      with:
+        node-version: '20'
+
+    - name: Setup Node.js 22
+      id: node22
+      uses: actions/setup-node@v4
+      with:
+        node-version: '22'
+
+    - name: Setup Node.js 24
+      id: node24
+      uses: actions/setup-node@v4
+      with:
+        node-version: '24'
+
+    - name: Smoke Test Installed npm Package
+      env:
+        ARTIFACT_PLATFORM: ${{ matrix.platform }}
+        NODE_VERSIONS: ${{ steps.node20.outputs.node-version }} ${{ steps.node22.outputs.node-version }} ${{ steps.node24.outputs.node-version }}
+        NODE_ARCH: ${{ runner.arch == 'ARM64' && 'arm64' || 'x64' }}
+      run: |
+        set -euo pipefail
+        for version in $NODE_VERSIONS; do
+          node_dir="$RUNNER_TOOL_CACHE/node/${version#v}/$NODE_ARCH/bin"
+          test -x "$node_dir/node"
+          export PATH="$node_dir:$PATH"
+          node --version
+          test_dir=$(mktemp -d "$RUNNER_TEMP/neug-npm-validate.XXXXXX")
+          cd "$test_dir"
+          npm install "$GITHUB_WORKSPACE/downloaded/npm/graphscope-neug-${ARTIFACT_PLATFORM}-"*.tgz
+          node <<'JS'
+        const { Database } = require('@graphscope-neug/' + process.env.ARTIFACT_PLATFORM);
+        const db = new Database({ databasePath: '', mode: 'w' });
+        const conn = db.connect();
+        const result = conn.execute('RETURN 1');
+        console.log(result.toString());
+        result.close();
+        conn.close();
+        db.close();
+        JS
+        done
+
+  # ========================================
+  # Verify the platform-independent Java SDK JAR once in a separate Ubuntu environment.
+  # ========================================
+  java:
+    name: Installed Java Artifact
+    runs-on: ubuntu-22.04
+    container: ubuntu:22.04
+    defaults:
+      run:
+        shell: bash
+    steps:
+
+    - name: Prepare Independent Test Image
+      run: |
+        apt-get update
+        apt-get install -y git curl ca-certificates unzip
+    - uses: actions/checkout@v4
+    - uses: s4u/setup-maven-action@v1.19.0
+      with:
+        java-version: '17'
+        maven-version: 3.9.6
+
+    - name: Download Java Artifact
+      uses: actions/download-artifact@v4
+      with:
+        name: java-${{ github.run_id }}
+        path: tools/java_driver
+
+    - name: Smoke Test Downloaded JAR
+      run: |
+        set -euo pipefail
+        cd tools/java_driver
+        # Use classes from the actual JAR, not the producer's loose class files.
+        rm -rf target/classes
+        mkdir -p target/classes
+        jar_file=$(find target -maxdepth 1 -name 'neug-java-driver-*.jar' ! -name '*-sources.jar' ! -name '*-javadoc.jar' -print -quit)
+        test -n "$jar_file"
+        unzip -q "$jar_file" -d target/classes
+        test -d target/test-classes
+        mvn -B '-Dtest=GraphDatabaseTest#testDriverCreationWithUri' -DfailIfNoTests=true surefire:test
