@@ -13,6 +13,10 @@ on:
         description: 'NeuG version that these extensions target (for example, 0.1.3)'
         required: false
         default: '0.1.3'
+      upload_to_oss:
+        description: 'Upload the built extension packages to OSS. Set false for a build-only dry run (packages are still extracted and kept as artifacts).'
+        required: false
+        default: 'true'
 
 concurrency:
   group: ${{ github.repository }}-${{ github.event.number || github.head_ref || github.sha }}-${{ github.workflow }}
@@ -31,6 +35,7 @@ jobs:
     outputs:
       extensions: ${{ steps.config.outputs.extensions }}
       version: ${{ steps.config.outputs.version }}
+      upload_to_oss: ${{ steps.config.outputs.upload_to_oss }}
     steps:
       - name: Determine release configuration
         id: config
@@ -38,22 +43,31 @@ jobs:
           EVENT_NAME: ${{ github.event_name }}
           INPUT_EXTENSIONS: ${{ github.event.inputs.extensions }}
           INPUT_VERSION: ${{ github.event.inputs.version }}
+          INPUT_UPLOAD_TO_OSS: ${{ github.event.inputs.upload_to_oss }}
           RELEASE_TAG: ${{ github.event.release.tag_name }}
         run: |
           set -euo pipefail
           if [ "${EVENT_NAME}" = "workflow_dispatch" ]; then
             extensions="${INPUT_EXTENSIONS}"
             version="${INPUT_VERSION}"
+            # Dispatch defaults to a real upload; set upload_to_oss=false for a
+            # build-only dry run. Mirrors the wheel line's publish_to_pypi input.
+            upload_to_oss="${INPUT_UPLOAD_TO_OSS:-true}"
           else
             extensions="parquet;httpfs;pattern_matching;vector_search;fts;gds"
             version="${RELEASE_TAG}"
+            # A release event always publishes to OSS, mirroring publish_to_pypi
+            # which is unconditional for release:created on the wheel line.
+            upload_to_oss="true"
           fi
           test -n "${extensions}"
           test -n "${version}"
           echo "extensions=${extensions}" >> "${GITHUB_OUTPUT}"
           echo "version=${version}" >> "${GITHUB_OUTPUT}"
+          echo "upload_to_oss=${upload_to_oss}" >> "${GITHUB_OUTPUT}"
           echo "Extensions: ${extensions}"
           echo "Version: ${version}"
+          echo "Upload to OSS: ${upload_to_oss}"
 
   build_extensions:
     needs: prepare
@@ -159,16 +173,25 @@ jobs:
           EXTENSIONS: ${{ needs.prepare.outputs.extensions }}
           VERSION: ${{ needs.prepare.outputs.version }}
           OSS_PLATFORM: ${{ matrix.oss_platform }}
+          UPLOAD_TO_OSS: ${{ needs.prepare.outputs.upload_to_oss }}
         run: |
           set -euo pipefail
           wheel=$(find extension_wheelhouse -maxdepth 1 -type f -name '*.whl' -print -quit)
           test -n "${wheel}"
+          # Dry run (upload_to_oss != true): extract packages only, skip the OSS
+          # upload. The packages are still kept by the artifact step below.
+          skip_flag=()
+          if [ "${UPLOAD_TO_OSS}" != "true" ]; then
+            skip_flag=(--skip-upload)
+            echo "upload_to_oss=${UPLOAD_TO_OSS}: extracting packages only, skipping OSS upload (dry run)"
+          fi
           python3 scripts/publish_extensions_from_wheel.py \
             --wheel "${wheel}" \
             --extensions "${EXTENSIONS}" \
             --version "${VERSION}" \
             --platform "${OSS_PLATFORM}" \
-            --output-dir extension_packages
+            --output-dir extension_packages \
+            "${skip_flag[@]}"
 
       - name: Upload extension packages as artifacts
         uses: actions/upload-artifact@v4
@@ -342,18 +365,27 @@ jobs:
           # OSS credentials (incl. OSS_BUCKET_NAME) come from the workflow-level
           # env block, same as the Linux/macOS legs.
           OSS_PLATFORM: ${{ matrix.oss_platform }}
+          UPLOAD_TO_OSS: ${{ needs.prepare.outputs.upload_to_oss }}
         run: |
           $wheel = Get-ChildItem extension_wheelhouse -Filter *.whl | Select-Object -First 1
           if (-not $wheel) {
             Write-Error "No carrier wheel produced under extension_wheelhouse"
             exit 1
           }
+          # Dry run (upload_to_oss != true): extract packages only, skip the OSS
+          # upload. The packages are still kept by the artifact step below.
+          $skipFlag = @()
+          if ("$env:UPLOAD_TO_OSS" -ne "true") {
+            $skipFlag = @("--skip-upload")
+            Write-Host "upload_to_oss=$env:UPLOAD_TO_OSS: extracting packages only, skipping OSS upload (dry run)"
+          }
           python scripts/publish_extensions_from_wheel.py `
             --wheel $wheel.FullName `
             --extensions "$env:EXTENSIONS" `
             --version "$env:VERSION" `
             --platform "$env:OSS_PLATFORM" `
-            --output-dir extension_packages
+            --output-dir extension_packages `
+            $skipFlag
           if ($LASTEXITCODE -ne 0) {
             Write-Error "publish_extensions_from_wheel.py failed"
             exit 1
