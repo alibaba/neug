@@ -26,13 +26,7 @@ Unlike tests/test_extension_install_load.py they deliberately do NOT run
 INSTALL: the official extension repository does not publish Windows
 packages yet, so the Windows CI validates the build+load chain directly
 against the locally produced artifacts.
-
-vector_search is skipped on Windows: the ZVec dependency needs a
-source-level MSVC port (pthread/mmap/attribute usage across 47+ files),
-which is tracked separately from the CMake-level extension enablement.
 """
-
-import sys
 
 import pytest
 
@@ -43,6 +37,7 @@ EXTENSIONS = [
     "pattern_matching",
     "fts",
     "gds",
+    "vector_search",
     # parquet builds on Windows now that its Arrow C++ dependency is gone
     # (#1128); it decodes via the Carquet C library (MSVC-supported).
     "parquet",
@@ -95,12 +90,3 @@ def test_load_local_extension(ext_name: str, tmp_path):
             conn.close()
         if db is not None:
             db.close()
-
-
-@pytest.mark.skipif(
-    sys.platform == "win32",
-    reason="vector_search needs a source-level MSVC port of ZVec "
-    "(pthread/mmap/attribute usage); it stays testable on macOS/Linux",
-)
-def test_vector_search_skipped_on_windows():
-    """Documents the intentional gap in the Windows extension matrix."""

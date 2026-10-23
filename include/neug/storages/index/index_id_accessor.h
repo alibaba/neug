@@ -120,7 +120,7 @@ class NEUG_API DefaultIndexIDAccessor final : public IndexIDAccessor {
 // interface, so vector indexes reuse those offsets instead of allocating and
 // persisting a second VID-to-index-ID mapping. The referenced accessor must
 // outlive this adapter.
-class VecColumnBackedIndexIDAccessor final : public IndexIDAccessor {
+class NEUG_API VecColumnBackedIndexIDAccessor final : public IndexIDAccessor {
  public:
   explicit VecColumnBackedIndexIDAccessor(IndexIDAccessor& offset_accessor)
       : offset_accessor_(offset_accessor) {}
