@@ -64,17 +64,29 @@ def fail(msg, err=None):
         print(f"       {RED}{err}{RESET}")
 
 
+def _cypher_path(path):
+    """Normalize a local path for embedding in a Cypher string literal.
+
+    On Windows, os.path.join and tempfile produce backslash paths, and a
+    backslash is an escape character inside Cypher string literals, which
+    corrupts the path and makes the parser reject LOAD FROM and COPY TO
+    queries. Forward slashes are accepted by the C++ file APIs and by Cypher
+    on every platform, so this is a no-op on POSIX.
+    """
+    return path.replace("\\", "/")
+
+
 # ── resolve path to example JSON files shipped in the repo ─────
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 REPO_ROOT = os.path.abspath(os.path.join(SCRIPT_DIR, "..", "..", ".."))
-JSON_ARRAY_FILE = os.path.join(
-    REPO_ROOT, "example_dataset", "tinysnb", "json", "vPerson.json"
+JSON_ARRAY_FILE = _cypher_path(
+    os.path.join(REPO_ROOT, "example_dataset", "tinysnb", "json", "vPerson.json")
 )
-JSONL_FILE = os.path.join(
-    REPO_ROOT, "example_dataset", "tinysnb", "json", "vPerson.jsonl"
+JSONL_FILE = _cypher_path(
+    os.path.join(REPO_ROOT, "example_dataset", "tinysnb", "json", "vPerson.jsonl")
 )
-PARQUET_FILE = os.path.join(
-    REPO_ROOT, "example_dataset", "tinysnb", "parquet", "vPerson.parquet"
+PARQUET_FILE = _cypher_path(
+    os.path.join(REPO_ROOT, "example_dataset", "tinysnb", "parquet", "vPerson.parquet")
 )
 
 
@@ -161,7 +173,7 @@ def run_json_array_tests(conn_json, export_dir=None):
 
     # Export test: COPY LOAD result to JSON array file and verify
     if export_dir:
-        export_path = os.path.join(export_dir, "export_array.json")
+        export_path = _cypher_path(os.path.join(export_dir, "export_array.json"))
         try:
             conn_json.execute(
                 f'COPY (LOAD FROM "{JSON_ARRAY_FILE}" RETURN fName, age) TO '
@@ -212,7 +224,7 @@ def run_jsonl_tests(conn_json, export_dir=None):
 
     # Export test: COPY LOAD result to JSONL file and verify
     if export_dir:
-        export_path = os.path.join(export_dir, "export_lines.jsonl")
+        export_path = _cypher_path(os.path.join(export_dir, "export_lines.jsonl"))
         try:
             conn_json.execute(
                 f'COPY (LOAD FROM "{JSONL_FILE}" RETURN fName, age) TO '
@@ -236,7 +248,7 @@ def run_parquet_export_tests(conn_parquet, export_dir):
         return
 
     # Test 1: Basic export
-    export_path_1 = os.path.join(export_dir, "export_basic.parquet")
+    export_path_1 = _cypher_path(os.path.join(export_dir, "export_basic.parquet"))
     try:
         conn_parquet.execute(
             f"COPY (MATCH (p:person) RETURN p.ID, p.fName, p.age) TO "
@@ -250,7 +262,7 @@ def run_parquet_export_tests(conn_parquet, export_dir):
         fail("Basic Parquet export", e)
 
     # Test 2: Export with ZSTD compression
-    export_path_2 = os.path.join(export_dir, "export_zstd.parquet")
+    export_path_2 = _cypher_path(os.path.join(export_dir, "export_zstd.parquet"))
     try:
         conn_parquet.execute(
             f"COPY (MATCH (p:person) RETURN p.*) TO "
@@ -264,7 +276,7 @@ def run_parquet_export_tests(conn_parquet, export_dir):
         fail("ZSTD Parquet export", e)
 
     # Test 3: Export with custom row_group_size
-    export_path_3 = os.path.join(export_dir, "export_rowgroup.parquet")
+    export_path_3 = _cypher_path(os.path.join(export_dir, "export_rowgroup.parquet"))
     try:
         conn_parquet.execute(
             f"COPY (MATCH (p:person) RETURN p.ID, p.fName) TO "
@@ -278,7 +290,7 @@ def run_parquet_export_tests(conn_parquet, export_dir):
         fail("Custom row_group_size Parquet export", e)
 
     # Test 4: Export without compression
-    export_path_4 = os.path.join(export_dir, "export_nocomp.parquet")
+    export_path_4 = _cypher_path(os.path.join(export_dir, "export_nocomp.parquet"))
     try:
         conn_parquet.execute(
             f"COPY (MATCH (p:person) RETURN p.fName, p.age) TO "
@@ -292,7 +304,7 @@ def run_parquet_export_tests(conn_parquet, export_dir):
         fail("No compression Parquet export", e)
 
     # Test 5: Export vertex objects (struct type)
-    export_path_5 = os.path.join(export_dir, "export_vertex.parquet")
+    export_path_5 = _cypher_path(os.path.join(export_dir, "export_vertex.parquet"))
     try:
         conn_parquet.execute(
             f"COPY (MATCH (p:person) RETURN p) TO " f"'{export_path_5}';"
@@ -305,7 +317,7 @@ def run_parquet_export_tests(conn_parquet, export_dir):
         fail("Vertex struct Parquet export", e)
 
     # Test 6: Round-trip test - export and load back
-    export_path_6 = os.path.join(export_dir, "export_roundtrip.parquet")
+    export_path_6 = _cypher_path(os.path.join(export_dir, "export_roundtrip.parquet"))
     try:
         # Export
         conn_parquet.execute(
