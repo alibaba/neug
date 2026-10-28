@@ -83,3 +83,62 @@ jobs:
         run: |
           npm install "@neug-ai/neug@${NEUG_VER}"
           node scripts/verify_released_node.js
+
+  # Deep-dive: capture the Linux Node SIGSEGV at runtime to confirm root cause.
+  # Hypothesis: libneug.so statically bundles OpenSSL 1.1.1k and, because
+  # cmake/neug_exports.ld does `global: *;` while its `local:` hide-list only
+  # covers protobuf/absl/utf8_range (NOT OpenSSL), and neug_symbol_visibility.cmake
+  # passes --exclude-libs only for protobuf/utf8_range (NOT libssl.a/libcrypto.a),
+  # it re-exports ~2600 OpenSSL symbols into the flat Linux symbol namespace.
+  # That collides with the OpenSSL bundled in the node binary => two OpenSSL ABIs
+  # in one process => heap corruption => SIGSEGV during the HTTPS extension
+  # download (httplib::SSLClient). macOS is immune (two-level namespace).
+  linux-node-debug:
+    name: linux-node SIGSEGV debug (node22)
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install released npm package
+        shell: bash
+        run: |
+          npm install "@neug-ai/neug@${NEUG_VER}"
+      - name: Probe node + libneug OpenSSL surfaces
+        shell: bash
+        run: |
+          set +e
+          NODE_BIN="$(readlink -f "$(which node)")"
+          echo "== node version / bundled openssl =="
+          node -e "console.log(process.version, 'openssl', process.versions.openssl)"
+          echo "== OpenSSL syms EXPORTED by the node binary (nm -D) =="
+          nm -D "$NODE_BIN" 2>/dev/null | grep -cE ' (SSL_|EVP_|CRYPTO_|X509)'
+          SO="$(find node_modules -name libneug.so | head -1)"
+          echo "== libneug.so path: $SO =="
+          echo "-- NEEDED (is OpenSSL dynamic?) --"
+          objdump -p "$SO" 2>/dev/null | grep -i NEEDED
+          echo "-- embedded OpenSSL version --"
+          strings -a "$SO" 2>/dev/null | grep -iE "OpenSSL [0-9]+\.[0-9]+\.[0-9]" | sort -u | head
+          echo "-- OpenSSL syms EXPORTED by libneug.so (objdump -T) --"
+          objdump -T "$SO" 2>/dev/null | grep -vE '\*UND\*' | grep -cE ' (SSL_|EVP_|CRYPTO_|X509|OPENSSL_|BIO_|ASN1_|RAND_|BN_|EC_|RSA_)'
+          echo "-- protobuf/absl syms exported (should be 0 => version-script active) --"
+          objdump -T "$SO" 2>/dev/null | grep -vE '\*UND\*' | grep -cE '_ZN6google8protobuf|_ZN4absl'
+      - name: Backtrace the SIGSEGV under gdb
+        shell: bash
+        run: |
+          set +e
+          which gdb >/dev/null 2>&1 || sudo apt-get install -y gdb >/dev/null 2>&1
+          gdb -batch -ex "run" -ex "bt" --args node scripts/verify_released_node.js > gdb.log 2>&1
+          echo "==== crash signal + native backtrace ===="
+          grep -nE "received signal|SIGSEGV|^#[0-9]+" gdb.log | head -40
+      - name: Trace which DSO provides the OpenSSL symbols (LD_DEBUG)
+        shell: bash
+        run: |
+          set +e
+          LD_DEBUG=bindings node scripts/verify_released_node.js > run.log 2> ld_bindings.log
+          echo "==== OpenSSL symbol bindings (provider DSO) ===="
+          grep -iE "SSL_CTX_new|SSL_new|SSL_connect|SSL_read|SSL_write|EVP_|CRYPTO_|X509" ld_bindings.log | head -40
+          echo "==== tail of run.log ===="
+          tail -15 run.log
