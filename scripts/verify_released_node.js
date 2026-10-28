@@ -86,14 +86,14 @@ for (const ext of EXTENSIONS) {
     conn.execute(`INSTALL ${ext};`);
     ins = true;
   } catch (e) {
-    insErr = String(e && e.message ? e.message : e).split('\n')[0].slice(0, 160);
+    insErr = String(e && e.message ? e.message : e).split('\n').join(' | ').slice(0, 400);
   }
   if (ins) {
     try {
       conn.execute(`LOAD ${ext};`);
       ld = true;
     } catch (e) {
-      ldErr = String(e && e.message ? e.message : e).split('\n')[0].slice(0, 160);
+      ldErr = String(e && e.message ? e.message : e).split('\n').join(' | ').slice(0, 400);
     }
   }
   matrix[ext] = { ins, ld };

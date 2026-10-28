@@ -192,6 +192,8 @@ jobs:
           export NEUG_EXTENSION_HOME_PYENV="$NATIVEDIR"
           echo "pre-set NEUG_EXTENSION_HOME_PYENV=$NEUG_EXTENSION_HOME_PYENV"
           echo "==== workaround smoke (expect home=nativeDir) ===="
-          node scripts/verify_released_node.js 2>&1 | tail -45
+          node scripts/verify_released_node.js > win_wa.log 2>&1
+          echo "-- matrix + FULL install/load-error lines --"
+          grep -aE "INSTALL=|load-error|install-error|SHOW_LOADED|EXT_ALL_OK|FINAL|BASE_RESULT" win_wa.log
           echo "==== nativeDir/extension contents after workaround ===="
           ls -la "$NATIVEDIR/extension" 2>&1 | head -12
