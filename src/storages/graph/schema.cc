@@ -1911,7 +1911,8 @@ static Status parse_schema_from_yaml_node(const YAML::Node& graph_node,
     return Status(StatusCode::ERR_INVALID_SCHEMA,
                   "graph schema is not set properly");
   }
-  if (!expect_config(graph_node, "store_type", std::string("mutable_csr"))) {
+  if (graph_node["store_type"] &&
+      !expect_config(graph_node, "store_type", std::string("mutable_csr"))) {
     LOG(WARNING) << "store_type is not set properly, use default value: "
                  << "mutable_csr";
   }

@@ -48,7 +48,7 @@ pip install neug
 <summary><b>Node.js</b> &nbsp;·&nbsp; requires Node.js 20+ &nbsp;(since v0.1.3)</summary>
 
 ```bash
-npm install @graphscope-neug/neug
+npm install @neug-ai/neug
 ```
 </details>
 

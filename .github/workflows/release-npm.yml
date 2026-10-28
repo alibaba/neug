@@ -5,6 +5,11 @@ on:
   release:
     types: [published]
   workflow_dispatch:
+    inputs:
+      version:
+        description: Target version; defaults to NEUG_VERSION and must match the npm package.
+        required: false
+        type: string
 
 # Keep one publish run per tag.
 concurrency:
@@ -15,11 +20,13 @@ jobs:
   # Reuse the npm build/test workflow so release artifacts come from the tested build.
   build:
     uses: ./.github/workflows/npm-build-test.yml
+    with:
+      build_extensions: true
 
   publish:
     name: Publish npm packages
     needs: build
-    runs-on: ubuntu-22.04
+    runs-on: [self-hosted, daily, linux, x64]
     permissions:
       contents: read
       id-token: write
@@ -56,18 +63,66 @@ jobs:
           cp tools/nodejs_bind/assets/package.json "$MAIN_DIR/package.json"
           cp tools/nodejs_bind/assets/index.js "$MAIN_DIR/index.js"
 
+      - name: Publish Linux cxx11abi extensions
+        env:
+          RELEASE_TAG: ${{ github.event_name == 'release' && github.event.release.tag_name || inputs.version }}
+          OSS_ACCESS_KEY_ID: ${{ secrets.OSS_ACCESS_KEY_ID }}
+          OSS_ACCESS_KEY_SECRET: ${{ secrets.OSS_ACCESS_KEY_SECRET }}
+          OSS_ENDPOINT: ${{ secrets.OSS_ENDPOINT }}
+          OSS_BUCKET_NAME: ${{ secrets.OSS_BUCKET_NAME }}
+        run: |
+          set -euo pipefail
+          python3 -m pip install oss2
+          python3 - <<'PY'
+          import hashlib
+          import json
+          import os
+          import shutil
+          import sys
+          import tarfile
+          from pathlib import Path
+          sys.path.insert(0, 'scripts')
+          from publish_extensions_from_wheel import upload_artifacts
+
+          version = os.environ['RELEASE_TAG'].removeprefix('v') or Path('NEUG_VERSION').read_text().strip()
+          extensions = ['parquet', 'httpfs', 'pattern_matching', 'vector_search', 'fts', 'gds']
+          for arch in ('x86_64', 'arm64'):
+              packages = list(Path('dist/npm').glob(f'neug-ai-linux-{arch}-*.tgz'))
+              if not packages and arch == 'arm64':
+                  continue
+              if len(packages) != 1:
+                  raise RuntimeError(f'Expected one Linux {arch} npm package, got {packages}')
+              platform = f'linux_{arch}'
+              output = Path('dist/extensions') / platform
+              output.mkdir(parents=True, exist_ok=True)
+              artifacts = {}
+              with tarfile.open(packages[0], 'r:gz') as archive:
+                  metadata = json.load(archive.extractfile('package/package.json'))
+                  if metadata['version'] != version or metadata['name'] != f'@neug-ai/linux-{arch}':
+                      raise RuntimeError(f'Package does not match release {version}: {metadata["name"]}@{metadata["version"]}')
+                  for extension in extensions:
+                      member = f'package/build/Release/{platform}/extension/{extension}/lib{extension}.neug_extension'
+                      target = output / f'lib{extension}-cxx11abi.neug_extension'
+                      with archive.extractfile(member) as source, target.open('wb') as destination:
+                          shutil.copyfileobj(source, destination)
+                      checksum = target.with_name(target.name + '.sha256')
+                      checksum.write_text(hashlib.sha256(target.read_bytes()).hexdigest(), encoding='utf-8')
+                      artifacts[extension] = (target, checksum)
+              upload_artifacts(artifacts, version, platform)
+          PY
+
       # Validate package metadata, unpack platform packages, then publish all packages.
       - name: Publish npm packages
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
-          RELEASE_TAG: ${{ github.event_name == 'release' && github.event.release.tag_name || github.ref_name }}
+          RELEASE_TAG: ${{ github.event_name == 'release' && github.event.release.tag_name || inputs.version }}
         run: |
           set -euo pipefail
 
           # These names are npm pack outputs inside the downloaded artifact containers.
-          linux_x86_64=(dist/npm/graphscope-neug-linux-x86_64-*.tgz)
-          osx_arm64=(dist/npm/graphscope-neug-osx-arm64-*.tgz)
-          windows_x86_64=(dist/npm/graphscope-neug-windows-x86_64-*.tgz)
+          linux_x86_64=(dist/npm/neug-ai-linux-x86_64-*.tgz)
+          osx_arm64=(dist/npm/neug-ai-osx-arm64-*.tgz)
+          windows_x86_64=(dist/npm/neug-ai-windows-x86_64-*.tgz)
 
           # Fail early if a required platform package was not built or downloaded.
           if [ ! -f "${linux_x86_64[0]}" ]; then
@@ -87,23 +142,27 @@ jobs:
 
           # The tag version must match every package version before publish is attempted.
           VERSION="${RELEASE_TAG#v}"
+          VERSION="${VERSION:-$(cat NEUG_VERSION)}"
           python3 tools/nodejs_bind/scripts/validate_npm_version.py \
-            "${linux_x86_64[0]}" '@graphscope-neug/linux-x86_64' "$VERSION"
+            "${linux_x86_64[0]}" '@neug-ai/linux-x86_64' "$VERSION"
           python3 tools/nodejs_bind/scripts/validate_npm_version.py \
-            "${osx_arm64[0]}" '@graphscope-neug/osx-arm64' "$VERSION"
+            "${osx_arm64[0]}" '@neug-ai/osx-arm64' "$VERSION"
           python3 tools/nodejs_bind/scripts/validate_npm_version.py \
-            "${windows_x86_64[0]}" '@graphscope-neug/windows-x86_64' "$VERSION"
+            "${windows_x86_64[0]}" '@neug-ai/windows-x86_64' "$VERSION"
           python3 tools/nodejs_bind/scripts/validate_npm_version.py \
-            dist/npm-main '@graphscope-neug/neug' "$VERSION" \
-            --optional-dependency '@graphscope-neug/linux-x86_64' \
-            --optional-dependency '@graphscope-neug/osx-arm64' \
-            --optional-dependency '@graphscope-neug/windows-x86_64'
+            dist/npm-main '@neug-ai/neug' "$VERSION" \
+            --optional-dependency '@neug-ai/linux-x86_64' \
+            --optional-dependency '@neug-ai/osx-arm64' \
+            --optional-dependency '@neug-ai/windows-x86_64'
 
           # npm publish must run from package directories, so unpack platform tarballs first.
           mkdir -p dist/npm-packages/linux-x86_64 dist/npm-packages/osx-arm64 dist/npm-packages/windows-x86_64
           tar -xzf "${linux_x86_64[0]}" -C dist/npm-packages/linux-x86_64
           tar -xzf "${osx_arm64[0]}" -C dist/npm-packages/osx-arm64
           tar -xzf "${windows_x86_64[0]}" -C dist/npm-packages/windows-x86_64
+
+          # Extensions were published to OSS; npm packages contain the core only.
+          rm -rf dist/npm-packages/*/package/build/Release/*/extension
 
           npm publish ./dist/npm-packages/linux-x86_64/package --access public
           npm publish ./dist/npm-packages/osx-arm64/package --access public

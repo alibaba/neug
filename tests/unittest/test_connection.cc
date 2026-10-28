@@ -142,6 +142,22 @@ TEST_F(ConnectionTest, TestReadWriteConnection) {
                neug::exception::TxStateConflictException);
 }
 
+TEST_F(ConnectionTest, RepeatedCloseDoesNotWarn) {
+  NeugDB db;
+  NeugDBConfig config;
+  config.data_dir = DB_DIR;
+  db.Open(config);
+  auto conn = db.Connect();
+
+  ::testing::internal::CaptureStderr();
+  conn->Close();
+  conn->Close();
+  const std::string logs = ::testing::internal::GetCapturedStderr();
+
+  EXPECT_EQ(logs.find("Connection is already closed."), std::string::npos)
+      << logs;
+}
+
 TEST_F(ConnectionTest, ExplicitReadWriteTransactionCommitsAcrossQueries) {
   NeugDB db;
   NeugDBConfig config;
