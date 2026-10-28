@@ -149,10 +149,10 @@ TEST_F(ConnectionTest, RepeatedCloseDoesNotWarn) {
   db.Open(config);
   auto conn = db.Connect();
 
-  testing::internal::CaptureStderr();
+  ::testing::internal::CaptureStderr();
   conn->Close();
   conn->Close();
-  const std::string logs = testing::internal::GetCapturedStderr();
+  const std::string logs = ::testing::internal::GetCapturedStderr();
 
   EXPECT_EQ(logs.find("Connection is already closed."), std::string::npos)
       << logs;
