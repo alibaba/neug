@@ -5,25 +5,6 @@ on:
   release:
     types:
       - created
-  pull_request:
-    branches:
-      - main
-    paths:
-      - 'cmake/**'
-      - 'src/**'
-      - 'bin/**'
-      - 'proto/**'
-      - 'third_party/**'
-      - 'tools/python_bind/**'
-      - 'tools/utils/**'
-      - 'tests/**'
-      - '.github/workflows/Windows.yml'
-      - '.github/workflows/build-and-test-common.yml'
-      - 'scripts/install_deps.ps1'
-      - 'scripts/build_windows.bat'
-      - 'include/**'
-      - 'CMakeLists.txt'
-      - 'doc/source/tutorials/**'
   push:
     paths:
       - 'cmake/**'
@@ -51,11 +32,10 @@ jobs:
     if: |
       github.event_name == 'workflow_dispatch' ||
       github.event_name == 'release' ||
-      github.event_name == 'pull_request' ||
       (github.event_name == 'push' && (github.repository != 'alibaba/neug' || github.ref == 'refs/heads/main'))
     uses: ./.github/workflows/format-check.yml
     with:
-      is_pull_request: ${{ github.event_name == 'pull_request' }}
+      is_pull_request: false
 
   # ============================================================
   # Windows x64 Job: Build NeuG + run Python tests
@@ -65,10 +45,8 @@ jobs:
   # ============================================================
   build_and_test_windows:
     needs: format_check
-    # Runs on manual (workflow_dispatch) dispatches and on pull requests
-    # targeting main, so every code-touching PR exercises the Windows x86
-    # build and its Python test suite. Release/push triggers stay disabled.
-    if: ${{ (needs.format_check.result == 'success' || needs.format_check.result == 'skipped') && (github.event_name == 'workflow_dispatch' || github.event_name == 'pull_request') }}
+    # Build and test only on manual dispatches. Release/push triggers stay disabled.
+    if: ${{ (needs.format_check.result == 'success' || needs.format_check.result == 'skipped') && github.event_name == 'workflow_dispatch' }}
     runs-on: windows-2022
     timeout-minutes: 120
     env:

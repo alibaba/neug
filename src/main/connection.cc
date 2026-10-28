@@ -52,7 +52,6 @@ std::string Connection::GetSchema() const {
 
 void Connection::Close() {
   if (is_closed_.load(std::memory_order_relaxed)) {
-    LOG(WARNING) << "Connection is already closed.";
     return;
   }
   LOG(INFO) << "Closing connection.";

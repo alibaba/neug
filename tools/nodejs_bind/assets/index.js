@@ -9,7 +9,7 @@ if (!os || !arch) {
   throw new Error(`NeuG: unsupported platform ${process.platform}-${process.arch}`);
 }
 
-const optionalPkg = `@graphscope-neug/${os}-${arch}`;
+const optionalPkg = `@neug-ai/${os}-${arch}`;
 
 let binding;
 try {
