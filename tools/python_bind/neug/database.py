@@ -87,6 +87,7 @@ class Database(object):
         max_thread_num: int = 0,
         checkpoint_on_close: bool = True,
         buffer_strategy: str = "M_FULL",
+        auto_load_ext: bool = False,
     ):
         """
         Open a database.
@@ -118,8 +119,14 @@ class Database(object):
             - 'SyncToFile' / 'M_LAZY': Load database pages on demand, suitable for databases that do not fit in memory.
             - 'HugePagePreferred' / 'M_HUGE': Similar to 'InMemory', but prefer huge pages when available.
 
+        auto_load_ext : bool
+            Load all installed extensions before opening indexes. Default is False.
+            Loading failures are logged and do not interrupt database open.
+
         Raises
         ------
+        TypeError
+            If auto_load_ext is not a bool.
         RuntimeError
             If the database file does not exist or the mode is invalid.
         ValueError
@@ -130,6 +137,8 @@ class Database(object):
         self._db_path = None
         self._connections = []
         self._async_connections = []
+        if not isinstance(auto_load_ext, bool):
+            raise TypeError("auto_load_ext must be a bool")
         import sys as _sys
 
         # On Windows, ':' (drive letter) and '\\' (path separator) are valid.
@@ -197,6 +206,7 @@ class Database(object):
             planner="gopt",
             checkpoint_on_close=checkpoint_on_close,
             buffer_strategy=buffer_strategy,
+            auto_load_ext=auto_load_ext,
         )
         self._max_thread_num = self._database.max_thread_num()
         self._serving = False

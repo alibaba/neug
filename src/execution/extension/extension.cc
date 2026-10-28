@@ -105,8 +105,8 @@ static inline int dlclose(void* handle) {
 #include <iomanip>
 #include <sstream>
 #include <string>
+#include <vector>
 
-#include <glog/logging.h>
 #include <openssl/evp.h>
 #include <openssl/x509_vfy.h>
 
@@ -122,7 +122,10 @@ static inline int dlclose(void* handle) {
 #include "neug/compiler/common/string_format.h"
 #endif  // !NEUG_LITE
 
+#include <glog/logging.h>
+
 #include "neug/compiler/extension/extension_manager.h"
+#include "neug/config.h"
 #include "neug/execution/extension/extension.h"
 
 namespace neug {
@@ -142,7 +145,7 @@ Status ExtensionManager::UninstallExtension(const std::string& name) {
 
 namespace extension {
 
-static std::string getUserExtensionDir(const std::string& extension_name) {
+static std::string getExtensionRootDir() {
   std::string base;
   const char* pyenv = std::getenv("NEUG_EXTENSION_HOME_PYENV");
   if (pyenv && *pyenv) {
@@ -156,7 +159,11 @@ static std::string getUserExtensionDir(const std::string& extension_name) {
   if (base.empty()) {
     base = "/tmp";
   }
-  return base + "/extension/" + extension_name;
+  return base + "/extension";
+}
+
+static std::string getUserExtensionDir(const std::string& extension_name) {
+  return getExtensionRootDir() + "/" + extension_name;
 }
 
 // Promote libneug.so to RTLD_GLOBAL so that extensions loaded via dlopen
@@ -594,6 +601,92 @@ Status uninstall_extension(const std::string& extension_name) {
 
 }  // namespace extension
 
+void ExtensionManager::Open(const NeugDBConfig& config) {
+  if (!config.auto_load_ext) {
+    return;
+  }
+  try {
+    const auto root = std::filesystem::path(extension::getExtensionRootDir());
+    std::error_code ec;
+    const bool exists = std::filesystem::exists(root, ec);
+    if (!exists && !ec) {
+      LOG(ERROR) << "[AutoLoadExtension] stage=discover root=" << root
+                 << " error=Extension directory does not exist"
+                 << "; continuing database open";
+      return;
+    }
+    std::filesystem::directory_iterator it(root, ec), end;
+    std::vector<std::string> names;
+    while (!ec && it != end) {
+      const auto path = it->path();
+      try {
+        std::error_code entry_error;
+        const bool is_directory = it->is_directory(entry_error);
+        if (entry_error) {
+          LOG(ERROR) << "[AutoLoadExtension] stage=discover path=" << path
+                     << " error=" << entry_error.message()
+                     << "; continuing database open";
+        } else if (is_directory) {
+          const auto name = path.filename().string();
+          const auto canonical_name = NormalizeExtensionName(name);
+          const auto library =
+              path / extension::ExtensionUtils::getExtensionFileName(name);
+          const bool valid_library =
+              std::filesystem::is_regular_file(library, entry_error);
+          if (name != canonical_name || !valid_library || entry_error) {
+            LOG(ERROR) << "[AutoLoadExtension] stage=discover extension="
+                       << name << " path=" << library << " error="
+                       << (entry_error ? entry_error.message()
+                                       : "Expected a lowercase extension "
+                                         "directory with its library")
+                       << "; continuing database open";
+          } else {
+            names.push_back(canonical_name);
+          }
+        }
+      } catch (const std::exception& e) {
+        LOG(ERROR) << "[AutoLoadExtension] stage=discover path=" << path
+                   << " error=" << e.what() << "; continuing database open";
+      } catch (...) {
+        LOG(ERROR) << "[AutoLoadExtension] stage=discover path=" << path
+                   << " error=Unknown exception; continuing database open";
+      }
+      it.increment(ec);
+    }
+    if (ec) {
+      LOG(ERROR) << "[AutoLoadExtension] stage=discover root=" << root
+                 << " error=" << ec.message() << "; continuing database open";
+    }
+    std::sort(names.begin(), names.end());
+    names.erase(std::unique(names.begin(), names.end()), names.end());
+    for (const auto& name : names) {
+      try {
+        auto loaded = LoadExtension(name);
+        if (!loaded) {
+          LOG(ERROR) << "[AutoLoadExtension] stage=load extension=" << name
+                     << " root=" << root
+                     << " error=" << loaded.error().ToString()
+                     << "; continuing database open";
+        }
+      } catch (const std::exception& e) {
+        LOG(ERROR) << "[AutoLoadExtension] stage=load extension=" << name
+                   << " root=" << root << " error=" << e.what()
+                   << "; continuing database open";
+      } catch (...) {
+        LOG(ERROR) << "[AutoLoadExtension] stage=load extension=" << name
+                   << " root=" << root
+                   << " error=Unknown exception; continuing database open";
+      }
+    }
+  } catch (const std::exception& e) {
+    LOG(ERROR) << "[AutoLoadExtension] stage=discover error=" << e.what()
+               << "; continuing database open";
+  } catch (...) {
+    LOG(ERROR) << "[AutoLoadExtension] stage=discover error=Unknown exception"
+               << "; continuing database open";
+  }
+}
+
 result<ExtensionManager::LoadResult> ExtensionManager::LoadExtension(
     const std::string& extension_name) {
   const auto canonical_name = NormalizeExtensionName(extension_name);
@@ -663,6 +756,15 @@ result<ExtensionManager::LoadResult> ExtensionManager::LoadExtension(
 }
 
 #else
+
+// Lite builds retain the existing unsupported LOAD behavior.
+void ExtensionManager::Open(const NeugDBConfig& config) {
+  if (config.auto_load_ext) {
+    LOG(ERROR) << "[AutoLoadExtension] stage=load error=LOAD is unavailable in "
+                  "lite mode"
+               << "; continuing database open";
+  }
+}
 
 namespace extension {
 

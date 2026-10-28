@@ -101,12 +101,17 @@ config.data_dir = "/path/to/graph";
 config.max_thread_num = 8;
 config.mode = neug::DBMode::READ_WRITE;
 config.memory_level = 1;  // Use memory-mapped virtual memory
+config.auto_load_ext = false;  // Keep automatic extension loading disabled
 neug::NeugDB db;
 db.Open(config);
 ```
 
 - **Parameters:**
   - `config`: Configuration object with all database settings
+  - `config.auto_load_ext` (bool, default `false`): Controls automatic loading of
+    installed extensions before graph/index opening. Set to `true` to enable it.
+    See [auto_load_ext configuration](../python_api/database#auto-load-ext)
+    for directory resolution, failure handling and database mode behavior.
 
 - **Returns:** `true` if database opened successfully, `false` otherwise
 
@@ -189,4 +194,3 @@ Prepare an opened database for TP service without rebuilding planner.
 This requires local AP connections to be closed, persists and refreshes the live graph when needed, then rebuilds query runtime handles against the refreshed graph. The planner and its metadata registry are intentionally preserved so runtime extension registrations loaded in AP mode stay available in TP mode. The version manager is replaced only when a new durable checkpoint starts a fresh WAL timeline; otherwise the existing timeline is preserved.
 New connections receive slots borrowing the refreshed resources.
 The caller must close all local `Connection` objects first.
-

@@ -85,6 +85,16 @@ NodeDatabase::NodeDatabase(const Napi::CallbackInfo& info)
     buffer_strategy = opts.Get("bufferStrategy").As<Napi::String>().Utf8Value();
   }
 
+  bool auto_load_ext = false;
+  if (opts.Has("autoLoadExt")) {
+    if (!opts.Get("autoLoadExt").IsBoolean()) {
+      Napi::TypeError::New(env, "autoLoadExt must be a boolean")
+          .ThrowAsJavaScriptException();
+      return;
+    }
+    auto_load_ext = opts.Get("autoLoadExt").As<Napi::Boolean>().Value();
+  }
+
   // Parse mode
   neug::DBMode mode_;
   if (mode == "read" || mode == "r" || mode == "read-only" ||
@@ -102,6 +112,7 @@ NodeDatabase::NodeDatabase(const Napi::CallbackInfo& info)
   db_dir_ = database_path;
   database = std::make_unique<NeugDB>();
   NeugDBConfig config(db_dir_, max_thread_num);
+  config.auto_load_ext = auto_load_ext;
   config.mode = mode_;
   config.planner_kind = planner;
   config.checkpoint_on_close = checkpoint_on_close;
