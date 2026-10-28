@@ -120,6 +120,7 @@ static inline int dlclose(void* handle) {
 #endif
 
 #include "neug/compiler/common/string_format.h"
+#include "neug/compiler/common/windows_utils.h"
 #endif  // !NEUG_LITE
 
 #include "neug/compiler/extension/extension_manager.h"
@@ -142,14 +143,44 @@ Status ExtensionManager::UninstallExtension(const std::string& name) {
 
 namespace extension {
 
+#ifdef _WIN32
+// Read an environment variable from the live Win32 environment block.
+//
+// Node.js assigns process.env.* at runtime through SetEnvironmentVariableW,
+// which updates the process environment block but NOT the MSVC CRT's _environ
+// snapshot captured at startup. std::getenv (and _wgetenv) read that snapshot,
+// so they miss values lib/binding.js sets just before loading the native addon
+// -- notably NEUG_EXTENSION_HOME_PYENV, leaving the extension home to fall
+// back to /tmp. GetEnvironmentVariableW reads the live block and observes
+// those runtime assignments. See #1160.
+static std::string getEnvVarFromWin32(const char* name) {
+  std::wstring wname = common::WindowsUtils::utf8ToUnicode(name);
+  DWORD len = GetEnvironmentVariableW(wname.c_str(), nullptr, 0);
+  if (len == 0) {
+    return std::string();  // not set
+  }
+  std::wstring buf(len, L'\0');
+  DWORD got = GetEnvironmentVariableW(wname.c_str(), &buf[0], len);
+  if (got == 0 || got >= len) {
+    return std::string();
+  }
+  buf.resize(got);
+  return common::WindowsUtils::unicodeToUTF8(buf.c_str());
+}
+#endif
+
 static std::string getUserExtensionDir(const std::string& extension_name) {
   std::string base;
+#ifdef _WIN32
+  base = getEnvVarFromWin32("NEUG_EXTENSION_HOME_PYENV");
+#else
   const char* pyenv = std::getenv("NEUG_EXTENSION_HOME_PYENV");
   if (pyenv && *pyenv) {
     base = pyenv;
   }
+#endif
 #if defined(NEUG_EXTENSION_HOME_MACRO)
-  else {
+  if (base.empty()) {
     base = NEUG_EXTENSION_HOME_MACRO;
   }
 #endif
