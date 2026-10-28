@@ -6,7 +6,7 @@ NeuG defines all runtime/service error codes in the protobuf file [`error.proto`
 | --- | --- | --- | --- |
 | General | `OK` | 0 | Successful operation; no error. |
 | General | `ERR_PERMISSION` | 1001 | Operation blocked due to missing permissions. |
-| General | `ERR_VERSION_MISMATCHED` | 1002 | Binary/database versions are incompatible with the data directory. |
+| General | `ERR_VERSION_MISMATCHED` | 1002 | The binary and data directory formats are incompatible. |
 | General | `ERR_DIRECTORY_NOT_EXIST` | 1003 | Target directory path does not exist. |
 | General | `ERR_DATABASE_LOCKED` | 1004 | Data directory is locked by another process. |
 | General | `ERR_DISK_SPACE_EXHAUSTED` | 1005 | Insufficient disk space to continue. |

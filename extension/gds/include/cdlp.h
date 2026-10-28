@@ -22,7 +22,7 @@
 
 namespace neug {
 namespace gds {
-struct NEUG_API CDLPFunction {
+struct CDLPFunction {
   static constexpr const char* name = "cdlp";
   static std::unique_ptr<function::CallFuncInputBase> bind(
       const Schema& schema, const execution::ContextMeta& ctx_meta,

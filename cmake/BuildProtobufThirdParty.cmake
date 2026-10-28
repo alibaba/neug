@@ -122,7 +122,11 @@ function (build_protobuf_as_third_party)
     set(Protobuf_INCLUDE_DIRS ${_protobuf_include_dirs} PARENT_SCOPE)
     set(Protobuf_INCLUDE_DIR ${_protobuf_include_dirs} PARENT_SCOPE)
     set(Protobuf_LIBRARIES protobuf::libprotobuf protobuf::libprotobuf-lite protobuf::libprotoc PARENT_SCOPE)
-    set(PROTOC_LIB protobuf::protoc PARENT_SCOPE)
+    # Target name exported by the bundled protobuf build (protobuf's own
+    # CMake defines the protobuf::libprotoc ALIAS). Deliberately distinct
+    # from the system-library path found by find_library(PROTOC_LIB name
+    # protoc) in the root CMakeLists.txt; do not mix the two forms.
+    set(PROTOC_LIB protobuf::libprotoc PARENT_SCOPE)
     set(Protobuf_PROTOC_EXECUTABLE ${CMAKE_CURRENT_BINARY_DIR}/third_party/protobuf/protoc PARENT_SCOPE)
 
     if(_neug_restore_build_shared_libs)

@@ -8,6 +8,7 @@
 #include "neug/compiler/planner/operator/logical_operator.h"
 #include "neug/compiler/storage/predicate/column_predicate.h"
 #include "neug/generated/proto/plan/expr.pb.h"
+#include "neug/utils/api.h"
 
 namespace neug {
 namespace planner {
@@ -75,7 +76,7 @@ struct LogicalScanNodeTablePrintInfo final : OPPrintInfo {
   }
 };
 
-class LogicalScanNodeTable final : public LogicalOperator {
+class NEUG_API LogicalScanNodeTable final : public LogicalOperator {
   static constexpr LogicalOperatorType type_ =
       LogicalOperatorType::SCAN_NODE_TABLE;
   static constexpr LogicalScanNodeTableType defaultScanType =
@@ -94,6 +95,7 @@ class LogicalScanNodeTable final : public LogicalOperator {
     this->cardinality = cardinality;
   }
   LogicalScanNodeTable(const LogicalScanNodeTable& other);
+  LogicalScanNodeTable& operator=(const LogicalScanNodeTable&) = delete;
 
   void computeFactorizedSchema() override;
   void computeFlatSchema() override;

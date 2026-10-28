@@ -66,20 +66,45 @@ RETURN id, name, CAST(address, 'STRING[3]') AS addresses;
 
 ### JSON / JSONL
 
-Since NeuG v0.1.2, JSON/JSONL is a built-in format — no extension installation is needed. You can use `LOAD FROM` to read `.json` and `.jsonl` files directly:
+JSON and JSONL are built-in formats. The format is inferred from the file extension:
+
+| Extension | Format | Description |
+| --------- | ------ | ----------- |
+| `.json` | JSON array | One JSON array containing all rows as objects |
+| `.jsonl` | JSON Lines | One JSON object per line |
+
+For example, a JSON array contains multiple objects:
+
+```json
+[
+  {"id": 1, "name": "Alice", "age": 30},
+  {"id": 2, "name": "Bob", "age": 25}
+]
+```
+
+A JSONL file stores one object per line:
+
+```jsonl
+{"id": 1, "name": "Alice", "age": 30}
+{"id": 2, "name": "Bob", "age": 25}
+```
+
+Use `LOAD FROM` with either format without installing or loading an extension:
 
 ```cypher
 LOAD FROM "person.json"
 RETURN *;
+
+LOAD FROM "person.jsonl"
+RETURN *;
 ```
 
-> **Version Note:** Since version v0.1.2, we made JSON support a built-in functionality, so you do not need to install the JSON extension before using it. For NeuG version < 0.1.2, JSON support was provided via the JSON Extension and required `INSTALL json; LOAD json;` before use.
-
-See the [JSON Extension](../extensions/load_json) page for format-specific options and examples.
+All relational operations described below, including projection, aliases,
+filtering, aggregation, sorting, and limiting, work with both formats.
 
 ### Parquet
 
-Parquet is supported via the PARQUET extension (available since v0.1.1). After a one-time install and load, you can use `LOAD FROM` to read `.parquet` files directly:
+Parquet is supported via the PARQUET extension. After a one-time install and load, you can use `LOAD FROM` to read `.parquet` files directly:
 
 ```cypher
 INSTALL PARQUET;

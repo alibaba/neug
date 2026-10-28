@@ -144,7 +144,7 @@ jobs:
         export FLEX_DATA_DIR=${GITHUB_WORKSPACE}/example_dataset/modern_graph
         export TEST_PATH=${GITHUB_WORKSPACE}/tests
         cd ${GITHUB_WORKSPACE}/build
-        ctest --output-on-failure --no-tests=error -R '^(parquet_extension_test|parquet_carquet_.*)$'
+        ctest --output-on-failure --no-tests=error -R '^parquet_carquet_.*$'
         ctest -R httpfs_extension_test -V
         ctest -R pattern_matching_extension_test -V
         ctest -R fts_extension_test -V
@@ -173,6 +173,7 @@ jobs:
         NEUG_RUN_EXTENSION_TESTS=true python3 -m pytest -sv tests/test_hnsw_index.py
         NEUG_RUN_EXTENSION_TESTS=true python3 -m pytest -sv tests/test_hnsw_index_tp.py
         NEUG_RUN_EXTENSION_TESTS=true python3 -m pytest -sv tests/test_fts_index.py tests/test_fts_index_tp.py
+        NEUG_RUN_EXTENSION_TESTS=true python3 -m pytest -sv tests/test_parquet_export_interop.py
 
     - name: Run GDS Tests
       run: |
@@ -247,7 +248,7 @@ jobs:
           mkdir -p $NEUG_SITE/extension
           rm -rf $NEUG_SITE/extension
           cp -r extension_packages/extension $NEUG_SITE/
-          # Copy auditwheel-bundled shared libraries (e.g. libcurl, libarrow_s3)
+          # Copy auditwheel-bundled shared libraries (e.g. libcurl)
           # from the extension wheel.  auditwheel renames .so files with a
           # content hash (e.g. libcurl-34c6b10f.so.4.3.0) and places them in
           # <package>.libs/.  Without this step the extension .so files fail to
@@ -340,10 +341,235 @@ jobs:
           NEUG_RUN_EXTENSION_TESTS=1 python3 tools/python_bind/example/complex_test.py
 
   # ============================================================
+  # Job: Windows extension build + load tests (x64 / arm64)
+  # Builds every extension except parquet from source under the vcpkg
+  # toolchain and validates the local build -> LOAD chain. INSTALL is
+  # deliberately not exercised here: no Windows extension packages are
+  # published upstream yet.
+  # ============================================================
+  extension_tests_windows:
+    timeout-minutes: 240
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: x64
+            runs-on: windows-latest
+            triplet: x64-windows-static-md
+          - arch: arm64
+            runs-on: windows-11-arm
+            triplet: arm64-windows-static-md
+    runs-on: ${{ matrix.runs-on }}
+    defaults:
+      run:
+        shell: pwsh
+
+    env:
+      SCCACHE_GHA_ENABLED: 'true'
+      # Stable across commits/runners; sccache hashes compiler, inputs and flags.
+      SCCACHE_GHA_VERSION: windows-extensions-${{ matrix.triplet }}-v1
+      # Environment launchers also reach fresh ExternalProject configurations,
+      # including ZVec, without changing other jobs' CMake configuration.
+      CMAKE_C_COMPILER_LAUNCHER: sccache
+      CMAKE_CXX_COMPILER_LAUNCHER: sccache
+      NINJA_STATUS: '[%f/%t running=%r elapsed=%es] '
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          fetch-depth: 0
+
+      # GitHub-hosted Windows runners default to core.autocrlf=true, so
+      # tracked text files -- including the *.patch files -- are checked out
+      # with CRLF, and git apply cannot parse a CRLF patch ("corrupt patch
+      # at line N"). Neither CMake file I/O (file(READ) strips CR,
+      # file(WRITE) re-adds it on Windows) nor git checkout are reliable
+      # normalizers here, so rewrite the bytes directly with tr: LF-only
+      # files pass through unchanged, CRLF files become LF byte-exactly.
+      # Then re-checkout the submodules that host patched sources with
+      # autocrlf off, so the patch target files are LF as well.
+      - name: Normalize patch and submodule files to LF (byte-exact)
+        shell: bash
+        run: |
+          git config --global core.autocrlf false
+          git config --global core.eol lf
+          for f in third_party/*.patch third_party/zvec/thirdparty/antlr/antlr4.patch; do
+            [ -f "$f" ] || continue
+            tr -d '\r' < "$f" > "$f.tmp" && mv "$f.tmp" "$f"
+            cr_left=$(tr -dc '\r' < "$f" | wc -c)
+            echo "${f}: CR bytes after normalize = ${cr_left}"
+          done
+          git submodule deinit -f third_party/cppjieba third_party/zvec
+          git submodule update --init --force --recursive third_party/cppjieba third_party/zvec
+
+      - name: Setup MSVC Developer Command Prompt
+        uses: ilammy/msvc-dev-cmd@v1
+        with:
+          arch: ${{ matrix.arch }}
+
+      - name: Setup compiler cache
+        id: sccache
+        uses: mozilla-actions/sccache-action@v0.0.11
+        with:
+          version: v0.18.0
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install Python dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r tools/python_bind/requirements.txt
+          python -m pip install pytest
+
+      # vcpkg at C:\vcpkg (VCPKG_INSTALLATION_ROOT) ships no pre-built
+      # packages and classic mode does not auto-install. fts needs zlib
+      # plus an FTS5-enabled sqlite3 (the bundled amalgamation Makefile
+      # cannot run in the MSVC toolchain); httpfs needs curl; openssl is
+      # required by the core build and by httpfs; parquet's Carquet
+      # implementation needs the zstd and lz4 codec libraries.
+      - name: Setup vcpkg
+        run: |
+          echo "VCPKG_ROOT=$env:VCPKG_INSTALLATION_ROOT" >> $env:GITHUB_ENV
+          echo "Using vcpkg at: $env:VCPKG_INSTALLATION_ROOT"
+
+      - name: Cache vcpkg packages
+        uses: actions/cache@v4
+        with:
+          path: ${{ env.VCPKG_ROOT }}/installed
+          key: vcpkg-${{ matrix.triplet }}-ext-openssl-curl-zlib-zstd-lz4-sqlite3-${{ hashFiles('CMakeLists.txt') }}
+          restore-keys: |
+            vcpkg-${{ matrix.triplet }}-ext-openssl-curl-zlib-zstd-lz4-sqlite3-
+
+      - name: Install vcpkg packages
+        run: |
+          $vcpkgExe = Join-Path $env:VCPKG_ROOT "vcpkg.exe"
+          $triplet = "${{ matrix.triplet }}"
+          $installDir = Join-Path $env:VCPKG_ROOT "installed\$triplet"
+          # Skip if already installed (cache hit)
+          if (Test-Path (Join-Path $installDir "lib\libssl.lib")) {
+            Write-Host "vcpkg packages already installed in $installDir (cache hit)"
+          } else {
+            Write-Host "Installing openssl/curl/zlib/zstd/lz4/sqlite3[core,fts5]:$triplet via vcpkg"
+            & $vcpkgExe install `
+              "openssl:$triplet" `
+              "curl:$triplet" `
+              "zlib:$triplet" `
+              "zstd:$triplet" `
+              "lz4:$triplet" `
+              "sqlite3[core,fts5]:$triplet"
+            if ($LASTEXITCODE -ne 0) {
+              Write-Error "vcpkg failed to install packages for $triplet"
+              exit 1
+            }
+          }
+
+      - name: Prepare out-of-tree extension fixture
+        run: |
+          $fixtureDir = Join-Path $env:RUNNER_TEMP "neug-ci-out-of-tree-extension"
+          Copy-Item -Recurse -Force `
+            (Join-Path $env:GITHUB_WORKSPACE "extension/test_out_of_tree") `
+            $fixtureDir
+          "NEUG_EXTENSION_CONFIGS=$(Join-Path $fixtureDir 'extension_config.cmake')" >> $env:GITHUB_ENV
+
+      # parquet IS built now: its Arrow C++ dependency was removed (#1128) and
+      # it decodes via the Carquet C library, which supports MSVC; Carquet's
+      # zstd/lz4/zlib codecs are installed through vcpkg above.
+      - name: Configure CMake
+        run: |
+          $pythonExe = (Get-Command python).Path
+          $vcpkgToolchain = Join-Path $env:VCPKG_ROOT "scripts\buildsystems\vcpkg.cmake"
+          cmake -B build -G Ninja `
+            -DCMAKE_BUILD_TYPE=Release `
+            -DCMAKE_TOOLCHAIN_FILE="$vcpkgToolchain" `
+            -DVCPKG_TARGET_TRIPLET=${{ matrix.triplet }} `
+            -DBUILD_PYTHON=ON `
+            -DBUILD_HTTP_SERVER=ON `
+            -DBUILD_TEST=OFF `
+            -DBUILD_EXTENSIONS="fts;gds;httpfs;parquet;pattern_matching;vector_search;test_out_of_tree" `
+            -DNEUG_EXTENSION_CONFIGS="${{ env.NEUG_EXTENSION_CONFIGS }}" `
+            -DPython_EXECUTABLE="$pythonExe" `
+            -DPYTHON_EXECUTABLE="$pythonExe" `
+            .
+
+      - name: Build
+        run: |
+          $cpuCount = [Environment]::ProcessorCount
+          $jobs = [Math]::Min($cpuCount, 8)
+          Write-Host "Building with $jobs parallel jobs"
+          cmake --build build -j $jobs
+
+      - name: Show compiler cache statistics
+        if: always() && steps.sccache.outcome == 'success'
+        run: sccache --show-stats
+
+      - name: Verify extension artifacts
+        run: |
+          $expected = @("fts", "gds", "httpfs", "parquet", "pattern_matching", "vector_search", "test_out_of_tree")
+          $missing = @()
+          foreach ($ext in $expected) {
+            $artifact = Join-Path "build/extension/$ext" "lib$ext.neug_extension"
+            if (-not (Test-Path $artifact)) { $missing += $artifact }
+          }
+          if ($missing.Count -gt 0) {
+            Write-Error ("Missing extension artifacts: " + ($missing -join ", "))
+            exit 1
+          }
+          Write-Host "All $($expected.Count) extension artifacts present."
+
+      - name: Run extension load tests
+        env:
+          PYTHONPATH: ${{ github.workspace }}/tools/python_bind
+          NEUG_EXTENSION_HOME_PYENV: ${{ github.workspace }}/build
+        run: |
+          cd tools/python_bind
+          python -m pytest -sv tests/test_extension_local_load.py
+
+      # End-to-end parity with the Linux wheel jobs (see "Run simple and
+      # complex tests" in extension_tests_wheel_linux_*): exercise the core
+      # read/write path (simple_example.py) and the built-in + extension
+      # capability suite (complex_test.py) against the source-built binding.
+      # PYTHONPATH / NEUG_EXTENSION_HOME_PYENV mirror the load-test step so
+      # `import neug` resolves to the source tree and LOAD finds the locally
+      # built build/extension/<name>/lib<name>.neug_extension artifacts.
+      - name: Run simple and complex tests
+        env:
+          PYTHONPATH: ${{ github.workspace }}/tools/python_bind
+          NEUG_EXTENSION_HOME_PYENV: ${{ github.workspace }}/build
+          TMP_DIR: ${{ github.workspace }}/${{ github.run_id }}
+          # Turns on the Parquet + HTTPFS sections of complex_test.py; both
+          # extensions are built for Windows in this job.
+          NEUG_RUN_EXTENSION_TESTS: '1'
+          # Windows Python defaults stdout to a legacy codepage (cp1252) that
+          # cannot encode the emoji complex_test.py prints (PASS/FAIL marks),
+          # raising UnicodeEncodeError; force UTF-8 mode instead.
+          PYTHONUTF8: '1'
+        run: |
+          Remove-Item -Recurse -Force "$env:TMP_DIR/test_example" -ErrorAction SilentlyContinue
+          # GLOG_v mirrors the Linux wheel job: verbose for the short
+          # simple_example.py run only, kept off complex_test.py to limit logs.
+          $env:GLOG_v = '10'
+          python tools/python_bind/example/simple_example.py example_dataset/modern_graph "$env:TMP_DIR/test_example"
+          if ($LASTEXITCODE -ne 0) {
+            Write-Error "simple_example.py failed"
+            exit 1
+          }
+          Remove-Item Env:\GLOG_v -ErrorAction SilentlyContinue
+          python tools/python_bind/example/complex_test.py
+          if ($LASTEXITCODE -ne 0) {
+            Write-Error "complex_test.py failed"
+            exit 1
+          }
+
+  # ============================================================
   # Notify: Send results to DingTalk
   # ============================================================
   notify-extension-result:
-    needs: [extension_tests_default, extension_tests_wheel_linux_x86_64, extension_tests_wheel_linux_arm64]
+    needs: [extension_tests_default, extension_tests_wheel_linux_x86_64, extension_tests_wheel_linux_arm64, extension_tests_windows]
     if: always() && github.repository == 'alibaba/neug'
     runs-on: ubuntu-latest
     steps:
@@ -359,7 +585,8 @@ jobs:
           STATUS_DEFAULT="${{ needs.extension_tests_default.result }}"
           STATUS_X86="${{ needs.extension_tests_wheel_linux_x86_64.result }}"
           STATUS_ARM="${{ needs.extension_tests_wheel_linux_arm64.result }}"
-          if [[ "$STATUS_DEFAULT" == "success" && "$STATUS_X86" == "success" && "$STATUS_ARM" == "success" ]]; then
+          STATUS_WIN="${{ needs.extension_tests_windows.result }}"
+          if [[ "$STATUS_DEFAULT" == "success" && "$STATUS_X86" == "success" && "$STATUS_ARM" == "success" && "$STATUS_WIN" == "success" ]]; then
             TITLE="[Nightly Report] NeuG Extension Test Passed"
           else
             TITLE="[Nightly Report] NeuG Extension Test Failed"
@@ -370,6 +597,6 @@ jobs:
               \"msgtype\": \"markdown\",
               \"markdown\": {
                 \"title\": \"$TITLE\",
-                \"text\": \"## $TITLE\n\n- **extension_tests_default**: ${STATUS_DEFAULT}\n- **wheel_linux_x86_64**: ${STATUS_X86}\n- **wheel_linux_arm64**: ${STATUS_ARM}\n- **Repo**: ${{ github.repository }}\n- **Branch**: ${{ github.ref_name }}\n- **Commit**: ${{ github.sha }}\n- [View Run](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})\"
+                \"text\": \"## $TITLE\n\n- **extension_tests_default**: ${STATUS_DEFAULT}\n- **wheel_linux_x86_64**: ${STATUS_X86}\n- **wheel_linux_arm64**: ${STATUS_ARM}\n- **windows_x64_arm64**: ${STATUS_WIN}\n- **Repo**: ${{ github.repository }}\n- **Branch**: ${{ github.ref_name }}\n- **Commit**: ${{ github.sha }}\n- [View Run](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})\"
               }
             }"

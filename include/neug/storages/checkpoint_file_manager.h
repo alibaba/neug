@@ -20,6 +20,7 @@
 
 #include "neug/storages/container/container_utils.h"
 #include "neug/storages/container/i_container.h"
+#include "neug/utils/api.h"
 #include "neug/utils/uuid.h"
 
 namespace neug {
@@ -55,12 +56,12 @@ class RuntimeWorkspace final {
  *
  * Thread safety: all public methods are safe to call concurrently.
  */
-class CheckpointFileManager {
+class NEUG_API CheckpointFileManager {
  private:
   struct RuntimeFileCleanupContext;
 
  public:
-  class RuntimeFileHandle {
+  class NEUG_API RuntimeFileHandle {
    public:
     ~RuntimeFileHandle();
 

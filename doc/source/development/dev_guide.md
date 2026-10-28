@@ -22,6 +22,42 @@ brew install cmake git python3 openssl@3
 # No need to install g++ since Apple Clang is also supported.
 ```
 
+#### On Windows
+
+NeuG builds natively on Windows with MSVC. The toolchain uses the Ninja
+generator and [vcpkg](https://github.com/microsoft/vcpkg) (classic mode) for
+the few dependencies that are not vendored under `third_party/` (currently
+OpenSSL). Prerequisites:
+
+- **Visual Studio 2022 Build Tools** with the "Desktop development with C++"
+  workload (provides `cl`/`link`, CMake, and Ninja)
+- **Python 3.8+**, **Git**
+
+A helper script installs the dependencies via vcpkg and writes an environment
+file. Run it from a *Developer PowerShell for VS 2022*:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts\install_deps.ps1
+# Load the generated environment (sets VCPKG_ROOT, OPENSSL_ROOT_DIR, etc.)
+. $HOME\.neug_env.ps1
+```
+
+Then build the core library and the Python binding:
+
+```powershell
+scripts\build_windows.bat
+```
+
+`build_windows.bat` invokes `vcvarsall.bat x64`, configures CMake with the
+Ninja generator and the vcpkg toolchain (triplet `x64-windows-static-md`), and
+builds the `neug` and `neug_py_bind` targets into `build\`. Set `VCPKG_ROOT`
+and `PYTHON_EXE` beforehand to override the defaults. For ARM64, use the
+`arm64-windows-static-md` triplet.
+
+> **NOTE**: The `make python-dev` / `make cpp-build` flows below are shell
+> targets and are not available natively on Windows; use the scripts above
+> (or the equivalent raw `cmake` commands) instead.
+
 #### On CentOS7
 
 ```bash
@@ -161,6 +197,18 @@ NEUG_PACKAGE_BUILD=OFF NEUG_NATIVE_ARCH=ON make -C tools/python_bind build
 NEUG_NATIVE_ARCH=ON make -C tools/nodejs_bind dev
 ```
 
+##### Lite builds
+
+Enable lite mode (default: `OFF`):
+
+```bash
+EXTRA_CMAKE_FLAGS="-DNEUG_LITE=ON" make cpp-build
+```
+
+The lite build minimizes NeuG's external dependencies, making it easier to use across different environments, including mobile platforms. It removes the core's OpenSSL dependency and disables HTTP server support and dynamic extension loading.
+
+To restore the full build, set `NEUG_LITE=OFF` and re-enable `BUILD_HTTP_SERVER=ON` if needed.
+
 #### Debugging
 
 By default, C++ logging is disabled. To enable logging, use:
@@ -267,7 +315,7 @@ If you see this error:
 
 - **For `libneug` itself**: your build tree is incomplete or you moved files.
   Re-run `cmake --build build --target neug_py_bind`.
-- **For a third-party dep** (arrow, openssl, etc.): `libneug.dylib`'s
+- **For a third-party dep** (openssl, protobuf, etc.): `libneug.dylib`'s
   transitive deps weren't found. Set `DYLD_LIBRARY_PATH=/opt/neug/lib` (macOS)
   or `LD_LIBRARY_PATH=/opt/neug/lib:/opt/neug/lib64` (Linux) to where they are
   installed, or rebuild with the deps statically linked.

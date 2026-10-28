@@ -51,10 +51,24 @@ function(compile_proto OUT_HDRS OUT_SRCS DESTDIR HDR_OUTPUT_DIR PROTO_DIR PROTO_
                 endif()
                 message(STATUS "Generating protobuf C++ files with command: ${PROTOC_EXE} ${PROTOC_FLAGS} ${PROTOC_INCLUDE_ARGS_STR} --cpp_out=${PROTOC_DLLEXPORT}${DESTDIR} ${PROTO_DIR}/${REL_PROTO}")
 
+                set(_POST_PROTOC_COMMANDS)
+                if(WIN32)
+                        # dllexport_decl only annotates the generated classes; the
+                        # namespace-scope _<Type>_default_instance_ definitions stay
+                        # unexported, leaving consumers of the generated headers
+                        # (python/node bindings link neug.lib) with unresolved data
+                        # symbols. Annotate those extern declarations so neug.dll
+                        # exports them too.
+                        list(APPEND _POST_PROTOC_COMMANDS
+                                COMMAND ${CMAKE_COMMAND} -DPB_HEADER=${HDR}
+                                        -P ${CMAKE_SOURCE_DIR}/cmake/patch_pb_default_instances.cmake)
+                endif()
+
                 add_custom_command(
                         OUTPUT ${HDR} ${SRC}
                         COMMAND ${CMAKE_COMMAND} -E make_directory ${HDR_DIR} ${SRC_DIR}
                         COMMAND ${PROTOC_EXE} ${PROTOC_FLAGS} ${PROTOC_INCLUDE_ARGS} --cpp_out=${PROTOC_DLLEXPORT}${DESTDIR} ${PROTO_DIR}/${REL_PROTO}
+                        ${_POST_PROTOC_COMMANDS}
                         # When HDR_OUTPUT_DIR differs from DESTDIR, optionally copy headers
                         COMMAND ${CMAKE_COMMAND} -E copy ${HDR} ${HDR_OUTPUT_DIR}/${HDR_RELATIVE}
                         DEPENDS ${PROTO_DIR}/${REL_PROTO}
@@ -123,13 +137,6 @@ install(DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/neug
 file(GLOB_RECURSE UTILS_SRC_FILES "${CMAKE_CURRENT_SOURCE_DIR}/*.cc")
 # exclude files end with .pb.cc
 list(FILTER UTILS_SRC_FILES EXCLUDE REGEX ".*\\.pb\\.cc$")
-# Arrow-backed reader sources live in the parquet extension
-list(FILTER UTILS_SRC_FILES EXCLUDE REGEX ".*/reader/reader\\.cc$")
-list(FILTER UTILS_SRC_FILES EXCLUDE REGEX ".*/reader/dataset_builder\\.cc$")
-list(FILTER UTILS_SRC_FILES EXCLUDE REGEX ".*/reader/expression_converter\\.cc$")
-list(FILTER UTILS_SRC_FILES EXCLUDE REGEX ".*/reader/json_dataset_builder\\.cc$")
-list(FILTER UTILS_SRC_FILES EXCLUDE REGEX ".*/reader/json_options\\.cc$")
-list(FILTER UTILS_SRC_FILES EXCLUDE REGEX ".*/arrow_utils\\.cc$")
 message(STATUS "Utils source files: ${UTILS_SRC_FILES}")
 
 add_library(neug_utils OBJECT ${UTILS_SRC_FILES})

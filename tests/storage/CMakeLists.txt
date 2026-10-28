@@ -14,8 +14,8 @@ add_neug_test(ap_index_test test_ap_index.cc)
 
 # e2e_index_test relies on POSIX subprocess APIs (fork/waitpid/execl,
 # sys/wait.h, unistd.h) and the vec_index test extension.  Neither is
-# supported on Windows, and the test is not run in the Windows CI matrix.
-if(NOT WIN32)
+# supported on Windows, and lite does not support dynamic extension loading.
+if(NOT WIN32 AND NOT NEUG_LITE)
     add_neug_test(e2e_index_test test_e2e_index.cc)
     add_dependencies(e2e_index_test neug_test_vec_index_extension)
     target_compile_definitions(e2e_index_test PRIVATE
@@ -59,11 +59,10 @@ add_neug_test(chunk_fault_recovery_test test_chunk_fault_recovery.cc)
 # POSIX only: the harness uses getrusage(<sys/resource.h>) for peak RSS.
 # ---------------------------------------------------------------------------
 if(NOT WIN32)
-    find_package(OpenSSL REQUIRED)
     add_executable(chunk_benchmark bench_chunked_column.cc)
     target_link_libraries(chunk_benchmark PUBLIC neug::GTest neug
-        ${Protobuf_LIBRARIES} ${GLOG_LIBRARIES} ${ARROW_LIB} ${OPENSSL_LIBRARIES}
-        ${CRYPTO_LIB} ${YAML_CPP_LIBRARIES})
+        ${Protobuf_LIBRARIES} ${GLOG_LIBRARIES} ${ARROW_LIB}
+        ${YAML_CPP_LIBRARIES})
     target_include_directories(chunk_benchmark BEFORE PRIVATE
         ${CMAKE_BINARY_DIR}/_deps/googletest-src/googletest/include
         ${CMAKE_BINARY_DIR}/_deps/googletest-src/googlemock/include)

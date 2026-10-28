@@ -53,7 +53,9 @@ target_link_libraries(neug_pattern_matching_extension PRIVATE
 # sources into the test binary and also dlopening the .so duplicates globals
 # (e.g. GraphDataCache) and breaks RTTI across the DSO boundary, which showed
 # up as a segfault right after CALL INITIALIZE() returned.
-if(BUILD_TEST)
+# Skipped on Windows, which does not build C++ test targets (BUILD_TEST=OFF
+# in CI); the extension itself and its LOAD-path coverage build everywhere.
+if(BUILD_TEST AND NOT WIN32)
     set(_sm_test_name pattern_matching_extension_test)
     find_package(OpenSSL REQUIRED)
     add_executable(${_sm_test_name}
@@ -62,9 +64,6 @@ if(BUILD_TEST)
         ${CMAKE_SOURCE_DIR}
         ${CMAKE_CURRENT_SOURCE_DIR}/include
         ${CMAKE_BINARY_DIR})
-    if(ARROW_INCLUDE_DIRS)
-        target_include_directories(${_sm_test_name} PRIVATE SYSTEM ${ARROW_INCLUDE_DIRS})
-    endif()
     target_include_directories(${_sm_test_name} PRIVATE SYSTEM
         ${CMAKE_CURRENT_SOURCE_DIR}/include/fastest_lib/src
         ${CMAKE_SOURCE_DIR}/third_party/rapidjson/include)
@@ -72,7 +71,6 @@ if(BUILD_TEST)
         neug::GTest
         neug
         ${GLOG_LIBRARIES}
-        ${ARROW_LIB}
         ${OPENSSL_LIBRARIES}
         ${CRYPTO_LIB})
     if(ENABLE_GCOV)

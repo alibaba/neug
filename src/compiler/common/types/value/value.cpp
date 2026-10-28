@@ -848,16 +848,19 @@ std::string Value::listToString() const {
 }
 
 std::string Value::structToString() const {
-  std::string result = "{";
-  auto fieldNames = StructType::GetFieldNames(dataType);
+  const auto& fieldNames = StructType::GetFieldNames(dataType);
+  const bool positional = fieldNames.empty() || fieldNames[0].empty();
+  std::string result = positional ? "[" : "{";
   for (auto i = 0u; i < childrenSize; ++i) {
-    result += fieldNames[i] + ": ";
+    if (!positional) {
+      result += fieldNames[i] + ": ";
+    }
     result += children[i]->toString();
     if (i != childrenSize - 1) {
       result += ", ";
     }
   }
-  result += "}";
+  result += positional ? "]" : "}";
   return result;
 }
 

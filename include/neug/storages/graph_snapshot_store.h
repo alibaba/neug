@@ -57,6 +57,8 @@ class Checkpoint;
  */
 class NEUG_API GraphSnapshotStore {
  public:
+  GraphSnapshotStore(const GraphSnapshotStore&) = delete;
+  GraphSnapshotStore& operator=(const GraphSnapshotStore&) = delete;
   /// A slot holding a PropertyGraph, its GraphView, and a pin count.
   class SnapshotSlot {
    public:

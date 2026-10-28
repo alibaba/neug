@@ -21,7 +21,7 @@
 
 namespace neug {
 namespace gds {
-struct NEUG_API LCCFunction {
+struct LCCFunction {
   static constexpr const char* name = "lcc";
   static execution::Context exec(const function::CallFuncInputBase& input,
                                  IStorageInterface& graph);

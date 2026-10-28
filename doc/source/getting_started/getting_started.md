@@ -1,6 +1,6 @@
 # Getting Started
 
-This guide walks you through creating your first graph database, querying relationships, adding the indexes introduced in NeuG v0.2, and exploring both embedded and service modes. Examples are in **Python**.
+This guide walks you through creating your first graph database, querying relationships, adding storage indexes, and exploring both embedded and service modes. Examples are in **Python**.
 
 > **Using another language?** See the [Node.js API reference](../../reference/nodejs_api/index), [Java API reference](../../reference/java_api/index), or [C++ API reference](../../reference/cpp_api/index) for equivalent examples in those languages.
 
@@ -219,9 +219,9 @@ for record in result:
     # Bob Smith knows Alice Johnson who works at TechCorp
 ```
 
-### Indexing the Same Data (NeuG v0.2+)
+### Indexing the Same Data
 
-NeuG v0.2 introduces storage indexes, HNSW vector search, and BM25 full-text search. These capabilities are not available in NeuG v0.1.x. The following examples add semantic and keyword indexes to the same `Person` nodes used by the graph queries above.
+NeuG provides storage indexes, HNSW vector search, and BM25 full-text search. The following examples add semantic and keyword indexes to the same `Person` nodes used by the graph queries above.
 
 ```python
 # Load the index extensions

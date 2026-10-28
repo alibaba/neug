@@ -67,7 +67,7 @@ class ClientContext;
  * @brief Database class is the main class of Kuzu. It manages all database
  * components.
  */
-class MetadataManager {
+class NEUG_API MetadataManager {
   friend class EmbeddedShell;
   friend class ClientContext;
   friend class Connection;
@@ -78,15 +78,17 @@ class MetadataManager {
   friend struct extension::ExtensionUtils;
 
  public:
+  MetadataManager(const MetadataManager&) = delete;
+  MetadataManager& operator=(const MetadataManager&) = delete;
   MetadataManager();
   /**
    * @brief Destructs the database object.
    */
-  NEUG_API virtual ~MetadataManager();
+  virtual ~MetadataManager();
 
-  NEUG_API catalog::Catalog* getCatalog() { return catalog.get(); }
+  catalog::Catalog* getCatalog() { return catalog.get(); }
 
-  NEUG_API neug::fsys::FileSystemRegistry* getVFS() const { return vfs.get(); }
+  neug::fsys::FileSystemRegistry* getVFS() const { return vfs.get(); }
 
   std::unique_ptr<MetadataManager> clone(const Schema* schema,
                                          const GraphStats& stats) const;

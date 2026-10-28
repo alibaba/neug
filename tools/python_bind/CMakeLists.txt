@@ -6,7 +6,7 @@ file(GLOB_RECURSE SOURCE_CPP "${CMAKE_CURRENT_SOURCE_DIR}/src/*.cc")
 # CMAKE_INTERPROCEDURAL_OPTIMIZATION is not defined.  GCC-13's LTO
 # partitioner crashes with an ICE (add_symbol_to_partition_1) when
 # link-time-optimising this module together with the large set of statically
-# linked libraries (Arrow, protobuf, abseil, …).  Explicitly set the
+# linked libraries (protobuf, abseil, …).  Explicitly set the
 # variable to FALSE *before* the call so pybind11 skips its LTO logic.
 set(CMAKE_INTERPROCEDURAL_OPTIMIZATION FALSE)
 pybind11_add_module(neug_py_bind MODULE ${SOURCE_CPP})
@@ -35,15 +35,13 @@ set_target_properties(neug_py_bind PROPERTIES
 # protobuf is linked privately because pybind sources use protobuf-generated
 # headers whose inline/template code references absl/protobuf symbols;
 # libneug.dylib hides those symbols to avoid conflicts with pyarrow.
-# On Windows, also link neug_proto OBJECT files directly because protobuf's
-# _default_instance_ variables are at namespace scope and not exported
-# from neug.dll (dllexport_decl only marks class declarations, not these
-# file-scope static variables).
-if(WIN32)
-    target_link_libraries(neug_py_bind PRIVATE neug ${GLOG_LIBRARIES} ${Protobuf_LIBRARIES} $<TARGET_OBJECTS:neug_proto>)
-else()
-    target_link_libraries(neug_py_bind PRIVATE neug ${GLOG_LIBRARIES} ${Protobuf_LIBRARIES})
-endif()
+# The generated message classes and their namespace-scope default instances
+# are all exported from neug.dll (dllexport_decl plus the generated-header
+# patch), so every protobuf translation unit exists only inside neug.dll and
+# the bindings import the symbols through neug.lib. Never link the neug_proto
+# object files directly into this target: they would duplicate the descriptor
+# pools across modules and collide with the import library (LNK2005).
+target_link_libraries(neug_py_bind PRIVATE neug ${GLOG_LIBRARIES} ${Protobuf_LIBRARIES})
 
 # Suppress VLA warnings from brpc third-party headers (bvar/detail/percentile.h
 # uses DEFINE_SMALL_ARRAY which is a GCC VLA extension unsupported by Clang).
@@ -51,7 +49,7 @@ if (CMAKE_CXX_COMPILER_ID MATCHES "Clang")
     target_compile_options(neug_py_bind PRIVATE -Wno-vla-extension)
 endif()
 
-# Hide protobuf/abseil/arrow symbols from neug_py_bind.so as well, so they
+# Hide protobuf/abseil symbols from neug_py_bind.so as well, so they
 # don't leak into the Python process and conflict with pyarrow's copies.
 neug_apply_symbol_visibility(neug_py_bind)
 

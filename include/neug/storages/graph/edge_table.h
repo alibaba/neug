@@ -198,7 +198,8 @@ class NEUG_API EdgeTable {
 
  private:
   void dropAndCreateNewBundledCSR(Checkpoint& ckp, ColumnBase* prev_data_col);
-  void dropAndCreateNewUnbundledCSR(Checkpoint& ckp, bool delete_property);
+  void dropAndCreateNewUnbundledCSR(Checkpoint& ckp, bool delete_property,
+                                    bool preserve_bundled_property = false);
 
   std::shared_ptr<Checkpoint> ckp_;
   std::shared_ptr<const EdgeSchema> meta_;

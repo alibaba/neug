@@ -58,8 +58,8 @@ struct CSVReadFunction {
           "Can not run read function with empty column names and types");
     }
     auto& options = state->schema.file.options;
-    // convert user-specified 'DELIMITER' to 'DELIM' for arrow csv options, all
-    // options are case insensitive
+    // Map 'DELIMITER' to 'DELIM' for the CSV reader. Options are case
+    // insensitive.
     auto it = options.find("DELIMITER");
     if (it != options.end()) {
       options["DELIM"] = it->second;
@@ -76,8 +76,7 @@ struct CSVReadFunction {
             "Delimiter should not be an escape character: " + value);
       }
     }
-    // convert user-specified 'HEADER' to 'SKIP_ROWS' for arrow csv options,
-    // arrow will skip the first row if 'HEADER' is true
+    // Skip the first row when 'HEADER' is true.
     reader::CSVParseOptions parseOptions;
     if (parseOptions.has_header.get(options)) {
       options.insert({"SKIP_ROWS", "1"});
@@ -86,8 +85,8 @@ struct CSVReadFunction {
 
   static void validateAndConvertSniffOptions(reader::FileSchema& schema) {
     auto& options = schema.options;
-    // convert user-specified 'DELIMITER' to 'DELIM' for arrow csv options, all
-    // options are case insensitive
+    // Map 'DELIMITER' to 'DELIM' for the CSV reader. Options are case
+    // insensitive.
     auto it = options.find("DELIMITER");
     if (it != options.end()) {
       options["DELIM"] = it->second;
@@ -104,8 +103,7 @@ struct CSVReadFunction {
             "Delimiter should not be an escape character: " + value);
       }
     }
-    // set 'AUTOGENERATE_COLUMN_NAMES' to 'TRUE' if 'HEADER' is not specified,
-    // arrow will generate columns like: f0, f1, f2, ...
+    // Generate column names when the file has no header.
     reader::CSVParseOptions parseOptions;
     bool hasHeader = parseOptions.has_header.get(options);
     if (!hasHeader) {

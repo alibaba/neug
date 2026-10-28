@@ -207,8 +207,19 @@ template <bool SKIP_NULL_ENTRY>
 static std::string structToString(const struct_entry_t& val,
                                   ValueVector* vector) {
   const auto& fieldNames = StructType::GetFieldNames(vector->dataType);
-  if (fieldNames.size() == 0) {
-    return "{}";
+  // Positional structs (empty or blank field names) render as bracketed
+  // lists in both template instantiations; keep this outside the
+  // SKIP_NULL_ENTRY branch so neither falls into named-struct formatting.
+  if (fieldNames.empty() || fieldNames[0].empty()) {
+    std::string result = "[";
+    for (size_t i = 0; i < StructType::GetNumFields(vector->dataType); ++i) {
+      if (i != 0) {
+        result += ", ";
+      }
+      result += entryToStringWithPos(
+          val.pos, StructVector::getFieldVector(vector, i).get());
+    }
+    return result + "]";
   }
   std::string result = "{";
   auto i = 0u;

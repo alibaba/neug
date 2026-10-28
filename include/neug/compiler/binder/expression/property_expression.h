@@ -24,6 +24,7 @@
 
 #include "expression.h"
 #include "neug/compiler/common/constants.h"
+#include "neug/utils/api.h"
 
 namespace neug {
 class SchemaEntry;
@@ -80,7 +81,7 @@ class PropertyExpression final : public Expression {
   // If this property is primary key on all tables.
   bool isPrimaryKey() const;
   // If this property is primary key for given table.
-  bool isPrimaryKey(common::table_id_t tableID) const;
+  NEUG_API bool isPrimaryKey(common::table_id_t tableID) const;
 
   std::string getPropertyName() const { return propertyName; }
   std::string getVariableName() const { return uniqueVarName; }

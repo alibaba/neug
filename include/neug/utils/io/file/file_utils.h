@@ -18,11 +18,18 @@
 #include <memory>
 #include <ostream>
 #include <string>
+#include "neug/utils/api.h"
 
 #ifdef _WIN32
 #include <fcntl.h>
 #include <io.h>
 #include <sys/types.h>
+// winsock2.h must be included before windows.h, otherwise windows.h pulls
+// in the legacy winsock.h which conflicts with the winsock2.h used by
+// cpp-httplib and other socket code. The blank line below keeps clang-format
+// from re-sorting the two includes into the broken order.
+#include <winsock2.h>
+
 #include <windows.h>
 #include <cstdint>
 
@@ -191,8 +198,8 @@ enum class CopyResult {
   CopyFileRange,  // Used copy_file_range() - may use COW on some FS
   FallbackCopy    // Used traditional read/write copy
 };
-CopyResult copy_file(const std::string& src_path, const std::string& dst_path,
-                     bool overwrite);
+NEUG_API CopyResult copy_file(const std::string& src_path,
+                              const std::string& dst_path, bool overwrite);
 
 void create_file(const std::string& path, size_t size);
 

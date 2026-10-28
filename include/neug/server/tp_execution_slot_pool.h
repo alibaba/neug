@@ -24,14 +24,29 @@
 
 #include "neug/main/execution_slot.h"
 #include "neug/main/wal_writer_set.h"
-
-#include "bthread/bthread.h"
+#include "neug/utils/bitset.h"
 
 namespace neug {
 class CheckpointCoordinator;
 class NeugDBService;
 class IWalWriter;
 class ServiceTransactionManager;
+class TpServiceRuntime;
+
+/** Synchronization used by callbacks running on a transport's scheduler. */
+class IExecutionSlotSynchronizer {
+ public:
+  virtual ~IExecutionSlotSynchronizer() = default;
+  virtual void lock() noexcept = 0;
+  virtual void unlock() noexcept = 0;
+  /** Caller must hold the lock. Atomically releases it while waiting, then
+   * reacquires it. May wake spuriously; callers must recheck their predicate.
+   */
+  virtual void Wait() noexcept = 0;
+  virtual void NotifyOne() noexcept = 0;
+};
+
+std::unique_ptr<IExecutionSlotSynchronizer> CreateNativeSlotSynchronizer();
 
 /**
  * @brief Pool of database slots for concurrent query execution.
@@ -46,7 +61,7 @@ class ServiceTransactionManager;
  *
  * **Key Features:**
  * - Owns service-local slots for query execution
- * - Thread-safe lease/release with bthread synchronization
+ * - Thread-safe lease/release with scheduler-aware waiting
  * - Stable WAL (Write-Ahead Log) writer per logical slot
  * - 4096-byte-aligned per-slot Entry storage
  *
@@ -125,7 +140,7 @@ class TpExecutionSlotPool {
     CHECK_LE(slot_num_, allocators.size());
     available_slot_ids_.reserve(slot_num_);
     entries_ = static_cast<Entry*>(
-        aligned_alloc(kEntryAlignment, sizeof(Entry) * slot_num_));
+        neug::detail::AlignedAlloc(kEntryAlignment, sizeof(Entry) * slot_num_));
     if (entries_ == nullptr) {
       throw std::bad_alloc();
     }
@@ -145,12 +160,10 @@ class TpExecutionSlotPool {
         auto& entry = entries_[--constructed_entries];
         entry.~Entry();
       }
-      free(entries_);
+      neug::detail::AlignedFree(entries_);
       entries_ = nullptr;
       throw;
     }
-    bthread_mutex_init(&mutex_, nullptr);
-    bthread_cond_init(&cond_, nullptr);
     for (size_t i = 0; i < slot_num_; ++i) {
       available_slot_ids_.push_back(i);
     }
@@ -166,11 +179,9 @@ class TpExecutionSlotPool {
       for (size_t slot_id = 0; slot_id < slot_num_; ++slot_id) {
         entries_[slot_id].~Entry();
       }
-      free(entries_);
+      neug::detail::AlignedFree(entries_);
       entries_ = nullptr;
     }
-    bthread_cond_destroy(&cond_);
-    bthread_mutex_destroy(&mutex_);
   }
 
   /**
@@ -196,18 +207,26 @@ class TpExecutionSlotPool {
   }
 
  private:
+  /** Called before the transport starts request callbacks. */
+  void SetSynchronizer(
+      std::unique_ptr<IExecutionSlotSynchronizer> synchronizer) {
+    CHECK(synchronizer);
+    synchronizer_ = std::move(synchronizer);
+  }
+
   /// Returns an empty lease instead of waiting when every TP slot is busy.
   ExecutionSlotLease TryAcquireExecutionSlot();
   static void releaseExecutionSlot(void* owner, size_t slot_id) noexcept;
 
   friend class NeugDBService;
   friend class ServiceTransactionManager;
+  friend class TpServiceRuntime;
 
   Entry* entries_;
   size_t slot_num_;
   std::vector<size_t> available_slot_ids_;
-  bthread_mutex_t mutex_;
-  bthread_cond_t cond_;
+  std::unique_ptr<IExecutionSlotSynchronizer> synchronizer_{
+      CreateNativeSlotSynchronizer()};
 };
 
 }  // namespace neug

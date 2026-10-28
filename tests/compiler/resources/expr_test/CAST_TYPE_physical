@@ -20,46 +20,6 @@
          "var": {
           "property": {
            "key": {
-            "name": "eyeSight"
-           }
-          },
-          "node_type": {
-           "data_type": {
-            "primitive_type": "DT_DOUBLE"
-           }
-          }
-         },
-         "node_type": {
-          "data_type": {
-           "primitive_type": "DT_DOUBLE"
-          }
-         }
-        },
-        {
-         "logical": "EQ",
-         "node_type": {
-          "data_type": {
-           "primitive_type": "DT_BOOL"
-          }
-         }
-        },
-        {
-         "const": {
-          "f64": 1009
-         }
-        },
-        {
-         "logical": "AND",
-         "node_type": {
-          "data_type": {
-           "primitive_type": "DT_BOOL"
-          }
-         }
-        },
-        {
-         "var": {
-          "property": {
-           "key": {
             "name": "gender"
            }
           },
@@ -86,6 +46,46 @@
         {
          "const": {
           "i32": 1000
+         }
+        },
+        {
+         "logical": "AND",
+         "node_type": {
+          "data_type": {
+           "primitive_type": "DT_BOOL"
+          }
+         }
+        },
+        {
+         "var": {
+          "property": {
+           "key": {
+            "name": "eyeSight"
+           }
+          },
+          "node_type": {
+           "data_type": {
+            "primitive_type": "DT_DOUBLE"
+           }
+          }
+         },
+         "node_type": {
+          "data_type": {
+           "primitive_type": "DT_DOUBLE"
+          }
+         }
+        },
+        {
+         "logical": "EQ",
+         "node_type": {
+          "data_type": {
+           "primitive_type": "DT_BOOL"
+          }
+         }
+        },
+        {
+         "const": {
+          "f64": 1009
          }
         }
        ]

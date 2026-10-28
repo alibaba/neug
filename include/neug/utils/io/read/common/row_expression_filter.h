@@ -23,6 +23,7 @@
 #include "neug/common/types/data_chunk.h"
 #include "neug/execution/common/params_map.h"
 #include "neug/generated/proto/plan/expr.pb.h"
+#include "neug/utils/api.h"
 
 namespace neug {
 class IDataChunkSupplier;
@@ -46,14 +47,15 @@ class RowExpressionFilter {
   std::function<bool(size_t)> evaluator_;
 };
 
-DataChunk filter_chunk(const DataChunk& input,
-                       const std::shared_ptr<::common::Expression>& filter_expr,
-                       const std::vector<std::string>& column_names,
-                       const execution::ParamsMap& parameters = {});
+NEUG_API DataChunk
+filter_chunk(const DataChunk& input,
+             const std::shared_ptr<::common::Expression>& filter_expr,
+             const std::vector<std::string>& column_names,
+             const execution::ParamsMap& parameters = {});
 
-DataChunk project_chunk(const DataChunk& input,
-                        const std::vector<std::string>& column_names,
-                        const std::vector<std::string>& project_columns);
+NEUG_API DataChunk project_chunk(
+    const DataChunk& input, const std::vector<std::string>& column_names,
+    const std::vector<std::string>& project_columns);
 
 DataChunk read_all_chunks(
     const std::vector<std::shared_ptr<IDataChunkSupplier>>& suppliers);
@@ -61,7 +63,7 @@ DataChunk read_all_chunks(
 // Merge dense reader chunks in order, preserving column types and NULLs.
 // Ignore null/columnless chunks, retain empty schemas, and reject mismatched
 // column counts, types, or lengths before allocating output columns.
-DataChunk merge_chunks(std::vector<std::shared_ptr<DataChunk>> chunks);
+NEUG_API DataChunk merge_chunks(std::vector<std::shared_ptr<DataChunk>> chunks);
 
 }  // namespace reader
 }  // namespace neug

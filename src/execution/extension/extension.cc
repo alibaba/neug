@@ -13,43 +13,102 @@
  * limitations under the License.
  */
 
+#ifndef NEUG_LITE
+#error "NEUG_LITE must be defined by the build system"
+#endif
+
+#if !NEUG_LITE
+#ifdef _WIN32
+// Include Winsock before any header that might include windows.h.
+#include <winsock2.h>
+#endif
+
 #ifndef _WIN32
 #include <dlfcn.h>
 #else
-// winsock2.h must be included before windows.h, otherwise windows.h pulls
-// in the legacy winsock.h which conflicts with the winsock2.h that
-// httplib.h includes later.  The blank line keeps clang-format from
-// re-sorting the two includes into the broken order.
-#include <winsock2.h>
-
 #include <windows.h>
 #include <cstdio>
+#include <string>
 // Windows shims for POSIX dlopen/dlsym/dlclose/dlerror.
 #define RTLD_NOW 0
 #define RTLD_LOCAL 0
-static inline void* dlopen(const char* path, int) { return LoadLibraryA(path); }
-static inline void* dlsym(void* handle, const char* name) {
-  return reinterpret_cast<void*>(
-      GetProcAddress(static_cast<HMODULE>(handle), name));
+// dlerror() must mirror the POSIX contract: return nullptr unless the last
+// dlopen/dlsym/dlclose failed, and return - then clear - the failure reason
+// otherwise. Reading GetLastError() unconditionally reports stale codes left
+// by unrelated APIs during DLL load (e.g. glog's environment lookups during
+// static init leave error 203), which turns successful dlsym calls into
+// spurious loader failures. The loader runs on a single thread, so a
+// thread-local state slot faithfully models the per-thread POSIX state.
+static thread_local DWORD dl_last_error = 0;
+static thread_local bool dl_error_pending = false;
+
+static inline void dl_record_failure(DWORD error) {
+  dl_last_error = error;
+  dl_error_pending = true;
 }
-static inline int dlclose(void* handle) {
-  return FreeLibrary(static_cast<HMODULE>(handle)) ? 0 : 1;
-}
+
 static inline char* dlerror() {
-  static char buf[256];
-  snprintf(buf, sizeof(buf), "Windows error code: %lu", GetLastError());
+  static thread_local char buf[256];
+  if (!dl_error_pending) {
+    return nullptr;
+  }
+  dl_error_pending = false;
+  snprintf(buf, sizeof(buf), "Windows error code: %lu",
+           static_cast<unsigned long>(dl_last_error));
   return buf;
 }
-#endif
-#include <glog/logging.h>
 
+// UTF-8 safe: LoadLibraryA interprets paths in the active ANSI code page, so
+// non-ASCII install paths would fail. Convert to a wide string and use
+// LoadLibraryW instead (mirrors the compiler-side loader).
+static inline void* dlopen(const char* path, int) {
+  if (path == nullptr) {
+    dl_record_failure(ERROR_INVALID_PARAMETER);
+    return nullptr;
+  }
+  int wlen = MultiByteToWideChar(CP_UTF8, 0, path, -1, nullptr, 0);
+  if (wlen <= 0) {
+    dl_record_failure(GetLastError());
+    return nullptr;
+  }
+  std::wstring wpath(static_cast<size_t>(wlen), L'\0');
+  MultiByteToWideChar(CP_UTF8, 0, path, -1, wpath.data(), wlen);
+  void* handle = LoadLibraryW(wpath.c_str());
+  if (handle == nullptr) {
+    dl_record_failure(GetLastError());
+  }
+  return handle;
+}
+
+static inline void* dlsym(void* handle, const char* name) {
+  void* sym = reinterpret_cast<void*>(
+      GetProcAddress(static_cast<HMODULE>(handle), name));
+  if (sym == nullptr) {
+    dl_record_failure(GetLastError());
+  }
+  return sym;
+}
+
+static inline int dlclose(void* handle) {
+  BOOL freed = FreeLibrary(static_cast<HMODULE>(handle));
+  if (!freed) {
+    dl_record_failure(GetLastError());
+  }
+  return freed ? 0 : 1;
+}
+#endif
+
+#include <algorithm>
 #include <cstdlib>
 #include <filesystem>
 #include <fstream>
+#include <iomanip>
+#include <sstream>
 #include <string>
-#include <unordered_map>
-#include "neug/compiler/common/types/types.h"
-#include "neug/utils/function_type.h"
+
+#include <glog/logging.h>
+#include <openssl/evp.h>
+#include <openssl/x509_vfy.h>
 
 #ifdef __GNUC__
 #pragma GCC diagnostic push
@@ -60,18 +119,30 @@ static inline char* dlerror() {
 #pragma GCC diagnostic pop
 #endif
 
-#ifdef CPPHTTPLIB_OPENSSL_SUPPORT
-#include <openssl/x509_vfy.h>
-#endif
+#include "neug/compiler/common/string_format.h"
+#endif  // !NEUG_LITE
 
 #include "neug/compiler/extension/extension_manager.h"
 #include "neug/execution/extension/extension.h"
-#include "neug/storages/graph/schema.h"
 
 namespace neug {
+
+Status ExtensionManager::InstallExtension(const std::string& name,
+                                          const std::string& repository) {
+  std::lock_guard<std::mutex> lock(mutex_);
+  return extension::install_extension(NormalizeExtensionName(name), repository);
+}
+
+Status ExtensionManager::UninstallExtension(const std::string& name) {
+  std::lock_guard<std::mutex> lock(mutex_);
+  return extension::uninstall_extension(NormalizeExtensionName(name));
+}
+
+#if !NEUG_LITE
+
 namespace extension {
 
-std::string getUserExtensionDir(const std::string& extension_name) {
+static std::string getUserExtensionDir(const std::string& extension_name) {
   std::string base;
   const char* pyenv = std::getenv("NEUG_EXTENSION_HOME_PYENV");
   if (pyenv && *pyenv) {
@@ -87,6 +158,34 @@ std::string getUserExtensionDir(const std::string& extension_name) {
   }
   return base + "/extension/" + extension_name;
 }
+
+// Promote libneug.so to RTLD_GLOBAL so that extensions loaded via dlopen
+// can resolve neug symbols.  When the host process (e.g. Python) loads
+// libneug.so with RTLD_LOCAL, the symbols stay in a local scope and are
+// invisible to subsequently dlopen'd extensions even though they list
+// libneug.so in DT_NEEDED.  Re-opening with RTLD_NOLOAD | RTLD_GLOBAL
+// promotes the already-loaded instance without reloading it.
+static void ensureNeugSymbolsGlobal() {
+#ifndef _WIN32
+  static bool promoted = false;
+  if (promoted)
+    return;
+  Dl_info info;
+  if (dladdr(reinterpret_cast<void*>(&ensureNeugSymbolsGlobal), &info) &&
+      info.dli_fname) {
+    dlopen(info.dli_fname, RTLD_NOW | RTLD_NOLOAD | RTLD_GLOBAL);
+  }
+  promoted = true;
+#else
+  // On Windows, symbols are exported via NEUG_API macros, so no promotion is
+  // needed.
+#endif
+}
+
+static Status downloadExtensionFile(const ExtensionRepoInfo& repoInfo,
+                                    const std::string& localFilePath);
+static Status verifyExtensionChecksum(const ExtensionRepoInfo& libRepoInfo,
+                                      const std::string& localLibPath);
 
 #ifdef CPPHTTPLIB_OPENSSL_SUPPORT
 // Try to find and set CA certificate paths automatically
@@ -252,8 +351,8 @@ Status install_extension(const std::string& extension_name,
   return Status::OK();
 }
 
-Status downloadExtensionFile(const ExtensionRepoInfo& repoInfo,
-                             const std::string& localFilePath) {
+static Status downloadExtensionFile(const ExtensionRepoInfo& repoInfo,
+                                    const std::string& localFilePath) {
 #ifndef CPPHTTPLIB_OPENSSL_SUPPORT
   return Status(
       StatusCode::ERR_IO_ERROR,
@@ -326,7 +425,7 @@ Status downloadExtensionFile(const ExtensionRepoInfo& repoInfo,
 #endif
 }
 
-result<std::string> computeFileSHA256(const std::string& path) {
+static result<std::string> computeFileSHA256(const std::string& path) {
   std::ifstream file(path, std::ios::binary);
   if (!file.is_open()) {
     RETURN_ERROR(Status(StatusCode::ERR_IO_ERROR, "Cannot open file: " + path));
@@ -373,8 +472,8 @@ result<std::string> computeFileSHA256(const std::string& path) {
   return ss.str();
 }
 
-Status verifyExtensionChecksum(const ExtensionRepoInfo& libRepoInfo,
-                               const std::string& localLibPath) {
+static Status verifyExtensionChecksum(const ExtensionRepoInfo& libRepoInfo,
+                                      const std::string& localLibPath) {
   std::string checksumURL = libRepoInfo.repoURL + ".sha256";
   std::string checksumPath = libRepoInfo.hostPath + ".sha256";
   std::string checksumHost = libRepoInfo.hostURL;
@@ -474,36 +573,26 @@ Status verifyExtensionChecksum(const ExtensionRepoInfo& libRepoInfo,
 #endif
 }
 
-// Promote libneug.so to RTLD_GLOBAL so that extensions loaded via dlopen
-// can resolve neug symbols.  When the host process (e.g. Python) loads
-// libneug.so with RTLD_LOCAL, the symbols stay in a local scope and are
-// invisible to subsequently dlopen'd extensions even though they list
-// libneug.so in DT_NEEDED.  Re-opening with RTLD_NOLOAD | RTLD_GLOBAL
-// promotes the already-loaded instance without reloading it.
-static void ensureNeugSymbolsGlobal() {
-#ifndef _WIN32
-  static bool promoted = false;
-  if (promoted)
-    return;
-  Dl_info info;
-  if (dladdr(reinterpret_cast<void*>(&ensureNeugSymbolsGlobal), &info) &&
-      info.dli_fname) {
-    dlopen(info.dli_fname, RTLD_NOW | RTLD_NOLOAD | RTLD_GLOBAL);
+Status uninstall_extension(const std::string& extension_name) {
+  LOG(INFO) << "[Admin] UNINSTALL extension: " << extension_name;
+  std::string extDir = getUserExtensionDir(extension_name);
+  std::error_code ec;
+  if (!std::filesystem::exists(extDir)) {
+    return Status(StatusCode::ERR_IO_ERROR,
+                  "Cannot uninstall extension: " + extension_name +
+                      " since it has not been installed.");
   }
-  promoted = true;
-#else
-  // On Windows, symbols are exported via NEUG_API macros, so no promotion is
-  // needed.
-#endif
+  if (!std::filesystem::remove_all(extDir, ec)) {
+    return Status(StatusCode::ERR_IO_ERROR,
+                  "An error occurred while uninstalling extension: " +
+                      extension_name + ". Error: " + ec.message());
+  }
+  LOG(INFO) << "[Admin] Extension: " << extension_name
+            << " has been uninstalled";
+  return Status::OK();
 }
 
 }  // namespace extension
-
-Status ExtensionManager::InstallExtension(const std::string& name,
-                                          const std::string& repository) {
-  std::lock_guard<std::mutex> lock(mutex_);
-  return extension::install_extension(NormalizeExtensionName(name), repository);
-}
 
 result<ExtensionManager::LoadResult> ExtensionManager::LoadExtension(
     const std::string& extension_name) {
@@ -524,10 +613,8 @@ result<ExtensionManager::LoadResult> ExtensionManager::LoadExtension(
   std::string userLibPath = userExtDir + "/" + fileName;
   if (std::filesystem::exists(userLibPath)) {
     LOG(INFO) << "[Admin] Loading extension from user install: " << userLibPath;
-    // Use RTLD_LOCAL so that Arrow symbols statically linked into the
-    // extension stay in its own scope.  This prevents duplicate Arrow
-    // global objects (e.g., FunctionRegistry) from interfering with
-    // libneug.so's copy, which would cause heap corruption on exit.
+    // Keep extension dependencies in their own scope to avoid symbol
+    // conflicts with other loaded libraries.
     // neug symbols are still resolvable because ensureNeugSymbolsGlobal()
     // has already promoted libneug.so to RTLD_GLOBAL.
     void* handle = dlopen(userLibPath.c_str(), RTLD_NOW | RTLD_LOCAL);
@@ -575,32 +662,28 @@ result<ExtensionManager::LoadResult> ExtensionManager::LoadExtension(
                           " not found in user install or wheel package"));
 }
 
+#else
+
 namespace extension {
 
-Status uninstall_extension(const std::string& extension_name) {
-  LOG(INFO) << "[Admin] UNINSTALL extension: " << extension_name;
-  std::string extDir = getUserExtensionDir(extension_name);
-  std::error_code ec;
-  if (!std::filesystem::exists(extDir)) {
-    return Status(StatusCode::ERR_IO_ERROR,
-                  "Cannot uninstall extension: " + extension_name +
-                      " since it has not been installed.");
-  }
-  if (!std::filesystem::remove_all(extDir, ec)) {
-    return Status(StatusCode::ERR_IO_ERROR,
-                  "An error occurred while uninstalling extension: " +
-                      extension_name + ". Error: " + ec.message());
-  }
-  LOG(INFO) << "[Admin] Extension: " << extension_name
-            << " has been uninstalled";
-  return Status::OK();
+Status install_extension(const std::string&, const std::string&) {
+  return Status(StatusCode::ERR_NOT_SUPPORTED,
+                "INSTALL is unavailable in lite mode.");
+}
+
+Status uninstall_extension(const std::string&) {
+  return Status(StatusCode::ERR_NOT_SUPPORTED,
+                "UNINSTALL is unavailable in lite mode.");
 }
 
 }  // namespace extension
 
-Status ExtensionManager::UninstallExtension(const std::string& name) {
-  std::lock_guard<std::mutex> lock(mutex_);
-  return extension::uninstall_extension(NormalizeExtensionName(name));
+result<ExtensionManager::LoadResult> ExtensionManager::LoadExtension(
+    const std::string&) {
+  RETURN_ERROR(Status(StatusCode::ERR_NOT_SUPPORTED,
+                      "LOAD is unavailable in lite mode."));
 }
+
+#endif  // !NEUG_LITE
 
 }  // namespace neug

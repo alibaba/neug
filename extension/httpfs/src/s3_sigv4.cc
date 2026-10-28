@@ -21,9 +21,18 @@
 #include <algorithm>
 #include <cstdio>
 #include <cstring>
+#include <ctime>
 #include <iomanip>
 #include <memory>
 #include <sstream>
+
+#ifdef _WIN32
+// MSVC provides gmtime_s instead of gmtime_r.
+// gmtime_r(timer, result) -> gmtime_s(result, timer)
+static inline struct tm* gmtime_r(const time_t* timer, struct tm* result) {
+  return gmtime_s(result, timer) == 0 ? result : nullptr;
+}
+#endif
 
 #include "neug/utils/exception/exception.h"
 

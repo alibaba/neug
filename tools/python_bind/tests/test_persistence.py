@@ -17,8 +17,10 @@
 #
 
 import csv
+import json
 import logging
 import shutil
+from contextlib import closing
 
 import pytest
 
@@ -164,6 +166,121 @@ def test_checkpoint(tmp_path):
     assert records == [[1, 2]]
     conn.close()
     db.close()
+
+
+@pytest.mark.parametrize("buffer_strategy", ["M_FULL", "M_LAZY"])
+def test_checkpoint_reopen_changed_and_unchanged_data(tmp_path, buffer_strategy):
+    """Explicit checkpoints preserve changed and unchanged columns and edges."""
+    db_dir = str(tmp_path / "test_checkpoint")
+    long_name = "中文" + "x" * 300
+    updated_name = "更新" + "y" * 400
+    people = [[1, "Alice"], [2, "Bob"], [3, ""], [4, long_name]]
+    knows = [[1, 2]]
+    likes = [[1, 2, 0.5]]
+    visits = [[2, 1, "2024-01-01", "NYC"]]
+
+    def open_db(mode="w"):
+        # Closing must not create a second checkpoint that could mask a bad
+        # explicit checkpoint. Exercise both memory and file-backed buffers.
+        return Database(
+            db_path=db_dir,
+            mode=mode,
+            checkpoint_on_close=False,
+            buffer_strategy=buffer_strategy,
+            max_thread_num=2,
+        )
+
+    def assert_graph(conn):
+        assert sorted(conn.execute("MATCH (p:Person) RETURN p.id, p.name;")) == people
+        assert (
+            sorted(
+                conn.execute("MATCH (a:Person)-[:Knows]->(b:Person) RETURN a.id, b.id;")
+            )
+            == knows
+        )
+        assert (
+            sorted(
+                conn.execute(
+                    "MATCH (a:Person)-[r:Likes]->(b:Person) "
+                    "RETURN a.id, b.id, r.weight;"
+                )
+            )
+            == likes
+        )
+        assert (
+            sorted(
+                conn.execute(
+                    "MATCH (a:Person)-[r:Visits]->(b:Person) "
+                    "RETURN a.id, b.id, r.time, r.location;"
+                )
+            )
+            == visits
+        )
+
+    with closing(open_db()) as db, closing(db.connect()) as conn:
+        conn.execute(
+            "CREATE NODE TABLE Person(id INT32, name VARCHAR(512), PRIMARY KEY(id))"
+        )
+        for person_id, name in people:
+            conn.execute(
+                "CREATE (:Person {id: $id, name: $name});",
+                "insert",
+                {"id": person_id, "name": name},
+            )
+        conn.execute("CREATE REL TABLE Knows(FROM Person TO Person)")
+        conn.execute("CREATE REL TABLE Likes(FROM Person TO Person, weight DOUBLE)")
+        conn.execute(
+            "CREATE REL TABLE Visits(FROM Person TO Person, time STRING, location STRING)"
+        )
+        conn.execute(
+            "MATCH (a:Person {id: 1}), (b:Person {id: 2}) " "CREATE (a)-[:Knows]->(b);"
+        )
+        conn.execute(
+            "MATCH (a:Person {id: 1}), (b:Person {id: 2}) "
+            "CREATE (a)-[:Likes {weight: 0.5}]->(b);"
+        )
+        conn.execute(
+            "MATCH (a:Person {id: 2}), (b:Person {id: 1}) "
+            "CREATE (a)-[:Visits {time: '2024-01-01', location: 'NYC'}]->(b);"
+        )
+        assert_graph(conn)
+        conn.execute("CHECKPOINT;")
+        assert_graph(conn)
+
+    with closing(open_db()) as db, closing(db.connect()) as conn:
+        assert_graph(conn)
+        conn.execute(
+            "MATCH (p:Person {id: 2}) SET p.name = $name;",
+            "update",
+            {"name": updated_name},
+        )
+        conn.execute(
+            "MATCH (:Person {id: 1})-[r:Likes]->(:Person {id: 2}) "
+            "SET r.weight = 1.25;"
+        )
+        conn.execute(
+            "MATCH (:Person {id: 2})-[r:Visits]->(:Person {id: 1}) "
+            "SET r.location = '';"
+        )
+        conn.execute(
+            "MATCH (a:Person {id: 1}), (b:Person {id: 3}) " "CREATE (a)-[:Knows]->(b);"
+        )
+        people[1] = [2, updated_name]
+        likes[0] = [1, 2, 1.25]
+        visits[0] = [2, 1, "2024-01-01", ""]
+        knows.append([1, 3])
+        assert_graph(conn)
+        conn.execute("CHECKPOINT;")
+        assert_graph(conn)
+
+    with closing(open_db()) as db, closing(db.connect()) as conn:
+        assert_graph(conn)
+        # Save again without writes to exercise the unchanged-data path.
+        conn.execute("CHECKPOINT;")
+        assert_graph(conn)
+
+    with closing(open_db("r")) as db, closing(db.connect()) as conn:
+        assert_graph(conn)
 
 
 def test_dirty_vertex_links_clean_edge_on_close(tmp_path):

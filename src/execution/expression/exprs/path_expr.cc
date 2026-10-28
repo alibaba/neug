@@ -131,8 +131,18 @@ class BindedSingleRelationshipPathExpr : public RecordExprBase {
     const auto& start = start_val.GetValue<vertex_t>();
     const auto& rel = rel_val.GetValue<edge_t>();
     const auto& end = end_val.GetValue<vertex_t>();
-    std::vector<std::tuple<label_t, Direction, const void*>> edge_data{
-        {rel.label.edge_label, rel.dir, rel.prop}};
+    // The query pattern already tells us the path orientation: start -> end.
+    // Derive the edge direction from the stored src/dst so the resulting
+    // Path does not depend on which way the optimizer chose to scan the
+    // edge (which can differ across platforms).
+    Direction path_dir = rel.dir;
+    if (start == rel.start_node() && end == rel.end_node()) {
+      path_dir = Direction::kOut;
+    } else if (start == rel.end_node() && end == rel.start_node()) {
+      path_dir = Direction::kIn;
+    }
+    std::vector<std::tuple<label_t, Direction, const void*>> edge_data;
+    edge_data.emplace_back(rel.label.edge_label, path_dir, rel.prop);
     std::vector<VertexRecord> vertices{start, end};
     return Value::PATH(Path(edge_data, vertices));
   }

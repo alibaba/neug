@@ -345,6 +345,31 @@ TEST(CarquetScanTest, ReadsProjectedMultiFileBatchesAndMergesFullResults) {
   EXPECT_EQ(collectIds(full), collectIds(batches));
 }
 
+TEST(CarquetScanTest, SupplierReadsMultipleFilesInRequestedProjectionOrder) {
+  MemoryFiles files;
+  files.add("first");
+  files.add("second");
+  auto state = makeState(files, {"first", "second"}, "first");
+  ASSERT_NE(state->schema.entry, nullptr);
+  state->projectColumns = {"label", "id"};
+  state->schema.file.options["PARQUET_BATCH_ROWS"] = "1";
+
+  auto supplier = createCarquetChunkSupplier(state);
+  ASSERT_NE(supplier, nullptr);
+  EXPECT_EQ(supplier->RowNum(), 8);
+
+  std::vector<int64_t> ids;
+  while (auto chunk = supplier->GetNextChunk()) {
+    ASSERT_EQ(chunk->col_num(), 2u);
+    ASSERT_EQ(chunk->row_num(), 1u);
+    ids.emplace_back(chunk->get(1)->get_elem(0).GetValue<int64_t>());
+  }
+  EXPECT_EQ(ids, (std::vector<int64_t>{1, 2, 3, 4, 1, 2, 3, 4}));
+  supplier.reset();
+  EXPECT_EQ(files.stats()->opens.load(), 3);
+  EXPECT_EQ(files.stats()->closes.load(), 3);
+}
+
 TEST(CarquetScanTest, ReadsFilterColumnsBeforeApplyingOutputProjection) {
   MemoryFiles files;
   files.add("types");

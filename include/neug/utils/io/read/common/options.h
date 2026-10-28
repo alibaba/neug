@@ -151,7 +151,7 @@ struct ReadOptions {
   Option<int64_t> batch_size =
       Option<int64_t>::Int64Option("batch_size", 1 << 20);
   // Number of ROWS per batch/chunk for all readers: the chunk row count of
-  // the native CSV/JSON readers (clamped to [1, 65536]) and the Arrow batch
+  // the native CSV/JSON readers (clamped to [1, 65536]) and the Parquet batch
   // row count of the Parquet extension, which also honors the deprecated
   // `PARQUET_BATCH_ROWS` alias.
   Option<int64_t> batch_rows =

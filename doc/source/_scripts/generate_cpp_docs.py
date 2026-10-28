@@ -845,11 +845,6 @@ class CppAPIGenerator:
         if class_info.get('detailed'):
             content += f"{class_info['detailed']}\n\n"
         
-        # Add class-level since information
-        since_info = class_info.get('since', '')
-        if since_info:
-            content += f"- **Since:** {since_info}\n\n"
-        
         # Add constructor and destructor information (only if documented)
         class_simple_name = class_info['name'].split('::')[-1]
         constructors = [m for m in class_info.get('methods', []) 
@@ -909,11 +904,6 @@ class CppAPIGenerator:
                         content += f"  - {exc_type}: {exc_desc}\n"
                     content += "\n"
                 
-                # Add since information
-                since_info = ctor.get('since', '')
-                if since_info:
-                    content += f"- **Since:** {since_info}\n\n"
-            
             # Add destructors
             for dtor in destructors:
                 method_name = dtor.get('name', '')
@@ -950,11 +940,6 @@ class CppAPIGenerator:
                         content += f"  - {exc_type}: {exc_desc}\n"
                     content += "\n"
                 
-                # Add since information
-                since_info = dtor.get('since', '')
-                if since_info:
-                    content += f"- **Since:** {since_info}\n\n"
-        
         # Add public methods (excluding constructors and destructors)
         # Also skip methods without any documentation
         methods = [m for m in class_info.get('methods', []) if 
@@ -1021,11 +1006,6 @@ class CppAPIGenerator:
                     formatted_desc = self._format_text_with_code_detection(return_info.get('description', ''))
                     content += f"- **Returns:** {formatted_desc}\n\n"
                 
-                # Add since information
-                since_info = method.get('since', '')
-                if since_info:
-                    content += f"- **Since:** {since_info}\n\n"
-        
         return content
     
     def _add_basic_class_docs(self, content: str, class_info: Dict[str, Any]) -> str:

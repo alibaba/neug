@@ -19,6 +19,7 @@
 #include "neug/compiler/function/neug_call_function.h"
 #include "neug/execution/common/context.h"
 #include "neug/execution/common/params_map.h"
+#include "neug/utils/api.h"
 #include "neug/utils/exception/exception.h"
 
 #include <atomic>
@@ -132,7 +133,7 @@ struct TestEchoParamFunction {
 
 extern "C" {
 
-void Init() {
+NEUG_EXTENSION_API void Init() {
   init_count.fetch_add(1, std::memory_order_relaxed);
   neug::extension::ExtensionAPI::registerFunction<TestEchoParamFunction>(
       neug::catalog::CatalogEntryType::TABLE_FUNCTION_ENTRY);
@@ -143,8 +144,10 @@ void Init() {
           "(TEST_ECHO_PARAM)."});
 }
 
-const char* Name() { return "TEST_OUT_OF_TREE"; }
+NEUG_EXTENSION_API const char* Name() { return "TEST_OUT_OF_TREE"; }
 
-uint64_t GetInitCount() { return init_count.load(std::memory_order_relaxed); }
+NEUG_EXTENSION_API uint64_t GetInitCount() {
+  return init_count.load(std::memory_order_relaxed);
+}
 
 }  // extern "C"

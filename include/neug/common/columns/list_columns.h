@@ -15,6 +15,7 @@
 #pragma once
 
 #include "neug/common/columns/value_columns.h"
+#include "neug/utils/api.h"
 
 namespace neug {
 
@@ -25,7 +26,7 @@ struct list_item {
 
 class ListColumnBuilder;
 
-class ListColumn : public IContextColumn {
+class NEUG_API ListColumn : public IContextColumn {
  public:
   explicit ListColumn(DataType type) : elem_type_(type) {
     std::shared_ptr<ExtraTypeInfo> elem_type_info =

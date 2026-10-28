@@ -660,7 +660,11 @@ DataType parseStructType(const std::string& trimmedStr,
   auto structFieldStrs = parseStructFields(structFieldsStr);
   for (auto& structFieldStr : structFieldStrs) {
     auto pos = structFieldStr.find(' ');
-    fieldNames.push_back(structFieldStr.substr(0, pos));
+    auto fieldName = structFieldStr.substr(0, pos);
+    if (!fieldName.empty() && fieldName.back() == ':') {
+      fieldName.pop_back();
+    }
+    fieldNames.push_back(std::move(fieldName));
     fieldTypes.push_back(
         convertFromString(structFieldStr.substr(pos + 1), context));
   }
@@ -812,25 +816,21 @@ static bool tryCombineStructTypes(const DataType& left, const DataType& right,
   const auto& leftTypes = StructType::GetChildTypes(left);
   const auto& rightNames = StructType::GetFieldNames(right);
   const auto& rightTypes = StructType::GetChildTypes(right);
-  if (leftNames.size() != rightNames.size()) {
+  if (leftTypes.size() != rightTypes.size() || leftNames != rightNames) {
     return false;
   }
-  std::vector<std::string> newNames;
   std::vector<DataType> newTypes;
-  for (auto i = 0u; i < leftNames.size(); i++) {
-    if (leftNames[i] != rightNames[i]) {
-      return false;
-    }
+  newTypes.reserve(leftTypes.size());
+  for (auto i = 0u; i < leftTypes.size(); i++) {
     DataType combinedType;
     if (LogicalTypeUtils::tryGetMaxLogicalType(leftTypes[i], rightTypes[i],
                                                combinedType)) {
-      newNames.push_back(leftNames[i]);
       newTypes.push_back(std::move(combinedType));
     } else {
       return false;
     }
   }
-  result = DataType::Struct(std::move(newNames), std::move(newTypes));
+  result = StructType::FromFields(leftNames, std::move(newTypes));
   return true;
 }
 
@@ -1079,6 +1079,14 @@ DataType LogicalTypeUtils::combineTypes(const DataType& lft,
   if (lft.id() == rit.id() && lft.id() == DataTypeId::kStruct) {
     const auto& lftNames = StructType::GetFieldNames(lft);
     const auto& lftTypes = StructType::GetChildTypes(lft);
+    const auto& ritNames = StructType::GetFieldNames(rit);
+    if (lftNames.empty() || ritNames.empty() || lftNames[0].empty() ||
+        ritNames[0].empty()) {
+      DataType result;
+      return tryGetMaxLogicalType(lft, rit, result)
+                 ? result
+                 : DataType(DataTypeId::kVarchar);
+    }
     std::vector<std::string> resultNames;
     std::vector<DataType> resultTypes;
     for (size_t i = 0; i < lftNames.size(); i++) {
@@ -1093,7 +1101,6 @@ DataType LogicalTypeUtils::combineTypes(const DataType& lft,
         resultTypes.push_back(lftTypes[i]);
       }
     }
-    const auto& ritNames = StructType::GetFieldNames(rit);
     const auto& ritTypes = StructType::GetChildTypes(rit);
     for (size_t i = 0; i < ritNames.size(); i++) {
       if (!StructType::HasField(lft, ritNames[i])) {
@@ -1139,13 +1146,12 @@ DataType LogicalTypeUtils::purgeAny(const DataType& type,
   case DataTypeId::kStruct: {
     const auto& names = StructType::GetFieldNames(type);
     const auto& types = StructType::GetChildTypes(type);
-    std::vector<std::string> newNames;
     std::vector<DataType> newTypes;
-    for (size_t i = 0; i < names.size(); i++) {
-      newNames.push_back(names[i]);
-      newTypes.push_back(purgeAny(types[i], replacement));
+    newTypes.reserve(types.size());
+    for (const auto& child_type : types) {
+      newTypes.push_back(purgeAny(child_type, replacement));
     }
-    return DataType::Struct(std::move(newNames), std::move(newTypes));
+    return StructType::FromFields(names, std::move(newTypes));
   }
   default:
     return type.copy();

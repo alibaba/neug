@@ -65,7 +65,7 @@ jobs:
         if: inputs.package_source != 'artifact'
         run: |
           cd "${RUNNER_TEMP}/neug-npm-package-test"
-          npm install neug@npm:@graphscope-neug/neug
+          npm install neug@npm:@neug-ai/neug
 
       - name: Download npm packages from artifacts
         if: inputs.package_source == 'artifact'
@@ -81,11 +81,11 @@ jobs:
 
           TEST_WORKSPACE="${RUNNER_TEMP}/neug-npm-package-test"
           cd "${TEST_WORKSPACE}"
-          npm install ./graphscope-neug-"${ARTIFACT_PLATFORM}"-*.tgz
+          npm install ./neug-ai-"${ARTIFACT_PLATFORM}"-*.tgz
 
           # npm aliases only support registry packages. Recreate the public
           # "neug" alias locally after installing the scoped artifact.
-          ln -s "@graphscope-neug/${ARTIFACT_PLATFORM}" node_modules/neug
+          ln -s "@neug-ai/${ARTIFACT_PLATFORM}" node_modules/neug
 
       - name: Install NeuG package from artifact on Windows
         if: inputs.package_source == 'artifact' && runner.os == 'Windows'
@@ -93,14 +93,14 @@ jobs:
         run: |
           $testWorkspace = Join-Path $env:RUNNER_TEMP "neug-npm-package-test"
           Set-Location $testWorkspace
-          $tarball = (Get-ChildItem "graphscope-neug-$env:ARTIFACT_PLATFORM-*.tgz").FullName
+          $tarball = (Get-ChildItem "neug-ai-$env:ARTIFACT_PLATFORM-*.tgz").FullName
           npm install $tarball
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
           $aliasDir = Join-Path $testWorkspace "node_modules\neug"
           New-Item -ItemType Directory -Force $aliasDir | Out-Null
           '{"name":"neug","main":"index.js"}' | Set-Content (Join-Path $aliasDir "package.json")
-          "module.exports = require('@graphscope-neug/windows-x86_64');" | Set-Content (Join-Path $aliasDir "index.js")
+          "module.exports = require('@neug-ai/windows-x86_64');" | Set-Content (Join-Path $aliasDir "index.js")
 
       - name: Prepare modern graph dataset
         if: runner.os != 'Windows'

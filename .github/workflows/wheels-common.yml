@@ -356,6 +356,7 @@ jobs:
     runs-on: macos-15-intel
     if: inputs.enable_macos_x86
     env:
+      MACOSX_DEPLOYMENT_TARGET: "10.15"
       CIBW_BUILD: ${{ needs.determine_python_versions.outputs.cibw_build }}
       NEUG_COMMIT_SHA: ${{ github.sha }}
     steps:
@@ -400,8 +401,6 @@ jobs:
 
       - name: Prepare for macos
         run: |
-          echo "MACOSX_DEPLOYMENT_TARGET=10.15" >> $GITHUB_ENV
-          echo "MACOSX_DEPLOYMENT_TARGET=10.15"
           source ~/.neug_env
           echo "CMAKE_BUILD_PARALLEL_LEVEL=$(sysctl -n hw.ncpu)" >> $GITHUB_ENV
 
@@ -490,6 +489,7 @@ jobs:
           )
         ) }}
     env:
+      MACOSX_DEPLOYMENT_TARGET: "11.0"
       CIBW_BUILD: ${{ needs.determine_python_versions.outputs.cibw_build }}
       NEUG_COMMIT_SHA: ${{ github.sha }}
     steps:
@@ -534,8 +534,6 @@ jobs:
 
       - name: Prepare for macos
         run: |
-          echo "MACOSX_DEPLOYMENT_TARGET=11.0" >> $GITHUB_ENV
-          echo "MACOSX_DEPLOYMENT_TARGET=11.0"
           source ~/.neug_env
           echo "CMAKE_BUILD_PARALLEL_LEVEL=$(sysctl -n hw.ncpu)" >> $GITHUB_ENV
 

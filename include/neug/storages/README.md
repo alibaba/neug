@@ -165,7 +165,70 @@ Workarounds:
   checkpointing, so that insert transactions are not needed for list properties.
 
 
-## 6. Durability
+## 6. Struct Property Storage
+
+Struct properties (`STRUCT(name T1, age T2, ...)`) are stored using
+[StructPropertyColumn](../utils/property/struct_property_column.h), which keeps one
+child column per field. Every child column holds exactly one slot per row, so the
+layout is dense and `Dump` needs no compaction (unlike `ListPropertyColumn`, which
+accumulates dead space when list lengths change).
+
+- Each child column is created recursively via `CreateColumn`, so nested structs,
+  `LIST`/`ARRAY` fields, and `LIST<STRUCT>` properties fall out naturally — a
+  `LIST` field is simply a `ListPropertyColumn` child, a nested struct field is
+  another `StructPropertyColumn` child.
+- Child columns reuse the most efficient storage format for their own type
+  (`TypedColumn<T>` for POD fields, `StringColumn` for strings, etc.).
+
+Null semantics are normalized on write (same as `ListPropertyColumn`): a null struct
+value is stored as all-field defaults, and a null field value is stored as that
+field's default. No validity bitmap is kept, which keeps storage compact and `Dump`
+simple.
+
+### 6.1 Field access
+
+A struct field expression such as `n.address.city` evaluates the parent struct
+into a `Value` and then extracts `city`. Nested access repeats this step for
+each struct level. This keeps stored and computed structs on the same expression
+path without special binding hooks, but reading one field of a stored struct
+also reads and assembles its sibling fields. The same tradeoff applies to edge
+struct properties.
+
+Positional tuples and named structs share `kStruct`. Absent field names or an
+all-blank name vector denote positional tuples; fully named fields denote named
+structs. Conversion preserves these names and never synthesizes them: Python row
+results expose positional tuples as lists and named structs as dictionaries.
+Partially named fields are rejected. This rule also applies recursively to nested
+types and across compiler/runtime protobuf conversion and archive round trips.
+Older protobuf tuples without `field_names` decode as positional tuples; their
+original field names cannot be recovered from the message.
+In `response.proto`, the wire contract requires either no names, one empty
+name per tuple field, or one distinct non-empty name per struct field. Other
+name layouts are invalid. Arrow represents either kind as a struct and assigns
+display names `f0`, `f1`, ... to positional fields; `to_pylist()` therefore
+returns dictionaries for them, while Python query iteration returns lists.
+
+### 6.2 Checkpoint Dump
+
+`Dump` writes the column descriptor (struct type + row count) and lets each field
+column dump itself under `key/field_<i>` (positional child keys). Children are
+dense with one slot per row, so a single sequential pass with no row-wise data
+movement suffices.
+
+### 6.3 Limitations
+
+- Struct types cannot be used as `PRIMARY KEY` (rejected at bind time).
+- Indexes cannot be created on struct properties: the only supported index is HNSW
+  on `FLOAT[]` array properties, and `CREATE INDEX` on a struct column is rejected
+  with "HNSW index can only be created on VecColumn".
+- The insert-transaction limitation of `ListPropertyColumn` (§5.4) applies to
+  `LIST`-typed struct fields and `LIST<STRUCT>` properties as well, since they are
+  backed by `ListPropertyColumn` children.
+- On edge tables, a struct property forces the unbundled columnar layout: bundled
+  CSR edge storage only supports a single fixed-size primitive property.
+
+
+## 7. Durability
 
 After loading and constructing a graph from input files for the first time, the graph will be dumped as data files in a directory. The directory will be used as the input directory for the next time the graph is loaded. 
 

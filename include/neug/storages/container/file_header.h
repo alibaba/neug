@@ -15,7 +15,7 @@
 
 #pragma once
 
-#include <openssl/md5.h>
+#include "neug/utils/md5_utils.h"
 
 namespace neug {
 
@@ -26,7 +26,7 @@ namespace neug {
  * and data integrity verification.
  */
 struct FileHeader {
-  unsigned char data_md5[MD5_DIGEST_LENGTH];
+  unsigned char data_md5[kMD5DigestSize];
 };
 
 }  // namespace neug

@@ -36,6 +36,7 @@
 #include "neug/storages/container/file_mmap_container.h"
 #include "neug/utils/exception/exception.h"
 #include "neug/utils/io/file/file_utils.h"
+#include "neug/utils/md5_utils.h"
 #include "neug/utils/property/types.h"
 #include "neug/utils/spinlock.h"
 
@@ -87,17 +88,18 @@ void MutableCsr<EDATA_T>::refresh_prefetch_policy() {
 }
 
 template <typename NBR_T>
-bool is_nbr_list_unmodified(MD5_CTX& ctx, FileHeader& header,
+bool is_nbr_list_unmodified(FileHeader& header,
                             const IDataContainer* nbr_container,
                             const NBR_T* const* adj_lists, const int* cap_arr,
                             size_t vnum) {
-  MD5_Init(&ctx);
+  MD5 ctx;
+  ctx.MD5Init();
   for (size_t i = 0; i < vnum; ++i) {
     const char* data = reinterpret_cast<const char*>(adj_lists[i]);
     size_t len = cap_arr[i] * sizeof(NBR_T);
-    MD5_Update(&ctx, data, len);
+    UpdateMD5(ctx, data, len);
   }
-  MD5_Final(header.data_md5, &ctx);
+  ctx.MD5Final(header.data_md5);
   auto casted = dynamic_cast<const MMapContainer*>(nbr_container);
   if (casted && !casted->GetPath().empty() && casted->GetHeader()) {
     return memcmp(casted->GetHeader()->data_md5, header.data_md5,
@@ -126,9 +128,8 @@ void MutableCsr<EDATA_T>::Dump(Checkpoint& ckp, CheckpointManifest& meta,
       reinterpret_cast<const nbr_t* const*>(adj_list_buffer_->GetData());
   const int* cap_arr = reinterpret_cast<const int*>(cap_list_->GetData());
 
-  MD5_CTX ctx;
   FileHeader header{};
-  if (is_nbr_list_unmodified(ctx, header, nbr_list_.get(), adj_lists, cap_arr,
+  if (is_nbr_list_unmodified(header, nbr_list_.get(), adj_lists, cap_arr,
                              vnum)) {
     // If the neighbor list is unmodified, we can reuse the existing file.
     descriptor.set_path(ModuleDescriptor::kNbrListPath,

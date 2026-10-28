@@ -63,6 +63,8 @@ struct SequenceData {
 class CatalogSet;
 class NEUG_API SequenceCatalogEntry final : public CatalogEntry {
  public:
+  SequenceCatalogEntry(const SequenceCatalogEntry&) = delete;
+  SequenceCatalogEntry& operator=(const SequenceCatalogEntry&) = delete;
   //===--------------------------------------------------------------------===//
   // constructors
   //===--------------------------------------------------------------------===//

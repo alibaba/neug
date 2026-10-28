@@ -34,7 +34,7 @@ Built on this data foundation, NeuG is **the one data index for your agentic app
 
 ## Installation
 
-The packages support Linux and macOS on x86_64 and ARM64. Windows users can run NeuG through WSL2; native Windows support is on the roadmap. For more detailed instructions (including C++ from source), see the [installation guide](https://neug.io/docs/installation/installation/).
+The packages support Linux, macOS, and Windows on x86_64 and ARM64. For more detailed instructions (including C++ from source), see the [installation guide](https://neug.io/docs/installation/installation/).
 
 <details open>
 <summary><b>Python</b> &nbsp;·&nbsp; requires Python 3.8+</summary>
@@ -48,7 +48,7 @@ pip install neug
 <summary><b>Node.js</b> &nbsp;·&nbsp; requires Node.js 20+ &nbsp;(since v0.1.3)</summary>
 
 ```bash
-npm install @graphscope-neug/neug
+npm install @neug-ai/neug
 ```
 </details>
 

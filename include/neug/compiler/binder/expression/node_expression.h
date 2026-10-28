@@ -33,6 +33,8 @@ namespace binder {
 
 class NEUG_API NodeExpression final : public NodeOrRelExpression {
  public:
+  NodeExpression(const NodeExpression&) = delete;
+  NodeExpression& operator=(const NodeExpression&) = delete;
   NodeExpression(common::DataType dataType, std::string uniqueName,
                  std::string variableName, std::vector<SchemaEntry*> entries)
       : NodeOrRelExpression{std::move(dataType), std::move(uniqueName),

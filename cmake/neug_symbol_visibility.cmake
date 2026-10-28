@@ -12,9 +12,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# Apply platform-appropriate linker options to hide Arrow, protobuf, and
-# abseil symbols from a target's dynamic symbol table, preventing conflicts
-# with pyarrow (which bundles its own copies of those libraries).
+# Apply platform-appropriate linker options to hide third-party symbols from a
+# target's dynamic symbol table: protobuf/abseil (which would otherwise clash
+# with pyarrow's bundled copies) and the statically linked OpenSSL (whose
+# re-export lets a host that also exports OpenSSL -- notably Node.js, whose
+# binary re-exports its own OpenSSL 3.x -- interpose libneug's bundled 1.1.1k
+# on Linux's flat symbol namespace and segfault on the ABI mismatch; see #1159).
 # Apply to every non-test binary that ships alongside libneug.so/dylib.
 macro(neug_apply_symbol_visibility target)
     if(WIN32)
@@ -35,18 +38,14 @@ macro(neug_apply_symbol_visibility target)
             "LINKER:--exclude-libs,libprotoc.a"
             "LINKER:--exclude-libs,libutf8_range.a"
             "LINKER:--exclude-libs,libutf8_validity.a"
+            # OpenSSL is statically linked into libneug (bundled 1.1.1k). Keep
+            # its SSL_*/EVP_*/CRYPTO_*/X509_* symbols local so a host process
+            # that exports its own OpenSSL (e.g. Node.js 3.x) cannot interpose
+            # them -- the version script's `global: *;` would otherwise
+            # re-export them. See #1159.
+            "LINKER:--exclude-libs,libssl.a"
+            "LINKER:--exclude-libs,libcrypto.a"
         )
-        # Arrow/Parquet are only linked when building the parquet/httpfs
-        # extensions, so only hide their symbols when Arrow is actually built.
-        if(NEUG_NEED_ARROW)
-            target_link_options(${target} PRIVATE
-                "LINKER:--exclude-libs,libarrow.a"
-                "LINKER:--exclude-libs,libarrow_acero.a"
-                "LINKER:--exclude-libs,libarrow_dataset.a"
-                "LINKER:--exclude-libs,libarrow_bundled_dependencies.a"
-                "LINKER:--exclude-libs,libparquet.a"
-            )
-        endif()
         set_target_properties(${target} PROPERTIES LINK_DEPENDS
             "${CMAKE_SOURCE_DIR}/cmake/neug_exports.ld")
     endif()

@@ -43,6 +43,8 @@ struct RandomState {
 
 class NEUG_API RandomEngine {
  public:
+  RandomEngine(const RandomEngine&) = delete;
+  RandomEngine& operator=(const RandomEngine&) = delete;
   RandomEngine();
   RandomEngine(uint64_t seed, uint64_t stream);
 

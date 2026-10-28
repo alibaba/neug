@@ -15,6 +15,7 @@
 
 #include "glog/logging.h"
 #include "neug/compiler/extension/extension_api.h"
+#include "neug/utils/api.h"
 #include "neug/utils/exception/exception.h"
 
 #include "parquet_export_function.h"
@@ -22,7 +23,7 @@
 
 extern "C" {
 
-void Init() {
+NEUG_EXTENSION_API void Init() {
   LOG(INFO) << "[parquet extension] init called";
 
   try {
@@ -50,6 +51,6 @@ void Init() {
   }
 }
 
-const char* Name() { return "PARQUET"; }
+NEUG_EXTENSION_API const char* Name() { return "PARQUET"; }
 
 }  // extern "C"

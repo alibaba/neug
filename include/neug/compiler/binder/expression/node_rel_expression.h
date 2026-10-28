@@ -34,6 +34,8 @@ class NEUG_API NodeOrRelExpression : public Expression {
       common::ExpressionType::PATTERN;
 
  public:
+  NodeOrRelExpression(const NodeOrRelExpression&) = delete;
+  NodeOrRelExpression& operator=(const NodeOrRelExpression&) = delete;
   NodeOrRelExpression(common::DataType dataType, std::string uniqueName,
                       std::string variableName,
                       std::vector<SchemaEntry*> entries)

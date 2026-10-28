@@ -24,6 +24,7 @@
 #include "neug/config.h"
 #include "neug/storages/container/i_container.h"
 #include "neug/storages/module/module.h"
+#include "neug/utils/api.h"
 #include "neug/utils/property/types.h"
 #include "neug/utils/result.h"
 
@@ -54,7 +55,7 @@ class IndexIDAccessor : public Module {
   void Detach(Checkpoint& ckp, MemoryLevel level) override = 0;
 };
 
-class DefaultIndexIDAccessor final : public IndexIDAccessor {
+class NEUG_API DefaultIndexIDAccessor final : public IndexIDAccessor {
  public:
   static constexpr size_t kDefaultCapacity = 1024;
 
@@ -119,7 +120,7 @@ class DefaultIndexIDAccessor final : public IndexIDAccessor {
 // interface, so vector indexes reuse those offsets instead of allocating and
 // persisting a second VID-to-index-ID mapping. The referenced accessor must
 // outlive this adapter.
-class VecColumnBackedIndexIDAccessor final : public IndexIDAccessor {
+class NEUG_API VecColumnBackedIndexIDAccessor final : public IndexIDAccessor {
  public:
   explicit VecColumnBackedIndexIDAccessor(IndexIDAccessor& offset_accessor)
       : offset_accessor_(offset_accessor) {}

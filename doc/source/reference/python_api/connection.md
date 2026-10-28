@@ -97,7 +97,7 @@ def commit()
 
 Commit the active explicit transaction.
 
-Since v0.2.1, persistent ``COPY FROM`` statements — which may be
+Persistent ``COPY FROM`` statements — which may be
 grouped with ordinary DML/DDL and ``COPY TEMP`` in one read-write
 transaction — are published through a single checkpoint. Other writes
 use the ordinary logical-WAL commit path. A rollback-only transaction

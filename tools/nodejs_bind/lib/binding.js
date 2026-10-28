@@ -37,4 +37,9 @@ const platform = `${os}_${arch}`;
 const buildDir = path.join(__dirname, '..', 'build');
 const cfg = fs.existsSync(path.join(buildDir, 'Debug', platform)) ? 'Debug' : 'Release';
 
-module.exports = require(path.join(buildDir, cfg, platform, 'neug_node_bind.node'));
+const nativeDir = path.join(buildDir, cfg, platform);
+if (!process.env.NEUG_EXTENSION_HOME_PYENV) {
+  process.env.NEUG_EXTENSION_HOME_PYENV = nativeDir;
+}
+
+module.exports = require(path.join(nativeDir, 'neug_node_bind.node'));

@@ -34,6 +34,8 @@ namespace neug {
 template <typename EDATA_T>
 class NEUG_API ImmutableCsr : public TypedCsrBase<EDATA_T> {
  public:
+  ImmutableCsr(const ImmutableCsr&) = delete;
+  ImmutableCsr& operator=(const ImmutableCsr&) = delete;
   using data_t = EDATA_T;
   using nbr_t = ImmutableNbr<EDATA_T>;
 
@@ -145,6 +147,8 @@ class NEUG_API ImmutableCsr : public TypedCsrBase<EDATA_T> {
 template <typename EDATA_T>
 class NEUG_API SingleImmutableCsr : public TypedCsrBase<EDATA_T> {
  public:
+  SingleImmutableCsr(const SingleImmutableCsr&) = delete;
+  SingleImmutableCsr& operator=(const SingleImmutableCsr&) = delete;
   using data_t = EDATA_T;
   using nbr_t = ImmutableNbr<EDATA_T>;
 

@@ -354,11 +354,3 @@ class NEUG_API TransactionTimeoutException : public Exception {
 
 #define THROW_TRANSACTION_TIMEOUT(msg) \
   THROW_EXCEPTION_WITH_FILE_LINE_AND_TYPE(TransactionTimeoutException, msg)
-
-#define THROW_IF_ARROW_NOT_OK(expr)                             \
-  do {                                                          \
-    auto status = (expr);                                       \
-    if (!status.ok()) {                                         \
-      THROW_RUNTIME_ERROR("Arrow error: " + status.ToString()); \
-    }                                                           \
-  } while (0)

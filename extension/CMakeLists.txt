@@ -33,6 +33,25 @@ function(set_extension_properties target_name output_name extension_name)
     set(extension_dir "${output_dir}/extension/${extension_name}")
     file(MAKE_DIRECTORY "${extension_dir}")
     message(STATUS "Setting LIBRARY_OUTPUT_DIRECTORY for ${target_name} to: ${extension_dir}")
+    if(WIN32)
+        # A Windows DLL is a runtime artifact: LIBRARY_OUTPUT_DIRECTORY does
+        # not apply to it, so route both the DLL (RUNTIME) and its import
+        # library (ARCHIVE) into the same extension directory. There is no
+        # RPATH on Windows; imports resolve via the default DLL search order
+        # (already-loaded modules first, then the DLL's own directory and
+        # PATH), so keep libneug.dll discoverable there. The cross-platform
+        # "lib<name>.neug_extension" naming is preserved so Python/Node
+        # bindings can locate extensions uniformly.
+        set_target_properties(${target_name}
+                PROPERTIES
+                RUNTIME_OUTPUT_DIRECTORY "${extension_dir}"
+                ARCHIVE_OUTPUT_DIRECTORY "${extension_dir}"
+                OUTPUT_NAME ${output_name}
+                PREFIX "lib"
+                SUFFIX ".neug_extension"
+        )
+        return()
+    endif()
     # macOS dyld uses @loader_path, Linux uses $ORIGIN. Multiple paths: semicolon-separated.
     if(APPLE)
         set(_ext_rpath 
@@ -74,11 +93,6 @@ function(build_extension_lib ext_name)
         target_compile_options(neug_${ext_name}_extension PRIVATE --coverage)
         target_link_options(neug_${ext_name}_extension PRIVATE --coverage)
     endif()
-    # NOTE: Do NOT apply symbol visibility to extensions. Extensions link Arrow
-    # static libraries directly, and --exclude-libs would hide those symbols
-    # from the dynamic symbol table, causing dlopen to fail with undefined
-    # symbol errors (e.g., arrow::acero::MapNode). Symbol hiding for pyarrow
-    # coexistence is already handled by libneug.so's own visibility settings.
     SET(EXTENSION_LIB_NAME "${ext_name}" PARENT_SCOPE)
     SET(EXTENSION_LIB_NAME "${ext_name}")
     set_extension_properties(neug_${EXTENSION_LIB_NAME}_extension ${EXTENSION_LIB_NAME} ${ext_name})
@@ -127,17 +141,13 @@ function(add_extension_test)
         ${CMAKE_SOURCE_DIR}
         ${CMAKE_CURRENT_SOURCE_DIR}/include
         ${CMAKE_BINARY_DIR})
-    if(ARROW_INCLUDE_DIRS)
-        target_include_directories(${_test_name} PRIVATE SYSTEM ${ARROW_INCLUDE_DIRS})
-    endif()
     if(ARG_EXTRA_INCLUDE_DIRS)
-        target_include_directories(${_test_name} PRIVATE SYSTEM ${ARG_EXTRA_INCLUDE_DIRS})
+        target_include_directories(${_test_name} SYSTEM PRIVATE ${ARG_EXTRA_INCLUDE_DIRS})
     endif()
     target_link_libraries(${_test_name} PUBLIC
         neug::GTest
         neug
         ${GLOG_LIBRARIES}
-        ${ARROW_LIB}
         ${Protobuf_LIBRARIES}
         ${ARG_EXTRA_LINK_LIBS}
         ${OPENSSL_LIBRARIES}

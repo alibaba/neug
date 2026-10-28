@@ -17,6 +17,34 @@ if(TARGET neug_sqlite3)
     return()
 endif()
 
+if(WIN32)
+    # The bundled amalgamation is produced by the SQLite repo's own
+    # Makefile, whose sqlite3.c rule needs make + tclsh + a POSIX cc —
+    # none of which exist in the MSVC toolchain. Use vcpkg's sqlite3
+    # instead (install "sqlite3[core,fts5]:<triplet>" so the FTS5 module
+    # the fts extension needs is enabled). The vcpkg toolchain puts
+    # installed/<triplet>/{include,lib} on the search paths, so locate
+    # the library directly instead of depending on the port's CMake
+    # config, whose exported target name has changed across releases.
+    find_path(NEUG_VCPKG_SQLITE3_INCLUDE_DIR sqlite3.h)
+    find_library(NEUG_VCPKG_SQLITE3_LIBRARY NAMES sqlite3)
+    if(NOT NEUG_VCPKG_SQLITE3_INCLUDE_DIR OR NOT NEUG_VCPKG_SQLITE3_LIBRARY)
+        message(FATAL_ERROR
+            "vcpkg sqlite3 (headers + import lib) not found. Install it with: "
+            "vcpkg install sqlite3[core,fts5]:<triplet>")
+    endif()
+    add_library(neug_sqlite3 UNKNOWN IMPORTED)
+    set_target_properties(neug_sqlite3 PROPERTIES
+        IMPORTED_LOCATION "${NEUG_VCPKG_SQLITE3_LIBRARY}"
+        INTERFACE_INCLUDE_DIRECTORIES "${NEUG_VCPKG_SQLITE3_INCLUDE_DIR}")
+    # Consumers pass neug_sqlite3_amalgamation to add_dependencies();
+    # keep the name available as a no-op target on Windows.
+    add_library(neug_sqlite3_amalgamation INTERFACE)
+    message(STATUS
+        "Using vcpkg sqlite3 (FTS5) at ${NEUG_VCPKG_SQLITE3_LIBRARY} instead of the bundled amalgamation on Windows")
+    return()
+endif()
+
 set(NEUG_SQLITE_VERSION "3.53.3")
 set(NEUG_SQLITE_SOURCE_DIR "${CMAKE_SOURCE_DIR}/third_party/sqlite")
 set(NEUG_SQLITE_BUILD_DIR "${CMAKE_BINARY_DIR}/third_party/sqlite-amalgamation")

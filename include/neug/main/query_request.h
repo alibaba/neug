@@ -28,9 +28,17 @@
 
 namespace neug {
 
+struct QueryRequest {
+  std::string query;
+  AccessMode access_mode{AccessMode::kUnKnown};
+  rapidjson::Document parameters{rapidjson::kObjectType};
+};
+
 struct RequestParser {
   // TODO(zhanglei): Here we use rapidjson::Document for parameters,
   // figure out better way to pass parameters later.
+  static result<QueryRequest> ParseFromString(const std::string& req_string);
+
   static Status ParseFromString(const std::string& req_string,
                                 std::string& query, AccessMode& mode,
                                 rapidjson::Document& parameters);

@@ -18,6 +18,7 @@
 #include "neug/common/extra_type_info.h"
 #include "neug/common/types/i_context_column.h"
 #include "neug/common/types/value.h"
+#include "neug/utils/api.h"
 #include "neug/utils/exception/exception.h"
 #include "neug/utils/property/default_value.h"
 
@@ -32,7 +33,7 @@ class ContextArrayColumnBuilder;
  * ContextArrayColumn stores elements flat: row i element j is at datas_[i *
  * array_size_ + j]. No items_ overhead — simpler and more cache-friendly.
  */
-class ContextArrayColumn : public IContextColumn {
+class NEUG_API ContextArrayColumn : public IContextColumn {
  public:
   explicit ContextArrayColumn(const DataType& array_type)
       : elem_type_(ArrayType::GetChildType(array_type)),

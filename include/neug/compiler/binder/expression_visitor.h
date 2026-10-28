@@ -31,6 +31,7 @@
 #include "neug/compiler/common/types/types.h"
 #include "neug/compiler/gopt/g_scalar_type.h"
 #include "neug/compiler/main/client_context.h"
+#include "neug/utils/api.h"
 
 namespace neug {
 namespace binder {
@@ -50,7 +51,7 @@ class ExpressionChildrenCollector {
   static expression_vector collectRelChildren(const Expression& expression);
 };
 
-class ExpressionVisitor {
+class NEUG_API ExpressionVisitor {
  public:
   virtual ~ExpressionVisitor() = default;
 
@@ -93,7 +94,7 @@ class SubqueryExprCollector final : public ExpressionVisitor {
   expression_vector exprs;
 };
 
-class DependentVarNameCollector final : public ExpressionVisitor {
+class NEUG_API DependentVarNameCollector final : public ExpressionVisitor {
  public:
   std::unordered_set<std::string> getVarNames() const { return varNames; }
 

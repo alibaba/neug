@@ -643,8 +643,10 @@ std::unique_ptr<::common::Expression> GExprConverter::convertPatternExtractFunc(
   } else if (extractKey == common::InternalKeyword::RELS) {
     return convertUDFFunc("gs.function.relationships", expr, 1, schemaAlias);
   }
-  THROW_EXCEPTION_WITH_FILE_LINE("Unsupported struct extract key: " +
-                                 extractKey);
+  // A regular struct field access (e.g. `n.address.city`): child(0) is the
+  // struct expression and child(1) the field-name literal, which the execution
+  // side uses to locate the field.
+  return convertUDFFunc("gs.function.structExtract", expr, 2, schemaAlias);
 }
 
 bool isVariable(const binder::Expression& expr) {
@@ -989,10 +991,13 @@ std::unique_ptr<::common::Expression> GExprConverter::convertCast(
   case common::ExpressionType::LITERAL: {
     return castLiteral(expr);
   }
-  case common::ExpressionType::PARAMETER: {  // cast dynamic param by
-                                             // setting its meta data with
-                                             // target type
-    return convert(*sourceExpr, schemaAlias);
+  case common::ExpressionType::PARAMETER: {
+    // Inference can assign the target type to an untyped parameter. An
+    // explicitly typed parameter still needs its runtime conversion.
+    if (sourceExpr->getDataType() == expr.getDataType()) {
+      return convert(*sourceExpr, schemaAlias);
+    }
+    return convertExtensionFunc(scalarExpr, schemaAlias);
   }
   default: {  // convert to cast extension function for other conditions
     return convertExtensionFunc(scalarExpr, schemaAlias);

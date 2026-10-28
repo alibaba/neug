@@ -18,6 +18,7 @@
 #include <memory>
 #include <utility>
 #include <vector>
+#include "neug/utils/api.h"
 
 #include "neug/common/types/data_chunk.h"
 #include "neug/common/types/i_context_column.h"
@@ -40,7 +41,7 @@ namespace execution {
  * `head` in sync with the named columns (sharing pointer identity when
  * `head` aliases one of the named columns).
  */
-class ContextChunk {
+class NEUG_API ContextChunk {
  public:
   ContextChunk() = default;
   ~ContextChunk() = default;

@@ -25,6 +25,7 @@ add_library(neug_function
         vector_arithmetic_functions.cpp
         vector_cast_functions.cpp
         vector_date_functions.cpp
+        time_bucket_function.cpp
         vector_string_functions.cpp
         csv_export_function.cpp
         export_stream.cc

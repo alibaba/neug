@@ -15,6 +15,8 @@ class NEUG_API LogicalTableFunctionCall final : public LogicalOperator {
       LogicalOperatorType::TABLE_FUNCTION_CALL;
 
  public:
+  LogicalTableFunctionCall(const LogicalTableFunctionCall&) = delete;
+  LogicalTableFunctionCall& operator=(const LogicalTableFunctionCall&) = delete;
   LogicalTableFunctionCall(
       function::TableFunction tableFunc,
       std::unique_ptr<function::TableFuncBindData> bindData)

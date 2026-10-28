@@ -15,6 +15,7 @@
 #pragma once
 
 #include <glog/logging.h>
+#include "neug/utils/api.h"
 
 #include "neug/common/types/value.h"
 #include "neug/storages/csr/nbr.h"
@@ -305,6 +306,9 @@ struct EdgeDataAccessor {
   /** @brief Check if data is stored inline (bundled) vs column storage. */
   bool is_bundled() const { return data_column_ == nullptr; }
 
+  /** @brief The data type of the accessed edge property. */
+  DataTypeId data_type() const { return data_type_; }
+
   template <typename T>
   inline T get_typed_data(const NbrIterator& it) const {
     if constexpr (std::is_same<T, EmptyType>::value) {
@@ -594,7 +598,7 @@ struct TypedCsrView<T, CsrViewType::kMultipleMutable> {
  *
  * @since v0.1.0
  */
-struct CsrView {
+struct NEUG_API CsrView {
   CsrView()
       : adjlists_(nullptr),
         degrees_(nullptr),

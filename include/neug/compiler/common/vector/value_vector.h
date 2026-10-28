@@ -50,7 +50,6 @@ class NEUG_API ValueVector {
   friend class ListAuxiliaryBuffer;
   friend class StructVector;
   friend class StringVector;
-  friend class ArrowColumnVector;
 
  public:
   explicit ValueVector(

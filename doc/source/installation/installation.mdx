@@ -1,6 +1,6 @@
 # Installation
 
-NeuG runs on modern Linux and macOS systems with support for both x86 and ARM architectures. For Windows users, we recommend using [WSL](https://learn.microsoft.com/en-us/windows/wsl/install).
+NeuG runs on modern Linux, macOS, and Windows systems with support for both x86 and ARM architectures.
 
 NeuG supports multiple language bindings. Choose your preferred language below to get started.
 
@@ -72,24 +72,24 @@ pip install --upgrade neug
 
 <Tab>
 
-**Requirements**: Node.js 20.0.0 or later (available since NeuG v0.1.3)
+**Requirements**: Node.js 20.0.0 or later
 
 ### Install
 
 ```bash
-npm install @graphscope-neug/neug
+npm install @neug-ai/neug
 ```
 
 Or install from a local tarball:
 
 ```bash
-npm install /path/to/neug-0.2.0.tgz
+npm install /path/to/neug-<release>.tgz
 ```
 
 ### Verify Installation
 
 ```javascript
-const { Database } = require('@graphscope-neug/neug');
+const { Database } = require('@neug-ai/neug');
 
 // Test with in-memory database
 const db = new Database({ databasePath: '', mode: 'w' });

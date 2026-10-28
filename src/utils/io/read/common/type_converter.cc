@@ -78,6 +78,9 @@ DataType NeuGTypeConverter::convert(const ::common::DataType& type) const {
   }
   case ::common::DataType::kList:
     return DataType::List(convert(type.list().component_type()));
+  case ::common::DataType::kTuple:
+    THROW_NOT_SUPPORTED_EXCEPTION(
+        "COPY/LOAD FROM does not support STRUCT columns yet");
   default:
     THROW_CONVERSION_EXCEPTION("Unsupported DataType for NeuG conversion");
   }

@@ -49,7 +49,7 @@ The storage layer manages graph data persistence, indexing, and access patterns.
   - Vertex and edge table management
   - Schema definition and validation
 - **`loader/`** - Data loading and ingestion modules
-  - CSV and Arrow format loaders
+  - Native CSV and JSON format loaders
   - Bulk loading optimizations
   - Data transformation pipelines
 
@@ -75,7 +75,6 @@ Implements both embedded (global lock) and service (MVCC) transaction models.
 Common utilities and infrastructure components used throughout the system.
 
 - **Core Utilities:**
-  - `arrow_utils.cc` - Apache Arrow integration utilities
   - `file_utils.cc` - File system operations and management
   - `string_utils.cc` - String manipulation and processing
   - `yaml_utils.cc` - YAML configuration parsing
@@ -108,9 +107,12 @@ Core database engine implementation and execution slot management.
 ### 🌐 [`server/`](./server/)
 **Network Server Implementation**
 
-HTTP and RPC server implementations for service mode operations.
+Service lifecycle and transport adapters. The current backend exposes HTTP through BRPC.
 
 - **Service Management:**
-  - `brpc_service_mgr.cc` - BRPC service framework management
-  - `neug_db_service.cc` - Database service implementation and API endpoints
-  - `tp_execution_slot_pool.cc` - ExecutionSlot pooling and resource management
+  - `neug_db_service.cc` - Backend assembly, lifecycle coordination, and exit waiting
+  - `brpc_transport.cc` - BRPC listener and protocol-handler ownership
+  - `brpc_http_handler.cc` - HTTP request/response conversion through `ITpOperations`
+  - `tp_service_runtime.cc` - Execution slots, transactions, and compaction
+
+See [server architecture](server/README.md) for ownership and shutdown contracts.

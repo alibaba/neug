@@ -51,7 +51,8 @@ inline DataTypeId determine_search_prop_type(
     const std::vector<DataType>& props) {
   return (props.size() == 1 && props[0].id() != DataTypeId::kVarchar &&
           props[0].id() != DataTypeId::kArray &&
-          props[0].id() != DataTypeId::kList)
+          props[0].id() != DataTypeId::kList &&
+          props[0].id() != DataTypeId::kStruct)
              ? props[0].id()
              : DataTypeId::kUInt64;
 }

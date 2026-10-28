@@ -61,7 +61,6 @@ add_dependencies(neug_node_bind neug_proto)
 
 set(NEUG_LIBRARIES neug)
 
-find_package(OpenSSL REQUIRED)
 if (WIN32)
   set(NODE_IMPORT_LIB "" CACHE FILEPATH
     "Path to the Node.js import library (node.lib)")
@@ -70,15 +69,16 @@ if (WIN32)
       "Cannot find the Node.js import library. Set NODE_IMPORT_LIB to node.lib.")
   endif()
 
-  # Protobuf namespace-scope default instances are not exported from neug.dll.
-  # Link the generated objects into the addon, matching the Windows Python binding.
+  # The generated message classes and their namespace-scope default instances
+  # are all exported from neug.dll (dllexport_decl plus the generated-header
+  # patch), so the addon imports protobuf symbols through neug.lib. Never link
+  # the neug_proto object files directly into this target: they would
+  # duplicate the descriptor pools across modules and collide with the import
+  # library (LNK2005).
   target_link_libraries(neug_node_bind PRIVATE
     ${NEUG_LIBRARIES}
     ${GLOG_LIBRARIES}
     ${Protobuf_LIBRARIES}
-    $<TARGET_OBJECTS:neug_proto>
-    OpenSSL::SSL
-    OpenSSL::Crypto
     "${NODE_IMPORT_LIB}"
   )
 else()
@@ -86,8 +86,6 @@ else()
     ${NEUG_LIBRARIES}
     ${GLOG_LIBRARIES}
     ${Protobuf_LIBRARIES}
-    OpenSSL::SSL
-    OpenSSL::Crypto
   )
 endif()
 
@@ -101,7 +99,7 @@ if (CMAKE_CXX_COMPILER_ID MATCHES "Clang")
   target_compile_options(neug_node_bind PRIVATE -Wno-vla-extension)
 endif()
 
-# Hide protobuf/abseil/arrow symbols to avoid conflicts
+# Hide protobuf/abseil symbols to avoid conflicts
 if (COMMAND neug_apply_symbol_visibility)
   neug_apply_symbol_visibility(neug_node_bind)
 endif()

@@ -1,7 +1,12 @@
 name: NPM Test
 
 on:
-  workflow_call: {}
+  workflow_call:
+    inputs:
+      build_extensions:
+        description: Build and smoke test extensions for npm release packages.
+        type: boolean
+        default: false
   workflow_dispatch: {}
   schedule:
     # Trigger at 22:00 CST (14:00 UTC) every day
@@ -46,6 +51,10 @@ jobs:
             runner: ${{ github.repository == 'alibaba/neug' && fromJSON('["self-hosted", "daily", "linux", "x64"]') || 'ubuntu-22.04' }}
     runs-on: ${{ matrix.runner }}
     env:
+      # Always build the full extension set (mirrors the release config) so the
+      # LOAD smoke test in the Test step runs on every Linux CI run, not only on
+      # releases. test_extension_smoke.js LOADs exactly this list.
+      EXTENSIONS: 'parquet;httpfs;pattern_matching;vector_search;fts;gds'
       CONTAINER_NAME: neug-npm-x86_64-${{ github.run_id }}
     steps:
       - name: checkout
@@ -62,14 +71,16 @@ jobs:
             neug-registry.cn-hongkong.cr.aliyuncs.com/neug/neug-manylinux:v0.1.3-x86_64-node \
             sleep infinity
 
-          docker exec ${{ env.CONTAINER_NAME }} bash -c '
+          docker exec -u 0 ${{ env.CONTAINER_NAME }} \
+            install -o 1001 -g 1001 -m 644 /root/.neug_env /home/neug/.neug_env
+
+          docker exec ${{ env.CONTAINER_NAME }} bash -ec '
             mkdir -p /home/neug/.local
             curl -fsSL https://nodejs.org/dist/v20.0.0/node-v20.0.0-linux-x64.tar.xz \
               | tar -xJ -C /home/neug/.local --strip-components=1
             curl -fsSL https://github.com/NixOS/patchelf/releases/download/0.19.0/patchelf-0.19.0-x86_64.tar.gz \
               | tar -xz -C /home/neug/.local
             export PATH=/home/neug/.local/bin:$PATH
-            cp /root/.neug_env /home/neug/.neug_env 2>/dev/null || true
             git config --global --add safe.directory /project
             . /home/neug/.neug_env
             git submodule update --init --recursive
@@ -77,25 +88,62 @@ jobs:
 
       - name: Build
         run: |
-          docker exec ${{ env.CONTAINER_NAME }} bash -c '
+          docker exec -e EXTENSIONS ${{ env.CONTAINER_NAME }} bash -ec '
             export PATH=/home/neug/.local/bin:$PATH
             . /home/neug/.neug_env
             cd /project/tools/nodejs_bind
-            make build EXTRA_CMAKE_FLAGS="-DCMAKE_PREFIX_PATH=/opt/neug/ -DOPENSSL_ROOT_DIR=/opt/neug"
+            make build BUILD_EXTENSIONS="$EXTENSIONS" \
+              EXTRA_CMAKE_FLAGS="-DCMAKE_PREFIX_PATH=/opt/neug/ -DOPENSSL_ROOT_DIR=/opt/neug -DNEUG_PACKAGE_BUILD=ON"
           '
 
       - name: Pack
         run: |
-          docker exec ${{ env.CONTAINER_NAME }} bash -c '
+          docker exec -e EXTENSIONS ${{ env.CONTAINER_NAME }} bash -ec '
             export PATH=/home/neug/.local/bin:$PATH
             . /home/neug/.neug_env
             cd /project/tools/nodejs_bind
-            make pack EXTRA_CMAKE_FLAGS="-DCMAKE_PREFIX_PATH=/opt/neug/ -DOPENSSL_ROOT_DIR=/opt/neug"
+            make pack BUILD_EXTENSIONS="$EXTENSIONS" \
+              EXTRA_CMAKE_FLAGS="-DCMAKE_PREFIX_PATH=/opt/neug/ -DOPENSSL_ROOT_DIR=/opt/neug" || exit $?
+            if [ -n "$EXTENSIONS" ]; then
+              readelf --dyn-syms --wide build/Release/linux_${{ matrix.arch }}/libneug.so | \
+                awk "/_ZNK4neug12StorageIndex14ModuleTypeNameB5cxx11Ev/ { found = 1 } END { exit !found }"
+            fi
+          '
+
+      - name: Assert node cannot interpose libneug bundled OpenSSL symbols
+        run: |
+          # End-to-end guard for #1159: load the freshly built addon under a real
+          # node with eager binding (LD_BIND_NOW) and confirm that none of the
+          # OpenSSL references in libneug.so bind to the node binary. node
+          # re-exports its own OpenSSL 3.x; on the flat Linux symbol namespace
+          # those symbols would interpose the bundled OpenSSL 1.1.1k in
+          # libneug.so and segfault on the first SSL call (for example the HTTPS
+          # download during INSTALL). Uses only local build artifacts -- no
+          # INSTALL, no network.
+          docker exec ${{ env.CONTAINER_NAME }} bash -ec '
+            export PATH=/home/neug/.local/bin:$PATH
+            . /home/neug/.neug_env
+            cd /project/tools/nodejs_bind
+            node_ssl=$(nm -D "$(command -v node)" 2>/dev/null | grep -c " SSL_" || true)
+            echo "node exports $node_ssl OpenSSL (SSL_*) dynamic symbols"
+            if [ "$node_ssl" -eq 0 ]; then
+              echo "FAIL: CI node exports no OpenSSL symbols; cannot exercise the #1159 interpose."
+              exit 1
+            fi
+            bindings=$(LD_BIND_NOW=1 LD_DEBUG=bindings node -e "require(\"./lib\")" 2>&1 || true)
+            interposed=$(echo "$bindings" | grep -E "libneug\.so.* to .*node" | grep -cE "(SSL_|X509_|EVP_|CRYPTO_|OPENSSL_|BIO_|RAND_|ASN1_|ERR_)" || true)
+            echo "libneug.so OpenSSL symbols bound to node (interposed): $interposed"
+            if [ "$interposed" -ne 0 ]; then
+              echo "FAIL: node interposes $interposed of libneug.so OpenSSL symbol(s); see #1159."
+              echo "$bindings" | grep -E "libneug\.so.* to .*node" | grep -E "(SSL_|X509_|EVP_|CRYPTO_)" | head -20
+              exit 1
+            fi
+            echo "PASS: libneug.so binds its OpenSSL locally; node cannot interpose."
           '
 
       - name: Prepare test data
         run: |
-          docker exec ${{ env.CONTAINER_NAME }} bash -c '
+          docker exec ${{ env.CONTAINER_NAME }} bash -ec '
             export PATH=/home/neug/.local/bin:$PATH
             . /home/neug/.neug_env
             git clone -b master --single-branch --depth=1 https://github.com/GraphScope/gstest.git /project/gstest
@@ -110,11 +158,11 @@ jobs:
 
       - name: Test
         run: |
-          docker exec ${{ env.CONTAINER_NAME }} bash -c '
+          docker exec ${{ env.CONTAINER_NAME }} bash -ec '
             export PATH=/home/neug/.local/bin:$PATH
             . /home/neug/.neug_env
             cd /project/tools/nodejs_bind
-            node tests/test-shim.js
+            NEUG_RUN_EXTENSION_TESTS=1 node tests/test-shim.js
           '
 
       - name: Stop container
@@ -126,7 +174,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: nodejs-linux-x86_64-${{ github.run_id }}
-          path: ./tools/nodejs_bind/graphscope-neug-linux-x86_64-*.tgz
+          path: ./tools/nodejs_bind/neug-ai-linux-x86_64-*.tgz
           if-no-files-found: error
 
   build_npm_linux_arm64:
@@ -140,6 +188,10 @@ jobs:
             runner: ${{ github.repository == 'alibaba/neug' && fromJSON('["self-hosted", "daily", "linux", "arm64"]') || 'ubuntu-22.04-arm' }}
     runs-on: ${{ matrix.runner }}
     env:
+      # Always build the full extension set (mirrors the release config) so the
+      # LOAD smoke test in the Test step runs on every Linux CI run, not only on
+      # releases. test_extension_smoke.js LOADs exactly this list.
+      EXTENSIONS: 'parquet;httpfs;pattern_matching;vector_search;fts;gds'
       CONTAINER_NAME: neug-npm-arm64-${{ github.run_id }}
     steps:
       - name: checkout
@@ -156,14 +208,16 @@ jobs:
             neug-registry.cn-hongkong.cr.aliyuncs.com/neug/neug-manylinux:v0.1.3-arm64-node \
             sleep infinity
 
-          docker exec ${{ env.CONTAINER_NAME }} bash -c '
+          docker exec -u 0 ${{ env.CONTAINER_NAME }} \
+            install -o 1001 -g 1001 -m 644 /root/.neug_env /home/neug/.neug_env
+
+          docker exec ${{ env.CONTAINER_NAME }} bash -ec '
             mkdir -p /home/neug/.local
             curl -fsSL https://nodejs.org/dist/v20.0.0/node-v20.0.0-linux-arm64.tar.xz \
               | tar -xJ -C /home/neug/.local --strip-components=1
             curl -fsSL https://github.com/NixOS/patchelf/releases/download/0.19.0/patchelf-0.19.0-aarch64.tar.gz \
               | tar -xz -C /home/neug/.local
             export PATH=/home/neug/.local/bin:$PATH
-            cp /root/.neug_env /home/neug/.neug_env 2>/dev/null || true
             git config --global --add safe.directory /project
             . /home/neug/.neug_env
             git submodule update --init --recursive
@@ -171,25 +225,62 @@ jobs:
 
       - name: Build
         run: |
-          docker exec ${{ env.CONTAINER_NAME }} bash -c '
+          docker exec -e EXTENSIONS ${{ env.CONTAINER_NAME }} bash -ec '
             export PATH=/home/neug/.local/bin:$PATH
             . /home/neug/.neug_env
             cd /project/tools/nodejs_bind
-            make build EXTRA_CMAKE_FLAGS="-DCMAKE_PREFIX_PATH=/opt/neug/ -DOPENSSL_ROOT_DIR=/opt/neug"
+            make build BUILD_EXTENSIONS="$EXTENSIONS" \
+              EXTRA_CMAKE_FLAGS="-DCMAKE_PREFIX_PATH=/opt/neug/ -DOPENSSL_ROOT_DIR=/opt/neug -DNEUG_PACKAGE_BUILD=ON"
           '
 
       - name: Pack
         run: |
-          docker exec ${{ env.CONTAINER_NAME }} bash -c '
+          docker exec -e EXTENSIONS ${{ env.CONTAINER_NAME }} bash -ec '
             export PATH=/home/neug/.local/bin:$PATH
             . /home/neug/.neug_env
             cd /project/tools/nodejs_bind
-            make pack EXTRA_CMAKE_FLAGS="-DCMAKE_PREFIX_PATH=/opt/neug/ -DOPENSSL_ROOT_DIR=/opt/neug"
+            make pack BUILD_EXTENSIONS="$EXTENSIONS" \
+              EXTRA_CMAKE_FLAGS="-DCMAKE_PREFIX_PATH=/opt/neug/ -DOPENSSL_ROOT_DIR=/opt/neug" || exit $?
+            if [ -n "$EXTENSIONS" ]; then
+              readelf --dyn-syms --wide build/Release/linux_${{ matrix.arch }}/libneug.so | \
+                awk "/_ZNK4neug12StorageIndex14ModuleTypeNameB5cxx11Ev/ { found = 1 } END { exit !found }"
+            fi
+          '
+
+      - name: Assert node cannot interpose libneug bundled OpenSSL symbols
+        run: |
+          # End-to-end guard for #1159: load the freshly built addon under a real
+          # node with eager binding (LD_BIND_NOW) and confirm that none of the
+          # OpenSSL references in libneug.so bind to the node binary. node
+          # re-exports its own OpenSSL 3.x; on the flat Linux symbol namespace
+          # those symbols would interpose the bundled OpenSSL 1.1.1k in
+          # libneug.so and segfault on the first SSL call (for example the HTTPS
+          # download during INSTALL). Uses only local build artifacts -- no
+          # INSTALL, no network.
+          docker exec ${{ env.CONTAINER_NAME }} bash -ec '
+            export PATH=/home/neug/.local/bin:$PATH
+            . /home/neug/.neug_env
+            cd /project/tools/nodejs_bind
+            node_ssl=$(nm -D "$(command -v node)" 2>/dev/null | grep -c " SSL_" || true)
+            echo "node exports $node_ssl OpenSSL (SSL_*) dynamic symbols"
+            if [ "$node_ssl" -eq 0 ]; then
+              echo "FAIL: CI node exports no OpenSSL symbols; cannot exercise the #1159 interpose."
+              exit 1
+            fi
+            bindings=$(LD_BIND_NOW=1 LD_DEBUG=bindings node -e "require(\"./lib\")" 2>&1 || true)
+            interposed=$(echo "$bindings" | grep -E "libneug\.so.* to .*node" | grep -cE "(SSL_|X509_|EVP_|CRYPTO_|OPENSSL_|BIO_|RAND_|ASN1_|ERR_)" || true)
+            echo "libneug.so OpenSSL symbols bound to node (interposed): $interposed"
+            if [ "$interposed" -ne 0 ]; then
+              echo "FAIL: node interposes $interposed of libneug.so OpenSSL symbol(s); see #1159."
+              echo "$bindings" | grep -E "libneug\.so.* to .*node" | grep -E "(SSL_|X509_|EVP_|CRYPTO_)" | head -20
+              exit 1
+            fi
+            echo "PASS: libneug.so binds its OpenSSL locally; node cannot interpose."
           '
 
       - name: Prepare test data
         run: |
-          docker exec ${{ env.CONTAINER_NAME }} bash -c '
+          docker exec ${{ env.CONTAINER_NAME }} bash -ec '
             export PATH=/home/neug/.local/bin:$PATH
             . /home/neug/.neug_env
             git clone -b master --single-branch --depth=1 https://github.com/GraphScope/gstest.git /project/gstest
@@ -204,11 +295,11 @@ jobs:
 
       - name: Test
         run: |
-          docker exec ${{ env.CONTAINER_NAME }} bash -c '
+          docker exec ${{ env.CONTAINER_NAME }} bash -ec '
             export PATH=/home/neug/.local/bin:$PATH
             . /home/neug/.neug_env
             cd /project/tools/nodejs_bind
-            node tests/test-shim.js
+            NEUG_RUN_EXTENSION_TESTS=1 node tests/test-shim.js
           '
 
       - name: Stop container
@@ -220,11 +311,12 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: nodejs-linux-arm64-${{ github.run_id }}
-          path: ./tools/nodejs_bind/graphscope-neug-linux-arm64-*.tgz
+          path: ./tools/nodejs_bind/neug-ai-linux-arm64-*.tgz
           if-no-files-found: error
 
   build_npm_windows_x86_64:
     needs: format_check
+    if: github.event_name != 'pull_request'
     runs-on: windows-2022
     steps:
       - name: checkout
@@ -327,7 +419,7 @@ jobs:
           Copy-Item package.json package.json.ci
           try {
             $package = Get-Content package.json -Raw | ConvertFrom-Json
-            $package.name = "@graphscope-neug/windows-x86_64"
+            $package.name = "@neug-ai/windows-x86_64"
             $package | Add-Member -NotePropertyName os -NotePropertyValue @("win32") -Force
             $package | Add-Member -NotePropertyName cpu -NotePropertyValue @("x64") -Force
             $package | ConvertTo-Json -Depth 100 | Set-Content package.json
@@ -341,7 +433,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: nodejs-windows-x86_64-${{ github.run_id }}
-          path: ./tools/nodejs_bind/graphscope-neug-windows-x86_64-*.tgz
+          path: ./tools/nodejs_bind/neug-ai-windows-x86_64-*.tgz
           if-no-files-found: error
 
   build_npm_macos_aarch64:
@@ -410,7 +502,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: nodejs-osx-arm64-${{ github.run_id }}
-          path: ./tools/nodejs_bind/graphscope-neug-osx-arm64-*.tgz
+          path: ./tools/nodejs_bind/neug-ai-osx-arm64-*.tgz
           if-no-files-found: error
 
   # Nightly and manually dispatched builds verify the packages from this run

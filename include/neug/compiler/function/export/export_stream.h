@@ -16,6 +16,7 @@
 
 #include <memory>
 
+#include "neug/utils/api.h"
 #include "neug/utils/io/read/common/schema.h"
 #include "neug/utils/io/stream/output_stream.h"
 
@@ -26,7 +27,7 @@ namespace function {
 /// (http/https/s3/oss, resolved through the VFS registry) are written via
 /// the registered RemoteFileSystem; every other scheme falls back to a
 /// local file.
-std::unique_ptr<io::OutputStream> openExportOutputStream(
+NEUG_API std::unique_ptr<io::OutputStream> openExportOutputStream(
     const reader::FileSchema& schema);
 
 }  // namespace function

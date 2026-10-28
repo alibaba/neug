@@ -92,14 +92,10 @@ readonly OS_PLATFORM=${OS%-*}
 readonly OS_VERSION=${OS#*-}
 readonly ARCH=$(uname -m)
 readonly OUTPUT_ENV_FILE="${HOME}/.neug_env"
-if [[ "${OS_PLATFORM}" == *"Darwin"* ]]; then
-  readonly HOMEBREW_PREFIX=$(brew --prefix)
-fi
 readonly tempdir="/tmp/gs-local-deps"
 cn_flag=false
 debug_flag=false
 install_prefix="/opt/neug"
-ARROW_VERSION=${ARROW_VERSION:-"18.0.0"}
 
 # parse args
 while (( "$#" )); do
@@ -155,7 +151,11 @@ init_workspace_and_env() {
   fi
   #if macos
   if [[ "${OS_PLATFORM}" == *"Darwin"* ]]; then
-    export MACOSX_DEPLOYMENT_TARGET=10.15
+    local default_target=10.15
+    if [[ "${ARCH}" == "arm64" ]]; then
+      default_target=11.0
+    fi
+    export MACOSX_DEPLOYMENT_TARGET="${MACOSX_DEPLOYMENT_TARGET:-${default_target}}"
   fi
 }
 
@@ -184,80 +184,6 @@ function download_and_untar() {
     tar zxf "${file}"
   fi
 }
-
-install_arrow_from_source() {
-  local arrow_version="${ARROW_VERSION}"
-  local arrow_archive="apache-arrow-${arrow_version}.tar.gz"
-  local arrow_directory="apache-arrow-${arrow_version}"
-  local arrow_build_directory="${tempdir}/apache-arrow-build"
-  local arrow_url="https://graphscope.oss-cn-beijing.aliyuncs.com/apache-arrow-${arrow_version}.tar.gz"
-
-  if [[ -f "${install_prefix}/lib/libarrow.a" || -f "${install_prefix}/lib64/libarrow.a" ]]; then
-    info "Arrow already installed under ${install_prefix}, skip."
-    return 0
-  fi
-
-  info "Installing Arrow ${arrow_version} from source"
-  pushd "${tempdir}" >/dev/null || exit
-  if [ ! -f "${arrow_archive}" ]; then
-    info "Downloading Arrow archive from ${arrow_url}"
-    curl -fsSL -o "${arrow_archive}" "${arrow_url}"
-  fi
-  if [ ! -d "${arrow_directory}" ]; then
-    tar zxf "${arrow_archive}"
-  fi
-
-  cmake -S "${arrow_directory}/cpp" -B "${arrow_build_directory}" \
-    -DCMAKE_BUILD_TYPE=Release \
-    -DCMAKE_INSTALL_PREFIX="${install_prefix}" \
-    -DCMAKE_POSITION_INDEPENDENT_CODE=ON \
-    -DARROW_BUILD_SHARED=OFF \
-    -DARROW_BUILD_STATIC=ON \
-    -DARROW_WITH_UTF8PROC=OFF \
-    -DARROW_CSV=ON \
-    -DARROW_ACERO=ON \
-    -DARROW_DATASET=ON \
-    -DARROW_COMPUTE=ON \
-    -DARROW_CUDA=OFF \
-    -DARROW_FILESYSTEM=ON \
-    -DARROW_FLIGHT=OFF \
-    -DARROW_GANDIVA=OFF \
-    -DARROW_HDFS=OFF \
-    -DARROW_ORC=OFF \
-    -DARROW_JSON=ON \
-    -DARROW_PARQUET=ON \
-    -DARROW_PLASMA=OFF \
-    -DARROW_PYTHON=OFF \
-    -DARROW_S3=OFF \
-    -DARROW_WITH_BZ2=OFF \
-    -DARROW_WITH_LZ4=OFF \
-    -DARROW_WITH_SNAPPY=ON \
-    -DARROW_WITH_ZLIB=ON \
-    -DARROW_WITH_ZSTD=ON \
-    -DARROW_WITH_BROTLI=OFF \
-    -DARROW_IPC=ON \
-    -DARROW_BUILD_BENCHMARKS=OFF \
-    -DARROW_BUILD_TESTS=OFF \
-    -DARROW_BUILD_EXAMPLES=OFF \
-    -DARROW_BUILD_UTILITIES=OFF \
-    -DARROW_BUILD_INTEGRATION=OFF \
-    -DARROW_ENABLE_TIMING_TESTS=OFF \
-    -DARROW_FUZZING=OFF \
-    -DARROW_USE_ASAN=OFF \
-    -DARROW_USE_UBSAN=OFF \
-    -DARROW_USE_TSAN=OFF \
-    -DARROW_USE_JEMALLOC=OFF \
-    -DARROW_SIMD_LEVEL=NONE \
-    -DARROW_RUNTIME_SIMD_LEVEL=NONE \
-    -DARROW_POSITION_INDEPENDENT_CODE=ON \
-    -DARROW_DEPENDENCY_SOURCE=BUNDLED \
-    -DRapidJSON_SOURCE=BUNDLED
-
-  cmake --build "${arrow_build_directory}" --target install -j"$(nproc)"
-  popd >/dev/null || exit
-  rm -rf "${arrow_build_directory}" "${tempdir}/${arrow_directory}" "${tempdir}/${arrow_archive}"
-}
-
 
 BASIC_PACKAGES_LINUX=("file" "curl" "wget" "git" "sudo")
 BASIC_PACKAGES_UBUNTU=("${BASIC_PACKAGES_LINUX[@]}" "build-essential" "cmake" "libunwind-dev" "python3-pip")
@@ -299,6 +225,7 @@ install_basic_packages() {
 }
 
 install_openssl() {
+  export OPENSSL_ROOT_DIR="${install_prefix}"
   if [[ -f "${install_prefix}/include/openssl/ssl.h" ]]; then
     info "openssl already installed, skip."
     return 0
@@ -317,40 +244,103 @@ install_openssl() {
   popd || exit
   popd || exit
   rm -rf "${tempdir:?}/${directory:?}" "${tempdir:?}/${file:?}"
-  export OPENSSL_ROOT_DIR="${install_prefix}"
 }
 
-# Build a static libcurl linked against the static OpenSSL 1.1.1k installed
-# above.  This lets the httpfs extension link cURL statically and avoid the
-# system libcurl + system OpenSSL 3.0 vs aws-lc/BoringSSL symbol conflict
-# (which causes a segfault in OPENSSL_sk_value at runtime).
-install_curl() {
-  if [[ -f "${install_prefix}/lib/libcurl.a" || -f "${install_prefix}/lib64/libcurl.a" ]]; then
-    info "curl already installed, skip."
+# Homebrew binaries may require a newer macOS than the wheels support.
+# Build OpenSSL for our deployment target in a prefix isolated from old 1.1 libs.
+install_openssl_macos() {
+  export OPENSSL_ROOT_DIR="${install_prefix}/openssl"
+  local version=3.5.9
+  local directory="openssl-${version}"
+  local file="${directory}.tar.gz"
+  local checksum=603f5602e2eef00d77fbd429d34dcd5822bb301757a1bc9cdb24c670f1eb859a
+  local stamp="${OPENSSL_ROOT_DIR}/.neug-build-config"
+  local build_config="${version} ${ARCH} ${MACOSX_DEPLOYMENT_TARGET}"
+  if [[ -f "${stamp}" && "$(cat "${stamp}")" == "${build_config}" &&
+        -f "${OPENSSL_ROOT_DIR}/include/openssl/ssl.h" &&
+        -f "${OPENSSL_ROOT_DIR}/lib/libssl.3.dylib" &&
+        -f "${OPENSSL_ROOT_DIR}/lib/libcrypto.3.dylib" ]]; then
+    info "OpenSSL already built for this architecture and macOS target, skip."
     return 0
   fi
 
-  directory="curl-8.7.1"
-  file="curl-8.7.1.tar.gz"
-  url="https://curl.se/download"
+  mkdir -p "${OPENSSL_ROOT_DIR}"
+  : > "${stamp}"
+  pushd "${tempdir}" || exit
+  # Use the system downloader: an old curl in install_prefix may be broken.
+  /usr/bin/curl -fL --retry 3 -o "${file}" \
+    "https://github.com/openssl/openssl/releases/download/openssl-${version}/${file}"
+  printf '%s  %s\n' "${checksum}" "${file}" | shasum -a 256 -c -
+  tar zxf "${file}"
+  pushd "${directory}" || exit
+  if [[ -f Makefile ]]; then
+    make distclean
+  fi
+  ./Configure "darwin64-${ARCH}-cc" shared no-tests \
+    --prefix="${OPENSSL_ROOT_DIR}" --libdir=lib --openssldir=/etc/ssl \
+    "-mmacosx-version-min=${MACOSX_DEPLOYMENT_TARGET}"
+  make -j"$(sysctl -n hw.physicalcpu)"
+  make install_sw
+  printf '%s\n' "${build_config}" > "${stamp}"
+  popd || exit
+  popd || exit
+  rm -rf "${tempdir:?}/${directory:?}" "${tempdir:?}/${file:?}"
+}
+
+# Keep cURL static, using the same OpenSSL and deployment target as NeuG.
+install_curl() {
+  local openssl_prefix="${OPENSSL_ROOT_DIR:?Select OpenSSL before building curl}"
+  local stamp="${install_prefix}/share/neug/curl-openssl-config"
+  # Rebuild legacy installations and when the selected OpenSSL changes.
+  local build_config openssl_real_prefix openssl_header_checksum
+  openssl_real_prefix=$(cd "${openssl_prefix}" && pwd -P)
+  openssl_header_checksum=$(cksum < "${openssl_prefix}/include/openssl/opensslv.h")
+  build_config="${openssl_real_prefix} ${openssl_header_checksum} ${ARCH} ${MACOSX_DEPLOYMENT_TARGET:-}"
+  if [[ -f "${stamp}" && "$(cat "${stamp}")" == "${build_config}" &&
+        -f "${install_prefix}/include/curl/curl.h" &&
+        ( -f "${install_prefix}/lib/libcurl.a" || -f "${install_prefix}/lib64/libcurl.a" ) ]]; then
+    info "curl already built with the selected OpenSSL, skip."
+    return 0
+  fi
+
+  local directory="curl-8.7.1"
+  local file="${directory}.tar.gz"
+  local url="https://curl.se/download"
+  mkdir -p "${install_prefix}/share/neug"
+  # A failed rebuild must not leave a stamp accepting partially installed files.
+  : > "${stamp}"
   pushd "${tempdir}" || exit
   download_and_untar "${url}" "${file}" "${directory}"
-  pushd ${directory} || exit
+  pushd "${directory}" || exit
 
+  # A previous interrupted build may still contain objects for another OpenSSL.
+  if [[ -f config.status && -f Makefile ]]; then
+    make distclean
+  fi
+  local ca_args=(--with-ca-bundle=/etc/ssl/certs/ca-certificates.crt
+    --with-ca-path=/etc/ssl/certs)
+  if [[ "${OS_PLATFORM}" == *"Darwin"* ]]; then
+    ca_args=(--with-ca-bundle=/etc/ssl/cert.pem --without-ca-path)
+  fi
   ./configure --prefix="${install_prefix}" \
     --disable-shared --enable-static --with-pic \
-    --with-openssl="${install_prefix}" \
-    --with-ca-bundle=/etc/ssl/certs/ca-certificates.crt \
-    --with-ca-path=/etc/ssl/certs \
-    --with-ca-fallback \
+    --with-openssl="${openssl_prefix}" \
+    "${ca_args[@]}" --with-ca-fallback \
     --without-libssh2 --without-libpsl --without-brotli \
     --without-zstd --without-nghttp2 --without-libidn2 \
     --disable-ldap --disable-ldaps --disable-rtsp --disable-dict \
     --disable-telnet --disable-tftp --disable-pop3 \
     --disable-imap --disable-smb --disable-smtp \
     --disable-gopher --disable-mqtt --disable-manual
-  make -j$(nproc)
+  local jobs
+  if [[ "${OS_PLATFORM}" == *"Darwin"* ]]; then
+    jobs=$(sysctl -n hw.physicalcpu)
+  else
+    jobs=$(nproc)
+  fi
+  make -j"${jobs}"
   make install
+  printf '%s\n' "${build_config}" > "${stamp}"
   popd || exit
   popd || exit
   rm -rf "${tempdir:?}/${directory:?}" "${tempdir:?}/${file:?}"
@@ -364,7 +354,7 @@ install_neug_dependencies() {
   # dependencies package
   if [[ "${OS_PLATFORM}" == *"Darwin"* ]]; then
     brew install ${INTERACTIVE_MACOS[*]}
-    install_openssl
+    install_openssl_macos
     install_curl
   elif [[ "${OS_PLATFORM}" == *"Ubuntu"* ]]; then
     DEBIAN_FRONTEND=noninteractive TZ=Etc/UTC ${SUDO} apt-get install -y ${INTERACTIVE_UBUNTU[*]}
@@ -378,10 +368,6 @@ install_neug_dependencies() {
     fi
     install_openssl
     install_curl
-  fi
-
-  if [[ "${CI:-OFF}" == "ON" ]]; then
-    install_arrow_from_source
   fi
 }
 
@@ -399,7 +385,8 @@ write_env_config() {
   } >> "${OUTPUT_ENV_FILE}"
   {
     if [[ "${OS_PLATFORM}" == *"Darwin"* ]]; then
-      echo "export OPENSSL_ROOT_DIR=${HOMEBREW_PREFIX}/opt/openssl@3"
+      echo "export OPENSSL_ROOT_DIR=${OPENSSL_ROOT_DIR}"
+      echo "export MACOSX_DEPLOYMENT_TARGET=${MACOSX_DEPLOYMENT_TARGET}"
     elif [[ "${OS_PLATFORM}" == *"CentOS"* || "${OS_PLATFORM}" == *"Aliyun"* ]]; then
       if [[ "${OS_VERSION}" -eq "7" ]]; then
         echo "source /opt/rh/devtoolset-10/enable"

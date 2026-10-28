@@ -14,26 +14,18 @@
  */
 #pragma once
 
-#include <cstdint>
 #include <utility>
 #include <variant>
 
 #include <glog/logging.h>
 
+#include "neug/main/transaction_mode.h"
 #include "neug/transaction/current_cow_write_transaction.h"
 #include "neug/transaction/snapshot_cow_write_transaction.h"
 #include "neug/transaction/snapshot_read_transaction.h"
 #include "neug/utils/result.h"
 
 namespace neug {
-
-/** Access policy fixed when a Connection begins an explicit transaction. */
-enum class TransactionMode : uint8_t {
-  /** Pin a published read view and reject writes. */
-  kReadOnly,
-  /** Hold a private COW view and publish it only at Commit(). */
-  kReadWrite,
-};
 
 /**
  * @brief Explicit transaction state and its concrete owner.

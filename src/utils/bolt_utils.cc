@@ -131,7 +131,7 @@ rapidjson::Value create_bolt_summary(
   return summary;
 }
 
-// Helper function to extract value from Arrow array at given index
+// Helper function to extract value from a query-result array at given index
 rapidjson::Value value_to_bolt(const neug::Array& column, int64_t index,
                                rapidjson::Document::AllocatorType& allocator);
 
@@ -456,7 +456,7 @@ rapidjson::Value value_to_bolt(const neug::Array& column, int64_t index,
   }
 }
 
-// Helper function to convert Arrow Path STRUCT to Bolt path format
+// Helper function to convert a query-result path struct to Bolt path format
 rapidjson::Value path_to_bolt(const rapidjson::Value& doc, int64_t index,
                               rapidjson::Value& nodes, rapidjson::Value& edges,
                               std::unordered_set<std::string>& node_ids,
