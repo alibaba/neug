@@ -145,3 +145,53 @@ jobs:
           grep -iE "SSL_CTX_new|SSL_new|SSL_connect|SSL_read|SSL_write|EVP_|CRYPTO_|X509" ld_bindings.log | head -40
           echo "==== tail of run.log ===="
           tail -15 run.log
+
+  # Deep-dive: confirm why the Windows Node extension home isn't relocated.
+  # The shipped lib/binding.js DOES set process.env.NEUG_EXTENSION_HOME_PYENV =
+  # nativeDir on every platform, yet on Windows extensions still land in /tmp and
+  # 5/6 fail to LOAD. Hypothesis: Node's process.env assignment calls Win32
+  # SetEnvironmentVariableW, which the MSVC CRT's std::getenv (used by
+  # getUserExtensionDir in src/execution/extension/extension.cc) does NOT observe
+  # at runtime -> base stays empty -> falls back to "/tmp". macOS is unaffected
+  # (single POSIX environment shared by setenv/getenv).
+  # Test: pre-set the env in the shell BEFORE node starts (so the CRT copies it
+  # at startup); if the home then relocates to nativeDir and LOAD succeeds, the
+  # getenv/SetEnvironmentVariableW decoupling is confirmed as the root cause.
+  windows-node-debug:
+    name: windows-node ext-home debug (node22)
+    runs-on: windows-2022
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install released npm package
+        shell: bash
+        run: |
+          npm install "@neug-ai/neug@${NEUG_VER}"
+      - name: Baseline - env set at runtime by binding.js
+        shell: bash
+        run: |
+          set +e
+          NATIVEDIR="$(dirname "$(find node_modules -path '*windows_x86_64*' -name 'neug_node_bind.node' | head -1)")"
+          echo "nativeDir=$NATIVEDIR"
+          node -e "require('@neug-ai/neug'); console.log('JS process.env.NEUG_EXTENSION_HOME_PYENV =', process.env.NEUG_EXTENSION_HOME_PYENV)"
+          echo "==== baseline smoke (expect home=/tmp, LOAD mostly fail) ===="
+          node scripts/verify_released_node.js 2>&1 | tail -45
+          echo "==== nativeDir/extension contents ===="
+          ls -la "$NATIVEDIR/extension" 2>&1 | head -12
+          echo "==== /tmp/extension contents ===="
+          ls -la /tmp/extension 2>&1 | head -12
+      - name: Workaround - env pre-set BEFORE node starts
+        if: always()
+        shell: bash
+        run: |
+          set +e
+          NATIVEDIR="$(dirname "$(find node_modules -path '*windows_x86_64*' -name 'neug_node_bind.node' | head -1)")"
+          export NEUG_EXTENSION_HOME_PYENV="$NATIVEDIR"
+          echo "pre-set NEUG_EXTENSION_HOME_PYENV=$NEUG_EXTENSION_HOME_PYENV"
+          echo "==== workaround smoke (expect home=nativeDir) ===="
+          node scripts/verify_released_node.js 2>&1 | tail -45
+          echo "==== nativeDir/extension contents after workaround ===="
+          ls -la "$NATIVEDIR/extension" 2>&1 | head -12
