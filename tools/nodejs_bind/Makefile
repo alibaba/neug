@@ -6,7 +6,9 @@ ROOT_BUILD := $(REPO_ROOT)/build
 BUILD_TYPE         ?= Release
 NEUG_NATIVE_ARCH   ?= OFF
 EXTRA_CMAKE_FLAGS  ?=
+BUILD_EXTENSIONS   ?=
 PACK_CMAKE_FLAGS   := -DNEUG_PACKAGE_BUILD=ON
+EXTENSION_TARGETS  = $(addprefix neug_,$(addsuffix _extension,$(subst ;, ,$(BUILD_EXTENSIONS))))
 
 # Detect platform: {os}_{arch}
 #   OS:   Linux -> linux, Darwin -> osx
@@ -61,36 +63,45 @@ dev:  ## Build neug_node_bind (auto-bootstrap if needed)
 	    -DCMAKE_BUILD_TYPE=$(BUILD_TYPE) \
 	    -DCMAKE_POLICY_VERSION_MINIMUM=3.5 \
 	    -DNEUG_NATIVE_ARCH=$(NEUG_NATIVE_ARCH) \
+	    $(if $(BUILD_EXTENSIONS),-DBUILD_EXTENSIONS="$(BUILD_EXTENSIONS)") \
 	    $(EXTRA_CMAKE_FLAGS)
-	cmake --build $(ROOT_BUILD) --target neug_node_bind bulk_loader -j$(JOBS)
+	cmake --build $(ROOT_BUILD) --target neug_node_bind bulk_loader $(EXTENSION_TARGETS) -j$(JOBS)
 	@$(MAKE) stage
 
 build: dev  ## Alias for dev
 
-# Stage the Node.js addon and core NeuG shared library.
+# Stage the addon, core, and extensions already built in this build tree.
 stage:
 	@rm -rf "$(PLATFORM_DIR)"
 	@mkdir -p $(PLATFORM_DIR)
 	@find $(ROOT_BUILD) -name "neug_node_bind.node" -exec cp {} $(PLATFORM_DIR)/ \;
 	@cp $(ROOT_BUILD)/src/$(NEUG_SHARED_LIB) $(PLATFORM_DIR)/
+	@set -e; \
+	extensions=$$(sed -n 's/^BUILD_EXTENSIONS:STRING=//p' "$(ROOT_BUILD)/CMakeCache.txt"); \
+	for extension in $${extensions//;/ }; do \
+		mkdir -p "$(PLATFORM_DIR)/extension/$$extension"; \
+		cp "$(ROOT_BUILD)/extension/$$extension/lib$$extension.neug_extension" \
+			"$(PLATFORM_DIR)/extension/$$extension/"; \
+	done
 	@echo "Artifacts staged in $(PLATFORM_DIR):"
 	@ls -lh $(PLATFORM_DIR)/
 
 bundle:  ## Collect linked third-party libraries and replace build-machine RPATHs
 ifeq ($(UNAME_S),Darwin)
-	delocate-path --sanitize-rpaths -v -L .dylibs "$(PLATFORM_DIR)"
-	@find "$(PLATFORM_DIR)" -type f \( -name '*.node' -o -name '*.dylib' \) \
+	delocate-path --sanitize-rpaths -v -L neug/.dylibs "$(PLATFORM_DIR)"
+	@find "$(PLATFORM_DIR)" -type f \( -name '*.node' -o -name '*.dylib' -o -name '*.neug_extension' \) \
 		-exec otool -L {} \;
 else
 	@set -e; \
+	shopt -s nullglob; \
 	lib_dir="$(PLATFORM_DIR)/.libs"; \
 	mkdir -p "$$lib_dir"; \
-	for binary in "$(PLATFORM_DIR)/neug_node_bind.node" "$(PLATFORM_DIR)/libneug.so"; do \
+	for binary in "$(PLATFORM_DIR)/neug_node_bind.node" "$(PLATFORM_DIR)/libneug.so" "$(PLATFORM_DIR)"/extension/*/*.neug_extension; do \
 		ldd "$$binary"; \
 	done | awk '$$2 == "=>" && $$3 ~ /^\// { print $$1 "|" $$3 }' | sort -u | \
 	while IFS='|' read -r soname source; do \
 		case "$$soname" in \
-			linux-vdso.so.*|ld-linux*.so.*|libc.so.*|libm.so.*|libpthread.so.*|libdl.so.*|librt.so.*|libgcc_s.so.*|libstdc++.so.*|libutil.so.*|libresolv.so.*|libnsl.so.*) continue ;; \
+			libneug.so|linux-vdso.so.*|ld-linux*.so.*|libc.so.*|libm.so.*|libpthread.so.*|libdl.so.*|librt.so.*|libgcc_s.so.*|libstdc++.so.*|libutil.so.*|libresolv.so.*|libnsl.so.*) continue ;; \
 		esac; \
 		echo "Copying $$source -> $$lib_dir/$$soname"; \
 		cp -L "$$source" "$$lib_dir/$$soname"; \
@@ -98,7 +109,9 @@ else
 	patchelf --set-rpath '$$ORIGIN:$$ORIGIN/.libs' "$(PLATFORM_DIR)/neug_node_bind.node"; \
 	patchelf --set-rpath '$$ORIGIN:$$ORIGIN/.libs' "$(PLATFORM_DIR)/libneug.so"; \
 	find "$$lib_dir" -type f -exec patchelf --set-rpath '$$ORIGIN' {} \;; \
-	find "$(PLATFORM_DIR)" -type f \( -name '*.node' -o -name '*.so' -o -name '*.so.*' \) \
+	find "$(PLATFORM_DIR)" -type f -name '*.neug_extension' \
+		-exec patchelf --set-rpath '$$ORIGIN/../..:$$ORIGIN/../../.libs:$$ORIGIN' {} \;; \
+	find "$(PLATFORM_DIR)" -type f \( -name '*.node' -o -name '*.so' -o -name '*.so.*' -o -name '*.neug_extension' \) \
 		-exec sh -c 'echo "$$1:"; patchelf --print-rpath "$$1"; ldd "$$1"' sh {} \;
 endif
 
@@ -110,12 +123,12 @@ pack:  ## Create per-platform npm tarball
 	@$(MAKE) bundle
 	@echo "Packing npm package for platform: $(PREBUILD_PLATFORM)"
 	@cp package.json package.json.orig
-	@node -e 'const fs=require("fs"); const p=JSON.parse(fs.readFileSync("package.json")); p.name="@graphscope-neug/$(OS_TAG)-$(ARCH_TAG)"; p.os=[process.platform]; p.cpu=[process.arch]; fs.writeFileSync("package.json", JSON.stringify(p,null,2)+"\n")'
+	@node -e 'const fs=require("fs"); const p=JSON.parse(fs.readFileSync("package.json")); p.name="@neug-ai/$(OS_TAG)-$(ARCH_TAG)"; p.os=[process.platform]; p.cpu=[process.arch]; fs.writeFileSync("package.json", JSON.stringify(p,null,2)+"\n")'
 	@npm pack && \
 		PACK_RC=$$?; \
 		mv package.json.orig package.json; \
 		exit $$PACK_RC
-	@echo "Package created: graphscope-neug-$(OS_TAG)-$(ARCH_TAG)-*.tgz"
+	@echo "Package created: neug-ai-$(OS_TAG)-$(ARCH_TAG)-*.tgz"
 
 clean:  ## Clean Node.js build artifacts (does NOT touch $(ROOT_BUILD))
 	rm -rf build/

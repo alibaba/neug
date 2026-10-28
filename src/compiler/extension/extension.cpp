@@ -120,8 +120,15 @@ static ExtensionRepoInfo getExtensionFilePath(const std::string& extensionName,
 
 ExtensionRepoInfo ExtensionUtils::getExtensionLibRepoInfo(
     const std::string& extensionName, const std::string& extensionRepo) {
-  return getExtensionFilePath(extensionName, extensionRepo,
-                              getExtensionFileName(extensionName));
+  auto fileName = getExtensionFileName(extensionName);
+#if defined(__linux__) && defined(__GLIBCXX__) && \
+    defined(_GLIBCXX_USE_CXX11_ABI) && _GLIBCXX_USE_CXX11_ABI
+  // Select the artifact using the core's effective libstdc++ ABI, regardless
+  // of which language binding requested INSTALL. Keep the logical extension
+  // name and the local install/load filename unchanged.
+  fileName = getExtensionFileName(extensionName + "-cxx11abi");
+#endif
+  return getExtensionFilePath(extensionName, extensionRepo, fileName);
 }
 
 std::string ExtensionUtils::getExtensionFileName(const std::string& name) {
