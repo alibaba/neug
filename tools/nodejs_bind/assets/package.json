@@ -14,8 +14,11 @@
   "publishConfig": { "access": "public" },
   "optionalDependencies": {
     "@neug-ai/linux-x86_64": "0.3.0",
+    "@neug-ai/linux-arm64": "0.3.0",
     "@neug-ai/osx-arm64": "0.3.0",
-    "@neug-ai/windows-x86_64": "0.3.0"
+    "@neug-ai/osx-x86_64": "0.3.0",
+    "@neug-ai/windows-x86_64": "0.3.0",
+    "@neug-ai/windows-arm64": "0.3.0"
   },
   "files": ["index.js"]
 }

@@ -1,0 +1,417 @@
+name: package
+
+on:
+  schedule:
+    - cron: 0 14 * * 1
+  workflow_dispatch:
+    inputs:
+      platforms:
+        description: Platforms to package.
+        type: choice
+        default: all
+        options:
+          - all
+          - linux-x86_64
+          - linux-arm64
+          - osx-arm64
+          - osx-x86_64
+          - windows-x86_64
+          - windows-arm64
+          - java
+      python_versions:
+        description: Python version for wheel packaging.
+        type: choice
+        default: all
+        options:
+          - 'all'
+          - '3.8'
+          - '3.9'
+          - '3.10'
+          - '3.11'
+          - '3.12'
+          - '3.13'
+          - '3.14'
+  workflow_call:
+    inputs:
+      platforms:
+        description: Platforms to package.
+        type: string
+        default: all
+      python_versions:
+        description: Python version for wheel packaging.
+        type: string
+        default: all
+
+permissions:
+  contents: read
+  actions: read
+  pull-requests: read
+
+concurrency:
+  group: ci-package-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  initialize:
+    name: Initialize
+    runs-on: ubuntu-22.04
+    outputs:
+      cibw_build: ${{ steps.python_versions.outputs.cibw_build }}
+      python_versions: ${{ steps.python_versions.outputs.python_versions }}
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Select Python Builds
+      id: python_versions
+      shell: bash
+      env:
+        PYTHON_VERSION: ${{ inputs.python_versions || 'all' }}
+      run: |
+        set -euo pipefail
+        if [ "$PYTHON_VERSION" = all ]; then
+          CIBW=$(sed -n 's/^build = "\(.*\)"/\1/p' tools/python_bind/pyproject.toml)
+        else
+          CIBW="cp${PYTHON_VERSION/./}-*"
+        fi
+        versions=()
+        for pattern in $CIBW; do
+          minor="${pattern#cp3}"
+          versions+=("3.${minor%-*}")
+        done
+        python_versions=$(printf '%s\n' "${versions[@]}" | jq -R . | jq -sc .)
+        echo "cibw_build=$CIBW" >> "$GITHUB_OUTPUT"
+        echo "python_versions=$python_versions" >> "$GITHUB_OUTPUT"
+
+  # ========================================
+  # For Linux - Wheel, build standardized wheels with cibuildwheel in dedicated
+  # manylinux2014 images (neug-manylinux:v0.2.0-<arch>).
+  # ========================================
+  linux_wheel:
+    needs: initialize
+    if: (inputs.platforms || 'all') == 'all' || contains(inputs.platforms, 'linux-')
+    name: Linux Wheel / ${{ matrix.arch }}
+    strategy:
+      fail-fast: true
+      matrix:
+        arch: ${{ fromJSON((inputs.platforms || 'all') == 'all' && '["x86_64","arm64"]' || inputs.platforms == 'linux-arm64' && '["arm64"]' || '["x86_64"]') }}
+    permissions:
+      contents: read
+    runs-on: ${{ github.repository == 'alibaba/neug' && fromJSON(matrix.arch == 'arm64' && '["self-hosted","daily","linux","arm64"]' || '["self-hosted","daily","linux","x64"]') || (matrix.arch == 'arm64' && 'ubuntu-22.04-arm' || 'ubuntu-22.04') }}
+    env:
+      EXTENSIONS: parquet;httpfs;gds;pattern_matching;vector_search;fts
+    steps:
+    # ========================================
+    # Phase 1: Prepare
+    # ========================================
+
+    - uses: actions/checkout@v4
+      with:
+        submodules: recursive
+        fetch-depth: 0
+    - uses: actions/setup-python@v5
+      with:
+        python-version: '3.13'
+
+    - name: Install cibuildwheel
+      run: python3 -m pip install cibuildwheel==3.4.0 wheel
+
+    # ========================================
+    # Phase 2: Build and Validate
+    # ========================================
+
+    - name: Build and Repair Wheels in manylinux
+      env:
+        CI_INSTALL_EXTENSIONS: ${{ env.EXTENSIONS }}
+        CIBW_BUILD: ${{ needs.initialize.outputs.cibw_build }}
+        CIBW_ARCHS_LINUX: ${{ matrix.arch == 'arm64' && 'aarch64' || 'x86_64' }}
+        CIBW_MANYLINUX_X86_64_IMAGE: neug-registry.cn-hongkong.cr.aliyuncs.com/neug/neug-manylinux:v0.2.0-x86_64
+        CIBW_MANYLINUX_AARCH64_IMAGE: neug-registry.cn-hongkong.cr.aliyuncs.com/neug/neug-manylinux:v0.2.0-arm64
+        CIBW_TEST_COMMAND: >-
+          python -c 'import neug; db=neug.Database(); c=db.connect(); print(c.execute("RETURN 1"))'
+          && neug-cli --help && neug-cli --version
+        BUILD_TYPE: RELEASE
+        PYBIND11_FINDPYTHON: 'OFF'
+        NEUG_COMMIT_SHA: ${{ github.sha }}
+      run: |
+        set -euo pipefail
+        export CMAKE_BUILD_PARALLEL_LEVEL=$(nproc)
+        python3 -m cibuildwheel ./tools/python_bind --output-dir complete_wheelhouse
+
+    # ========================================
+    # Phase 3: Package and Upload
+    # ========================================
+
+    - name: Create Core Wheels
+      run: |
+        set -euo pipefail
+        mkdir -p core_wheelhouse
+        for wheel in complete_wheelhouse/*.whl; do
+          unpack_dir=$(mktemp -d "$RUNNER_TEMP/core-wheel.XXXXXX")
+          python3 -m wheel unpack "$wheel" -d "$unpack_dir"
+          for package in "$unpack_dir"/*; do
+            rm -rf "$package/extension"
+            for metadata in "$package"/*.dist-info/top_level.txt; do
+              if [ -f "$metadata" ]; then
+                sed '/^extension$/d' "$metadata" > "$metadata.tmp"
+                mv "$metadata.tmp" "$metadata"
+              fi
+            done
+            python3 -m wheel pack "$package" -d core_wheelhouse
+          done
+        done
+
+    - name: Upload Wheels
+      uses: actions/upload-artifact@v4
+      with:
+        name: ${{ github.event_name == 'schedule' && format('cibw-wheels-linux-{0}-{1}', matrix.arch, github.sha) || format('wheels-linux-{0}-{1}', matrix.arch, github.run_id) }}
+        path: core_wheelhouse/*.whl
+        if-no-files-found: error
+        retention-days: 7
+
+    - name: Extract Extension Packages
+      id: packages
+      shell: bash
+      run: |
+        set -euo pipefail
+        wheel=$(find complete_wheelhouse -maxdepth 1 -name '*.whl' -print -quit)
+        version="${VERSION:-$(cat NEUG_VERSION)}"
+        echo "version=$version" >> "$GITHUB_OUTPUT"
+        python3 scripts/publish_extensions_from_wheel.py \
+          --wheel "$wheel" --extensions "$EXTENSIONS" \
+          --version "$version" --platform "$OSS_PLATFORM" \
+          --output-dir extension_packages --skip-upload
+      env:
+        EXTENSIONS: ${{ env.EXTENSIONS }}
+        OSS_PLATFORM: linux_${{ matrix.arch }}
+        VERSION: ${{ github.event.release.tag_name }}
+
+    - name: Upload Extension-Packages
+      uses: actions/upload-artifact@v4
+      with:
+        name: extension-packages-linux-${{ matrix.arch }}-${{ steps.packages.outputs.version }}
+        path: |
+          extension_packages/*.neug_extension
+          extension_packages/*.sha256
+        if-no-files-found: error
+        retention-days: 7
+
+  # ========================================
+  # For Linux - NPM, manually build packages in dedicated manylinux_2_28 images
+  # (neug-manylinux:v0.1.3-<arch>-node).
+  # ========================================
+  linux-npm:
+    needs: initialize
+    env:
+      EXTENSIONS: parquet;httpfs;pattern_matching;vector_search;fts;gds
+    if: (inputs.platforms || 'all') == 'all' || contains(inputs.platforms, 'linux-')
+    name: Linux NPM / ${{ matrix.arch }}
+    strategy:
+      fail-fast: true
+      matrix:
+        arch: ${{ fromJSON((inputs.platforms || 'all') == 'all' && '["x86_64","arm64"]' || inputs.platforms == 'linux-arm64' && '["arm64"]' || '["x86_64"]') }}
+    permissions:
+      contents: read
+    container:
+      image: neug-registry.cn-hongkong.cr.aliyuncs.com/neug/neug-manylinux:v0.1.3-${{ matrix.arch }}-node
+    runs-on: ${{ github.repository == 'alibaba/neug' && fromJSON(matrix.arch == 'arm64' && '["self-hosted","daily","linux","arm64"]' || '["self-hosted","daily","linux","x64"]') || (matrix.arch == 'arm64' && 'ubuntu-22.04-arm' || 'ubuntu-22.04') }}
+    steps:
+    # ========================================
+    # Phase 1: Prepare & Build
+    # ========================================
+
+    - uses: actions/checkout@v4
+      with:
+        submodules: recursive
+    - uses: actions/setup-node@v4
+      with:
+        node-version: '20'
+
+    - name: Select Packaging Python
+      shell: bash
+      run: |
+        set -euo pipefail
+        test -x /opt/python/cp313-cp313/bin/python
+        echo /opt/python/cp313-cp313/bin >> "$GITHUB_PATH"
+
+    - name: Compile and Stage Node.js Binding
+      shell: bash
+      run: |
+        set -euo pipefail
+        cp /root/.neug_env /home/neug/.neug_env
+        # Legacy dependency environment files may reference unset path variables.
+        set +u
+        source /home/neug/.neug_env
+        set -u
+        cd tools/nodejs_bind
+        make build BUILD_EXTENSIONS="$EXTENSIONS" BUILD_TYPE=Release JOBS="$(nproc)" EXTRA_CMAKE_FLAGS="-DCMAKE_PREFIX_PATH=/opt/neug/ -DOPENSSL_ROOT_DIR=/opt/neug -DNEUG_PACKAGE_BUILD=ON"
+
+    # ========================================
+    # Phase 2: Prepare Test Data
+    # ========================================
+
+    - name: Prepare Test Data
+      uses: ./.github/actions/prepare-data
+
+    # ========================================
+    # Phase 3: Node.js Tests and Packaging
+    # ========================================
+
+    - name: Test, Package, and Upload Node.js
+      env:
+        FLEX_DATA_DIR: ${{ github.workspace }}/example_dataset/modern_graph
+      uses: ./.github/actions/test-and-package-nodejs
+      with:
+        package: 'true'
+        extensions: ${{ env.EXTENSIONS }}
+        artifact_platform: linux-${{ matrix.arch }}
+        upload_artifacts: 'true'
+
+    # Keep the manylinux_2_28/C++11-ABI extensions separate from wheel-built extensions.
+    - name: Extract Node.js Extension Packages
+      id: extensions
+      shell: bash
+      env:
+        ARTIFACT_PLATFORM: linux-${{ matrix.arch }}
+        EXTENSIONS: ${{ env.EXTENSIONS }}
+        RELEASE_TAG: ${{ github.event.release.tag_name }}
+      run: |
+        set -euo pipefail
+        python - <<'PY'
+        import hashlib
+        import json
+        import os
+        import shutil
+        import tarfile
+        from pathlib import Path
+
+        platform = os.environ['ARTIFACT_PLATFORM'].replace('-', '_')
+        packages = list(Path('tools/nodejs_bind').glob(
+            f"neug-ai-{os.environ['ARTIFACT_PLATFORM']}-*.tgz"))
+        if len(packages) != 1:
+            raise RuntimeError(f'Expected one npm package, got {packages}')
+        output = Path('npm_extension_packages')
+        output.mkdir(parents=True, exist_ok=True)
+        with tarfile.open(packages[0], 'r:gz') as archive:
+            metadata = json.load(archive.extractfile('package/package.json'))
+            expected_name = '@neug-ai/' + os.environ['ARTIFACT_PLATFORM']
+            version = os.environ['RELEASE_TAG'].removeprefix('v') or Path('NEUG_VERSION').read_text().strip()
+            if metadata['name'] != expected_name or metadata['version'] != version:
+                raise RuntimeError(f'Package does not match release {version}: {metadata}')
+            for extension in os.environ['EXTENSIONS'].split(';'):
+                member = (f'package/build/Release/{platform}/extension/{extension}/'
+                          f'lib{extension}.neug_extension')
+                target = output / f'lib{extension}-cxx11abi.neug_extension'
+                with archive.extractfile(member) as source, target.open('wb') as destination:
+                    shutil.copyfileobj(source, destination)
+                target.with_name(target.name + '.sha256').write_text(
+                    hashlib.sha256(target.read_bytes()).hexdigest(), encoding='utf-8')
+        with open(os.environ['GITHUB_OUTPUT'], 'a') as outputs:
+            outputs.write(f"version={metadata['version']}\n")
+        PY
+
+    - name: Upload Node.js Extension Packages
+      uses: actions/upload-artifact@v4
+      with:
+        name: extension-packages-linux-${{ matrix.arch }}-cxx11abi-${{ steps.extensions.outputs.version }}
+        path: |
+          npm_extension_packages/*.neug_extension
+          npm_extension_packages/*.sha256
+        if-no-files-found: error
+        retention-days: 7
+
+  # ========================================
+  # For MacOS, package directly in the development environment through OSX.yml.
+  # ========================================
+  macos:
+    needs: initialize
+    if: (inputs.platforms || 'all') == 'all' || contains(inputs.platforms, 'osx-')
+    uses: ./.github/workflows/OSX.yml
+    with:
+      architectures: ${{ (inputs.platforms || 'all') == 'all' && '["x86_64","arm64"]' || inputs.platforms == 'osx-x86_64' && '["x86_64"]' || '["arm64"]' }}
+      packages: '["wheel","npm"]'
+      python_versions: ${{ inputs.python_versions || 'all' }}
+      extensions: parquet;httpfs;gds;pattern_matching;vector_search;fts
+      upload_artifacts: true
+    secrets: inherit
+
+  # ========================================
+  # For Windows, package directly in the development environment through Windows.yml.
+  # ========================================
+  windows:
+    needs: initialize
+    if: (inputs.platforms || 'all') == 'all' || contains(inputs.platforms, 'windows-')
+    uses: ./.github/workflows/Windows.yml
+    with:
+      architectures: ${{ (inputs.platforms || 'all') == 'all' && '["x86_64","arm64"]' || inputs.platforms == 'windows-arm64' && '["arm64"]' || '["x86_64"]' }}
+      python_versions: ${{ inputs.python_versions || 'all' }}
+      # vector_search is not supported by the current Windows build.
+      extensions: parquet;httpfs;gds;pattern_matching;fts
+      upload_artifacts: true
+    secrets: inherit
+
+  # ========================================
+  # Run Java SDK client unit tests and package the JAR on Ubuntu 22.04 with JDK 17 and Maven 3.9.6.
+  # ========================================
+  java:
+    needs: initialize
+    runs-on: ubuntu-22.04
+    steps:
+    - uses: actions/checkout@v4
+    - uses: s4u/setup-maven-action@v1.19.0
+      with:
+        java-version: '17'
+        maven-version: 3.9.6
+
+    - name: Build and Upload Java Package
+      uses: ./.github/actions/test-and-package-java
+      with:
+        package: 'true'
+        upload_artifacts: 'true'
+
+  # ========================================
+  # Download the uploaded artifacts in independent environments and run package smoke tests.
+  # ========================================
+  verify:
+    if: ${{ !cancelled() && needs.initialize.result == 'success' && (needs.linux_wheel.result == 'success' || needs.linux_wheel.result == 'skipped') && (needs.linux-npm.result == 'success' || needs.linux-npm.result == 'skipped') && (needs.macos.result == 'success' || needs.macos.result == 'skipped') && (needs.windows.result == 'success' || needs.windows.result == 'skipped') && (needs.java.result == 'success' || needs.java.result == 'skipped') }}
+    needs: [initialize, linux_wheel, linux-npm, macos, windows, java]
+    uses: ./.github/workflows/verify-artifacts.yml
+    with:
+      platforms: ${{ (inputs.platforms || 'all') == 'all' && '["linux-x86_64","linux-arm64","osx-arm64","osx-x86_64","windows-x86_64","windows-arm64"]' || inputs.platforms == 'java' && '[]' || format('["{0}"]', inputs.platforms) }}
+      python_versions: ${{ needs.initialize.outputs.python_versions }}
+    secrets: inherit
+
+  # ========================================
+  # Check build and verification results, summarize them, and send the configured notification.
+  # ========================================
+  complete:
+    if: always()
+    needs: [initialize, linux_wheel, linux-npm, macos, windows, java, verify]
+    runs-on: ubuntu-22.04
+    steps:
+
+    - name: Require Successful Builds and Artifact Tests
+      env:
+        RESULTS: ${{ toJSON(needs) }}
+      run: |
+        python3 - <<'PYCODE'
+        import json, os
+        results = json.loads(os.environ['RESULTS'])
+        with open(os.environ['GITHUB_STEP_SUMMARY'], 'a') as summary:
+            summary.write('## Package result\n```json\n' + json.dumps(results, indent=2) + '\n```\n')
+        assert results['initialize']['result'] == 'success', results
+        assert results['verify']['result'] == 'success', results
+        assert all(job['result'] in ('success', 'skipped') for job in results.values()), results
+        PYCODE
+
+    - name: Notify Package Results
+      if: always()
+      env:
+        DINGTALK_TOKEN: ${{ secrets.DINGTALK_TOKEN }}
+      run: |
+        set -euo pipefail
+        if [ -n "$DINGTALK_TOKEN" ] && [ "$GITHUB_REPOSITORY" = alibaba/neug ]; then
+          text="NeuG CI: $GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"
+          curl --fail -sS -X POST "https://oapi.dingtalk.com/robot/send?access_token=$DINGTALK_TOKEN" \
+            -H 'Content-Type: application/json' \
+            -d "{\"msgtype\":\"text\",\"text\":{\"content\":\"$text\"}}"
+        fi

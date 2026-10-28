@@ -1,54 +1,356 @@
-name: NeuG Test (macOS arm64)
+name: macOS
 
 on:
-  workflow_dispatch:
-  release:
-    types:
-      - created
-  push:
+  pull_request:
+    branches:
+      - main
     paths:
-      - 'cmake/**'
-      - 'src/**'
-      - 'bin/**'
-      - 'proto/**'
-      - 'third_party/**'
-      - 'tools/python_bind/**'
-      - 'tools/utils/**'
-      - 'tests/**'
-      - '.github/workflows/OSX.yml'
-      - '.github/workflows/build-and-test-common.yml'
-      - 'scripts/install_deps.sh'
-      - 'include/**'
-      - 'CMakeLists.txt'
-      - 'doc/source/tutorials/**'
+      - .github/workflows/OSX.yml
+      - scripts/install_deps.sh
+  push:
+    branches:
+      - main
+    paths:
+      - src/**
+      - include/**
+      - bin/**
+      - cmake/**
+      - proto/**
+      - third_party/**
+      - extension/**
+      - tools/**
+      - tests/**
+      - CMakeLists.txt
+      - NEUG_VERSION
+      - .gitmodules
+      - scripts/**
+      - .github/workflows/OSX.yml
+      - .github/workflows/Linux.yml
+      - .github/workflows/Windows.yml
+      - .github/workflows/nightly.yml
+      - .github/workflows/package.yml
+      - .github/workflows/release.yml
+      - .github/workflows/verify-artifacts.yml
+      - .github/actions/**
+      - doc/source/tutorials/**
+  workflow_call:
+    inputs:
+      architectures:
+        description: 'JSON array of macOS build architectures: x86_64 and arm64.'
+        type: string
+        default: '["arm64"]'
+      extensions:
+        description: 'Semicolon-separated BUILD_EXTENSIONS names to compile and test, chosen from parquet, pattern_matching, gds, httpfs, vector_search, fts.'
+        type: string
+        default: ''
+      packages:
+        description: 'Enable packaging tests: wheel, npm, java.'
+        type: string
+        default: '[]'
+      python_versions:
+        description: 'Python versions for wheel builds, e.g. "3.13" or "3.12-3.13"; use "all" for all supported versions.'
+        type: string
+        default: '3.13'
+      upload_artifacts:
+        description: 'Upload package artifacts for manual download or subsequent publishing.'
+        type: boolean
+        default: false
+      coverage:
+        description: 'Enable coverage instrumentation and reporting; packaging is disabled when enabled.'
+        type: boolean
+        default: false
+    secrets:
+      OSS_ACCESS_KEY_ID:
+        required: false
+      OSS_ACCESS_KEY_SECRET:
+        required: false
+      CODECOV_TOKEN:
+        description: 'Codecov token used to upload coverage reports.'
+        required: false
+
+permissions:
+  contents: read
+  pull-requests: read
 
 concurrency:
-  group: ${{ github.repository }}-${{ github.event.number || github.head_ref || github.sha }}-${{ github.workflow }}
-  cancel-in-progress: true
+  group: ci-macos-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}-${{ github.event_name }}-${{ inputs.coverage }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   format_check:
-    if: |
-      github.event_name == 'workflow_dispatch' ||
-      github.event_name == 'release' ||
-      (github.event_name == 'push' && (github.repository != 'alibaba/neug' || github.ref == 'refs/heads/main'))
     uses: ./.github/workflows/format-check.yml
     with:
       is_pull_request: ${{ github.event_name == 'pull_request' }}
 
-  # ============================================================
-  # macOS arm64 Job: Build NeuG + run C++ and Python tests
-  # No Docker container; dependencies installed via install_deps.sh (brew)
-  # ============================================================
-  build_and_test_macos_arm64:
+  build_and_test:
     needs: format_check
-    if: ${{ (needs.format_check.result == 'success' || needs.format_check.result == 'skipped') && (github.event_name == 'workflow_dispatch' || github.event_name == 'release' || (github.event_name == 'push' && (github.repository != 'alibaba/neug' || github.ref == 'refs/heads/main'))) }}
-    uses: ./.github/workflows/build-and-test-common.yml
-    with:
-      runs-on: '["macos-14"]'
-      container-json: '{}'
-      os-type: macos
-      enable-java-test: false
-      enable-coverage: false
-      enable-gopt-test: true
-      event-name: ${{ github.event_name }}
+    name: macOS ${{ matrix.arch }}
+    strategy:
+      fail-fast: true
+      matrix:
+        arch: ${{ fromJSON(inputs.architectures || '["arm64"]') }}
+    runs-on: ${{ matrix.arch == 'x86_64' && 'macos-15-intel' || 'macos-15' }}
+    steps:
+    # ========================================
+    # Phase 1: Prepare & Build
+    # ========================================
+
+    - name: Fix macOS Hostname Resolution
+      shell: bash
+      run: |
+        # Work around https://github.com/actions/runner-images/issues/12562.
+        printf '\n127.0.0.1 %s %s\n' "$(hostname)" "$(hostname -s)" | sudo tee -a /etc/hosts
+        sudo dscacheutil -flushcache
+
+    - name: Checkout
+      id: checkout
+      uses: actions/checkout@v4
+      with:
+        submodules: recursive
+        fetch-depth: 0
+
+    - name: Detect Changed Paths
+      id: changes
+      if: github.event_name == 'pull_request'
+      uses: dorny/paths-filter@v3
+      with:
+        filters: |
+          extension:
+            - '.github/actions/test-cpp/**'
+            - '.github/actions/test-python/**'
+            - 'CMakeLists.txt'
+            - 'cmake/**'
+            - '.gitmodules'
+            - 'third_party/carquet'
+            - 'third_party/carquet.patch'
+            - 'include/neug/common/**'
+            - 'src/common/**'
+            - 'tools/python_bind/tests/test_parquet_backend_contract.py'
+            - 'example_dataset/tinysnb/parquet/**'
+            - 'example_dataset/comprehensive_graph/parquet/**'
+            - 'extension/**'
+            - 'tools/python_bind/tests/test_hnsw_index.py'
+            - 'tools/python_bind/tests/test_hnsw_index_tp.py'
+            - 'tools/python_bind/tests/test_gds.py'
+            - 'tools/python_bind/tests/test_gds_path.py'
+            - 'tools/python_bind/tests/test_gds_concurrency.py'
+            - 'tools/python_bind/tests/test_gds_yield.py'
+            - 'tools/python_bind/tests/test_graphalytics.py'
+            - 'tools/python_bind/tests/test_fts_index.py'
+            - 'tools/python_bind/tests/test_fts_index_tp.py'
+            - 'tools/python_bind/tests/resources/graphalytics/**'
+            - 'tools/python_bind/example/complex_test.py'
+          wheel:
+            - 'tools/python_bind/setup.py'
+            - 'tools/python_bind/pyproject.toml'
+            - 'tools/python_bind/Makefile'
+            - '.github/workflows/package.yml'
+            - '.github/workflows/release.yml'
+            - '.github/actions/package-wheel/**'
+            - '.github/actions/test-python/**'
+          npm:
+            - 'tools/nodejs_bind/**'
+            - '.github/actions/test-and-package-nodejs/**'
+            - '.github/workflows/release.yml'
+          java:
+            - 'tools/java_driver/**'
+            - 'proto/response.proto'
+            - '.github/workflows/release.yml'
+            - '.github/actions/test-and-package-java/**'
+
+    - name: Install Dependencies (macOS)
+      shell: bash
+      run: |
+        brew install ccache
+        bash scripts/install_deps.sh
+
+    - name: Cache CCache
+      uses: actions/cache@v4
+      with:
+        path: ~/Library/Caches/ccache
+        key: ${{ runner.os }}-${{ runner.arch }}-ccache-${{ github.ref_name }}-${{ hashFiles('CMakeLists.txt', 'cmake/**', 'proto/**', '.github/workflows/Linux.yml', '.github/workflows/OSX.yml') }}
+        restore-keys: |
+          ${{ runner.os }}-${{ runner.arch }}-ccache-${{ github.ref_name }}-
+          ${{ runner.os }}-${{ runner.arch }}-ccache-main-
+          ${{ runner.os }}-${{ runner.arch }}-ccache-
+
+    - name: Setup CCache
+      shell: bash
+      run: |
+        mkdir -p ~/Library/Caches/ccache
+        CCACHE_DIR=~/Library/Caches/ccache
+        {
+          echo "CCACHE_DIR=$CCACHE_DIR"
+          echo "CCACHE_BASEDIR=${GITHUB_WORKSPACE}"
+          echo "CCACHE_COMPRESS=true"
+          echo "CCACHE_COMPRESSLEVEL=6"
+          echo "CCACHE_MAXSIZE=5G"
+        } >> "$GITHUB_ENV"
+        ccache --set-config=base_dir=${GITHUB_WORKSPACE}
+        ccache --set-config=compiler_check=content
+        ccache --set-config=compression=true
+        ccache --max-size=5G
+        ccache --zero-stats
+
+    - name: Setup Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.13'
+
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '20'
+
+    - name: Setup Java and Maven
+      uses: s4u/setup-maven-action@v1.19.0
+      with:
+        java-version: '17'
+        maven-version: 3.9.6
+
+    - name: Install Python Test Dependencies
+      shell: bash
+      run: |
+        python3 -m pip install pytest-cov coverage
+
+    - name: Install Node.js Dependencies
+      shell: bash
+      run: npm install --prefix tools/nodejs_bind
+
+    - name: Set ENABLE_GCOV
+      if: inputs.coverage
+      shell: bash
+      run: |
+        python3 -m pip install fastcov
+        brew install lcov
+        echo "ENABLE_GCOV=ON" >> $GITHUB_ENV
+
+    - name: Build NeuG
+      shell: bash
+      run: |
+        NEUG_ENV_FOUND=false
+        for env_file in /home/neug/.neug_env ~/.neug_env /github/home/.neug_env; do
+          if [ -f "$env_file" ]; then
+            source "$env_file"
+            NEUG_ENV_FOUND=true
+            break
+          fi
+        done
+        if [ "$NEUG_ENV_FOUND" != "true" ]; then
+          echo "Warning: .neug_env not found in any known location"
+        fi
+        cd ${GITHUB_WORKSPACE}/
+        echo "CCache stats before build"
+        ccache --show-stats
+        export BUILD_TYPE=RELEASE
+        export CMAKE_BUILD_PARALLEL_LEVEL=$(sysctl -n hw.ncpu)
+        export BUILD_EXECUTABLES=ON
+        export BUILD_HTTP_SERVER=ON
+        export BUILD_TEST=ON
+        export USE_NINJA=OFF
+        export CMAKE_INSTALL_PREFIX=/opt/neug-install/
+        sudo mkdir -p /opt/neug-install
+        sudo chown -R $(id -u):$(id -g) /opt/neug-install/
+        export CC=clang
+        export CXX=clang++
+        export CMAKE_C_COMPILER_LAUNCHER=ccache
+        export CMAKE_CXX_COMPILER_LAUNCHER=ccache
+        export WITH_MIMALLOC=ON
+        export MACOSX_DEPLOYMENT_TARGET=11.0
+        export CMAKE_GENERATOR="Unix Makefiles"
+        echo "WITH_MIMALLOC=$WITH_MIMALLOC" >> "$GITHUB_ENV"
+        echo "MACOSX_DEPLOYMENT_TARGET=$MACOSX_DEPLOYMENT_TARGET" >> "$GITHUB_ENV"
+        echo "CMAKE_GENERATOR=$CMAKE_GENERATOR" >> "$GITHUB_ENV"
+        export CMAKE_ARGS="${CMAKE_ARGS:-} -DBUILD_NODEJS=ON"
+        export BUILD_EXTENSIONS="$EXTENSION_LIST"
+        cd tools/python_bind
+        make clean
+        make requirements
+        make build
+        echo "CCache stats after build"
+        ccache --show-stats
+        cd "$GITHUB_WORKSPACE/tools/nodejs_bind"
+        make stage BUILD_TYPE=Release
+      env:
+        EXTENSION_LIST: ${{ (inputs.extensions != '' || steps.changes.outputs.extension == 'true') && (inputs.extensions || 'parquet;httpfs;gds;pattern_matching;vector_search;fts') || '' }}
+
+    - name: Prepare Test Data
+      uses: ./.github/actions/prepare-data
+
+    # ========================================
+    # Phase 2: C++ Tests
+    # ========================================
+
+    - name: Run C++ Tests
+      uses: ./.github/actions/test-cpp
+      with:
+        platform: macos
+        extensions: ${{ (inputs.extensions != '' || steps.changes.outputs.extension == 'true') && (inputs.extensions || 'parquet;httpfs;gds;pattern_matching;vector_search;fts') || '' }}
+
+    # ========================================
+    # Phase 3: Python Tests
+    # ========================================
+
+    - name: Run Python Tests
+      uses: ./.github/actions/test-python
+      env:
+        OSS_ACCESS_KEY_ID: ${{ secrets.OSS_ACCESS_KEY_ID }}
+        OSS_ACCESS_KEY_SECRET: ${{ secrets.OSS_ACCESS_KEY_SECRET }}
+      with:
+        platform: macos
+        extensions: ${{ (inputs.extensions != '' || steps.changes.outputs.extension == 'true') && (inputs.extensions || 'parquet;httpfs;gds;pattern_matching;vector_search;fts') || '' }}
+
+    # ========================================
+    # Phase 4: Node.js Tests
+    # ========================================
+
+    - name: Run Node.js Tests and Optional Packaging
+      uses: ./.github/actions/test-and-package-nodejs
+      with:
+        extensions: ${{ (inputs.extensions != '' || steps.changes.outputs.extension == 'true') && (inputs.extensions || 'parquet;httpfs;gds;pattern_matching;vector_search;fts') || '' }}
+        package: ${{ contains(fromJSON(inputs.packages || '[]'), 'npm') || steps.changes.outputs.npm == 'true' }}
+        artifact_platform: osx-${{ matrix.arch }}
+        upload_artifacts: ${{ inputs.upload_artifacts }}
+
+    # ========================================
+    # Phase 5: Java Tests
+    # ========================================
+
+    - name: Run Java Tests and Optional Packaging
+      uses: ./.github/actions/test-and-package-java
+      with:
+        package: ${{ contains(fromJSON(inputs.packages || '[]'), 'java') || steps.changes.outputs.java == 'true' }}
+        upload_artifacts: ${{ inputs.upload_artifacts }}
+
+    # ========================================
+    # Phase 6: Wheel Test
+    # ========================================
+
+    - name: Wheel Test
+      if: contains(fromJSON(inputs.packages || '[]'), 'wheel') || steps.changes.outputs.wheel == 'true'
+      uses: ./.github/actions/package-wheel
+      with:
+        artifact_platform: macos-${{ matrix.arch }}
+        oss_platform: osx_${{ matrix.arch }}
+        python_versions: ${{ inputs.python_versions || '3.13' }}
+        extensions: ${{ (inputs.extensions != '' || steps.changes.outputs.extension == 'true') && (inputs.extensions || 'parquet;httpfs;gds;pattern_matching;vector_search;fts') || '' }}
+        upload_artifacts: ${{ inputs.upload_artifacts }}
+
+    # ========================================
+    # Phase 7: Coverage
+    # ========================================
+
+    - name: Generate Coverage
+      if: inputs.coverage
+      shell: bash
+      run: |-
+        set -euo pipefail
+        cmake --build "$GITHUB_WORKSPACE/build" --target coverage -j4
+
+    - name: Upload Codecov Report
+      if: inputs.coverage && github.repository == 'alibaba/neug'
+      uses: codecov/codecov-action@v5
+      with:
+        token: ${{ secrets.CODECOV_TOKEN }}
+        files: ${{ github.workspace }}/build/coverage_filtered.info
+        fail_ci_if_error: true

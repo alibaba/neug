@@ -295,7 +295,8 @@ def test_import_file_not_found(tmp_path):
 
 # DB-005-08
 @pytest.mark.skipif(
-    getattr(os, "geteuid", lambda: -1)() == 0, reason="Root can bypass file permissions"
+    os.name == "nt" or getattr(os, "geteuid", lambda: -1)() == 0,
+    reason="Windows permissions differ from Unix; root can bypass file permissions",
 )
 def test_export_no_permission(tmp_path):
     db_dir = tmp_path / "export_no_permission"

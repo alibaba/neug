@@ -1,104 +1,395 @@
 name: NeuG Test (Linux)
 
 on:
-  # Trigger the workflow on push or pull request,
-  # but only for the main branch
-  workflow_dispatch:
-  release:
-    types:
-      - created
   pull_request:
     branches:
       - main
     paths:
-      - 'cmake/**'
-      - 'src/**'
-      - 'bin/**'
-      - 'proto/**'
-      - 'third_party/**'
-      - 'tools/python_bind/**'
-      - 'tools/java_driver/**'
-      - 'tools/utils/**'
-      - 'tests/**'
-      - '.github/workflows/Linux.yml'
-      - '.github/workflows/build-and-test-common.yml'
-      - 'scripts/install_deps.sh'
-      - 'include/**'
-      - 'CMakeLists.txt'
-      - 'doc/source/tutorials/**'
+      - src/**
+      - include/**
+      - bin/**
+      - cmake/**
+      - proto/**
+      - third_party/**
+      - extension/**
+      - tools/**
+      - tests/**
+      - CMakeLists.txt
+      - NEUG_VERSION
+      - .gitmodules
+      - scripts/**
+      - .github/workflows/Linux.yml
+      - .github/workflows/OSX.yml
+      - .github/workflows/Windows.yml
+      - .github/workflows/nightly.yml
+      - .github/workflows/package.yml
+      - .github/workflows/release.yml
+      - .github/workflows/verify-artifacts.yml
+      - .github/actions/**
+      - doc/source/tutorials/**
+      - example_dataset/tinysnb/parquet/**
+      - example_dataset/comprehensive_graph/parquet/**
   push:
+    branches:
+      - main
     paths:
-      - 'cmake/**'
-      - 'src/**'
-      - 'bin/**'
-      - 'proto/**'
-      - 'third_party/**'
-      - 'tools/python_bind/**'
-      - 'tools/java_driver/**'
-      - 'tools/utils/**'
-      - 'tests/**'
-      - '.github/workflows/Linux.yml'
-      - '.github/workflows/build-and-test-common.yml'
-      - 'scripts/install_deps.sh'
-      - 'include/**'
-      - 'CMakeLists.txt'
-      - 'doc/source/tutorials/**'
+      - src/**
+      - include/**
+      - bin/**
+      - cmake/**
+      - proto/**
+      - third_party/**
+      - extension/**
+      - tools/**
+      - tests/**
+      - CMakeLists.txt
+      - NEUG_VERSION
+      - .gitmodules
+      - scripts/**
+      - .github/workflows/Linux.yml
+      - .github/workflows/OSX.yml
+      - .github/workflows/Windows.yml
+      - .github/workflows/nightly.yml
+      - .github/workflows/package.yml
+      - .github/workflows/release.yml
+      - .github/workflows/verify-artifacts.yml
+      - .github/actions/**
+      - doc/source/tutorials/**
+  workflow_call:
+    inputs:
+      architectures:
+        description: 'JSON array of Linux build architectures: x86_64 and arm64.'
+        type: string
+        default: '["x86_64"]'
+      extensions:
+        description: 'Semicolon-separated BUILD_EXTENSIONS names to compile and test, chosen from parquet, pattern_matching, gds, httpfs, vector_search, fts.'
+        type: string
+        default: ''
+      packages:
+        description: 'Enable packaging tests: wheel, npm, java.'
+        type: string
+        default: '[]'
+      python_versions:
+        description: 'Python versions for wheel builds, e.g. "3.13" or "3.12-3.13"; use "all" for all supported versions.'
+        type: string
+        default: '3.13'
+      upload_artifacts:
+        description: 'Upload package artifacts for manual download or subsequent publishing.'
+        type: boolean
+        default: false
+      coverage:
+        description: 'Enable coverage instrumentation and reporting.'
+        type: boolean
+        default: false
+    secrets:
+      OSS_ACCESS_KEY_ID:
+        required: false
+      OSS_ACCESS_KEY_SECRET:
+        required: false
+      CODECOV_TOKEN:
+        description: 'Codecov token used to upload coverage reports.'
+        required: false
+
+permissions:
+  contents: read
+  pull-requests: read
 
 concurrency:
-  group: ${{ github.repository }}-${{ github.event.number || github.head_ref || github.sha }}-${{ github.workflow }}
-  cancel-in-progress: true
+  group: ci-linux-${{ inputs.architectures }}-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}-${{ github.event_name }}-${{ inputs.coverage }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   format_check:
-    if: (github.event_name != 'push' || github.repository != 'alibaba/neug' || github.ref == 'refs/heads/main')
     uses: ./.github/workflows/format-check.yml
     with:
       is_pull_request: ${{ github.event_name == 'pull_request' }}
 
-  # ============================================================
-  # Push / workflow_dispatch: build both x86_64 and arm64
-  # ============================================================
-  build_and_test_linux_x86_64:
+  build_and_test:
     needs: format_check
-    if: ${{ (needs.format_check.result == 'success' || needs.format_check.result == 'skipped') && (github.event_name != 'push' || github.repository != 'alibaba/neug' || github.ref == 'refs/heads/main') && contains(fromJSON('["push", "workflow_dispatch", "release"]'), github.event_name) }}
-    uses: ./.github/workflows/build-and-test-common.yml
-    with:
-      runs-on: ${{ github.repository == 'alibaba/neug' && '["self-hosted", "daily", "linux", "x64"]' || '["ubuntu-22.04"]' }}
-      container-json: '{"image":"neug-registry.cn-hongkong.cr.aliyuncs.com/neug/neug-dev:v0.1.3"}'
-      os-type: linux
-      enable-java-test: true
-      enable-coverage: true
-      enable-gopt-test: true
-      event-name: ${{ github.event_name }}
+    name: Linux ${{ matrix.arch }}
+    strategy:
+      fail-fast: true
+      matrix:
+        arch: ${{ fromJSON(inputs.architectures || '["x86_64"]') }}
+    container:
+      image: neug-registry.cn-hongkong.cr.aliyuncs.com/neug/neug-dev:v0.1.3
+    runs-on: ${{ github.repository == 'alibaba/neug' && fromJSON(matrix.arch == 'arm64' && '["self-hosted","daily","linux","arm64"]' || '["self-hosted","daily","linux","x64"]') || (matrix.arch == 'arm64' && 'ubuntu-22.04-arm' || 'ubuntu-22.04') }}
+    steps:
+    # ========================================
+    # Phase 1: Prepare & Build
+    # ========================================
 
-  build_and_test_linux_arm64:
-    needs: format_check
-    if: ${{ (needs.format_check.result == 'success' || needs.format_check.result == 'skipped') && (github.event_name != 'push' || github.repository != 'alibaba/neug' || github.ref == 'refs/heads/main') && contains(fromJSON('["push", "workflow_dispatch", "release"]'), github.event_name) }}
-    uses: ./.github/workflows/build-and-test-common.yml
-    with:
-      runs-on: ${{ github.repository == 'alibaba/neug' && '["self-hosted", "daily", "linux", "arm64"]' || '["ubuntu-22.04-arm"]' }}
-      container-json: '{"image":"neug-registry.cn-hongkong.cr.aliyuncs.com/neug/neug-dev:v0.1.3"}'
-      os-type: linux
-      enable-java-test: true
-      enable-coverage: true
-      enable-gopt-test: true
-      event-name: ${{ github.event_name }}
+    - name: Checkout
+      id: checkout
+      uses: actions/checkout@v4
+      with:
+        submodules: recursive
+        fetch-depth: 0
 
-  # ============================================================
-  # Pull Request: run a single random architecture
-  # - self-hosted: omit arch label to let the runner pool pick randomly
-  # - GitHub-hosted: fallback to x86_64 (ubuntu-22.04)
-  # ============================================================
-  build_and_test_linux_pr:
-    name: Build and test Linux (PR random arch)
-    needs: format_check
-    if: ${{ (needs.format_check.result == 'success' || needs.format_check.result == 'skipped') && github.event_name == 'pull_request' }}
-    uses: ./.github/workflows/build-and-test-common.yml
-    with:
-      runs-on: ${{ github.repository == 'alibaba/neug' && '["self-hosted", "daily", "linux"]' || '["ubuntu-22.04"]' }}
-      container-json: '{"image":"neug-registry.cn-hongkong.cr.aliyuncs.com/neug/neug-dev:v0.1.3"}'
-      os-type: linux
-      enable-java-test: true
-      enable-coverage: true
-      enable-gopt-test: true
-      event-name: ${{ github.event_name }}
+    - name: Detect Changed Paths
+      id: changes
+      if: github.event_name == 'pull_request'
+      uses: dorny/paths-filter@v3
+      with:
+        filters: |
+          extension:
+            - '.github/actions/test-cpp/**'
+            - '.github/actions/test-python/**'
+            - 'CMakeLists.txt'
+            - 'cmake/**'
+            - '.gitmodules'
+            - 'third_party/carquet'
+            - 'third_party/carquet.patch'
+            - 'include/neug/common/**'
+            - 'src/common/**'
+            - 'tools/python_bind/tests/test_parquet_backend_contract.py'
+            - 'example_dataset/tinysnb/parquet/**'
+            - 'example_dataset/comprehensive_graph/parquet/**'
+            - 'extension/**'
+            - 'tools/python_bind/tests/test_hnsw_index.py'
+            - 'tools/python_bind/tests/test_hnsw_index_tp.py'
+            - 'tools/python_bind/tests/test_gds.py'
+            - 'tools/python_bind/tests/test_gds_path.py'
+            - 'tools/python_bind/tests/test_gds_concurrency.py'
+            - 'tools/python_bind/tests/test_gds_yield.py'
+            - 'tools/python_bind/tests/test_graphalytics.py'
+            - 'tools/python_bind/tests/test_fts_index.py'
+            - 'tools/python_bind/tests/test_fts_index_tp.py'
+            - 'tools/python_bind/tests/resources/graphalytics/**'
+            - 'tools/python_bind/example/complex_test.py'
+          wheel:
+            - 'tools/python_bind/setup.py'
+            - 'tools/python_bind/pyproject.toml'
+            - 'tools/python_bind/Makefile'
+            - '.github/workflows/package.yml'
+            - '.github/workflows/release.yml'
+            - '.github/actions/package-wheel/**'
+            - '.github/actions/test-python/**'
+          npm:
+            - 'tools/nodejs_bind/**'
+            - '.github/actions/test-and-package-nodejs/**'
+            - '.github/workflows/release.yml'
+          java:
+            - 'tools/java_driver/**'
+            - 'proto/response.proto'
+            - '.github/workflows/release.yml'
+            - '.github/actions/test-and-package-java/**'
+
+    - name: Increase the Maximum Number of Opened Files (Linux)
+      shell: bash
+      run: |
+        ulimit -n 65535
+        sudo chmod -R 777 /etc/security/*
+        echo "*   soft  nofile  1048576" | tee -a /etc/security/limits.conf
+
+    - name: Clean the Tool Directory for Self-Hosted Runner (Linux)
+      shell: bash
+      run: |
+        rm -rf /__w/_tool/Python
+
+    - name: Install Dependencies (Linux)
+      shell: bash
+      run: |
+        sudo apt-get update && sudo apt-get install -y ccache libcurl4-openssl-dev libzstd-dev liblz4-dev zlib1g-dev
+
+    - name: Cache CCache
+      uses: actions/cache@v4
+      with:
+        path: ~/.cache/ccache
+        key: ${{ runner.os }}-${{ runner.arch }}-ccache-${{ github.ref_name }}-${{ hashFiles('CMakeLists.txt', 'cmake/**', 'proto/**', '.github/workflows/Linux.yml', '.github/workflows/OSX.yml') }}
+        restore-keys: |
+          ${{ runner.os }}-${{ runner.arch }}-ccache-${{ github.ref_name }}-
+          ${{ runner.os }}-${{ runner.arch }}-ccache-main-
+          ${{ runner.os }}-${{ runner.arch }}-ccache-
+
+    - name: Setup CCache
+      shell: bash
+      run: |
+        mkdir -p ~/.cache/ccache
+        CCACHE_DIR=~/.cache/ccache
+        {
+          echo "CCACHE_DIR=$CCACHE_DIR"
+          echo "CCACHE_BASEDIR=${GITHUB_WORKSPACE}"
+          echo "CCACHE_COMPRESS=true"
+          echo "CCACHE_COMPRESSLEVEL=6"
+          echo "CCACHE_MAXSIZE=5G"
+        } >> "$GITHUB_ENV"
+        ccache --set-config=base_dir=${GITHUB_WORKSPACE}
+        ccache --set-config=compiler_check=content
+        ccache --set-config=compression=true
+        ccache --max-size=5G
+        ccache --zero-stats
+
+    - name: Setup Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.13'
+
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '20'
+
+    - name: Setup Java and Maven
+      uses: s4u/setup-maven-action@v1.19.0
+      with:
+        java-version: '17'
+        maven-version: 3.9.6
+
+    - name: Install Python Test Dependencies
+      shell: bash
+      run: |
+        python3 -m pip install pytest-cov coverage
+
+    - name: Install Node.js Dependencies
+      shell: bash
+      run: npm install --prefix tools/nodejs_bind
+
+    - name: Set ENABLE_GCOV
+      if: inputs.coverage
+      shell: bash
+      run: |
+        python3 -m pip install fastcov
+        sudo apt update
+        sudo apt install lcov -y
+        echo "ENABLE_GCOV=ON" >> $GITHUB_ENV
+
+    - name: Prepare Out-of-Tree Extension Fixture
+      id: extension_fixture
+      if: (inputs.extensions != '' || steps.changes.outputs.extension == 'true')
+      shell: bash
+      run: |
+        set -euo pipefail
+        cp -R extension/test_out_of_tree "$RUNNER_TEMP/ci-out-of-tree"
+        echo "config=$RUNNER_TEMP/ci-out-of-tree/extension_config.cmake" >> "$GITHUB_OUTPUT"
+
+    - name: Build NeuG
+      shell: bash
+      run: |
+        NEUG_ENV_FOUND=false
+        for env_file in /home/neug/.neug_env ~/.neug_env /github/home/.neug_env; do
+          if [ -f "$env_file" ]; then
+            source "$env_file"
+            NEUG_ENV_FOUND=true
+            break
+          fi
+        done
+        if [ "$NEUG_ENV_FOUND" != "true" ]; then
+          echo "Warning: .neug_env not found in any known location"
+        fi
+        cd ${GITHUB_WORKSPACE}/
+        echo "CCache stats before build"
+        ccache --show-stats
+        export CI=ON
+        export BUILD_TYPE=RELEASE
+        export CMAKE_BUILD_PARALLEL_LEVEL=$(printf '%s\n' "$(nproc)" 32 | awk 'NR==1 || $0<min { min=$0 } END { print min }')
+        export BUILD_EXECUTABLES=ON
+        export BUILD_HTTP_SERVER=ON
+        export BUILD_TEST=ON
+        export USE_NINJA=OFF
+        export WITH_MIMALLOC=OFF
+        export CMAKE_INSTALL_PREFIX=/opt/neug-install/
+        sudo mkdir -p /opt/neug-install
+        sudo chown -R $USER:$USER /opt/neug-install/
+        export CC=gcc
+        export CXX=g++
+        export CMAKE_C_COMPILER_LAUNCHER=ccache
+        export CMAKE_CXX_COMPILER_LAUNCHER=ccache
+        export CMAKE_ARGS="${CMAKE_ARGS:-} -DBUILD_NODEJS=ON"
+        export BUILD_EXTENSIONS="$EXTENSION_LIST"
+        if [ -n "$EXTENSION_LIST" ]; then
+          export BUILD_EXTENSIONS="$BUILD_EXTENSIONS;test_out_of_tree"
+          export CMAKE_ARGS="$CMAKE_ARGS -DNEUG_EXTENSION_CONFIGS=$EXTENSION_CONFIG"
+        fi
+        cd tools/python_bind
+        make clean
+        make requirements
+        make build
+        echo "CCache stats after build"
+        ccache --show-stats
+        cd "$GITHUB_WORKSPACE/tools/nodejs_bind"
+        make stage BUILD_TYPE=Release
+      env:
+        EXTENSION_LIST: ${{ (inputs.extensions != '' || steps.changes.outputs.extension == 'true') && (inputs.extensions || 'parquet;httpfs;gds;pattern_matching;vector_search;fts') || '' }}
+        EXTENSION_CONFIG: ${{ steps.extension_fixture.outputs.config }}
+
+    - name: Prepare Test Data
+      uses: ./.github/actions/prepare-data
+
+    # ========================================
+    # Phase 2: C++ Tests
+    # ========================================
+
+    - name: Run C++ Tests
+      uses: ./.github/actions/test-cpp
+      with:
+        platform: linux
+        extensions: ${{ (inputs.extensions != '' || steps.changes.outputs.extension == 'true') && (inputs.extensions || 'parquet;httpfs;gds;pattern_matching;vector_search;fts') || '' }}
+
+    # ========================================
+    # Phase 3: Python Tests
+    # ========================================
+
+    - name: Run Python Tests
+      uses: ./.github/actions/test-python
+      env:
+        OSS_ACCESS_KEY_ID: ${{ secrets.OSS_ACCESS_KEY_ID }}
+        OSS_ACCESS_KEY_SECRET: ${{ secrets.OSS_ACCESS_KEY_SECRET }}
+      with:
+        platform: linux
+        extensions: ${{ (inputs.extensions != '' || steps.changes.outputs.extension == 'true') && (inputs.extensions || 'parquet;httpfs;gds;pattern_matching;vector_search;fts') || '' }}
+
+    # ========================================
+    # Phase 4: Node.js Tests
+    # ========================================
+
+    - name: Run Node.js Tests and Optional Packaging
+      uses: ./.github/actions/test-and-package-nodejs
+      with:
+        extensions: ${{ (inputs.extensions != '' || steps.changes.outputs.extension == 'true') && (inputs.extensions || 'parquet;httpfs;gds;pattern_matching;vector_search;fts') || '' }}
+        package: ${{ contains(fromJSON(inputs.packages || '[]'), 'npm') || steps.changes.outputs.npm == 'true' }}
+        artifact_platform: linux-${{ matrix.arch }}
+        upload_artifacts: ${{ inputs.upload_artifacts }}
+
+    # ========================================
+    # Phase 5: Java Tests
+    # ========================================
+
+    - name: Run Java Tests and Optional Packaging
+      uses: ./.github/actions/test-and-package-java
+      with:
+        package: ${{ contains(fromJSON(inputs.packages || '[]'), 'java') || steps.changes.outputs.java == 'true' }}
+        upload_artifacts: ${{ inputs.upload_artifacts }}
+
+    # ========================================
+    # Phase 6: Wheel Test
+    # ========================================
+
+    - name: Wheel Test
+      if: contains(fromJSON(inputs.packages || '[]'), 'wheel') || steps.changes.outputs.wheel == 'true'
+      uses: ./.github/actions/package-wheel
+      with:
+        artifact_platform: linux-${{ matrix.arch }}
+        oss_platform: linux_${{ matrix.arch }}
+        python_versions: ${{ inputs.python_versions || '3.13' }}
+        extensions: ${{ (inputs.extensions != '' || steps.changes.outputs.extension == 'true') && (inputs.extensions || 'parquet;httpfs;gds;pattern_matching;vector_search;fts') || '' }}
+        upload_artifacts: ${{ inputs.upload_artifacts }}
+
+    # ========================================
+    # Phase 7: Coverage
+    # ========================================
+
+    - name: Generate Coverage
+      if: inputs.coverage
+      shell: bash
+      run: |-
+        set -euo pipefail
+        cmake --build "$GITHUB_WORKSPACE/build" --target coverage -j4
+
+    - name: Upload Codecov Report
+      if: inputs.coverage && github.repository == 'alibaba/neug'
+      uses: codecov/codecov-action@v5
+      with:
+        token: ${{ secrets.CODECOV_TOKEN }}
+        files: ${{ github.workspace }}/build/coverage_filtered.info
+        fail_ci_if_error: true

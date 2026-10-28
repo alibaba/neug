@@ -1,0 +1,145 @@
+name: Node.js Tests and Packaging
+
+description: Run tests, then optionally package and upload existing build outputs.
+
+inputs:
+  extensions:
+    description: Compiled extensions bundled with the Node.js package
+    default: ''
+  package:
+    description: Enable packaging tests
+    default: 'false'
+  upload_artifacts:
+    description: Upload tested packages
+    default: 'false'
+  artifact_platform:
+    description: Platform identifier used in artifact names
+    required: true
+
+runs:
+  using: composite
+  steps:
+
+  - name: Stage Native Artifacts
+    if: runner.os == 'Windows'
+    shell: bash
+    env:
+      ARTIFACT_PLATFORM: ${{ inputs.artifact_platform }}
+      EXTENSIONS: ${{ inputs.extensions }}
+    run: |
+      set -euo pipefail
+      stage_dir="tools/nodejs_bind/build/Release/${ARTIFACT_PLATFORM//-/_}"
+      mkdir -p "$stage_dir"
+      cp build/tools/nodejs_bind/neug_node_bind.node "$stage_dir/"
+      cp build/tools/nodejs_bind/neug.dll "$stage_dir/"
+      for extension in ${EXTENSIONS//;/ }; do
+        mkdir -p "$stage_dir/extension/$extension"
+        cp "build/extension/$extension/lib$extension.neug_extension" "$stage_dir/extension/$extension/"
+      done
+
+  # Windows does not build bulk_loader; use the same dataset helper as upstream.
+  - name: Prepare Test Data
+    if: runner.os == 'Windows'
+    shell: bash
+    env:
+      FLEX_DATA_DIR: ${{ github.workspace }}/example_dataset/modern_graph
+    run: |
+      set -euo pipefail
+      cd tools/nodejs_bind
+      node <<'JS'
+      const fs = require('fs');
+      const { prepareModernGraphDataset } = require('./tests/test-shim');
+      const { Database } = require('./lib');
+      fs.mkdirSync('/tmp', { recursive: true });
+      fs.rmSync('/tmp/modern_graph', { recursive: true, force: true });
+      prepareModernGraphDataset(Database);
+      JS
+
+  - name: Run Node.js Tests
+    shell: bash
+    env:
+      NEUG_RUN_EXTENSION_TESTS: ${{ inputs.extensions != '' && 'true' || 'false' }}
+      NEUG_TEST_EXTENSIONS: ${{ inputs.extensions }}
+      FLEX_DATA_DIR: ${{ github.workspace }}/example_dataset/modern_graph
+    run: |
+      set -euo pipefail
+      cd tools/nodejs_bind
+      node tests/test-shim.js
+
+  - name: Install npm Packaging Dependency
+    if: inputs.package == 'true' && runner.os != 'Windows'
+    shell: bash
+    env:
+      REPAIR_TOOL: ${{ runner.os == 'macOS' && 'delocate' || 'patchelf' }}
+    run: |
+      python -m pip install "$REPAIR_TOOL"
+
+  - name: Pack Current Node.js Binding
+    if: inputs.package == 'true'
+    shell: bash
+    env:
+      ARTIFACT_PLATFORM: ${{ inputs.artifact_platform }}
+      EXTENSIONS: ${{ inputs.extensions }}
+    run: |
+      set -euo pipefail
+      # Legacy dependency environment files may reference unset path variables.
+      set +u
+      case "$RUNNER_OS" in
+        Linux) source /home/neug/.neug_env ;;
+        macOS) source "$HOME/.neug_env" ;;
+      esac
+      set -u
+      cd tools/nodejs_bind
+      # Windows uses the staged .node and DLL; ELF/Mach-O repair does not apply.
+      if [[ "$RUNNER_OS" != Windows ]]; then
+        make bundle BUILD_TYPE=Release
+      fi
+      if [[ "$RUNNER_OS" == Linux && -n "$EXTENSIONS" ]]; then
+        readelf --dyn-syms --wide "build/Release/${ARTIFACT_PLATFORM//-/_}/libneug.so" | \
+          awk '/_ZNK4neug12StorageIndex14ModuleTypeNameB5cxx11Ev/ { found = 1 } END { exit !found }'
+      fi
+      cp package.json "$RUNNER_TEMP/ci-package.json"
+      trap 'cp "$RUNNER_TEMP/ci-package.json" package.json' EXIT
+      node <<'JS'
+      const fs = require('fs');
+      const p = JSON.parse(fs.readFileSync('package.json'));
+      p.name = '@neug-ai/' + process.env.ARTIFACT_PLATFORM;
+      p.os = [process.platform];
+      p.cpu = [process.arch];
+      fs.writeFileSync('package.json', JSON.stringify(p, null, 2) + '\n');
+      JS
+      npm pack
+
+  - name: Validate npm Package
+    if: inputs.package == 'true'
+    shell: bash
+    env:
+      ARTIFACT_PLATFORM: ${{ inputs.artifact_platform }}
+      EXTENSIONS: ${{ inputs.extensions }}
+    run: |
+      set -euo pipefail
+      test_dir=$(mktemp -d "$RUNNER_TEMP/neug-npm-validate.XXXXXX")
+      cd "$test_dir"
+      npm install "$GITHUB_WORKSPACE/tools/nodejs_bind/neug-ai-${ARTIFACT_PLATFORM}-"*.tgz
+      node <<'JS'
+      const { Database } = require('@neug-ai/' + process.env.ARTIFACT_PLATFORM);
+      const db = new Database({ databasePath: '', mode: 'w' });
+      const conn = db.connect();
+      for (const extension of process.env.EXTENSIONS.split(';').filter(Boolean)) {
+        conn.execute(`LOAD ${extension}`).close();
+      }
+      const result = conn.execute('RETURN 1');
+      console.log(result.toString());
+      result.close();
+      conn.close();
+      db.close();
+      JS
+
+  - name: Upload Node.js
+    if: inputs.package == 'true' && inputs.upload_artifacts == 'true'
+    uses: actions/upload-artifact@v4
+    with:
+      name: nodejs-${{ inputs.artifact_platform }}-${{ github.run_id }}
+      path: tools/nodejs_bind/*.tgz
+      if-no-files-found: error
+      retention-days: 7

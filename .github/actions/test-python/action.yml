@@ -1,0 +1,255 @@
+name: Python Tests
+
+description: Run Python core tests and tests for the compiled extensions.
+
+inputs:
+  platform:
+    description: Test platform selected by the caller (linux, macos, windows)
+    required: true
+  coverage:
+    description: Enable Python coverage collection and reporting
+    default: 'false'
+  extensions:
+    description: Semicolon-separated compiled extension names
+    default: ''
+
+runs:
+  using: composite
+  steps:
+
+  - name: Set Environments
+    shell: bash
+    run: |
+      echo "PYTEST_ADDOPTS=${{ inputs.coverage == 'true' && '--cov=neug --cov-report=term --cov-append --cov-config=.coveragerc' || '' }}" >> "$GITHUB_ENV"
+
+  - name: Run Python Test
+    shell: bash
+    working-directory: tools/python_bind
+    env:
+      FLEX_DATA_DIR: ${{ github.workspace }}/example_dataset/modern_graph
+    run: |
+      python -m pytest -sv --exitfirst tests/test_batch_loading.py
+      python -m pytest -sv --exitfirst tests/test_alter_property.py
+      python -m pytest -sv --exitfirst tests/test_ddl.py
+      python -m pytest -sv --exitfirst tests/test_query.py
+      python -m pytest -sv --exitfirst tests/test_tp_service.py
+      python -m pytest -sv --exitfirst tests/test_load.py
+      python -m pytest -sv --exitfirst tests/test_load_array.py
+      python -m pytest -sv --exitfirst tests/test_export.py
+      python -m pytest -sv --exitfirst tests/test_copy_temp.py
+
+  # Windows currently skips this test because bulk_loader is disabled and
+  # cannot prepare the LSQB database; this is not a limitation of LSQB queries.
+  - name: Run LSQB Test
+    if: inputs.platform != 'windows'
+    shell: bash
+    working-directory: tools/python_bind
+    env:
+      LSQB_DATA_DIR: /tmp/lsqb
+    run: |
+      python -m pytest -sv --exitfirst tests/test_lsqb.py
+
+  - name: Run DB Init Test
+    shell: bash
+    working-directory: tools/python_bind
+    run: |
+      python -m pytest -sv --exitfirst tests/test_db_init.py
+
+  - name: Run DB Connection Test
+    shell: bash
+    working-directory: tools/python_bind
+    run: |
+      python -m pytest -sv --exitfirst tests/test_db_connection.py
+
+  - name: Run Query Test
+    shell: bash
+    working-directory: tools/python_bind
+    run: |
+      python -m pytest -sv --exitfirst tests/test_schema.py
+      python -m pytest -sv --exitfirst tests/test_dml.py
+      python -m pytest -sv --exitfirst tests/test_query.py
+      python -m pytest -sv --exitfirst tests/test_path.py
+      python -m pytest -sv --exitfirst tests/test_persistence.py
+      python -m pytest -sv --exitfirst tests/test_call_string_literal.py
+      python -m pytest -sv --exitfirst tests/test_dataset.py
+      python -m pytest -sv --exitfirst tests/test_merge.py
+
+  - name: Run TinySNB Tutorial Test
+    shell: bash
+    working-directory: tools/python_bind
+    run: |
+      python -m pytest -sv --exitfirst tests/test_tinysnb_tutorial.py
+
+  - name: Run Transaction Test
+    shell: bash
+    working-directory: tools/python_bind
+    run: |
+      python -m pytest -sv --exitfirst tests/test_db_transaction.py
+
+  - name: Run Import/Export Test
+    shell: bash
+    working-directory: tools/python_bind
+    run: |
+      python -m pytest -sv --exitfirst tests/test_db_import_export.py
+
+  - name: Run Data I/O Documentation Test
+    shell: bash
+    working-directory: tools/python_bind
+    env:
+      FLEX_DATA_DIR: ${{ github.workspace }}/example_dataset/modern_graph
+    run: |
+      python -m pytest -sv --exitfirst tests/test_data_io_docs.py
+
+  - name: Run LOAD from Sniffer Tests (CSV and JSON)
+    shell: bash
+    working-directory: tools/python_bind
+    run: |
+      python -m pytest -sv --exitfirst tests/test_sniffer.py -k "csv or json"
+
+  - name: Run Complex Query Test
+    shell: bash
+    working-directory: tools/python_bind
+    run: |
+      python -m pytest -sv --exitfirst tests/test_db_cases.py
+
+  - name: Run List/Array Test
+    shell: bash
+    working-directory: tools/python_bind
+    run: |
+      python -m pytest -sv --exitfirst tests/test_db_list.py
+      python -m pytest -sv --exitfirst tests/test_db_array.py
+
+  - name: Run Concurrency Test
+    shell: bash
+    working-directory: tools/python_bind
+    run: |
+      python -m pytest -sv --exitfirst tests/test_db_concurrent.py
+
+  - name: Run Transaction Concurrent Test
+    shell: bash
+    working-directory: tools/python_bind
+    run: |
+      python -m pytest -sv --exitfirst tests/transaction/elle_tester_insert.py
+
+  - name: Install PyArrow
+    shell: bash
+    working-directory: tools/python_bind
+    run: python -m pip install pyarrow==24.0.0
+
+  - name: Run PyArrow Related Test
+    shell: bash
+    working-directory: tools/python_bind
+    run: |
+      python -m pytest -sv --exitfirst tests/test_to_arrow.py
+
+  - name: Test CLI Tool
+    shell: bash
+    working-directory: tools/python_bind
+    run: |
+      python -m pytest -sv --exitfirst tests/test_ngcli_commands.py
+      python -m pytest -sv --exitfirst tests/test_ngcli_basics.py
+
+  - name: Install Extension Test Dependencies
+    if: inputs.extensions != ''
+    shell: bash
+    working-directory: tools/python_bind
+    run: |
+      python -m pip install -r requirements.txt
+      python -m pip install -r "${PYTHON_DEV_REQUIREMENTS:-requirements_dev.txt}"
+
+  - name: Run Parquet Python Test
+    if: contains(format(';{0};', inputs.extensions), ';parquet;')
+    shell: bash
+    working-directory: tools/python_bind
+    env:
+      PARQUET_IO_FILTER: ${{ contains(format(';{0};', inputs.extensions), ';httpfs;') && 'parquet or httpfs' || 'parquet and not httpfs' }}
+      NEUG_RUN_EXTENSION_TESTS: 'true'
+      FLEX_DATA_DIR: ${{ github.workspace }}/example_dataset/modern_graph
+    run: |
+      python -m pytest -sv --exitfirst tests/test_parquet_backend_contract.py
+      python -m pytest -sv --exitfirst tests/test_load.py -k "${{ env.PARQUET_IO_FILTER }}"
+      python -m pytest -sv --exitfirst tests/test_load_array.py -k "parquet"
+      python -m pytest -sv --exitfirst tests/test_export.py -k "${{ env.PARQUET_IO_FILTER }}"
+      python -m pytest -sv --exitfirst tests/test_db_import_export.py -k "copy_from_parquet"
+      python -m pytest -sv --exitfirst tests/test_sniffer.py -k "parquet"
+      python -m pytest -sv --exitfirst tests/test_copy_temp.py -k "${{ env.PARQUET_IO_FILTER }}"
+      python -m pytest -sv --exitfirst tests/test_parquet_export_interop.py
+
+  # When parquet is selected, its data I/O tests also cover httpfs.
+  - name: Run HTTPFS Python Test
+    if: ${{ contains(format(';{0};', inputs.extensions), ';httpfs;') && !contains(format(';{0};', inputs.extensions), ';parquet;') }}
+    shell: bash
+    working-directory: tools/python_bind
+    env:
+      NEUG_RUN_EXTENSION_TESTS: 'true'
+      FLEX_DATA_DIR: ${{ github.workspace }}/example_dataset/modern_graph
+    run: |
+      python -m pytest -sv --exitfirst tests/test_load.py -k "test_httpfs_appears_in_show_loaded_extensions"
+
+  - name: Run GDS Temporary Graph Test
+    if: contains(format(';{0};', inputs.extensions), ';gds;')
+    shell: bash
+    working-directory: tools/python_bind
+    env:
+      NEUG_RUN_EXTENSION_TESTS: 'true'
+      FLEX_DATA_DIR: ${{ github.workspace }}/example_dataset/modern_graph
+    run: |
+      python -m pytest -sv --exitfirst tests/test_gds_temp_graph.py
+
+  # Linux builds test_out_of_tree with its selected extensions.
+  - name: Run Extension Call Parameters Test
+    if: (inputs.platform == 'linux' && inputs.extensions != '') || contains(format(';{0};', inputs.extensions), ';test_out_of_tree;')
+    shell: bash
+    working-directory: tools/python_bind
+    env:
+      NEUG_RUN_EXTENSION_TESTS: 'true'
+      FLEX_DATA_DIR: ${{ github.workspace }}/example_dataset/modern_graph
+    run: |
+      python -m pytest -sv --exitfirst tests/test_call_params.py
+
+  # Upstream excludes Windows vector_search until the ZVec MSVC port is available.
+  - name: Run Vector Search Python Test
+    if: inputs.platform != 'windows' && contains(format(';{0};', inputs.extensions), ';vector_search;')
+    shell: bash
+    working-directory: tools/python_bind
+    env:
+      VECTOR_SEARCH_FILTER: ${{ !contains(format(';{0};', inputs.extensions), ';parquet;') && 'not parquet' || '' }}
+      NEUG_RUN_EXTENSION_TESTS: 'true'
+      FLEX_DATA_DIR: ${{ github.workspace }}/example_dataset/modern_graph
+    run: |
+      python -m pytest -sv --exitfirst tests/test_hnsw_index.py -k "${{ env.VECTOR_SEARCH_FILTER }}"
+      python -m pytest -sv --exitfirst tests/test_hnsw_index_tp.py -k "${{ env.VECTOR_SEARCH_FILTER }}"
+
+  - name: Run FTS Python Test
+    if: contains(format(';{0};', inputs.extensions), ';fts;')
+    shell: bash
+    working-directory: tools/python_bind
+    env:
+      NEUG_RUN_EXTENSION_TESTS: 'true'
+      FLEX_DATA_DIR: ${{ github.workspace }}/example_dataset/modern_graph
+    run: |
+      python -m pytest -sv --exitfirst tests/test_fts_index.py
+      python -m pytest -sv --exitfirst tests/test_fts_index_tp.py
+
+  - name: Run GDS Tests
+    if: contains(format(';{0};', inputs.extensions), ';gds;')
+    shell: bash
+    working-directory: tools/python_bind
+    run: |
+      python -m pytest -sv --exitfirst tests/test_gds.py
+      python -m pytest -sv --exitfirst tests/test_gds_path.py
+      python -m pytest -sv --exitfirst tests/test_gds_concurrency.py
+      python -m pytest -sv --exitfirst tests/test_gds_yield.py
+
+  - name: Run LDBC Graphalytics Conformance Tests
+    if: contains(format(';{0};', inputs.extensions), ';gds;')
+    shell: bash
+    working-directory: tools/python_bind
+    run: |
+      python -m pytest -sv --exitfirst tests/test_graphalytics.py
+
+  - name: Clear Pytest Options
+    if: always()
+    shell: bash
+    run: |
+      echo "PYTEST_ADDOPTS=" >> "$GITHUB_ENV"

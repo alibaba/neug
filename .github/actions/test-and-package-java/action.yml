@@ -1,0 +1,66 @@
+name: Java Tests and Packaging
+
+description: Build the binding, run tests, and optionally package and upload existing outputs.
+
+inputs:
+  package:
+    description: Enable packaging tests
+    default: 'false'
+  upload_artifacts:
+    description: Upload tested packages
+    default: 'false'
+
+runs:
+  using: composite
+  steps:
+
+  - name: Java SDK Unit Tests
+    shell: bash
+    run: |-
+      set -euo pipefail
+      mvn -B -f tools/java_driver/pom.xml test
+
+  # Native integration requires the backend built by the caller.
+  - name: Java against This Build of NeuG
+    if: hashFiles('build/CMakeCache.txt') != ''
+    shell: bash
+    run: |-
+      set -euo pipefail
+      cd tools/python_bind
+      python3 -m pytest -sv tests/test_java_driver.py
+
+  - name: Configure Maven Central for Dry-Run
+    if: inputs.package == 'true'
+    uses: actions/setup-java@v4
+    with:
+      java-version: '17'
+      distribution: temurin
+      server-id: central
+      server-username: MAVEN_CENTRAL_USERNAME
+      server-password: MAVEN_CENTRAL_PASSWORD
+      settings-path: ${{ runner.temp }}/neug-maven
+
+  - name: Remove SNAPSHOT from Version
+    if: inputs.package == 'true'
+    working-directory: tools/java_driver
+    shell: bash
+    run: mvn -B versions:set -DremoveSnapshot -DgenerateBackupPoms=false
+
+  - name: Publish to Maven Central (Dry-Run)
+    if: inputs.package == 'true'
+    working-directory: tools/java_driver
+    shell: bash
+    run: |
+      mvn -B -s "$RUNNER_TEMP/neug-maven/settings.xml" deploy -DskipTests \
+          -Dgpg.skip=true \
+          -DskipPublishing=true \
+          -DaltDeploymentRepository=local::default::file://${{ github.workspace }}/tools/java_driver/target/staging
+
+  - name: Upload Java
+    if: (inputs.package == 'true') && (inputs.upload_artifacts == 'true')
+    uses: actions/upload-artifact@v4
+    with:
+      name: java-${{ github.run_id }}
+      path: tools/java_driver/
+      if-no-files-found: error
+      retention-days: 7

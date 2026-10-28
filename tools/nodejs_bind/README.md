@@ -71,11 +71,11 @@ Create a self-contained, distributable npm package tarball (`.tgz`). This will:
    - `neug_node_bind.node` — the native addon
    - `libneug.so` / `libneug.dylib` — core shared library
 3. Collect the third-party libraries actually selected at link time:
-   - macOS uses `delocate-path` to copy them into `.dylibs/` and rewrite their
+   - macOS uses `delocate-path` to copy them into `neug/.dylibs/` and rewrite their
      install names.
    - Linux uses `ldd` to resolve the dependency closure, copies non-system
-     libraries into `.libs/`, and uses `patchelf` to set package-relative
-     `$ORIGIN` RPATHs.
+     libraries into `neug.libs/`, matching the wheel dependency directory, and
+     uses `patchelf` to set package-relative `$ORIGIN` RPATHs.
 4. Print the bundled native dependencies for inspection.
 5. Run `npm pack` to produce `neug-<version>.tgz`
 

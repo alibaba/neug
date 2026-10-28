@@ -1,0 +1,241 @@
+name: Verify Published Packages
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Published version to verify, or latest.
+        type: string
+        default: latest
+      platforms:
+        description: Platforms to verify.
+        type: choice
+        default: all
+        options:
+          - all
+          - linux-x86_64
+          - linux-arm64
+          - osx-arm64
+          - osx-x86_64
+          - windows-x86_64
+          - windows-arm64
+      node_version:
+        description: Node.js version to verify, or all supported versions.
+        type: choice
+        default: all
+        options:
+          - all
+          - '20'
+          - '22'
+          - '24'
+      python_versions:
+        description: JSON array of Python versions to verify.
+        type: string
+        default: '["3.8","3.9","3.10","3.11","3.12","3.13","3.14"]'
+
+env:
+  VERSION: ${{ inputs.version }}
+
+permissions:
+  contents: read
+
+jobs:
+  # ========================================
+  # Verify published wheel, npm, and extension packages in independent environments.
+  # ========================================
+  verify:
+    name: Published Packages / ${{ matrix.platform }}
+    strategy:
+      fail-fast: true
+      matrix:
+        platform: ${{ fromJSON(inputs.platforms == 'all' && '["linux-x86_64","linux-arm64","osx-arm64","osx-x86_64","windows-x86_64","windows-arm64"]' || format('["{0}"]', inputs.platforms)) }}
+    container: ${{ startsWith(matrix.platform, 'linux-') && 'ubuntu:22.04' || '' }}
+    runs-on: ${{ matrix.platform == 'linux-x86_64' && 'ubuntu-22.04' || matrix.platform == 'linux-arm64' && 'ubuntu-22.04-arm' || matrix.platform == 'windows-arm64' && 'windows-11-arm' || matrix.platform == 'windows-x86_64' && 'windows-2022' || matrix.platform == 'osx-x86_64' && 'macos-15-intel' || 'macos-15' }}
+    env:
+      # vector_search is not supported by the current Windows build.
+      EXTENSIONS: ${{ startsWith(matrix.platform, 'windows-') && 'parquet;httpfs;gds;pattern_matching;fts' || 'parquet;httpfs;gds;pattern_matching;vector_search;fts' }}
+    defaults:
+      run:
+        shell: bash
+    steps:
+
+    - name: Prepare Independent Linux Test Image
+      if: runner.os == 'Linux'
+      run: |
+        apt-get update
+        apt-get install -y git curl ca-certificates libssl3 libbz2-1.0 libffi8 libsqlite3-0 liblzma5
+
+    - name: Select Python Versions
+      id: python_versions
+      env:
+        PYTHON_VERSIONS: ${{ join(fromJSON(inputs.python_versions), ' ') }}
+      run: |
+        set -euo pipefail
+        versions=()
+        for version in $PYTHON_VERSIONS; do
+          # Native Windows ARM64 CPython starts at 3.11.
+          if [ "$RUNNER_OS" = Windows ] && [ "$RUNNER_ARCH" = ARM64 ] && (( 10#${version#3.} < 11 )); then
+            continue
+          fi
+          versions+=("$version")
+        done
+        test "${#versions[@]}" -gt 0
+        printf '%s\n' "${versions[@]}" > "$RUNNER_TEMP/.python-version"
+        echo "versions=${versions[*]}" >> "$GITHUB_OUTPUT"
+
+    - name: Setup Python Versions
+      uses: actions/setup-python@v5
+      with:
+        python-version-file: ${{ runner.temp }}/.python-version
+
+    - name: Smoke Test Published Wheels and Extensions
+      env:
+        PYTHON_VERSIONS: ${{ steps.python_versions.outputs.versions }}
+      run: |
+        set -euo pipefail
+        unset PYTHONPATH NEUG_BUILD_DIR NEUG_EXTENSION_HOME_PYENV
+        cd "$RUNNER_TEMP"
+        for version in $PYTHON_VERSIONS; do
+          echo "Verifying wheel and extensions with Python $version"
+          test_dir="$RUNNER_TEMP/verify-python-$version"
+          if [ "$RUNNER_OS" = Windows ]; then
+            cache=$(cygpath -u "$RUNNER_TOOL_CACHE")
+            python=$(find "$cache/Python/$version".* -type f -name python.exe -print -quit)
+            test -n "$python"
+            "$python" -m venv "$test_dir"
+            py="$test_dir/Scripts/python.exe"
+          else
+            "python$version" -m venv "$test_dir"
+            py="$test_dir/bin/python"
+          fi
+          package=neug
+          if [ "$VERSION" != latest ]; then package="neug==${VERSION#v}"; fi
+          "$py" -m pip install --only-binary=neug --index-url https://pypi.org/simple "$package"
+          "$py" - <<'PYCODE'
+        import os
+        import neug
+        with neug.Database() as db:
+            conn = db.connect()
+            for name in os.environ['EXTENSIONS'].split(';'):
+                conn.execute(f'INSTALL {name}')
+                conn.execute(f'LOAD EXTENSION {name}')
+            print(conn.execute('RETURN 1'))
+        PYCODE
+        done
+
+    - name: Setup Node.js 20
+      if: inputs.node_version == 'all' || inputs.node_version == '20'
+      id: node20
+      uses: actions/setup-node@v4
+      with:
+        node-version: '20'
+
+    - name: Setup Node.js 22
+      if: inputs.node_version == 'all' || inputs.node_version == '22'
+      id: node22
+      uses: actions/setup-node@v4
+      with:
+        node-version: '22'
+
+    - name: Setup Node.js 24
+      if: inputs.node_version == 'all' || inputs.node_version == '24'
+      id: node24
+      uses: actions/setup-node@v4
+      with:
+        node-version: '24'
+
+    - name: Smoke Test Published npm Package
+      env:
+        NODE_VERSIONS: ${{ steps.node20.outputs.node-version }} ${{ steps.node22.outputs.node-version }} ${{ steps.node24.outputs.node-version }}
+        NODE_ARCH: ${{ runner.arch == 'ARM64' && 'arm64' || 'x64' }}
+      run: |
+        set -euo pipefail
+        for version in $NODE_VERSIONS; do
+          if [ "$RUNNER_OS" = Windows ]; then
+            cache=$(cygpath -u "$RUNNER_TOOL_CACHE")
+            node_dir="$cache/node/${version#v}/$NODE_ARCH"
+            test -x "$node_dir/node.exe"
+          else
+            node_dir="$RUNNER_TOOL_CACHE/node/${version#v}/$NODE_ARCH/bin"
+            test -x "$node_dir/node"
+          fi
+          export PATH="$node_dir:$PATH"
+          node --version
+          test_dir=$(mktemp -d "$RUNNER_TEMP/neug-npm-validate.XXXXXX")
+          cd "$test_dir"
+          npm install --registry=https://registry.npmjs.org "@neug-ai/neug@${VERSION#v}"
+          node <<'JS'
+        const { Database } = require('@neug-ai/neug');
+        const db = new Database({ databasePath: '', mode: 'w' });
+        const conn = db.connect();
+        for (const name of process.env.EXTENSIONS.split(';')) {
+          conn.execute(`INSTALL ${name}`).close();
+          conn.execute(`LOAD ${name}`).close();
+        }
+        const result = conn.execute('RETURN 1');
+        console.log(result.toString());
+        result.close();
+        conn.close();
+        db.close();
+        JS
+        done
+
+  # ========================================
+  # Verify the published Java SDK from Maven Central in an independent container.
+  # ========================================
+  java:
+    name: Published Java Package
+    runs-on: ubuntu-22.04
+    container: ubuntu:22.04
+    defaults:
+      run:
+        shell: bash
+    steps:
+
+    - name: Prepare Independent Test Image
+      run: |
+        apt-get update
+        apt-get install -y git curl ca-certificates unzip
+
+    - uses: s4u/setup-maven-action@v1.19.0
+      with:
+        java-version: '17'
+        maven-version: 3.9.6
+
+    - name: Smoke Test Published JAR
+      run: |
+        set -euo pipefail
+        test_dir=$(mktemp -d "$RUNNER_TEMP/neug-java-published.XXXXXX")
+        cd "$test_dir"
+        version="${VERSION#v}"
+        if [ "$version" = latest ]; then version=RELEASE; fi
+        cat > pom.xml <<XML
+        <project xmlns="http://maven.apache.org/POM/4.0.0">
+          <modelVersion>4.0.0</modelVersion>
+          <groupId>com.alibaba.neug</groupId>
+          <artifactId>published-smoke-test</artifactId>
+          <version>1.0</version>
+          <dependencies>
+            <dependency>
+              <groupId>com.alibaba.neug</groupId>
+              <artifactId>neug-java-driver</artifactId>
+              <version>$version</version>
+            </dependency>
+          </dependencies>
+        </project>
+        XML
+        mvn -B dependency:copy-dependencies -DincludeScope=runtime -DoutputDirectory=dependencies
+        cat > SmokeTest.java <<'JAVA'
+        import com.alibaba.neug.driver.GraphDatabase;
+        import com.alibaba.neug.driver.Driver;
+
+        class SmokeTest {
+            public static void main(String[] args) {
+                Driver driver = GraphDatabase.driver("http://localhost:8000");
+                if (driver.isClosed()) throw new AssertionError("Driver is closed");
+                driver.close();
+                if (!driver.isClosed()) throw new AssertionError("Driver is still open");
+            }
+        }
+        JAVA
+        java --class-path 'dependencies/*' SmokeTest.java

@@ -1,0 +1,269 @@
+name: Package Wheel
+
+description: Build, validate, and optionally upload wheels using existing build outputs.
+
+inputs:
+  artifact_platform:
+    description: Platform identifier used in artifact names
+    required: true
+  oss_platform:
+    description: Platform identifier used by the extension release tools
+    default: ''
+  output_dir:
+    description: Wheel output directory
+    default: core_wheelhouse
+  upload_artifacts:
+    description: Upload tested packages
+    default: 'false'
+  python_versions:
+    description: Python versions for wheel builds, e.g. "3.13" or "3.12-3.13"; use "all" for all supported versions.
+    default: all
+  extensions:
+    description: Compiled extensions separated by semicolons
+    default: ''
+
+runs:
+  using: composite
+  steps:
+
+  - name: Compute Python Build Selection
+    id: python_versions
+    shell: bash
+    env:
+      WORKFLOW_PYTHON_VERSIONS: ${{ inputs.python_versions || 'all' }}
+      CALLER_EVENT_NAME: ${{ github.event_name }}
+    run: |
+      set -euo pipefail
+
+      EVENT_NAME="${CALLER_EVENT_NAME:-workflow_call}"
+      INPUT="${WORKFLOW_PYTHON_VERSIONS:-}"
+      CIBW=""
+
+      if [[ "$EVENT_NAME" == "pull_request" ]]; then
+        CIBW="cp313-*"
+      elif [[ "$INPUT" == "all" ]]; then
+        CIBW=""
+      elif [[ -n "$INPUT" ]]; then
+        SPEC="${INPUT//[[:space:]]/}"
+
+        if [[ "$SPEC" =~ ^3\.[0-9]+-3\.[0-9]+$ ]]; then
+          START="${SPEC%%-*}"
+          END="${SPEC##*-}"
+        elif [[ "$SPEC" =~ ^3\.[0-9]+$ ]]; then
+          START="$SPEC"
+          END="$SPEC"
+        else
+          echo "Invalid python_versions input: $INPUT" >&2
+          exit 1
+        fi
+
+        START_MINOR="${START#3.}"
+        END_MINOR="${END#3.}"
+
+        if (( 10#$START_MINOR > 10#$END_MINOR )); then
+          echo "Invalid python_versions range: $START -> $END" >&2
+          exit 1
+        fi
+
+        patterns=()
+        for (( minor=10#$START_MINOR; minor<=10#$END_MINOR; minor++ )); do
+          patterns+=("cp3${minor}-*")
+        done
+
+        CIBW="${patterns[*]}"
+      fi
+
+      echo "Using CIBW_BUILD pattern: ${CIBW:-<default>}"
+      echo "cibw_build=$CIBW" >> "$GITHUB_OUTPUT"
+
+  - name: Setup Wheel Python 3.8
+    if: inputs.artifact_platform != 'windows-arm64' && (steps.python_versions.outputs.cibw_build == '' || contains(steps.python_versions.outputs.cibw_build, 'cp38-*'))
+    uses: actions/setup-python@v5
+    with:
+      python-version: '3.8'
+      allow-prereleases: true
+
+  - name: Setup Wheel Python 3.9
+    if: inputs.artifact_platform != 'windows-arm64' && (steps.python_versions.outputs.cibw_build == '' || contains(steps.python_versions.outputs.cibw_build, 'cp39-*'))
+    uses: actions/setup-python@v5
+    with:
+      python-version: '3.9'
+      allow-prereleases: true
+
+  - name: Setup Wheel Python 3.10
+    if: inputs.artifact_platform != 'windows-arm64' && (steps.python_versions.outputs.cibw_build == '' || contains(steps.python_versions.outputs.cibw_build, 'cp310-*'))
+    uses: actions/setup-python@v5
+    with:
+      python-version: '3.10'
+      allow-prereleases: true
+
+  - name: Setup Wheel Python 3.11
+    if: steps.python_versions.outputs.cibw_build == '' || contains(steps.python_versions.outputs.cibw_build, 'cp311-*')
+    uses: actions/setup-python@v5
+    with:
+      python-version: '3.11'
+      allow-prereleases: true
+
+  - name: Setup Wheel Python 3.12
+    if: steps.python_versions.outputs.cibw_build == '' || contains(steps.python_versions.outputs.cibw_build, 'cp312-*')
+    uses: actions/setup-python@v5
+    with:
+      python-version: '3.12'
+      allow-prereleases: true
+
+  - name: Setup Wheel Python 3.13
+    if: steps.python_versions.outputs.cibw_build == '' || contains(steps.python_versions.outputs.cibw_build, 'cp313-*')
+    uses: actions/setup-python@v5
+    with:
+      python-version: '3.13'
+      allow-prereleases: true
+
+  - name: Setup Wheel Python 3.14
+    if: steps.python_versions.outputs.cibw_build == '' || contains(steps.python_versions.outputs.cibw_build, 'cp314-*')
+    uses: actions/setup-python@v5
+    with:
+      python-version: '3.14'
+      allow-prereleases: true
+
+  - name: Build and Validate Wheels
+    shell: bash
+    run: |
+      set -euo pipefail
+      # Legacy dependency environment files may reference unset path variables.
+      set +u
+      for env_file in /home/neug/.neug_env "$HOME/.neug_env" /root/.neug_env; do
+        if [ -f "$env_file" ]; then source "$env_file"; break; fi
+      done
+      set -u
+      cd "$GITHUB_WORKSPACE/tools/python_bind"
+      mkdir -p "$WHEELHOUSE" "$COMPLETE_WHEELHOUSE"
+      # An empty CIBW_BUILD uses the supported versions from the original pyproject.toml.
+      patterns="$CIBW_BUILD"
+      if [ -z "$patterns" ]; then
+        patterns=$(sed -n 's/^build = "\(.*\)"/\1/p' pyproject.toml)
+      fi
+      test -n "$patterns"
+      versions=""
+      for pattern in $patterns; do
+        if [[ "$pattern" =~ ^cp3([0-9]+)- ]]; then
+          # Native Windows ARM64 CPython starts at 3.11.
+          if [ "$RUNNER_OS" = Windows ] && [ "$RUNNER_ARCH" = ARM64 ] && (( 10#${BASH_REMATCH[1]} < 11 )); then
+            continue
+          fi
+          versions="$versions 3.${BASH_REMATCH[1]}"
+        else
+          echo "Unsupported Python build pattern: $pattern" >&2
+          exit 1
+        fi
+      done
+      test -n "$versions"
+      for version in $versions; do
+        if [ "$RUNNER_OS" = Linux ]; then
+          abi="cp${version/./}"
+          py=""
+          if [ -d /opt/python ]; then
+            py=$(find -L /opt/python -maxdepth 4 -path "*/${abi}-${abi}*/bin/python" -print -quit)
+          fi
+          if [ -z "$py" ]; then
+            py=$(find -L "$RUNNER_TOOL_CACHE/Python/$version".* -type f -name python3 -print -quit)
+          fi
+          test -n "$py"
+        else
+          if [ "$RUNNER_OS" = Windows ]; then
+            cache=$(cygpath -u "$RUNNER_TOOL_CACHE")
+            py=$(find "$cache/Python/$version".* -type f -name python.exe -print -quit)
+          else
+            py=$(find -L "$RUNNER_TOOL_CACHE/Python/$version".* -type f -name python3 -print -quit)
+          fi
+          test -n "$py"
+        fi
+        "$py" -m pip install setuptools wheel pybind11 'protobuf==5.29.6' packaging
+        # The existing backend reuses the root build directory; changing ABI rebuilds its binding.
+        # Keep all native build options identical to the platform entry.
+        # Clear only Python staging and the prior ABI binding; keep the native core.
+        rm -rf build
+        find "$GITHUB_WORKSPACE/build/tools/python_bind" -maxdepth 1 -type f \( -name 'neug_py_bind*.so' -o -name 'neug_py_bind*.pyd' \) -delete
+        "$py" setup.py bdist_wheel --dist-dir "$RUNNER_TEMP/wheel-$version"
+        if [ "$RUNNER_OS" = Linux ]; then
+          "$py" -m pip install auditwheel patchelf
+          "$py" -m auditwheel repair "$RUNNER_TEMP/wheel-$version/"*.whl -w "$COMPLETE_WHEELHOUSE"
+        elif [ "$RUNNER_OS" = macOS ]; then
+          "$py" -m pip install delocate
+          "$(dirname "$py")/delocate-wheel" --require-archs "$(uname -m)" -w "$COMPLETE_WHEELHOUSE" "$RUNNER_TEMP/wheel-$version/"*.whl
+        else
+          cp "$RUNNER_TEMP/wheel-$version/"*.whl "$COMPLETE_WHEELHOUSE/"
+        fi
+        for wheel in "$COMPLETE_WHEELHOUSE/"*"cp${version/./}"*.whl; do
+          unpack_dir=$(mktemp -d "$RUNNER_TEMP/core-wheel.XXXXXX")
+          "$py" -m wheel unpack "$wheel" -d "$unpack_dir"
+          for package in "$unpack_dir"/*; do
+            rm -rf "$package/extension"
+            for metadata in "$package"/*.dist-info/top_level.txt; do
+              if [ -f "$metadata" ]; then
+                sed '/^extension$/d' "$metadata" > "$metadata.tmp"
+                mv "$metadata.tmp" "$metadata"
+              fi
+            done
+            "$py" -m wheel pack "$package" -d "$WHEELHOUSE"
+          done
+        done
+        "$py" -m venv "$RUNNER_TEMP/wheel-verify-$version"
+        verify_py="$RUNNER_TEMP/wheel-verify-$version/bin/python"
+        if [ "$RUNNER_OS" = Windows ]; then verify_py="$RUNNER_TEMP/wheel-verify-$version/Scripts/python.exe"; fi
+        "$verify_py" -m pip install "$WHEELHOUSE/"*"cp${version/./}"*.whl
+        (cd "$RUNNER_TEMP" && PYTHONPATH= "$verify_py" -c 'import neug; db=neug.Database(); c=db.connect(); print(c.execute("RETURN 1"))')
+      done
+    env:
+      WHEELHOUSE: ${{ github.workspace }}/${{ inputs.output_dir }}
+      COMPLETE_WHEELHOUSE: ${{ github.workspace }}/complete_wheelhouse
+      CIBW_BUILD: ${{ steps.python_versions.outputs.cibw_build }}
+      BUILD_TYPE: RELEASE
+      BUILD_TEST: ${{ env.BUILD_TEST || 'ON' }}
+      BUILD_EXECUTABLES: 'ON'
+      BUILD_HTTP_SERVER: ${{ env.BUILD_HTTP_SERVER || 'ON' }}
+      WITH_MIMALLOC: ${{ env.WITH_MIMALLOC || 'OFF' }}
+      USE_NINJA: 'OFF'
+      CMAKE_INSTALL_PREFIX: /opt/neug-install/
+      CMAKE_BUILD_PARALLEL_LEVEL: '4'
+      CI_INSTALL_EXTENSIONS: ${{ inputs.extensions }}
+      BUILD_EXTENSIONS: ${{ inputs.extensions }}
+      BUILD_NODEJS: ${{ env.BUILD_NODEJS || 'ON' }}
+      CMAKE_ARGS: ${{ env.CMAKE_ARGS || '-DBUILD_NODEJS=ON -DCMAKE_PREFIX_PATH=/opt/neug -DOPENSSL_ROOT_DIR=/opt/neug' }}
+
+  - name: Upload Wheel
+    if: inputs.upload_artifacts == 'true'
+    uses: actions/upload-artifact@v4
+    with:
+      name: ${{ github.event_name == 'schedule' && format('cibw-wheels-{0}-{1}', inputs.artifact_platform, github.sha) || format('wheels-{0}-{1}', inputs.artifact_platform, github.run_id) }}
+      path: ${{ inputs.output_dir }}/*.whl
+      if-no-files-found: error
+      retention-days: 7
+
+  - name: Extract Extension Packages
+    if: inputs.extensions != ''
+    id: packages
+    shell: bash
+    run: |
+      set -euo pipefail
+      wheel=$(find complete_wheelhouse -maxdepth 1 -name '*.whl' -print -quit)
+      version="${VERSION:-$(cat NEUG_VERSION)}"
+      echo "version=$version" >> "$GITHUB_OUTPUT"
+      python3 scripts/publish_extensions_from_wheel.py \
+        --wheel "$wheel" --extensions "$EXTENSIONS" \
+        --version "$version" --platform "$OSS_PLATFORM" \
+        --output-dir extension_packages --skip-upload
+    env:
+      EXTENSIONS: ${{ inputs.extensions }}
+      OSS_PLATFORM: ${{ inputs.oss_platform }}
+      VERSION: ${{ github.event.release.tag_name }}
+
+  - name: Upload Extension-Packages
+    if: inputs.extensions != '' && inputs.upload_artifacts == 'true'
+    uses: actions/upload-artifact@v4
+    with:
+      name: extension-packages-${{ inputs.artifact_platform == 'macos-arm64' && 'osx-arm64' || inputs.artifact_platform == 'macos-x86_64' && 'osx-x86_64' || inputs.artifact_platform }}-${{ steps.packages.outputs.version }}
+      path: |
+        extension_packages/*.neug_extension
+        extension_packages/*.sha256
+      if-no-files-found: error
+      retention-days: 7

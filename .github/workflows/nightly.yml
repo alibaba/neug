@@ -1,0 +1,96 @@
+name: nightly-test
+
+on:
+  workflow_dispatch:
+    inputs:
+      platforms:
+        description: Platform to test, or all supported platforms.
+        type: choice
+        default: all
+        options:
+          - all
+          - linux-x86_64
+          - linux-arm64
+          - osx-arm64
+          - osx-x86_64
+          - windows-x86_64
+          - windows-arm64
+  schedule:
+    # Run at 22:00 CST Tuesday through Sunday; Monday is covered by package.yml.
+    - cron: 0 14 * * 0,2-6
+
+permissions:
+  contents: read
+  pull-requests: read
+
+concurrency:
+  group: ci-nightly-test
+  cancel-in-progress: false
+
+jobs:
+  linux_x86_64:
+    if: (inputs.platforms || 'all') == 'all' || inputs.platforms == 'linux-x86_64'
+    uses: ./.github/workflows/Linux.yml
+    with:
+      architectures: '["x86_64"]'
+      extensions: parquet;httpfs;gds;pattern_matching;vector_search;fts
+      packages: '["wheel","npm","java"]'
+      python_versions: '3.13'
+      coverage: true
+    secrets: inherit
+
+  linux_arm64:
+    if: (inputs.platforms || 'all') == 'all' || inputs.platforms == 'linux-arm64'
+    uses: ./.github/workflows/Linux.yml
+    with:
+      architectures: '["arm64"]'
+      extensions: parquet;httpfs;gds;pattern_matching;vector_search;fts
+      packages: '["wheel","npm"]'
+      python_versions: '3.13'
+    secrets: inherit
+
+  macos:
+    if: (inputs.platforms || 'all') == 'all' || contains(inputs.platforms, 'osx-')
+    uses: ./.github/workflows/OSX.yml
+    with:
+      architectures: ${{ (inputs.platforms || 'all') == 'all' && '["arm64","x86_64"]' || inputs.platforms == 'osx-x86_64' && '["x86_64"]' || '["arm64"]' }}
+      extensions: parquet;httpfs;gds;pattern_matching;vector_search;fts
+      packages: '["wheel","npm"]'
+      python_versions: '3.13'
+    secrets: inherit
+
+  windows:
+    if: (inputs.platforms || 'all') == 'all' || contains(inputs.platforms, 'windows-')
+    uses: ./.github/workflows/Windows.yml
+    with:
+      architectures: ${{ (inputs.platforms || 'all') == 'all' && '["x86_64","arm64"]' || inputs.platforms == 'windows-arm64' && '["arm64"]' || '["x86_64"]' }}
+      # vector_search is not supported by the current Windows build.
+      extensions: parquet;httpfs;gds;pattern_matching;fts
+      python_versions: '3.13'
+      upload_artifacts: true
+    secrets: inherit
+
+  report:
+    if: always()
+    needs:
+      - linux_x86_64
+      - linux_arm64
+      - macos
+      - windows
+    runs-on: ubuntu-22.04
+    steps:
+
+    - name: Summarize and Notify Results
+      shell: bash
+      env:
+        RESULTS: ${{ toJSON(needs) }}
+        DINGTALK_TOKEN: ${{ secrets.DINGTALK_TOKEN }}
+      run: |
+        set -euo pipefail
+        printf '## CI result\n```json\n%s\n```\n' "$RESULTS" >> "$GITHUB_STEP_SUMMARY"
+        if [ -n "$DINGTALK_TOKEN" ] && [ "$GITHUB_REPOSITORY" = alibaba/neug ]; then
+          text="NeuG CI: $GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"
+          curl --fail -sS -X POST "https://oapi.dingtalk.com/robot/send?access_token=$DINGTALK_TOKEN" \
+            -H 'Content-Type: application/json' \
+            -d "{\"msgtype\":\"text\",\"text\":{\"content\":\"$text\"}}"
+        fi

@@ -326,6 +326,9 @@ def test_open_version_mismatch(tmp_path):
 
 
 # DB-001-14
+@pytest.mark.skipif(
+    sys.platform == "win32", reason="Windows file permissions differ from Unix"
+)
 def test_open_dir_not_exist(tmp_path):
     db_dir = tmp_path / "not_exist_dir"
     if db_dir.exists():
