@@ -299,13 +299,19 @@ jobs:
         shell: pwsh
         run: |
           $vcpkgToolchain = Join-Path $env:VCPKG_INSTALLATION_ROOT "scripts\buildsystems\vcpkg.cmake"
+          # WITH_MIMALLOC must stay ON so the Node core addon matches the
+          # prebuilt OSS extensions (which are built with mimalloc). If it is
+          # OFF, neug_allocator<T> resolves to std::allocator<T> instead of
+          # mi_stl_allocator<T>, so every vector_t<T> symbol the extensions
+          # import from neug.dll is mangled differently and LoadLibrary fails
+          # with error 127 (ERROR_PROC_NOT_FOUND). See #1160.
           cmake -B build -G Ninja `
             -DCMAKE_BUILD_TYPE=Release `
             -DCMAKE_TOOLCHAIN_FILE="$vcpkgToolchain" `
             -DVCPKG_TARGET_TRIPLET=x64-windows-static-md `
             -DBUILD_NODEJS=ON `
             -DBUILD_PYTHON=OFF `
-            -DWITH_MIMALLOC=OFF `
+            -DWITH_MIMALLOC=ON `
             -DNEUG_NATIVE_ARCH=OFF `
             -DNODE_INCLUDE_DIR="$env:NODE_INCLUDE_DIR" `
             -DNODE_IMPORT_LIB="$env:NODE_IMPORT_LIB" `
