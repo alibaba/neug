@@ -104,7 +104,7 @@ Open a database.
     Controls automatic loading of installed extensions before graph/index opening,
     for example `new Database({ databasePath: '/data/graph', autoLoadExt: false })`.
     Set to `true` to enable it. Omission or `undefined` uses the default.
-    See [auto_load_ext configuration](../python_api/database#auto-load-ext)
+    See [auto_load_ext configuration](../python_api/database.md)
     for directory resolution, failure handling and database mode behavior.
 
 - **Throws:**

@@ -120,8 +120,21 @@ class Database(object):
             - 'HugePagePreferred' / 'M_HUGE': Similar to 'InMemory', but prefer huge pages when available.
 
         auto_load_ext : bool
-            Load all installed extensions before opening indexes. Default is False.
-            Loading failures are logged and do not interrupt database open.
+            Default is False.
+            Controls whether installed extensions are loaded before graph/index opening.
+            For example, `Database("/data/graph", auto_load_ext=False)` keeps automatic
+            loading disabled; set the option to `True` to enable it.
+
+            When enabled, NeuG scans direct subdirectories of `<extension home>/extension`
+            for `<name>/lib<name>.neug_extension`, without installing or downloading packages.
+
+            A missing directory or a loading failure logs ERROR without interrupting database
+            opening, and other extensions are still attempted. An empty directory is a no-op.
+            Ordinary database/index opening errors retain their behavior. The option supports
+            read-only, read-write and in-memory databases. Read-only databases still reject
+            manual `LOAD` requests, so enable this option at open time when their indexes
+            require extensions. Pass it on each open; it is not persisted in checkpoints.
+            With `False`, this database does not initiate extension loading.
 
         Raises
         ------

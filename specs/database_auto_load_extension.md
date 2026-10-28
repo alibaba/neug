@@ -295,7 +295,7 @@ ERROR 日志至少包含固定前缀 `[AutoLoadExtension]`、阶段、根目录�
 | rt_server 启动检查 | false 不加载；true 记录坏库错误后仍接受连接 |
 | 格式与静态检查 | clang-format、Black、isort、项目配置下 flake8 和 git diff --check 通过 |
 
-各端示例显式保持默认关闭，开启时将对应布尔配置设为 true。面向用户的完整说明统一维护在 [Python Database 的 auto_load_ext 配置参数](../doc/source/reference/python_api/database.md#auto-load-ext)，Node.js、C++ 和服务启动文档简述参数并引用该处。
+各端示例显式保持默认关闭，开启时将对应布尔配置设为 true。面向用户的完整说明统一维护在 [Python Database 的 auto_load_ext 配置参数](../doc/source/reference/python_api/database.md)，Node.js、C++ 和服务启动文档简述参数并引用该处。
 
 构建使用指定 Python 3.9 和受限并行度，核心、Python/Node.js 绑定、服务程序及 C++ 测试构建成功。当前工作区原有 third_party/zvec 改动导致 zvec.patch 检查失败，未改动该依赖以绕过检查；本次核心构建将 BUILD_EXTENSIONS 显式置空，索引端到端及回归测试使用本地已有 vector_search 动态库。没有完成 vector_search 从源码重新构建，也未运行独立 lite 构建或全量测试套件。
 

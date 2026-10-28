@@ -93,7 +93,8 @@ Open a database.
     - 'SyncToFile' / 'M_LAZY': Load database pages on demand, suitable for databases that do not fit in memory.
     - 'HugePagePreferred' / 'M_HUGE': Similar to 'InMemory', but prefer huge pages when available.
 
-  - <a id="auto-load-ext"></a>`auto_load_ext` (bool, default `False`)
+  - `auto_load_ext` (bool)
+    Default is False.
     Controls whether installed extensions are loaded before graph/index opening.
     For example, `Database("/data/graph", auto_load_ext=False)` keeps automatic
     loading disabled; set the option to `True` to enable it.
@@ -111,7 +112,7 @@ Open a database.
 
 - **Raises:**
   - **TypeError**
-    If `auto_load_ext` is not a bool.
+    If auto_load_ext is not a bool.
   - **RuntimeError**
     If the database file does not exist or the mode is invalid.
   - **ValueError**

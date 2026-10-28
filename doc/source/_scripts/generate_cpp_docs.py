@@ -757,6 +757,11 @@ class CppAPIGenerator:
             
             return f"`{text}`"
         
+        elif element.tag == 'ulink':
+            # Preserve links from Doxygen comments in the generated Markdown.
+            label = ''.join(element.itertext()).strip()
+            return f"[{label}]({element.get('url', '')})"
+
         elif element.tag == 'ref':
             # References to other classes/functions
             if element.text:

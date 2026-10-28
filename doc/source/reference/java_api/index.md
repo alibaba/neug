@@ -131,7 +131,7 @@ Common options:
 
 - `--auto-load-ext`: controls automatic loading of installed extensions before
   graph/index opening, default `false`. Set to `true` to enable it on the server.
-  See [auto_load_ext configuration](../python_api/database#auto-load-ext)
+  See [auto_load_ext configuration](../python_api/database.md)
   for directory resolution, failure handling and database mode behavior.
 - `--data-path`: path to the NeuG data directory
 - `--http-port`: HTTP port for Java clients, default is `10000`
