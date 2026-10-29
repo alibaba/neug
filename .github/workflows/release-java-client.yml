@@ -40,6 +40,24 @@ jobs:
           gpg-private-key: ${{ secrets.GPG_PRIVATE_KEY }}
           gpg-passphrase: GPG_PASSPHRASE
 
+      # actions/setup-java does NOT install Maven, so without this step the job
+      # uses the runner's pre-installed Maven 3.10.0. Its
+      # LegacyLocalRepositoryManager writes maven-metadata-local.xml into the
+      # repo-layout dir, which central-publishing-maven-plugin 0.9.0 bundles at
+      # the artifactId level; Central Portal then rejects the deployment with
+      # "Bundle has content that does NOT have a .pom file"
+      # (mavenplugins/central-publishing-maven-plugin#79). Pin Maven 3.9.x (the
+      # same version the repo's other Java jobs use) so the bundle stays clean on
+      # both the PR dry-run and the release legs. checkout/cache are disabled:
+      # the repo is already checked out above and setup-java owns the ~/.m2 cache.
+      - name: Setup Maven
+        uses: s4u/setup-maven-action@v1.19.0
+        with:
+          checkout-enabled: false
+          cache-enabled: false
+          java-version: '17'
+          maven-version: '3.9.6'
+
       - name: Build and Test Java SDK
         working-directory: tools/java_driver
         run: mvn -B test
@@ -57,11 +75,62 @@ jobs:
           MAVEN_CENTRAL_PASSWORD: ${{ secrets.MAVEN_CENTRAL_PASSWORD }}
           GPG_PASSPHRASE: ${{ secrets.GPG_PASSPHRASE }}
 
-      - name: Publish to Maven Central (dry-run)
+      # Dry-run: bundle the artifacts exactly as the release leg would, but
+      # point the publisher at an unroutable local URL so the upload is
+      # rejected *after* central-bundle.zip has been produced. This gives the
+      # next step a real bundle to validate without touching Maven Central and
+      # without needing credentials (safe on fork PRs).
+      - name: Build Central bundle (dry-run, no upload)
         if: github.event_name == 'pull_request'
         working-directory: tools/java_driver
         run: |
+          set +e
           mvn -B deploy -DskipTests \
               -Dgpg.skip=true \
-              -DskipPublishing=true \
-              -DaltDeploymentRepository=local::default::file://${{ github.workspace }}/tools/java_driver/target/staging
+              -DcentralBaseUrl=http://127.0.0.1:9
+          status=$?
+          set -e
+          # A non-zero exit is expected: the dummy URL refuses the upload once
+          # the bundle is built. The real gate is that the bundle exists.
+          echo "mvn exited with $status (non-zero expected: dummy centralBaseUrl refuses upload after bundling)"
+          test -f target/central-publishing/central-bundle.zip
+
+      # Layer-1 guard: replay Central Portal's structural validation locally so
+      # this class of rejection is caught at PR time, not on the release event.
+      - name: Validate Central bundle (dry-run)
+        if: github.event_name == 'pull_request'
+        working-directory: tools/java_driver
+        shell: bash
+        run: |
+          set -uo pipefail
+          BUNDLE="target/central-publishing/central-bundle.zip"
+          WORK="$(mktemp -d)"
+          trap 'rm -rf "$WORK"' EXIT
+          fail=0
+          unzip -q "$BUNDLE" -d "$WORK"
+
+          # Rule 1: no local-repo-manager pollution may be bundled.
+          while IFS= read -r bad; do
+            [ -n "$bad" ] || continue
+            echo "::error::forbidden file in bundle: ${bad#"$WORK"/}"
+            fail=1
+          done < <(find "$WORK" \( -name 'maven-metadata-local.xml' -o -name '_remote.repositories' -o -name '*.lastUpdated' \) -type f)
+
+          # Rule 2: every directory that directly holds files must also hold a
+          # .pom (Portal: "Bundle has content that does NOT have a .pom file").
+          while IFS= read -r d; do
+            find "$d" -maxdepth 1 -type f | grep -q . || continue
+            find "$d" -maxdepth 1 -type f -name '*.pom' | grep -q . || {
+              echo "::error::directory has content but no .pom: ${d#"$WORK"/}"; fail=1; }
+          done < <(find "$WORK" -type d)
+
+          # Rule 3: every jar/pom must carry a .sha1 checksum.
+          while IFS= read -r f; do
+            [ -f "$f.sha1" ] || { echo "::error::missing checksum: ${f#"$WORK"/}.sha1"; fail=1; }
+          done < <(find "$WORK" \( -name '*.jar' -o -name '*.pom' \) -type f)
+
+          if [ "$fail" -ne 0 ]; then
+            echo "::error::Central bundle validation FAILED"
+            exit 1
+          fi
+          echo "Central bundle validation PASSED"
