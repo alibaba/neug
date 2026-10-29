@@ -33,7 +33,7 @@ void PyDatabase::initialize(pybind11::handle& m) {
       m, "PyDatabase",
       "PyDatabase is the python binds for the actual c++ implementation of "
       "the database: NeugDB.\n"
-      "auto_load_ext loads installed extensions before indexes open "
+      "auto_load_extension loads installed extensions before indexes open "
       "(default false); failures are logged.\n")
       .def(pybind11::init([](pybind11::kwargs kwargs) {
         std::string database_path =
@@ -56,16 +56,17 @@ void PyDatabase::initialize(pybind11::handle& m) {
             kwargs.contains("buffer_strategy")
                 ? kwargs["buffer_strategy"].cast<std::string>()
                 : "M_FULL";
-        bool auto_load_ext = false;
-        if (kwargs.contains("auto_load_ext")) {
-          if (!pybind11::isinstance<pybind11::bool_>(kwargs["auto_load_ext"])) {
-            throw pybind11::type_error("auto_load_ext must be a bool");
+        bool auto_load_extension = false;
+        if (kwargs.contains("auto_load_extension")) {
+          if (!pybind11::isinstance<pybind11::bool_>(
+                  kwargs["auto_load_extension"])) {
+            throw pybind11::type_error("auto_load_extension must be a bool");
           }
-          auto_load_ext = kwargs["auto_load_ext"].cast<bool>();
+          auto_load_extension = kwargs["auto_load_extension"].cast<bool>();
         }
-        return std::make_shared<PyDatabase>(database_path, max_thread_num, mode,
-                                            planner, checkpoint_on_close,
-                                            buffer_strategy, auto_load_ext);
+        return std::make_shared<PyDatabase>(
+            database_path, max_thread_num, mode, planner, checkpoint_on_close,
+            buffer_strategy, auto_load_extension);
       }))  // "Creating a PyDatabase. Holds a shared pointer to the C++ "
            // "NeugDB object.\n"
       .def("connect", &PyDatabase::connect,

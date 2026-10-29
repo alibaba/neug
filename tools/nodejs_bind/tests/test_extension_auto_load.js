@@ -33,21 +33,21 @@ after(() => {
   for (const home of homes) fs.rmSync(home, { recursive: true, force: true });
 });
 
-for (const autoLoadExt of [null, 0, 1, 'true', []]) {
-  test(`autoLoadExt rejects ${JSON.stringify(autoLoadExt)}`, () => {
-    assert.throws(() => new Database({ autoLoadExt }), TypeError);
+for (const autoLoadExtension of [null, 0, 1, 'true', []]) {
+  test(`autoLoadExtension rejects ${JSON.stringify(autoLoadExtension)}`, () => {
+    assert.throws(() => new Database({ autoLoadExtension }), TypeError);
     const native = require('../lib/binding');
-    assert.throws(() => new native.NodeDatabase({ autoLoadExt }), /autoLoadExt must be a boolean/);
+    assert.throws(() => new native.NodeDatabase({ autoLoadExtension }), /autoLoadExtension must be a boolean/);
   });
 }
 
-for (const autoLoadExt of [undefined, false, true]) {
-  test(`autoLoadExt opens with ${autoLoadExt}`, () => {
+for (const autoLoadExtension of [undefined, false, true]) {
+  test(`autoLoadExtension opens with ${autoLoadExtension}`, () => {
     const previous = process.env.NEUG_EXTENSION_HOME_PYENV;
     process.env.NEUG_EXTENSION_HOME_PYENV = makeTmpDir();
     let db;
     try {
-      db = new Database({ mode: 'w', maxThreadNum: 1, autoLoadExt });
+      db = new Database({ mode: 'w', maxThreadNum: 1, autoLoadExtension });
       const conn = db.connect();
       assert.deepEqual(Array.from(conn.execute('RETURN 1')), [[1n]]);
       conn.close();
@@ -59,8 +59,8 @@ for (const autoLoadExt of [undefined, false, true]) {
   });
 }
 
-for (const autoLoadExt of [false, true]) {
-  test(`autoLoadExt=${autoLoadExt} reaches the native loader`, () => {
+for (const autoLoadExtension of [false, true]) {
+  test(`autoLoadExtension=${autoLoadExtension} reaches the native loader`, () => {
     const home = makeTmpDir();
     const extension = path.join(home, 'extension', 'broken');
     fs.mkdirSync(extension, { recursive: true });
@@ -68,7 +68,7 @@ for (const autoLoadExt of [false, true]) {
     const { spawnSync } = require('child_process');
     const result = spawnSync(process.execPath, ['-e', `
       const { Database } = require('./lib');
-      const db = new Database({ autoLoadExt: ${autoLoadExt}, maxThreadNum: 1 });
+      const db = new Database({ autoLoadExtension: ${autoLoadExtension}, maxThreadNum: 1 });
       const conn = db.connect();
       require('assert').deepStrictEqual(Array.from(conn.execute('RETURN 1')), [[1n]]);
       conn.close();
@@ -80,6 +80,6 @@ for (const autoLoadExt of [false, true]) {
       timeout: 30000,
     });
     assert.equal(result.status, 0, result.stdout + result.stderr);
-    assert.equal(result.stderr.includes('[AutoLoadExtension] stage=load extension=broken'), autoLoadExt);
+    assert.equal(result.stderr.includes('[AutoLoadExtension] stage=load extension=broken'), autoLoadExtension);
   });
 }

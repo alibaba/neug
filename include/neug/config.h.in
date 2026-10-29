@@ -159,7 +159,7 @@ struct NeugDBConfig {
   int storage_slot_num;
 
   /// Load installed extensions before opening indexes; failures are logged.
-  bool auto_load_ext = false;
+  bool auto_load_extension = false;
 };
 
 }  // namespace neug

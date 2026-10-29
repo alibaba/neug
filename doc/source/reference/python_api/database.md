@@ -62,7 +62,7 @@ def __init__(db_path: str = None,
              max_thread_num: int = 0,
              checkpoint_on_close: bool = True,
              buffer_strategy: str = "M_FULL",
-             auto_load_ext: bool = False)
+             auto_load_extension: bool = False)
 ```
 
 Open a database.
@@ -93,10 +93,10 @@ Open a database.
     - 'SyncToFile' / 'M_LAZY': Load database pages on demand, suitable for databases that do not fit in memory.
     - 'HugePagePreferred' / 'M_HUGE': Similar to 'InMemory', but prefer huge pages when available.
 
-  - `auto_load_ext` (bool)
+  - `auto_load_extension` (bool)
     Default is False.
     Controls whether installed extensions are loaded before graph/index opening.
-    For example, `Database("/data/graph", auto_load_ext=False)` keeps automatic
+    For example, `Database("/data/graph", auto_load_extension=False)` keeps automatic
     loading disabled; set the option to `True` to enable it.
 
     When enabled, NeuG scans direct subdirectories of `<extension home>/extension`
@@ -112,7 +112,7 @@ Open a database.
 
 - **Raises:**
   - **TypeError**
-    If auto_load_ext is not a bool.
+    If auto_load_extension is not a bool.
   - **RuntimeError**
     If the database file does not exist or the mode is invalid.
   - **ValueError**

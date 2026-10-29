@@ -101,13 +101,13 @@ config.data_dir = "/path/to/graph";
 config.max_thread_num = 8;
 config.mode = neug::DBMode::READ_WRITE;
 config.memory_level = 1;  // Use memory-mapped virtual memory
-config.auto_load_ext = false;  // Keep automatic extension loading disabled
+config.auto_load_extension = false;  // Disabled by default
 neug::NeugDB db;
 db.Open(config);
 ```
 
 - **Parameters:**
-  - `config`: Configuration object with all database settings. config.auto_load_ext (bool, default false) controls automatic loading of installed extensions before indexes are opened. See the [Python configuration reference](../python_api/database.md) for details.
+  - `config`: Configuration object with all database settings. config.auto_load_extension (bool, default false) controls automatic loading of installed extensions before indexes are opened. See the [Python configuration reference](../python_api/database.md) for details.
 
 - **Returns:** `true` if database opened successfully, `false` otherwise
 

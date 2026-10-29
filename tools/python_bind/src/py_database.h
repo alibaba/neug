@@ -40,7 +40,7 @@ class PyDatabase : public std::enable_shared_from_this<PyDatabase> {
                       const std::string& mode, const std::string& planner,
                       bool checkpoint_on_close = true,
                       const std::string& buffer_strategy = "InMemory",
-                      bool auto_load_ext = false) {
+                      bool auto_load_extension = false) {
     db_dir_ = data_dir;
     neug::DBMode mode_;
     if (mode == "read" || mode == "r" || mode == "read-only" ||
@@ -55,7 +55,7 @@ class PyDatabase : public std::enable_shared_from_this<PyDatabase> {
     }
     database = std::make_unique<NeugDB>();
     NeugDBConfig config(db_dir_, max_thread_num);
-    config.auto_load_ext = auto_load_ext;
+    config.auto_load_extension = auto_load_extension;
     config.mode = mode_;
     config.planner_kind = planner;
     config.checkpoint_on_close = checkpoint_on_close;

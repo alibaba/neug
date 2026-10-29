@@ -86,7 +86,7 @@ def install_fixture(home, name, library):
 
 
 @pytest.mark.parametrize(
-    "option", ["", ", auto_load_ext=False", ", auto_load_ext=True"]
+    "option", ["", ", auto_load_extension=False", ", auto_load_extension=True"]
 )
 def test_default_and_explicit_auto_load(tmp_path, native_fixtures, option):
     install_fixture(tmp_path, "ok", native_fixtures / "ok")
@@ -116,9 +116,9 @@ def test_invalid_auto_load_type(tmp_path, value, native):
         f"""
         from neug import Database, neug_py_bind
         try:
-            {constructor}(auto_load_ext={value})
+            {constructor}(auto_load_extension={value})
         except TypeError as exc:
-            assert "auto_load_ext" in str(exc)
+            assert "auto_load_extension" in str(exc)
         else:
             raise AssertionError("Non-boolean config was accepted")
         """,
@@ -136,7 +136,7 @@ def test_empty_or_invalid_root(tmp_path, layout):
         tmp_path,
         """
         from neug import Database
-        db = Database(auto_load_ext=True, max_thread_num=1)
+        db = Database(auto_load_extension=True, max_thread_num=1)
         conn = db.connect()
         assert list(conn.execute("RETURN 1")) == [[1]]
         conn.close()
@@ -162,7 +162,7 @@ def test_failures_continue_to_next_extension(tmp_path, native_fixtures):
         tmp_path,
         """
         from neug import Database
-        db = Database(auto_load_ext=True, max_thread_num=1)
+        db = Database(auto_load_extension=True, max_thread_num=1)
         conn = db.connect()
         assert list(conn.execute("RETURN 1")) == [[1]]
         # Manual LOAD still reports errors instead of silently swallowing them.
@@ -189,7 +189,7 @@ def test_manual_load_deduplicates_and_reopen_rescans(tmp_path, native_fixtures):
         """
         from neug import Database
         for _ in range(2):
-            db = Database(auto_load_ext=True, max_thread_num=1)
+            db = Database(auto_load_extension=True, max_thread_num=1)
             conn = db.connect()
             conn.execute("LOAD ok")
             conn.close()
@@ -212,7 +212,7 @@ def test_discovery_is_nonrecursive_and_supports_symlinks(tmp_path, native_fixtur
         tmp_path,
         """
         from neug import Database
-        db = Database(auto_load_ext=True, max_thread_num=1)
+        db = Database(auto_load_extension=True, max_thread_num=1)
         db.close()
         """,
     )
@@ -245,7 +245,7 @@ def test_index_recovery_and_delayed_manual_load(vector_home, mode, automatic, wi
         vector_home,
         f"""
         from neug import Database
-        db = Database({db_path!r}, auto_load_ext=True, max_thread_num=1)
+        db = Database({db_path!r}, auto_load_extension=True, max_thread_num=1)
         conn = db.connect()
         conn.execute("CREATE NODE TABLE Item(id STRING PRIMARY KEY, embedding FLOAT[4]);")
         conn.execute("CREATE (:Item {{id: 'a', embedding: [1.0, 0.0, 0.0, 0.0]}});")
@@ -259,7 +259,7 @@ def test_index_recovery_and_delayed_manual_load(vector_home, mode, automatic, wi
             vector_home,
             f"""
             from neug import Database
-            db = Database({db_path!r}, auto_load_ext=True, checkpoint_on_close=False,
+            db = Database({db_path!r}, auto_load_extension=True, checkpoint_on_close=False,
                           max_thread_num=1)
             conn = db.connect()
             conn.execute("MATCH (n:Item {{id: 'a'}}) SET n.embedding = [2.0, 0.0, 0.0, 0.0];")
@@ -271,7 +271,7 @@ def test_index_recovery_and_delayed_manual_load(vector_home, mode, automatic, wi
         vector_home,
         f"""
         from neug import Database
-        db = Database({db_path!r}, mode={mode!r}, auto_load_ext={automatic!r},
+        db = Database({db_path!r}, mode={mode!r}, auto_load_extension={automatic!r},
                       checkpoint_on_close=False, max_thread_num=1)
         conn = db.connect()
         if not {automatic!r}:
@@ -308,13 +308,13 @@ def test_auto_load_does_not_hide_database_errors(tmp_path, native_fixtures):
         f"""
         from neug import Database, neug_py_bind
         try:
-            Database({str(tmp_path / 'nonexistent')!r}, mode="r", auto_load_ext=True)
+            Database({str(tmp_path / 'nonexistent')!r}, mode="r", auto_load_extension=True)
         except Exception:
             pass
         else:
             raise AssertionError("Missing read-only database should fail")
         try:
-            neug_py_bind.PyDatabase(mode="w", planner="invalid", auto_load_ext=True)
+            neug_py_bind.PyDatabase(mode="w", planner="invalid", auto_load_extension=True)
         except Exception as exc:
             assert "planner" in str(exc).lower()
         else:
@@ -334,7 +334,7 @@ def test_permission_failure_is_logged(tmp_path):
             tmp_path,
             """
             from neug import Database
-            db = Database(auto_load_ext=True, max_thread_num=1)
+            db = Database(auto_load_extension=True, max_thread_num=1)
             db.close()
             """,
         )

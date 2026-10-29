@@ -1081,7 +1081,7 @@ def test_auto_load_extension_restores_index_in_new_process(tmp_path):
         "3|[0.0, 0.0, 1.0, 0.0]\n"
     )
     creator_pid = os.getpid()
-    db = Database(str(db_path), mode="w", auto_load_ext=False)
+    db = Database(str(db_path), mode="w", auto_load_extension=False)
     conn = db.connect()
     try:
         conn.execute("LOAD EXTENSION vector_search;")
@@ -1109,7 +1109,7 @@ def test_auto_load_extension_restores_index_in_new_process(tmp_path):
         from neug import Database
 
         assert os.getpid() != {creator_pid}, "Query must run in another process"
-        db = Database({str(db_path)!r}, mode="r", auto_load_ext=True)
+        db = Database({str(db_path)!r}, mode="r", auto_load_extension=True)
         conn = db.connect()
         try:
             # No LOAD here: opening the database must load the extension.

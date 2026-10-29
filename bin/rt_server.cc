@@ -39,7 +39,7 @@ int main(int argc, char** argv) {
       cxxopts::value<int>()->default_value("1"))(
       "sharding-mode", "Sharding mode (exclusive or cooperative)",
       cxxopts::value<std::string>()->default_value("cooperative"))(
-      "auto-load-ext",
+      "auto-load-extension",
       "Automatically load installed extensions before opening indexes",
       cxxopts::value<bool>()->default_value("false"))(
       "host", "Host address", cxxopts::value<std::string>());
@@ -78,7 +78,7 @@ int main(int argc, char** argv) {
   neug::NeugDB db;
   neug::NeugDBConfig config(data_path, thread_num);
   config.memory_level = memory_level;
-  config.auto_load_ext = vm["auto-load-ext"].as<bool>();
+  config.auto_load_extension = vm["auto-load-extension"].as<bool>();
   db.Open(config);
 
   auto end = std::chrono::high_resolution_clock::now();

@@ -2,7 +2,7 @@
 
 状态：已实现并完成下述验证，验证范围与构建限制见第 11 节。基于当前 `persist_extension` 分支，日期为 2026 年 10 月 28 日。
 
-在 `NeugDBConfig` 中新增 `auto_load_ext`，默认 `false`。显式开启后，由 `ExtensionManager::Open(const NeugDBConfig& config)` 在 graph/index 打开之前扫描当前扩展加载目录，逐个加载已存在的扩展；发现、加载或初始化失败均记录 ERROR 日志，并继续打开数据库。C++、Python、Node.js 和独立服务启动入口统一透传至核心配置。
+在 `NeugDBConfig` 中新增 `auto_load_extension`，默认 `false`。显式开启后，由 `ExtensionManager::Open(const NeugDBConfig& config)` 在 graph/index 打开之前扫描当前扩展加载目录，逐个加载已存在的扩展；发现、加载或初始化失败均记录 ERROR 日志，并继续打开数据库。C++、Python、Node.js 和独立服务启动入口统一透传至核心配置。
 
 ## 1 需求与行为约定
 
@@ -44,11 +44,11 @@
 
 ### 3.1 C++
 
-在 `NeugDBConfig` 尾部新增 `bool auto_load_ext = false;`，使用成员默认初始化保证两个现有构造函数均覆盖。注释注明扫描范围、默认值和失败不阻断 Open。
+在 `NeugDBConfig` 尾部新增 `bool auto_load_extension = false;`，使用成员默认初始化保证两个现有构造函数均覆盖。注释注明扫描范围、默认值和失败不阻断 Open。
 
 ```cpp
 neug::NeugDBConfig config(data_dir, max_thread_num);
-config.auto_load_ext = false;
+config.auto_load_extension = false;
 db.Open(config);
 ```
 
@@ -56,11 +56,11 @@ db.Open(config);
 
 ### 3.2 Python
 
-在 `Database.__init__` 现有参数末尾增加 `auto_load_ext: bool = False`，保留所有已有位置参数含义。完整传递链为：
+在 `Database.__init__` 现有参数末尾增加 `auto_load_extension: bool = False`，保留所有已有位置参数含义。完整传递链为：
 
 ```text
-Database(auto_load_ext=...) → PyDatabase kwargs → PyDatabase 构造函数
-→ config.auto_load_ext → NeugDB::Open(config)
+Database(auto_load_extension=...) → PyDatabase kwargs → PyDatabase 构造函数
+→ config.auto_load_extension → NeugDB::Open(config)
 ```
 
 公开 Python 层和可直接调用的 pybind 入口均检查布尔类型；拒绝 `"true"`、`1`、`None` 等值，避免隐式真值转换。非法配置属于调用错误，在 Open 前抛出 TypeError，不属于应吞掉的扩展加载错误。
@@ -68,21 +68,21 @@ Database(auto_load_ext=...) → PyDatabase kwargs → PyDatabase 构造函数
 ```python
 from neug import Database
 
-db = Database(db_path="/data/graph", mode="read-write", auto_load_ext=False)
+db = Database(db_path="/data/graph", mode="read-write", auto_load_extension=False)
 ```
 
 同步修改参数文档、pybind 构造说明和 Python API 文档。Python 包已经在初始化时设置或保留 `NEUG_EXTENSION_HOME_PYENV`，不需要再增加 Python 专用扫描逻辑。
 
 ### 3.3 Node.js
 
-遵循现有 camelCase 风格，公开参数命名为 `autoLoadExt`，默认 `false`，映射至 C++ 的 `auto_load_ext`。不同时新增 snake_case 别名，避免冲突规则。
+遵循现有 camelCase 风格，公开参数命名为 `autoLoadExtension`，默认 `false`，映射至 C++ 的 `auto_load_extension`。不同时新增 snake_case 别名，避免冲突规则。
 
 ```javascript
 const { Database } = require('neug');
 const db = new Database({
   databasePath: '/data/graph',
   mode: 'read-write',
-  autoLoadExt: false,
+  autoLoadExtension: false,
 });
 ```
 
@@ -90,7 +90,7 @@ const db = new Database({
 
 ### 3.4 服务和其他客户端
 
-`rt_server` 增加 `--auto-load-ext` 布尔选项，默认 false，支持显式 `--auto-load-ext=true/false`，写入数据库配置。Python `serve()` 复用已经打开的数据库，不重复加载、不增加同名 ServiceConfig 字段。
+`rt_server` 增加 `--auto-load-extension` 布尔选项，默认 false，支持显式 `--auto-load-extension=true/false`，写入数据库配置。Python `serve()` 复用已经打开的数据库，不重复加载、不增加同名 ServiceConfig 字段。
 
 远程 Session、Java/HTTP 客户端不在客户端打开本地数据库，不能通过连接选项改变服务端启动配置；由服务启动入口设置。后续新增嵌入式绑定遵循相同的核心配置透传方式。
 
@@ -145,11 +145,11 @@ class ExtensionManager {
 };
 ```
 
-`config.auto_load_ext == false` 时直接返回，不解析目录、不扫描、不加载。`config.auto_load_ext == true` 时内部负责目录解析、候选发现、排序去重、逐个 LoadExtension、错误日志和异常隔离。NeugDB 只负责创建 manager 和传入配置，不新增 autoLoadExtensions、ExtensionDir 或 Activate 相关方法。
+`config.auto_load_extension == false` 时直接返回，不解析目录、不扫描、不加载。`config.auto_load_extension == true` 时内部负责目录解析、候选发现、排序去重、逐个 LoadExtension、错误日志和异常隔离。NeugDB 只负责创建 manager 和传入配置，不新增 autoLoadExtensions、ExtensionDir 或 Activate 相关方法。
 
 同一 manager 在配置开启时重复调用 Open(config) 可重新扫描，但已加载扩展由现有 LoadExtension 去重；配置关闭时调用 Open(config) 不卸载已经加载的扩展。正常数据库生命周期每次 Open 只调用一次该接口。
 
-接口接受数据库启动配置，当前仅读取 auto_load_ext。参数使用 const 引用，避免复制及修改调用方配置；manager 不保存 config 的引用或指针，不引入对调用方配置生命周期的依赖。未来确有扩展相关启动选项时，由该接口读取对应字段，无需持续追加位置参数。头文件前置声明 NeugDBConfig，实现在需要读取字段处包含 neug/config.h；目录路径和候选发现继续作为 manager 内部细节，不通过 NeugDB 传递。
+接口接受数据库启动配置，当前仅读取 auto_load_extension。参数使用 const 引用，避免复制及修改调用方配置；manager 不保存 config 的引用或指针，不引入对调用方配置生命周期的依赖。未来确有扩展相关启动选项时，由该接口读取对应字段，无需持续追加位置参数。头文件前置声明 NeugDBConfig，实现在需要读取字段处包含 neug/config.h；目录路径和候选发现继续作为 manager 内部细节，不通过 NeugDB 传递。
 
 ### 5.2 调用时点
 
@@ -182,7 +182,7 @@ timestamp_t initial_visibility_ts = openGraphAndIngestWals();
 
 ```text
 ExtensionManager::Open(config):
-  if not config.auto_load_ext: return
+  if not config.auto_load_extension: return
   try:
     root = extension::getExtensionRootDir()
     names = discover(root)  // 私有实现，逐项记录错误，允许部分结果
@@ -204,7 +204,7 @@ ExtensionManager::Open(config):
 
 扩展自动加载成功时，其模块已在 graph/index Open 之前注册。索引直接走现有打开及 WAL 恢复流程；NeugDB 不新增 Activate 功能，不创建启动专用 COW 工作区，不增加索引激活事务、redo 或快照发布接口。
 
-扩展未安装、加载失败或 auto_load_ext=false 时，保持当前对不可用模块的处理：具备现有恢复条件的索引保留为 pending，等待用户在读写模式显式执行 LOAD EXTENSION 后，通过现有执行路径完成初始化。只读模式保留原有禁止 LOAD 管理操作的规则，需要使用扩展索引时应在 Open 时开启自动加载。缺少必要恢复元数据等情况也保持原处理方式，不修改 StorageIndexManager、事务或 WAL 逻辑。
+扩展未安装、加载失败或 auto_load_extension=false 时，保持当前对不可用模块的处理：具备现有恢复条件的索引保留为 pending，等待用户在读写模式显式执行 LOAD EXTENSION 后，通过现有执行路径完成初始化。只读模式保留原有禁止 LOAD 管理操作的规则，需要使用扩展索引时应在 Open 时开启自动加载。缺少必要恢复元数据等情况也保持原处理方式，不修改 StorageIndexManager、事务或 WAL 逻辑。
 
 错误边界需要区分两个阶段：ExtensionManager::Open 中的扫描、动态库加载和 Init 失败只记录 ERROR 并返回；后续 index::Open 或 WAL 恢复遇到数据损坏等错误，继续遵循原有数据库打开语义，不增加吞错或回滚机制。提前加载使某些索引直接打开，这些索引自身的打开失败不属于自动加载异常。
 
@@ -219,7 +219,7 @@ ERROR 日志至少包含固定前缀 `[AutoLoadExtension]`、阶段、根目录�
 
 可增加一条 INFO 汇总：发现数、成功数、已加载跳过数和失败数；不把每个扩展失败升级为数据库打开失败。目录不存在记录 ERROR 后正常返回，目录为空不刷 ERROR。NEUG_LITE 且显式开启时，记录一次 ERROR 说明当前构建不支持自动加载，然后继续 Open；默认关闭不增加日志。
 
-同一 manager 内自动加载后再手动 LOAD，继续使用原有 newly_loaded=false 行为。Close 后重新 Open 创建新的 manager，重新扫描。全局 `ExtensionAPI` 和 `ModuleFactory` 是进程级注册表，`auto_load_ext=false` 只保证当前数据库不主动加载，不保证隔离进程中其他数据库已经注册的扩展。
+同一 manager 内自动加载后再手动 LOAD，继续使用原有 newly_loaded=false 行为。Close 后重新 Open 创建新的 manager，重新扫描。全局 `ExtensionAPI` 和 `ModuleFactory` 是进程级注册表，`auto_load_extension=false` 只保证当前数据库不主动加载，不保证隔离进程中其他数据库已经注册的扩展。
 
 本次只复用现有 LoadExtension，不修改其锁、Init 异常处理或句柄释放策略，也不修改 ModuleFactory 和 ExtensionAPI 的公共接口。多库并发注册及 Init 部分注册后失败的异常安全属于现有加载机制的通用问题，留待独立修改，不作为自动加载功能的一部分扩展范围。
 
@@ -295,7 +295,7 @@ ERROR 日志至少包含固定前缀 `[AutoLoadExtension]`、阶段、根目录�
 | rt_server 启动检查 | false 不加载；true 记录坏库错误后仍接受连接 |
 | 格式与静态检查 | clang-format、Black、isort、项目配置下 flake8 和 git diff --check 通过 |
 
-各端示例显式保持默认关闭，开启时将对应布尔配置设为 true。面向用户的完整说明统一维护在 [Python Database 的 auto_load_ext 配置参数](../doc/source/reference/python_api/database.md)，Node.js、C++ 和服务启动文档简述参数并引用该处。
+各端示例显式保持默认关闭，开启时将对应布尔配置设为 true。面向用户的完整说明统一维护在 [Python Database 的 auto_load_extension 配置参数](../doc/source/reference/python_api/database.md)，Node.js、C++ 和服务启动文档简述参数并引用该处。
 
 构建使用指定 Python 3.9 和受限并行度，核心、Python/Node.js 绑定、服务程序及 C++ 测试构建成功。当前工作区原有 third_party/zvec 改动导致 zvec.patch 检查失败，未改动该依赖以绕过检查；本次核心构建将 BUILD_EXTENSIONS 显式置空，索引端到端及回归测试使用本地已有 vector_search 动态库。没有完成 vector_search 从源码重新构建，也未运行独立 lite 构建或全量测试套件。
 
@@ -309,4 +309,4 @@ ERROR 日志至少包含固定前缀 `[AutoLoadExtension]`、阶段、根目录�
 
 本轮修订后重新编译核心、Python/Node.js 绑定、rt_server 和扩展单测成功；Python 自动加载端到端 29 项、Node.js 自动加载测试 10 项、C++ 扩展配置测试 4 项全部通过。缺失目录测试同时验证 ERROR 文本、目录路径以及数据库仍可查询。
 
-后续测试修订：删除仅检查默认配置及关闭自动加载的 C++ `ExtensionAutoLoadConfig.DefaultsAndDisabledManager` 测试，`test_extension.cc` 恢复原状。在 `test_hnsw_index.py` 新增 `test_auto_load_extension_restores_index_in_new_process`：父进程关闭自动加载，显式 LOAD vector_search、创建 HNSW 索引并从 CSV 导入数据，关闭数据库后启动独立 Python 解释器。子进程断言 PID 与父进程不同，使用 `auto_load_ext=True` 只读打开数据库，不执行 LOAD，验证最近邻结果及 PROFILE 中的 `IndexScanOpr`。该用例实测 1 通过，Black、isort、flake8 检查通过。
+后续测试修订：删除仅检查默认配置及关闭自动加载的 C++ `ExtensionAutoLoadConfig.DefaultsAndDisabledManager` 测试，`test_extension.cc` 恢复原状。在 `test_hnsw_index.py` 新增 `test_auto_load_extension_restores_index_in_new_process`：父进程关闭自动加载，显式 LOAD vector_search、创建 HNSW 索引并从 CSV 导入数据，关闭数据库后启动独立 Python 解释器。子进程断言 PID 与父进程不同，使用 `auto_load_extension=True` 只读打开数据库，不执行 LOAD，验证最近邻结果及 PROFILE 中的 `IndexScanOpr`。该用例实测 1 通过，Black、isort、flake8 检查通过。
