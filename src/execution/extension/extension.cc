@@ -662,14 +662,22 @@ void ExtensionManager::Open(const NeugDBConfig& config) {
           const auto canonical_name = NormalizeExtensionName(name);
           const auto library =
               path / extension::ExtensionUtils::getExtensionFileName(name);
-          const bool valid_library =
-              std::filesystem::is_regular_file(library, entry_error);
-          if (name != canonical_name || !valid_library || entry_error) {
+          std::string error;
+          if (name != canonical_name) {
+            error = "Extension directory name must be lowercase";
+          } else {
+            const auto status = std::filesystem::status(library, entry_error);
+            if (status.type() == std::filesystem::file_type::not_found) {
+              error = "Extension library file does not exist";
+            } else if (entry_error) {
+              error = entry_error.message();
+            } else if (!std::filesystem::is_regular_file(status)) {
+              error = "Extension library path is not a regular file";
+            }
+          }
+          if (!error.empty()) {
             LOG(ERROR) << "[AutoLoadExtension] stage=discover extension="
-                       << name << " path=" << library << " error="
-                       << (entry_error ? entry_error.message()
-                                       : "Expected a lowercase extension "
-                                         "directory with its library")
+                       << name << " path=" << library << " error=" << error
                        << "; continuing database open";
           } else {
             names.push_back(canonical_name);
