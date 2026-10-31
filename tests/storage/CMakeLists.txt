@@ -40,3 +40,30 @@ add_neug_test(graph_snapshot_store_test test_graph_snapshot_store_concurrency.cc
 add_neug_test(temporary_graph_test test_temporary_graph.cc)
 
 add_neug_test(copy_temp_test test_copy_temp.cc)
+
+add_neug_test(chunk_foundation_test test_object_writer.cc test_chunked_column.cc)
+
+# Durable fault-injection recovery for the chunked-column checkpoint format:
+# publishes a real on-disk checkpoint, corrupts/removes one durable artifact
+# (payload object, chunk directory, manifest, CURRENT, or WAL epoch), then
+# reopens through a fresh CheckpointManager. Standard C++ only (filesystem +
+# fstream); files are removed with no live mapping, so it is cross-platform.
+add_neug_test(chunk_fault_recovery_test test_chunk_fault_recovery.cc)
+
+# ---------------------------------------------------------------------------
+# chunk_benchmark: storage-level A/B benchmark (legacy whole-buffer TypedColumn
+# vs the chunked COW ChunkedColumn). It is a gtest executable but deliberately
+# NOT registered with ctest/gtest_add_tests, so it never runs in CI. Invoke it
+# manually, tuning scale via NEUG_BENCH_* env vars:
+#   build/tests/storage/chunk_benchmark
+# POSIX only: the harness uses getrusage(<sys/resource.h>) for peak RSS.
+# ---------------------------------------------------------------------------
+if(NOT WIN32)
+    add_executable(chunk_benchmark bench_chunked_column.cc)
+    target_link_libraries(chunk_benchmark PUBLIC neug::GTest neug
+        ${Protobuf_LIBRARIES} ${GLOG_LIBRARIES} ${ARROW_LIB}
+        ${YAML_CPP_LIBRARIES})
+    target_include_directories(chunk_benchmark BEFORE PRIVATE
+        ${CMAKE_BINARY_DIR}/_deps/googletest-src/googletest/include
+        ${CMAKE_BINARY_DIR}/_deps/googletest-src/googlemock/include)
+endif()
