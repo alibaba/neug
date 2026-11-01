@@ -80,16 +80,35 @@ jobs:
       # rejected *after* central-bundle.zip has been produced. This gives the
       # next step a real bundle to validate without touching Maven Central and
       # without needing credentials (safe on fork PRs).
+      #
+      # Fork PRs receive no repository secrets, so actions/setup-java writes no
+      # `central` server into settings.xml and the plugin aborts *before*
+      # bundling with "Unable to get publisher server properties for server id:
+      # central ... server is null". Inject a throwaway `central` server so the
+      # plugin proceeds to bundling; the dummy centralBaseUrl then refuses the
+      # upload, leaving a real bundle on disk to validate.
       - name: Build Central bundle (dry-run, no upload)
         if: github.event_name == 'pull_request'
         working-directory: tools/java_driver
         run: |
+          DRY_SETTINGS="$(mktemp)"
+          printf '%s\n' \
+            '<settings xmlns="http://maven.apache.org/SETTINGS/1.0.0">' \
+            '  <servers>' \
+            '    <server>' \
+            '      <id>central</id>' \
+            '      <username>dryrun</username>' \
+            '      <password>dryrun</password>' \
+            '    </server>' \
+            '  </servers>' \
+            '</settings>' > "$DRY_SETTINGS"
           set +e
-          mvn -B deploy -DskipTests \
+          mvn -B deploy -DskipTests -s "$DRY_SETTINGS" \
               -Dgpg.skip=true \
               -DcentralBaseUrl=http://127.0.0.1:9
           status=$?
           set -e
+          rm -f "$DRY_SETTINGS"
           # A non-zero exit is expected: the dummy URL refuses the upload once
           # the bundle is built. The real gate is that the bundle exists.
           echo "mvn exited with $status (non-zero expected: dummy centralBaseUrl refuses upload after bundling)"
