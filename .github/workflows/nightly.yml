@@ -36,6 +36,10 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  lite:
+    if: github.event_name == 'schedule'
+    uses: ./.github/workflows/Lite.yml
+
   linux_x86_64:
     if: github.event_name == 'schedule' || inputs.linux_x86_64
     uses: ./.github/workflows/Linux.yml
@@ -81,6 +85,7 @@ jobs:
   report:
     if: always()
     needs:
+      - lite
       - linux_x86_64
       - linux_arm64
       - macos

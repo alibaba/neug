@@ -2,6 +2,7 @@ name: NeuG Test (Lite)
 
 on:
   workflow_dispatch:
+  workflow_call:
 
 concurrency:
   group: ${{ github.repository }}-${{ github.event.number || github.head_ref || github.sha }}-${{ github.workflow }}
