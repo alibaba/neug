@@ -11,7 +11,7 @@ NPROC := $(shell { command -v nproc >/dev/null 2>&1 && nproc; } 2>/dev/null \
               || echo 4)
 JOBS  ?= $(NPROC)
 
-.PHONY: help check-tools cpp-build python-dev python-wheel python-clean node-dev node-pack node-clean clean dist-clean format-check full-check
+.PHONY: help check-tools cpp-build python-dev python-wheel python-clean node-dev node-pack node-clean clean dist-clean format-check full-check bump-version version-check
 
 .DEFAULT_GOAL := help
 
@@ -52,6 +52,13 @@ format-check:  ## Run format checks only (C++ and Python)
 
 full-check:  ## Run full checks (format + build + tests)
 	@bash scripts/pre_commit_check.sh --full
+
+bump-version:  ## Bump project version everywhere (usage: make bump-version VER=X.Y.Z)
+	@test -n "$(VER)" || { echo >&2 "usage: make bump-version VER=X.Y.Z"; exit 1; }
+	@python3 scripts/bump_version.py $(VER)
+
+version-check:  ## Verify version strings are consistent across managed files
+	@python3 scripts/bump_version.py --check
 
 help:  ## Display this help information
 	@echo -e "\033[1mAvailable commands:\033[0m"

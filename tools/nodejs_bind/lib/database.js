@@ -84,6 +84,7 @@ class Database {
    *   Supported: 'r', 'read', 'w', 'rw', 'write', 'readwrite', 'read-write', 'read-only'.
    * @param {number} [options.maxThreadNum=0] - Maximum number of threads (0 = no limit).
    * @param {boolean} [options.checkpointOnClose=true] - Whether to checkpoint on close.
+   * @param {boolean} [options.autoLoadExtension=false] - Load installed extensions before indexes open; failures are logged.
    * @param {string} [options.bufferStrategy='M_FULL'] - Buffer strategy:
    *   'InMemory'/'M_FULL', 'SyncToFile'/'M_LAZY', 'HugePagePreferred'/'M_HUGE'.
    */
@@ -94,7 +95,12 @@ class Database {
       maxThreadNum = 0,
       checkpointOnClose = true,
       bufferStrategy = 'M_FULL',
+      autoLoadExtension = false,
     } = options;
+
+    if (typeof autoLoadExtension !== 'boolean') {
+      throw new TypeError('autoLoadExtension must be a boolean');
+    }
 
     this._connections = [];
     this._asyncConnections = [];
@@ -165,6 +171,7 @@ class Database {
       planner: 'gopt',
       checkpointOnClose,
       bufferStrategy,
+      autoLoadExtension,
     });
 
     if (!dbPath || dbPath.trim() === '') {

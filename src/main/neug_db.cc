@@ -191,6 +191,11 @@ bool NeugDB::Open(const NeugDBConfig& config) {
     checkpoint_mgr_.Open(config_.data_dir, recover_workspace);
     VLOG(1) << "Opening NeuGDB at " << checkpoint_mgr_.database_dir();
     neug::execution::PlanParser::get().init();
+    // Extensions register functions through the planner metadata registry.
+    initPlanner();
+    extension_manager_ = std::make_unique<ExtensionManager>();
+    // Register extension modules before openGraphAndIngestWals opens the graph.
+    extension_manager_->Open(config_);
     timestamp_t initial_visibility_ts = openGraphAndIngestWals();
     checkpoint_coordinator_ = std::make_unique<CheckpointCoordinator>(
         checkpoint_mgr_, *snapshot_store_, config_.memory_level,
@@ -216,8 +221,6 @@ bool NeugDB::Open(const NeugDBConfig& config) {
     wal_writers_ = std::make_unique<WalWriterSet>(
         allocators_.size(), config_.mode, graph().checkpoint().wal_dir());
     initVersionManager(initial_visibility_ts);
-    extension_manager_ = std::make_unique<ExtensionManager>();
-    initPlanner();
     initQueryRuntime();
   } catch (...) {
     clearQueryRuntime();

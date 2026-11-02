@@ -316,7 +316,9 @@ jobs:
 
   build_npm_windows_x86_64:
     needs: format_check
-    if: github.event_name != 'pull_request'
+    # Also runs on pull_request (path-filtered to npm_paths by the workflow
+    # trigger) so Windows ABI regressions like #1160 are caught before release,
+    # not only on the daily/release builds.
     runs-on: windows-2022
     steps:
       - name: checkout
@@ -367,13 +369,19 @@ jobs:
         shell: pwsh
         run: |
           $vcpkgToolchain = Join-Path $env:VCPKG_INSTALLATION_ROOT "scripts\buildsystems\vcpkg.cmake"
+          # WITH_MIMALLOC must stay ON so the Node core addon matches the
+          # prebuilt OSS extensions (which are built with mimalloc). If it is
+          # OFF, neug_allocator<T> resolves to std::allocator<T> instead of
+          # mi_stl_allocator<T>, so every vector_t<T> symbol the extensions
+          # import from neug.dll is mangled differently and LoadLibrary fails
+          # with error 127 (ERROR_PROC_NOT_FOUND). See #1160.
           cmake -B build -G Ninja `
             -DCMAKE_BUILD_TYPE=Release `
             -DCMAKE_TOOLCHAIN_FILE="$vcpkgToolchain" `
             -DVCPKG_TARGET_TRIPLET=x64-windows-static-md `
             -DBUILD_NODEJS=ON `
             -DBUILD_PYTHON=OFF `
-            -DWITH_MIMALLOC=OFF `
+            -DWITH_MIMALLOC=ON `
             -DNEUG_NATIVE_ARCH=OFF `
             -DNODE_INCLUDE_DIR="$env:NODE_INCLUDE_DIR" `
             -DNODE_IMPORT_LIB="$env:NODE_IMPORT_LIB" `
@@ -412,7 +420,25 @@ jobs:
           Set-Location tools/nodejs_bind
           node tests/test-shim.js
 
+      - name: Extension INSTALL+LOAD smoke
+        shell: pwsh
+        env:
+          NEUG_RUN_EXTENSION_INSTALL_TESTS: '1'
+        run: |
+          # Faithful repro of #1160: INSTALL pulls each OSS-prebuilt Windows
+          # extension (built WITH_MIMALLOC=ON, independent of this core build)
+          # into the runtime extension home, then LOAD links it against the
+          # freshly built neug.dll. A WITH_MIMALLOC ON/OFF mismatch resurfaces
+          # as Windows error 127 (ERROR_PROC_NOT_FOUND) on LOAD (root cause b);
+          # a broken extension home resurfaces as the download landing in /tmp
+          # instead of the native dir (root cause a). Building the extensions
+          # in-tree would NOT catch (b) -- they would inherit this core's
+          # WITH_MIMALLOC and always match. See #1160.
+          Set-Location tools/nodejs_bind
+          node tests/test_extension_install_load.js
+
       - name: Pack
+        if: github.event_name != 'pull_request'
         shell: pwsh
         run: |
           Set-Location tools/nodejs_bind
@@ -430,6 +456,7 @@ jobs:
           }
 
       - name: Upload npm tarball
+        if: github.event_name != 'pull_request'
         uses: actions/upload-artifact@v4
         with:
           name: nodejs-windows-x86_64-${{ github.run_id }}

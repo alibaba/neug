@@ -31,6 +31,8 @@
 
 namespace neug {
 
+struct NeugDBConfig;
+
 struct ExtensionEntry {
   const char* name;
   const char* extensionName;
@@ -47,6 +49,9 @@ class ExtensionManager {
     std::string canonical_name;
     bool newly_loaded;
   };
+
+  /// Load installed extensions when enabled, logging failures without throwing.
+  void Open(const NeugDBConfig& config);
 
   Status InstallExtension(const std::string& name,
                           const std::string& repository = {});
