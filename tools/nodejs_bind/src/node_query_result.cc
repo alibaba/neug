@@ -23,10 +23,9 @@
 #include "neug/utils/bolt_utils.h"
 #include "neug/utils/exception/exception.h"
 #include "neug/utils/property/types.h"
+#include "node_database.h"
 
 namespace neug {
-
-Napi::FunctionReference NodeQueryResult::constructor;
 
 Napi::Object NodeQueryResult::Init(Napi::Env env, Napi::Object exports) {
   Napi::Function func = DefineClass(
@@ -45,8 +44,8 @@ Napi::Object NodeQueryResult::Init(Napi::Env env, Napi::Object exports) {
                          &NodeQueryResult::GetProfileMetrics),
           StaticMethod("fromString", &NodeQueryResult::FromString),
       });
-  constructor = Napi::Persistent(func);
-  constructor.SuppressDestruct();
+  env.GetInstanceData<AddonData>()->query_result_constructor =
+      Napi::Persistent(func);
   exports.Set("NodeQueryResult", func);
   return exports;
 }
@@ -59,7 +58,8 @@ NodeQueryResult::NodeQueryResult(const Napi::CallbackInfo& info)
 NodeQueryResult::~NodeQueryResult() {}
 
 Napi::Object NodeQueryResult::NewInstance(Napi::Env env, QueryResult&& result) {
-  Napi::Object obj = constructor.New({});
+  Napi::Object obj =
+      env.GetInstanceData<AddonData>()->query_result_constructor.New({});
   NodeQueryResult* wrapped = Napi::ObjectWrap<NodeQueryResult>::Unwrap(obj);
   wrapped->status_ = Status::OK();
   // QueryResult has no move assignment operator, use Swap instead
@@ -71,7 +71,8 @@ Napi::Object NodeQueryResult::NewInstance(Napi::Env env, QueryResult&& result) {
 
 Napi::Object NodeQueryResult::NewInstanceFromStatus(Napi::Env env,
                                                     const Status& status) {
-  Napi::Object obj = constructor.New({});
+  Napi::Object obj =
+      env.GetInstanceData<AddonData>()->query_result_constructor.New({});
   NodeQueryResult* wrapped = Napi::ObjectWrap<NodeQueryResult>::Unwrap(obj);
   wrapped->status_ = status;
   wrapped->index_ = 0;
@@ -80,7 +81,8 @@ Napi::Object NodeQueryResult::NewInstanceFromStatus(Napi::Env env,
 
 Napi::Object NodeQueryResult::NewInstanceFromString(Napi::Env env,
                                                     std::string&& result_str) {
-  Napi::Object obj = constructor.New({});
+  Napi::Object obj =
+      env.GetInstanceData<AddonData>()->query_result_constructor.New({});
   NodeQueryResult* wrapped = Napi::ObjectWrap<NodeQueryResult>::Unwrap(obj);
   wrapped->status_ = Status::OK();
   wrapped->query_result_.Swap(QueryResult::From(std::move(result_str)));

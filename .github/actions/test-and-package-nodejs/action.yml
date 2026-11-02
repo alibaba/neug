@@ -65,7 +65,7 @@ runs:
       $PSNativeCommandUseErrorActionPreference = $true
       $ErrorActionPreference = "Stop"
       $electronDir = Join-Path $env:RUNNER_TEMP "neug-electron"
-      npm install --prefix "$electronDir" --no-save --package-lock=false electron@44.7.0
+      npm install --prefix "$electronDir" --no-save --package-lock=false electron@40.0.0
       if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
       $electron = Join-Path $electronDir "node_modules/electron/dist/electron.exe"
       if (!(Test-Path $electron)) { throw "Electron executable not found: $electron" }

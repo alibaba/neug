@@ -130,7 +130,7 @@ $env:NEUG_ELECTRON_PATH = 'C:\electron\electron.exe'
 npm test
 ```
 
-Windows nightly jobs install Electron 44.7.0 and set `NEUG_ELECTRON_PATH` for
+Windows nightly jobs install Electron 40.0.0 and set `NEUG_ELECTRON_PATH` for
 this test on both x86-64 and ARM64. Other callers of `Windows.yml` can enable
 it with the `test_electron` workflow input.
 
@@ -175,6 +175,45 @@ for (const row of result) {
 conn.close();
 db.close();
 ```
+
+## Sharing a database with Worker threads
+
+Use `db.share()` and `Database.attach(handle)` to share an open database between
+Worker threads in the same process. Each Worker creates its own connection.
+
+```js
+// main.cjs
+const { Worker } = require('node:worker_threads');
+const { Database } = require('neug');
+
+const db = new Database({ databasePath: '', mode: 'r' });
+const worker = new Worker(require.resolve('./worker.cjs'), {
+  workerData: { handle: db.share() },
+});
+worker.on('message', (value) => console.log(value));
+worker.on('exit', () => db.close());
+```
+
+```js
+// worker.cjs
+const { parentPort, workerData } = require('node:worker_threads');
+const { Database } = require('neug');
+
+const db = Database.attach(workerData.handle);
+const conn = db.connect();
+try {
+  const result = conn.execute('RETURN 1 AS value;');
+  parentPort.postMessage(result.getNext()[0]);
+  result.close();
+} finally {
+  conn.close();
+  db.close();
+}
+```
+
+Closing an attached Database releases only its own connections. Close the
+original database after all Workers finish; shared handles then become invalid.
+Read-only databases allow multiple connections; read-write databases allow one.
 
 ## Explicit Transactions
 

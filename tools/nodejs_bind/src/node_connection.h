@@ -28,19 +28,23 @@
 
 namespace neug {
 
+struct DatabaseState;
+
 class NodeConnection : public Napi::ObjectWrap<NodeConnection> {
  public:
   static Napi::Object Init(Napi::Env env, Napi::Object exports);
-  static Napi::Object NewInstance(Napi::Env env, NeugDB& db,
+  static Napi::Object NewInstance(Napi::Env env,
+                                  std::shared_ptr<DatabaseState> state,
                                   std::shared_ptr<Connection> conn);
 
   NodeConnection(const Napi::CallbackInfo& info);
-  ~NodeConnection() = default;
+  ~NodeConnection();
 
-  void SetConnection(NeugDB* db, std::shared_ptr<Connection> conn);
+  void SetConnection(std::shared_ptr<DatabaseState> state,
+                     std::shared_ptr<Connection> conn);
 
  private:
-  static Napi::FunctionReference constructor;
+  void CloseConnection();
 
   Napi::Value Execute(const Napi::CallbackInfo& info);
   Napi::Value BeginTransaction(const Napi::CallbackInfo& info);
@@ -50,7 +54,7 @@ class NodeConnection : public Napi::ObjectWrap<NodeConnection> {
   Napi::Value GetSchema(const Napi::CallbackInfo& info);
   Napi::Value Close(const Napi::CallbackInfo& info);
 
-  NeugDB* db_{nullptr};
+  std::shared_ptr<DatabaseState> state_;
   std::shared_ptr<Connection> conn_;
 };
 
