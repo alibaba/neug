@@ -15,6 +15,9 @@ inputs:
   artifact_platform:
     description: Platform identifier used in artifact names
     required: true
+  test_electron:
+    description: Run the Windows Electron smoke test as part of the Node.js suite
+    default: 'false'
 
 runs:
   using: composite
@@ -54,6 +57,19 @@ runs:
       fs.rmSync('/tmp/modern_graph', { recursive: true, force: true });
       prepareModernGraphDataset(Database);
       JS
+
+  - name: Install Electron for Node.js Smoke Test
+    if: runner.os == 'Windows' && inputs.test_electron == 'true'
+    shell: pwsh
+    run: |
+      $PSNativeCommandUseErrorActionPreference = $true
+      $ErrorActionPreference = "Stop"
+      $electronDir = Join-Path $env:RUNNER_TEMP "neug-electron"
+      npm install --prefix "$electronDir" --no-save --package-lock=false electron@44.7.0
+      if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      $electron = Join-Path $electronDir "node_modules/electron/dist/electron.exe"
+      if (!(Test-Path $electron)) { throw "Electron executable not found: $electron" }
+      "NEUG_ELECTRON_PATH=$electron" >> $env:GITHUB_ENV
 
   - name: Run Node.js Tests
     shell: bash

@@ -30,6 +30,10 @@ on:
       coverage:
         type: boolean
         default: false
+      test_electron:
+        description: Run the Node.js binding smoke test in Electron.
+        type: boolean
+        default: false
     secrets:
       CODECOV_TOKEN:
         required: false
@@ -279,6 +283,7 @@ jobs:
         package: 'true'
         artifact_platform: windows-${{ matrix.arch }}
         upload_artifacts: ${{ inputs.upload_artifacts }}
+        test_electron: ${{ inputs.test_electron && 'true' || 'false' }}
 
     # ========================================
     # Phase 6: Wheel Test

@@ -63,7 +63,7 @@ set(NEUG_LIBRARIES neug)
 
 if (WIN32)
   set(NODE_IMPORT_LIB "" CACHE FILEPATH
-    "Path to the Node.js import library (node.lib)")
+    "Path to the host import library (node.lib; use Electron's for Electron builds)")
   if (NOT NODE_IMPORT_LIB OR NOT EXISTS "${NODE_IMPORT_LIB}")
     message(FATAL_ERROR
       "Cannot find the Node.js import library. Set NODE_IMPORT_LIB to node.lib.")
@@ -80,7 +80,12 @@ if (WIN32)
     ${GLOG_LIBRARIES}
     ${Protobuf_LIBRARIES}
     "${NODE_IMPORT_LIB}"
+    delayimp
   )
+  # Resolve Node-API imports through the running host (node.exe or Electron).
+  # The hook in src/win_delay_load_hook.cc must be linked into this .node,
+  # rather than neug.dll, to intercept its delayed node.exe imports.
+  target_link_options(neug_node_bind PRIVATE "/DELAYLOAD:node.exe")
 else()
   target_link_libraries(neug_node_bind PRIVATE
     ${NEUG_LIBRARIES}

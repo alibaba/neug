@@ -97,6 +97,43 @@ make clean
 ```
 
 
+## Electron smoke test
+
+Windows addons use a delay-load hook to resolve Node-API symbols from the
+running host executable. For an Electron-targeted build, set CMake's
+`NODE_IMPORT_LIB` to Electron's `node.lib` as described in the
+[Electron native module guidance](https://www.electronjs.org/docs/latest/tutorial/using-native-node-modules#a-note-about-win_delay_load_hook).
+
+Run the standalone smoke test from `tools/nodejs_bind` after building the
+binding or installing a packaged build. Install Electron separately, then pass
+its executable path (on Windows, `electron.exe`):
+
+```powershell
+node tests/test_electron.js C:\electron\electron.exe
+```
+
+To test an installed npm package instead of the local build, pass its package
+directory as the second argument:
+
+```powershell
+node tests/test_electron.js C:\electron\electron.exe C:\smoke\node_modules\@neug-ai\windows-x86_64
+```
+
+The script starts Electron with `ELECTRON_RUN_AS_NODE=1`, loads NeuG, and queries
+an in-memory database. It checks the query result, successful process exit, and
+a completion marker, with a 60-second timeout. It runs without a GUI and does
+not test worker loading (#1168). The default test suite discovers this test and
+skips it unless `NEUG_ELECTRON_PATH` is set:
+
+```powershell
+$env:NEUG_ELECTRON_PATH = 'C:\electron\electron.exe'
+npm test
+```
+
+Windows nightly jobs install Electron 44.7.0 and set `NEUG_ELECTRON_PATH` for
+this test on both x86-64 and ARM64. Other callers of `Windows.yml` can enable
+it with the `test_electron` workflow input.
+
 ## API Example
 
 A complete runnable example is provided in [`example.js`](example.js):

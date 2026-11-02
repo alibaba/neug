@@ -75,6 +75,7 @@ jobs:
       extensions: parquet;httpfs;gds;pattern_matching;fts
       python_versions: '3.13'
       upload_artifacts: true
+      test_electron: true
     secrets: inherit
 
   report:
