@@ -51,9 +51,9 @@
 #include <thread>
 #include <vector>
 
-#include "neug/storages/chunk/chunk_types.h"
 #include "neug/storages/checkpoint_manager.h"
 #include "neug/storages/checkpoint_manifest.h"
+#include "neug/storages/chunk/chunk_types.h"
 #include "neug/storages/graph/schema.h"
 #include "neug/utils/property/chunked_column.h"
 #include "neug/utils/property/column.h"
@@ -104,7 +104,7 @@ struct Result {
   uint64_t write_bytes = 0;
   uint64_t dir_bytes = 0;  // chunk-directory blob rewritten (metadata face)
   double wall_ms = 0.0;
-  double ckp_ms = 0.0;     // checkpoint (Dump+Finalize) stall
+  double ckp_ms = 0.0;  // checkpoint (Dump+Finalize) stall
   double p99_us = 0.0;
   long rss_delta_mb = 0;
   size_t objects = 0;
@@ -124,7 +124,8 @@ uint64_t DirBytes(const std::filesystem::path& dir) {
   uint64_t total = 0;
   std::error_code ec;
   for (auto it = std::filesystem::recursive_directory_iterator(dir, ec);
-       it != std::filesystem::recursive_directory_iterator(); it.increment(ec)) {
+       it != std::filesystem::recursive_directory_iterator();
+       it.increment(ec)) {
     if (ec)
       break;
     if (it->is_regular_file(ec))
@@ -137,7 +138,8 @@ size_t DirFiles(const std::filesystem::path& dir) {
   size_t count = 0;
   std::error_code ec;
   for (auto it = std::filesystem::recursive_directory_iterator(dir, ec);
-       it != std::filesystem::recursive_directory_iterator(); it.increment(ec)) {
+       it != std::filesystem::recursive_directory_iterator();
+       it.increment(ec)) {
     if (ec)
       break;
     if (it->is_regular_file(ec))
@@ -162,8 +164,7 @@ class Sandbox {
   explicit Sandbox(const std::string& tag) {
     dir_ = std::filesystem::temp_directory_path() /
            ("neug_bench_" + tag + "_" +
-            std::to_string(
-                Clock::now().time_since_epoch().count()));
+            std::to_string(Clock::now().time_since_epoch().count()));
     std::filesystem::remove_all(dir_);
     std::filesystem::create_directories(dir_);
     mgr_.Open(dir_.string());
@@ -212,8 +213,7 @@ std::unique_ptr<ColumnBase> OpenColumn(const Factory& factory, Checkpoint& ckp,
 }
 
 uint64_t ChunkedCopiedBytes(const ColumnBase& col) {
-  if (auto* chunked =
-          dynamic_cast<const ChunkedColumn<int64_t>*>(&col))
+  if (auto* chunked = dynamic_cast<const ChunkedColumn<int64_t>*>(&col))
     return chunked->cow_bytes_copied();
   return 0;
 }
@@ -295,18 +295,17 @@ Result RunCowUpdate(const std::string& layout, const Factory& factory,
       r.dir_bytes = file->GetDataSize();
     }
   }
-  r.wall_ms =
-      std::chrono::duration<double, std::milli>(t1 - t0).count();
+  r.wall_ms = std::chrono::duration<double, std::milli>(t1 - t0).count();
   r.p99_us = PercentileUs(latencies_us, 99.0);
   r.rss_delta_mb = PeakRssMb() - rss0;
   return r;
 }
 
 // ---------------------------------------------------------------------------
-// Multi-batch append workload: K rounds of (grow + reserved-append + checkpoint)
-// models repeated COPY into the same table. Legacy rewrites the whole growing
-// buffer each round (quadratic); chunked writes only new/changed chunks
-// (linear). copied/write bytes are summed across all rounds.
+// Multi-batch append workload: K rounds of (grow + reserved-append +
+// checkpoint) models repeated COPY into the same table. Legacy rewrites the
+// whole growing buffer each round (quadratic); chunked writes only new/changed
+// chunks (linear). copied/write bytes are summed across all rounds.
 // ---------------------------------------------------------------------------
 Result RunMultiBatchAppend(const std::string& layout, const Factory& factory,
                            const Config& cfg) {
@@ -606,7 +605,8 @@ ApplyFn DenseUpdate(const Config& cfg) {
 // legacy dump is largest (the hot pages are re-forked, the cold tail is not).
 class Zipf {
  public:
-  Zipf(size_t n, double theta, uint64_t seed) : rng_(seed), n_(n), theta_(theta) {
+  Zipf(size_t n, double theta, uint64_t seed)
+      : rng_(seed), n_(n), theta_(theta) {
     alpha_ = 1.0 / (1.0 - theta);
     zeta2_ = Zeta(2, theta);
     zetan_ = Zeta(n, theta);
@@ -620,8 +620,8 @@ class Zipf {
       return 0;
     if (uz < 1.0 + std::pow(0.5, theta_))
       return 1;
-    const size_t k = static_cast<size_t>(static_cast<double>(n_) *
-                                         std::pow(eta_ * u - eta_ + 1.0, alpha_));
+    const size_t k = static_cast<size_t>(
+        static_cast<double>(n_) * std::pow(eta_ * u - eta_ + 1.0, alpha_));
     return k < n_ ? k : n_ - 1;
   }
 
@@ -736,10 +736,10 @@ double UsSince(const Clock::time_point& t0) {
 // chunked-only: the legacy whole-buffer column has no prepared-append admission
 // contract, and its Clone() shares the *mutable* buffer with no copy-on-write,
 // so concurrent append into reserved rows / reader-on-clone-while-writer-fork
-// are unsafe there (a real data race, not a supported path). The no-race side is
-// pinned by the TSAN tests ConcurrentAppendAfterReopenUsesStableSuffix (W17) and
-// ConcurrentCowForkUnderPinnedSnapshotReader (W18); these benchmarks measure the
-// performance face -- throughput and copy-freedom.
+// are unsafe there (a real data race, not a supported path). The no-race side
+// is pinned by the TSAN tests ConcurrentAppendAfterReopenUsesStableSuffix (W17)
+// and ConcurrentCowForkUnderPinnedSnapshotReader (W18); these benchmarks
+// measure the performance face -- throughput and copy-freedom.
 // ---------------------------------------------------------------------------
 struct ConcResult {
   std::string workload;
@@ -771,10 +771,10 @@ void PrintConcRow(const ConcResult& r) {
 // as the reload path does, then have `threads` writers concurrently fill
 // distinct reserved rows via set_any(..., false) (InsertValue). The frozen base
 // chunks are never copied -- appends land in the prepared, already mutable
-// suffix -- so copied_bytes stays at the one-time boundary-prepare cost no matter
-// how many rows the writers append. Reports append throughput.
-ConcResult RunConcurrentAppend(Checkpoint& ckp, size_t threads, size_t base_rows,
-                              size_t append_rows) {
+// suffix -- so copied_bytes stays at the one-time boundary-prepare cost no
+// matter how many rows the writers append. Reports append throughput.
+ConcResult RunConcurrentAppend(Checkpoint& ckp, size_t threads,
+                               size_t base_rows, size_t append_rows) {
   ConcResult r{"w17_concurrent_append", threads, append_rows};
   auto base = OpenColumn(ChunkedFactory(), ckp, nullptr);
   base->resize(base_rows);
@@ -813,10 +813,9 @@ ConcResult RunConcurrentAppend(Checkpoint& ckp, size_t threads, size_t base_rows
   const auto t1 = Clock::now();
 
   r.wall_ms = std::chrono::duration<double, std::milli>(t1 - t0).count();
-  r.mrows_per_s =
-      r.wall_ms > 0 ? (static_cast<double>(append_rows) / 1e6) /
-                          (r.wall_ms / 1e3)
-                    : 0.0;
+  r.mrows_per_s = r.wall_ms > 0 ? (static_cast<double>(append_rows) / 1e6) /
+                                      (r.wall_ms / 1e3)
+                                : 0.0;
   r.copied_bytes = chunked->cow_bytes_copied() - copied_before;
   bool ok = true;
   for (size_t i = 0; i < append_rows; ++i)
@@ -829,17 +828,18 @@ ConcResult RunConcurrentAppend(Checkpoint& ckp, size_t threads, size_t base_rows
 }
 
 // W18 reader-on-clone while a single writer forks: build+checkpoint a frozen
-// base, reopen, Clone() a pinned snapshot (an independent page directory sharing
-// the frozen segments -- zero data copy), then run `readers` threads scanning the
-// snapshot and verifying every value stays at its original while ONE writer
-// performs covering set_value on the original. Covering writes are single-writer
-// by admission control (set_value mutates the page directory), so W18 uses one
-// writer. Each write forks only the touched page (Copy), so the snapshot's shared
-// frozen segments are never mutated and readers keep seeing the old values.
-// Reports reader scan throughput, the writer's fork copied_bytes (touched pages
-// only) and whether isolation held; the Clone itself copies 0 data bytes.
+// base, reopen, Clone() a pinned snapshot (an independent page directory
+// sharing the frozen segments -- zero data copy), then run `readers` threads
+// scanning the snapshot and verifying every value stays at its original while
+// ONE writer performs covering set_value on the original. Covering writes are
+// single-writer by admission control (set_value mutates the page directory), so
+// W18 uses one writer. Each write forks only the touched page (Copy), so the
+// snapshot's shared frozen segments are never mutated and readers keep seeing
+// the old values. Reports reader scan throughput, the writer's fork
+// copied_bytes (touched pages only) and whether isolation held; the Clone
+// itself copies 0 data bytes.
 ConcResult RunReaderOnClone(Checkpoint& ckp, size_t readers, size_t rows,
-                           size_t writes) {
+                            size_t writes) {
   ConcResult r{"w18_reader_on_clone", readers + 1, rows};
   auto base = OpenColumn(ChunkedFactory(), ckp, nullptr);
   base->resize(rows);
@@ -887,10 +887,9 @@ ConcResult RunReaderOnClone(Checkpoint& ckp, size_t readers, size_t rows,
 
   r.wall_ms = std::chrono::duration<double, std::milli>(t1 - t0).count();
   const size_t total_reads = reads.load();
-  r.mrows_per_s =
-      r.wall_ms > 0
-          ? (static_cast<double>(total_reads) / 1e6) / (r.wall_ms / 1e3)
-          : 0.0;
+  r.mrows_per_s = r.wall_ms > 0 ? (static_cast<double>(total_reads) / 1e6) /
+                                      (r.wall_ms / 1e3)
+                                : 0.0;
   r.rows = total_reads;  // reader-side rows scanned during the window
   r.copied_bytes = original->cow_bytes_copied();  // writer forked pages only
   r.ok = isolation_ok.load();
@@ -995,8 +994,8 @@ Result RunSingleRowInsert(const std::string& layout, const Factory& factory,
       r.ckp_ms +=
           std::chrono::duration<double, std::milli>(Clock::now() - tc0).count();
       r.write_bytes += DirBytes(box.dir()) - bytes0;
-      // Reopen reloads the reserved capacity as frozen pages (size_ == capacity,
-      // unchanged); production re-prepares the append area on load.
+      // Reopen reloads the reserved capacity as frozen pages (size_ ==
+      // capacity, unchanged); production re-prepares the append area on load.
       col = OpenColumn(factory, ckp, meta.FindModule("col"));
       col->PrepareForInsert(high_water);
     }
@@ -1012,7 +1011,8 @@ Result RunSingleRowInsert(const std::string& layout, const Factory& factory,
 
 TEST(ChunkBenchmark, SingleRowInsert) {
   Config cfg;
-  std::printf("\n=== W6 single-row incremental insert (legacy vs chunked) ===\n");
+  std::printf(
+      "\n=== W6 single-row incremental insert (legacy vs chunked) ===\n");
   std::printf("inserts=%zu checkpoint_every=%zu\n\n", cfg.inserts,
               cfg.insert_ckp_every);
   PrintHeader();
@@ -1042,7 +1042,8 @@ TEST(ChunkBenchmark, ReaderOnCloneW18) {
   const size_t readers = EnvOr("NEUG_BENCH_W18_READERS", 4);
   const size_t rows = EnvOr("NEUG_BENCH_W18_ROWS", 1ull << 20);
   const size_t writes = EnvOr("NEUG_BENCH_W18_WRITES", 200000);
-  std::printf("\n=== W18 reader-on-clone x single-writer fork (chunked only) ===\n");
+  std::printf(
+      "\n=== W18 reader-on-clone x single-writer fork (chunked only) ===\n");
   std::printf("rows=%zu readers=%zu writer=1 writes=%zu\n\n", rows, readers,
               writes);
   PrintConcHeader();
@@ -1160,11 +1161,11 @@ TEST(ChunkBenchmark, PageTableDirectoryScaling) {
         write_bytes > dir_bytes ? write_bytes - dir_bytes : 0;
     const double ratio =
         data_bytes ? static_cast<double>(dir_bytes) / data_bytes : 0.0;
-    std::printf(
-        "| %10zu | %9zu | %9.2f | %12llu | %12llu | %12llu | %8.1f |\n", rows,
-        st.page_count, dump_ms, static_cast<unsigned long long>(write_bytes),
-        static_cast<unsigned long long>(dir_bytes),
-        static_cast<unsigned long long>(data_bytes), ratio);
+    std::printf("| %10zu | %9zu | %9.2f | %12llu | %12llu | %12llu | %8.1f |\n",
+                rows, st.page_count, dump_ms,
+                static_cast<unsigned long long>(write_bytes),
+                static_cast<unsigned long long>(dir_bytes),
+                static_cast<unsigned long long>(data_bytes), ratio);
   }
 }
 
@@ -1238,14 +1239,14 @@ TEST(ChunkBenchmark, PageTableHighFreqSmallWrite) {
             OpenColumn(ChunkedFactory(), ckp, meta.FindModule("col"));
         owner = std::move(reopened);
         cur = dynamic_cast<ColumnBase*>(owner.get());
-        ckp_ms +=
-            std::chrono::duration<double, std::milli>(Clock::now() - d0).count();
+        ckp_ms += std::chrono::duration<double, std::milli>(Clock::now() - d0)
+                      .count();
         ++dumps;
       }
     }
-    const double wall_ms = std::chrono::duration<double, std::milli>(
-                               Clock::now() - t_start)
-                               .count();
+    const double wall_ms =
+        std::chrono::duration<double, std::milli>(Clock::now() - t_start)
+            .count();
     const double clone_ms = clone_us / 1000.0;
     const double free_ms = free_us / 1000.0;
     const double meta_ms = clone_ms + free_ms + ckp_ms;
@@ -1279,10 +1280,9 @@ TEST(ChunkBenchmark, PageTableSchemeAMock) {
   const size_t fanout = EnvOr("NEUG_BENCH_FANOUT", 128);
   std::printf("\n=== Scheme-A mock (page table as a descriptor column) ===\n");
   std::printf("fanout=%zu descriptors per 4KiB page\n", fanout);
-  std::printf(
-      "| %10s | %9s | %12s | %12s | %8s | %11s | %11s | %8s |\n", "rows",
-      "data_pgs", "cur_clone_us", "mock_clone_us", "cl_spd", "cur_dir_KB",
-      "mock_dir_KB", "dir_spd");
+  std::printf("| %10s | %9s | %12s | %12s | %8s | %11s | %11s | %8s |\n",
+              "rows", "data_pgs", "cur_clone_us", "mock_clone_us", "cl_spd",
+              "cur_dir_KB", "mock_dir_KB", "dir_spd");
   std::printf(
       "|------------|-----------|--------------|--------------|----------|"
       "-------------|-------------|----------|\n");

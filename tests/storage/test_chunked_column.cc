@@ -809,13 +809,13 @@ TEST_F(ChunkedColumnTest, ConcurrentAppendAfterReopenUsesStableSuffix) {
 // Column-level manifestation of W18: a reader pins a Clone (an independent page
 // directory that shares the frozen, shared-mapped segments) while a writer
 // performs covering writes on the original. Every write to a shared segment
-// forks it via Copy() instead of mutating in place, so the pinned snapshot stays
-// stable. Under TSAN this exercises the concurrent surfaces the design admits:
-// the shared_ptr refcount, Segment::Verify()'s call_once/atomic on the shared
-// frozen source (hit by both the reader and the writer's pre-copy Verify), and
-// the fork-on-first-covering-write of a shared segment. Concurrent covering
-// writes to the *same* column object are deliberately not exercised: they are
-// single-writer by admission control (SnapshotCowWriteTransaction).
+// forks it via Copy() instead of mutating in place, so the pinned snapshot
+// stays stable. Under TSAN this exercises the concurrent surfaces the design
+// admits: the shared_ptr refcount, Segment::Verify()'s call_once/atomic on the
+// shared frozen source (hit by both the reader and the writer's pre-copy
+// Verify), and the fork-on-first-covering-write of a shared segment. Concurrent
+// covering writes to the *same* column object are deliberately not exercised:
+// they are single-writer by admission control (SnapshotCowWriteTransaction).
 TEST_F(ChunkedColumnTest, ConcurrentCowForkUnderPinnedSnapshotReader) {
   ChunkedColumn<int64_t> original(4);
   original.Open(*ckp_, ModuleDescriptor{}, MemoryLevel::kInMemory);
@@ -1242,7 +1242,8 @@ TEST(ChunkDiskDemo, PrintRealCheckpointFiles) {
     std::printf("\n[objects/] %s\n", tag);
     std::vector<fs::path> files;
     for (auto& e : fs::directory_iterator(objects, ec))
-      if (e.is_regular_file()) files.push_back(e.path());
+      if (e.is_regular_file())
+        files.push_back(e.path());
     std::sort(files.begin(), files.end());
     uint64_t total = 0;
     for (auto& f : files) {
@@ -1261,23 +1262,24 @@ TEST(ChunkDiskDemo, PrintRealCheckpointFiles) {
     auto path = mod->get_path(kChunkDirPath);
     auto file = ckp->OpenFile(*path, MemoryLevel::kInMemory);
     auto d = DecodeChunkDirectory(file->GetData(), file->GetDataSize());
-    std::printf("  column '%s': row_width=%u rows_per_chunk=%llu "
-                "rows_per_page=%llu row_count=%llu\n",
-                col.c_str(), d.row_width,
-                static_cast<unsigned long long>(d.rows_per_chunk),
-                static_cast<unsigned long long>(d.rows_per_page),
-                static_cast<unsigned long long>(d.row_count));
+    std::printf(
+        "  column '%s': row_width=%u rows_per_chunk=%llu "
+        "rows_per_page=%llu row_count=%llu\n",
+        col.c_str(), d.row_width,
+        static_cast<unsigned long long>(d.rows_per_chunk),
+        static_cast<unsigned long long>(d.rows_per_page),
+        static_cast<unsigned long long>(d.row_count));
     for (size_t i = 0; i < d.object_ids.size(); ++i)
       std::printf("      object_ids[%zu] = %s\n", i, d.object_ids[i].c_str());
     for (size_t i = 0; i < d.pages.size(); ++i) {
       const auto& p = d.pages[i];
-      std::printf("      page[%zu]: prefix_rows=%u -> ObjectSlice{obj_idx=%llu,"
-                  " offset=%llu, length=%u, crc=%08x}\n",
-                  i, p.prefix_rows,
-                  static_cast<unsigned long long>(p.prefix.object_id),
-                  static_cast<unsigned long long>(p.prefix.offset),
-                  static_cast<unsigned>(p.prefix.length),
-                  static_cast<unsigned>(p.prefix.crc32c));
+      std::printf(
+          "      page[%zu]: prefix_rows=%u -> ObjectSlice{obj_idx=%llu,"
+          " offset=%llu, length=%u, crc=%08x}\n",
+          i, p.prefix_rows, static_cast<unsigned long long>(p.prefix.object_id),
+          static_cast<unsigned long long>(p.prefix.offset),
+          static_cast<unsigned>(p.prefix.length),
+          static_cast<unsigned>(p.prefix.crc32c));
     }
   };
 
@@ -1360,7 +1362,8 @@ TEST(ChunkDiskDemo, PrintMultiPageDirectory) {
     std::printf("\n[objects/] %s\n", tag);
     std::vector<fs::path> files;
     for (auto& e : fs::directory_iterator(objects, ec))
-      if (e.is_regular_file()) files.push_back(e.path());
+      if (e.is_regular_file())
+        files.push_back(e.path());
     std::sort(files.begin(), files.end());
     for (auto& f : files)
       std::printf("  %-38s %8llu bytes\n", f.filename().string().c_str(),
@@ -1380,13 +1383,13 @@ TEST(ChunkDiskDemo, PrintMultiPageDirectory) {
       std::printf("      object_ids[%zu] = %s\n", i, d.object_ids[i].c_str());
     for (size_t i = 0; i < d.pages.size(); ++i) {
       const auto& p = d.pages[i];
-      std::printf("      page[%zu]: prefix_rows=%u -> ObjectSlice{obj_idx=%llu,"
-                  " offset=%llu, length=%u, crc=%08x}\n",
-                  i, p.prefix_rows,
-                  static_cast<unsigned long long>(p.prefix.object_id),
-                  static_cast<unsigned long long>(p.prefix.offset),
-                  static_cast<unsigned>(p.prefix.length),
-                  static_cast<unsigned>(p.prefix.crc32c));
+      std::printf(
+          "      page[%zu]: prefix_rows=%u -> ObjectSlice{obj_idx=%llu,"
+          " offset=%llu, length=%u, crc=%08x}\n",
+          i, p.prefix_rows, static_cast<unsigned long long>(p.prefix.object_id),
+          static_cast<unsigned long long>(p.prefix.offset),
+          static_cast<unsigned>(p.prefix.length),
+          static_cast<unsigned>(p.prefix.crc32c));
     }
   };
 
@@ -1403,7 +1406,8 @@ TEST(ChunkDiskDemo, PrintMultiPageDirectory) {
     ChunkedColumn<int64_t> age;
     age.Open(*ckp, ModuleDescriptor{}, MemoryLevel::kInMemory);
     age.resize(600);
-    for (size_t i = 0; i < 600; ++i) age.set_value(i, static_cast<int64_t>(i));
+    for (size_t i = 0; i < 600; ++i)
+      age.set_value(i, static_cast<int64_t>(i));
     age.Dump(*ckp, meta, "age");
     ckp->SetManifest(std::move(meta));
     cp1 = staging.Publish();
@@ -1419,7 +1423,8 @@ TEST(ChunkDiskDemo, PrintMultiPageDirectory) {
     age.Open(*cp1, *cp1->manifest().FindModule("age"), MemoryLevel::kInMemory);
     age.set_value(550, 99999);  // row 550 lives in page 1 (rows 512..1023)
     std::printf("\n== UPDATE age[550]=99999 (page1 dirty, page0 clean) ==\n");
-    std::printf("  age.cow_bytes_copied() = %zu bytes\n", age.cow_bytes_copied());
+    std::printf("  age.cow_bytes_copied() = %zu bytes\n",
+                age.cow_bytes_copied());
     auto staging = mgr.CreateStaging();
     auto ckp = staging.checkpoint();
     CheckpointManifest meta;
@@ -1454,7 +1459,8 @@ TEST(ChunkDiskDemo, PrintAppendPrefixSuffix) {
     std::printf("\n[objects/] %s\n", tag);
     std::vector<fs::path> files;
     for (auto& e : fs::directory_iterator(objects, ec))
-      if (e.is_regular_file()) files.push_back(e.path());
+      if (e.is_regular_file())
+        files.push_back(e.path());
     std::sort(files.begin(), files.end());
     for (auto& f : files)
       std::printf("  %-38s %8llu bytes\n", f.filename().string().c_str(),
@@ -1475,19 +1481,21 @@ TEST(ChunkDiskDemo, PrintAppendPrefixSuffix) {
     for (size_t i = 0; i < d.pages.size(); ++i) {
       const auto& p = d.pages[i];
       std::printf("      page[%zu]: prefix_rows=%u\n", i, p.prefix_rows);
-      std::printf("          prefix -> ObjectSlice{obj_idx=%llu, offset=%llu,"
-                  " length=%u, crc=%08x}\n",
-                  static_cast<unsigned long long>(p.prefix.object_id),
-                  static_cast<unsigned long long>(p.prefix.offset),
-                  static_cast<unsigned>(p.prefix.length),
-                  static_cast<unsigned>(p.prefix.crc32c));
+      std::printf(
+          "          prefix -> ObjectSlice{obj_idx=%llu, offset=%llu,"
+          " length=%u, crc=%08x}\n",
+          static_cast<unsigned long long>(p.prefix.object_id),
+          static_cast<unsigned long long>(p.prefix.offset),
+          static_cast<unsigned>(p.prefix.length),
+          static_cast<unsigned>(p.prefix.crc32c));
       if (p.prefix_rows < d.rows_per_page)
-        std::printf("          suffix -> ObjectSlice{obj_idx=%llu, offset=%llu,"
-                    " length=%u, crc=%08x}\n",
-                    static_cast<unsigned long long>(p.suffix.object_id),
-                    static_cast<unsigned long long>(p.suffix.offset),
-                    static_cast<unsigned>(p.suffix.length),
-                    static_cast<unsigned>(p.suffix.crc32c));
+        std::printf(
+            "          suffix -> ObjectSlice{obj_idx=%llu, offset=%llu,"
+            " length=%u, crc=%08x}\n",
+            static_cast<unsigned long long>(p.suffix.object_id),
+            static_cast<unsigned long long>(p.suffix.offset),
+            static_cast<unsigned>(p.suffix.length),
+            static_cast<unsigned>(p.suffix.crc32c));
       else
         std::printf("          suffix -> (none: page is full prefix)\n");
     }
@@ -1525,9 +1533,10 @@ TEST(ChunkDiskDemo, PrintAppendPrefixSuffix) {
     age.PrepareForInsert(300);  // split page0: prefix[0..300) frozen +
                                 //              suffix[300..512) writable
     std::printf("\n== APPEND rows 300..399 (prefix reused, suffix new) ==\n");
-    std::printf("  cow_bytes_copied() after PrepareForInsert = %zu bytes"
-                " (only the 212-row suffix; the 300-row prefix is aliased)\n",
-                age.cow_bytes_copied());
+    std::printf(
+        "  cow_bytes_copied() after PrepareForInsert = %zu bytes"
+        " (only the 212-row suffix; the 300-row prefix is aliased)\n",
+        age.cow_bytes_copied());
     for (size_t i = 300; i < 400; ++i)
       age.set_any(i, Value::INT64(static_cast<int64_t>(i + 1)), false);
     auto staging = mgr.CreateStaging();
@@ -1538,19 +1547,21 @@ TEST(ChunkDiskDemo, PrintAppendPrefixSuffix) {
     ckp->SetManifest(std::move(meta));
     cp2 = staging.Publish();
   }
-  std::printf("\n===== DEMO3 CP2: after append (page0 = prefix + suffix) =====\n");
+  std::printf(
+      "\n===== DEMO3 CP2: after append (page0 = prefix + suffix) =====\n");
   list_objects("cp2");
   dump_dir(cp2, "age");
 
   // ---- Round-trip: reopen cp2 and verify both segments read back correctly --
   ChunkedColumn<int64_t> check;
   check.Open(*cp2, *cp2->manifest().FindModule("age"), MemoryLevel::kInMemory);
-  std::printf("\n  round-trip: size=%zu age[0]=%lld age[299]=%lld "
-              "age[300]=%lld age[399]=%lld\n",
-              check.size(), static_cast<long long>(check.get_view(0)),
-              static_cast<long long>(check.get_view(299)),
-              static_cast<long long>(check.get_view(300)),
-              static_cast<long long>(check.get_view(399)));
+  std::printf(
+      "\n  round-trip: size=%zu age[0]=%lld age[299]=%lld "
+      "age[300]=%lld age[399]=%lld\n",
+      check.size(), static_cast<long long>(check.get_view(0)),
+      static_cast<long long>(check.get_view(299)),
+      static_cast<long long>(check.get_view(300)),
+      static_cast<long long>(check.get_view(399)));
 
   mgr.Close();
   std::printf("\n(demo3 files left under %s)\n", demo.c_str());
@@ -1629,27 +1640,32 @@ TEST(ChunkDiskDemo, PrintMultiLabelGraph) {
   std::map<std::string, ChunkDirectory> dirs;
   for (const auto& kv : cp1->manifest().Modules()) {
     auto p = kv.second.get_path(kChunkDirPath);
-    if (!p) continue;  // not a chunked column
+    if (!p)
+      continue;  // not a chunked column
     dir_objs.insert(fs::path(*p).filename().string());
     auto file = cp1->OpenFile(*p, MemoryLevel::kInMemory);
     auto d = DecodeChunkDirectory(file->GetData(), file->GetDataSize());
-    for (const auto& oid : d.object_ids) data_objs.insert(oid);
+    for (const auto& oid : d.object_ids)
+      data_objs.insert(oid);
     dirs.emplace(kv.first, std::move(d));
   }
 
   // ---- pass 2: classify every objects/ file ----
-  std::printf("\n===== DEMO4: person + software in ONE graph checkpoint =====\n");
+  std::printf(
+      "\n===== DEMO4: person + software in ONE graph checkpoint =====\n");
   std::printf("\n[objects/] every file, classified\n");
   std::vector<fs::path> files;
   for (auto& e : fs::directory_iterator(objects, ec))
-    if (e.is_regular_file()) files.push_back(e.path());
+    if (e.is_regular_file())
+      files.push_back(e.path());
   std::sort(files.begin(), files.end());
   for (auto& f : files) {
     const auto name = f.filename().string();
-    const char* role =
-        dir_objs.count(name)   ? "DIRECTORY (one column's chunk_dir)"
-        : data_objs.count(name) ? "DATA (shared property pages)"
-                                : "OTHER (indexer/keys/indices/v_ts)";
+    const char* role = dir_objs.count(name)
+                           ? "DIRECTORY (one column's chunk_dir)"
+                           : data_objs.count(name)
+                                 ? "DATA (shared property pages)"
+                                 : "OTHER (indexer/keys/indices/v_ts)";
     std::printf("  %-38s %8llu bytes  %s\n", name.c_str(),
                 static_cast<unsigned long long>(fs::file_size(f, ec)), role);
   }
@@ -1659,23 +1675,24 @@ TEST(ChunkDiskDemo, PrintMultiLabelGraph) {
   std::printf("\n[chunk directories] ONE per property column, per label\n");
   for (const auto& kv : dirs) {
     const auto& d = kv.second;
-    std::printf("  column '%s': row_width=%u rows_per_page=%llu row_count=%llu"
-                " PAGES=%zu\n",
-                kv.first.c_str(), d.row_width,
-                static_cast<unsigned long long>(d.rows_per_page),
-                static_cast<unsigned long long>(d.row_count), d.pages.size());
+    std::printf(
+        "  column '%s': row_width=%u rows_per_page=%llu row_count=%llu"
+        " PAGES=%zu\n",
+        kv.first.c_str(), d.row_width,
+        static_cast<unsigned long long>(d.rows_per_page),
+        static_cast<unsigned long long>(d.row_count), d.pages.size());
     for (size_t i = 0; i < d.object_ids.size(); ++i)
       std::printf("      object_ids[%zu] = %s   (DATA object)\n", i,
                   d.object_ids[i].c_str());
     for (size_t i = 0; i < d.pages.size(); ++i) {
       const auto& p = d.pages[i];
-      std::printf("      page[%zu]: prefix_rows=%u prefix->obj_idx=%llu"
-                  " off=%llu len=%u crc=%08x\n",
-                  i, p.prefix_rows,
-                  static_cast<unsigned long long>(p.prefix.object_id),
-                  static_cast<unsigned long long>(p.prefix.offset),
-                  static_cast<unsigned>(p.prefix.length),
-                  static_cast<unsigned>(p.prefix.crc32c));
+      std::printf(
+          "      page[%zu]: prefix_rows=%u prefix->obj_idx=%llu"
+          " off=%llu len=%u crc=%08x\n",
+          i, p.prefix_rows, static_cast<unsigned long long>(p.prefix.object_id),
+          static_cast<unsigned long long>(p.prefix.offset),
+          static_cast<unsigned>(p.prefix.length),
+          static_cast<unsigned>(p.prefix.crc32c));
     }
   }
 
@@ -1701,14 +1718,13 @@ TEST(ChunkDiskDemo, PrintMultiLabelGraph) {
   reopened.Open(cp1, MemoryLevel::kInMemory);
   auto person_age = reopened.GetVertexPropertyColumn(0, 0);
   auto software_since = reopened.GetVertexPropertyColumn(1, 0);
-  std::printf("\n[round-trip] person.age[0]=%lld [1]=%lld ;"
-              " software.since[0]=%lld [1]=%lld\n",
-              static_cast<long long>(person_age->get_any(0).GetValue<int64_t>()),
-              static_cast<long long>(person_age->get_any(1).GetValue<int64_t>()),
-              static_cast<long long>(
-                  software_since->get_any(0).GetValue<int64_t>()),
-              static_cast<long long>(
-                  software_since->get_any(1).GetValue<int64_t>()));
+  std::printf(
+      "\n[round-trip] person.age[0]=%lld [1]=%lld ;"
+      " software.since[0]=%lld [1]=%lld\n",
+      static_cast<long long>(person_age->get_any(0).GetValue<int64_t>()),
+      static_cast<long long>(person_age->get_any(1).GetValue<int64_t>()),
+      static_cast<long long>(software_since->get_any(0).GetValue<int64_t>()),
+      static_cast<long long>(software_since->get_any(1).GetValue<int64_t>()));
 
   mgr.Close();
   std::printf("\n(demo4 files left under %s)\n", demo.c_str());

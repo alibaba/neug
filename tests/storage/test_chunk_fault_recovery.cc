@@ -54,9 +54,7 @@ namespace {
 constexpr size_t kRowsPerChunk = 4;
 constexpr size_t kRows = 12;  // 3 physical pages of 4 rows.
 
-int64_t ExpectedValue(size_t row) {
-  return static_cast<int64_t>(row * 5 + 1);
-}
+int64_t ExpectedValue(size_t row) { return static_cast<int64_t>(row * 5 + 1); }
 
 std::vector<char> ReadBytes(const std::filesystem::path& path) {
   std::ifstream in(path, std::ios::binary);
@@ -130,9 +128,15 @@ class ChunkFaultRecoveryTest : public ::testing::Test {
 
   void TearDown() override { std::filesystem::remove_all(temp_dir_); }
 
-  std::filesystem::path CheckpointDir() const { return temp_dir_ / "checkpoint"; }
-  std::filesystem::path CurrentPath() const { return CheckpointDir() / "CURRENT"; }
-  std::filesystem::path ObjectsDir() const { return CheckpointDir() / "objects"; }
+  std::filesystem::path CheckpointDir() const {
+    return temp_dir_ / "checkpoint";
+  }
+  std::filesystem::path CurrentPath() const {
+    return CheckpointDir() / "CURRENT";
+  }
+  std::filesystem::path ObjectsDir() const {
+    return CheckpointDir() / "objects";
+  }
   std::filesystem::path ManifestPath(uint64_t id) const {
     return CheckpointDir() / "manifests" / (std::to_string(id) + ".manifest");
   }
