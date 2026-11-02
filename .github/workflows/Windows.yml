@@ -47,13 +47,20 @@ concurrency:
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
+  ci-plan:
+    uses: ./.github/workflows/ci-plan.yml
+    with:
+      platforms: ${{ format('{0}{1}', contains(inputs.architectures || '["x86_64"]', 'x86_64') && 'windows-x86_64,' || '', contains(inputs.architectures || '["x86_64"]', 'arm64') && 'windows-arm64,' || '') }}
+      python_versions: ${{ inputs.python_versions || '3.13' }}
+
   build_and_test:
+    needs: ci-plan
     name: Windows ${{ matrix.arch }}
     strategy:
       fail-fast: false
       matrix:
-        arch: ${{ fromJSON(inputs.architectures || '["x86_64"]') }}
-    runs-on: ${{ matrix.arch == 'arm64' && 'windows-11-arm' || 'windows-2022' }}
+        include: ${{ fromJSON(needs.ci-plan.outputs.plan).matrix }}
+    runs-on: ${{ matrix.runner }}
     env:
       SCCACHE_GHA_ENABLED: 'true'
       VCPKG_TARGET_TRIPLET: ${{ matrix.arch == 'arm64' && 'arm64-windows-static-md' || 'x64-windows-static-md' }}

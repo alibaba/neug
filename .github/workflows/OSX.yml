@@ -31,6 +31,7 @@ on:
       - .github/workflows/package.yml
       - .github/workflows/release.yml
       - .github/workflows/verify-artifacts.yml
+      - .github/workflows/ci-plan.yml
       - .github/actions/**
       - doc/source/tutorials/**
   workflow_call:
@@ -73,13 +74,20 @@ concurrency:
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
+  ci-plan:
+    uses: ./.github/workflows/ci-plan.yml
+    with:
+      platforms: osx-arm64
+      python_versions: ${{ inputs.python_versions || '3.13' }}
+
   build_and_test:
+    needs: ci-plan
     name: macOS ${{ matrix.arch }}
     strategy:
       fail-fast: true
       matrix:
-        arch: [arm64]
-    runs-on: macos-15
+        include: ${{ fromJSON(needs.ci-plan.outputs.plan).matrix }}
+    runs-on: ${{ matrix.runner }}
     steps:
     # ========================================
     # Phase 1: Prepare & Build
@@ -265,7 +273,7 @@ jobs:
         cd "$GITHUB_WORKSPACE/tools/nodejs_bind"
         make stage BUILD_TYPE=Release
       env:
-        EXTENSION_LIST: ${{ (inputs.extensions != '' || steps.changes.outputs.extension == 'true') && (inputs.extensions || 'parquet;httpfs;gds;pattern_matching;vector_search;fts') || '' }}
+        EXTENSION_LIST: ${{ (inputs.extensions != '' || steps.changes.outputs.extension == 'true') && (inputs.extensions || fromJSON(needs.ci-plan.outputs.plan).extensions) || '' }}
 
     - name: Save CCache
       if: steps.build.outcome == 'success' && steps.ccache.outputs.cache-hit != 'true'
@@ -285,7 +293,7 @@ jobs:
       uses: ./.github/actions/test-cpp
       with:
         platform: macos
-        extensions: ${{ (inputs.extensions != '' || steps.changes.outputs.extension == 'true') && (inputs.extensions || 'parquet;httpfs;gds;pattern_matching;vector_search;fts') || '' }}
+        extensions: ${{ (inputs.extensions != '' || steps.changes.outputs.extension == 'true') && (inputs.extensions || fromJSON(needs.ci-plan.outputs.plan).extensions) || '' }}
 
     # ========================================
     # Phase 3: Python Tests
@@ -299,7 +307,7 @@ jobs:
         OSS_ACCESS_KEY_SECRET: ${{ secrets.OSS_ACCESS_KEY_SECRET }}
       with:
         platform: macos
-        extensions: ${{ (inputs.extensions != '' || steps.changes.outputs.extension == 'true') && (inputs.extensions || 'parquet;httpfs;gds;pattern_matching;vector_search;fts') || '' }}
+        extensions: ${{ (inputs.extensions != '' || steps.changes.outputs.extension == 'true') && (inputs.extensions || fromJSON(needs.ci-plan.outputs.plan).extensions) || '' }}
 
     # ========================================
     # Phase 4: Node.js Tests
@@ -308,7 +316,7 @@ jobs:
     - name: Run Node.js Tests and Optional Packaging
       uses: ./.github/actions/test-and-package-nodejs
       with:
-        extensions: ${{ (inputs.extensions != '' || steps.changes.outputs.extension == 'true') && (inputs.extensions || 'parquet;httpfs;gds;pattern_matching;vector_search;fts') || '' }}
+        extensions: ${{ (inputs.extensions != '' || steps.changes.outputs.extension == 'true') && (inputs.extensions || fromJSON(needs.ci-plan.outputs.plan).extensions) || '' }}
         package: ${{ contains(fromJSON(inputs.packages || '[]'), 'npm') || steps.changes.outputs.npm == 'true' }}
         artifact_platform: osx-${{ matrix.arch }}
         upload_artifacts: ${{ inputs.upload_artifacts }}
@@ -334,7 +342,7 @@ jobs:
         artifact_platform: macos-${{ matrix.arch }}
         oss_platform: osx_${{ matrix.arch }}
         python_versions: ${{ inputs.python_versions || '3.13' }}
-        extensions: ${{ (inputs.extensions != '' || steps.changes.outputs.extension == 'true') && (inputs.extensions || 'parquet;httpfs;gds;pattern_matching;vector_search;fts') || '' }}
+        extensions: ${{ (inputs.extensions != '' || steps.changes.outputs.extension == 'true') && (inputs.extensions || fromJSON(needs.ci-plan.outputs.plan).extensions) || '' }}
         upload_artifacts: ${{ inputs.upload_artifacts }}
 
     # ========================================

@@ -16,9 +16,15 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  ci-plan:
+    uses: ./.github/workflows/ci-plan.yml
+
   package:
     name: Build and Verify Release Packages
+    needs: ci-plan
     uses: ./.github/workflows/package.yml
+    with:
+      plan: ${{ needs.ci-plan.outputs.plan }}
     secrets: inherit
 
   publish_wheel:
@@ -37,7 +43,7 @@ jobs:
     - uses: actions/checkout@v4
     - uses: actions/setup-python@v5
       with:
-        python-version: '3.13'
+        python-version: ${{ fromJSON(needs.package.outputs.plan).packaging_python }}
     - uses: actions/download-artifact@v4
       with:
         pattern: wheels-*${{ github.run_id }}
@@ -103,91 +109,41 @@ jobs:
     - name: Publish npm Packages
       shell: bash
       env:
+        CI_PLAN: ${{ needs.package.outputs.plan }}
         NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
         RELEASE_TAG: ${{ github.event_name == 'release' && github.event.release.tag_name || github.ref_name }}
       run: |
         set -euo pipefail
 
-        # These names are npm pack outputs inside the downloaded artifact containers.
-        linux_x86_64=(dist/npm/neug-ai-linux-x86_64-*.tgz)
-        linux_arm64=(dist/npm/neug-ai-linux-arm64-*.tgz)
-        osx_arm64=(dist/npm/neug-ai-osx-arm64-*.tgz)
-        windows_x86_64=(dist/npm/neug-ai-windows-x86_64-*.tgz)
-        windows_arm64=(dist/npm/neug-ai-windows-arm64-*.tgz)
-
-        # Fail early if a required platform package was not built or downloaded.
-        if [ ! -f "${linux_x86_64[0]}" ]; then
-          echo "No linux-x86_64 npm tarball found."
-          exit 1
-        fi
-
-        if [ ! -f "${osx_arm64[0]}" ]; then
-          echo "No osx-arm64 npm tarball found."
-          exit 1
-        fi
-
-        if [ ! -f "${windows_x86_64[0]}" ]; then
-          echo "No windows-x86_64 npm tarball found."
-          exit 1
-        fi
-
-        if [ ! -f "${windows_arm64[0]}" ]; then
-          echo "No windows-arm64 npm tarball found."
-          exit 1
-        fi
-
-        if [ ! -f "${linux_arm64[0]}" ]; then
-          echo "No linux-arm64 npm tarball found."
-          exit 1
-        fi
-
-        # The tag version must match every package version before publish is attempted.
         VERSION="${RELEASE_TAG#v}"
+        optional_dependencies=()
+        while IFS= read -r platform; do
+          tarballs=(dist/npm/neug-ai-${platform}-*.tgz)
+          if [ "${#tarballs[@]}" -ne 1 ] || [ ! -f "${tarballs[0]}" ]; then
+            echo "::error::Expected one npm tarball for $platform"
+            exit 1
+          fi
+          python3 tools/nodejs_bind/scripts/validate_npm_version.py \
+            "${tarballs[0]}" "@neug-ai/$platform" "$VERSION"
+          optional_dependencies+=(--optional-dependency "@neug-ai/$platform")
+        done < <(printf '%s' "$CI_PLAN" | jq -r '.platforms[]')
         python3 tools/nodejs_bind/scripts/validate_npm_version.py \
-          "${linux_x86_64[0]}" '@neug-ai/linux-x86_64' "$VERSION"
-        python3 tools/nodejs_bind/scripts/validate_npm_version.py \
-          "${osx_arm64[0]}" '@neug-ai/osx-arm64' "$VERSION"
-        python3 tools/nodejs_bind/scripts/validate_npm_version.py \
-          "${windows_x86_64[0]}" '@neug-ai/windows-x86_64' "$VERSION"
-        python3 tools/nodejs_bind/scripts/validate_npm_version.py \
-          "${windows_arm64[0]}" '@neug-ai/windows-arm64' "$VERSION"
-        python3 tools/nodejs_bind/scripts/validate_npm_version.py \
-          "${linux_arm64[0]}" '@neug-ai/linux-arm64' "$VERSION"
-        python3 tools/nodejs_bind/scripts/validate_npm_version.py \
-          dist/npm/neug-ai-neug-*.tgz '@neug-ai/neug' "$VERSION" \
-          --optional-dependency '@neug-ai/linux-x86_64' \
-          --optional-dependency '@neug-ai/linux-arm64' \
-          --optional-dependency '@neug-ai/osx-arm64' \
-          --optional-dependency '@neug-ai/windows-x86_64' \
-          --optional-dependency '@neug-ai/windows-arm64'
-
-        # Publish the exact core tarballs produced and verified by package.
-        npm publish "${linux_x86_64[0]}" --access public
-        npm publish "${linux_arm64[0]}" --access public
-        npm publish "${osx_arm64[0]}" --access public
-        npm publish "${windows_x86_64[0]}" --access public
-        npm publish "${windows_arm64[0]}" --access public
+          dist/npm/neug-ai-neug-*.tgz '@neug-ai/neug' "$VERSION" "${optional_dependencies[@]}"
+        # Upload exactly the tarballs produced and verified by package.
+        while IFS= read -r platform; do
+          npm publish dist/npm/neug-ai-${platform}-*.tgz --access public
+        done < <(printf '%s' "$CI_PLAN" | jq -r '.platforms[]')
         npm publish dist/npm/neug-ai-neug-*.tgz --access public
 
   publish_extension:
-    name: Publish Extension / ${{ matrix.artifact_platform }}
+    name: Publish Extension / ${{ matrix.platform }}
     needs: package
     if: github.repository == 'alibaba/neug' && github.event_name == 'release' && github.event.action == 'published'
     runs-on: ubuntu-22.04
     strategy:
       fail-fast: false
       matrix:
-        include:
-          - artifact_platform: linux-x86_64
-            oss_platform: linux_x86_64
-          - artifact_platform: linux-arm64
-            oss_platform: linux_arm64
-          - artifact_platform: osx-arm64
-            oss_platform: osx_arm64
-          - artifact_platform: windows-x86_64
-            oss_platform: win_x86_64
-          - artifact_platform: windows-arm64
-            oss_platform: win_arm64
+        include: ${{ fromJSON(needs.package.outputs.plan).matrix }}
     permissions:
       contents: read
       actions: read
@@ -199,10 +155,10 @@ jobs:
     - uses: actions/checkout@v4
     - uses: actions/setup-python@v5
       with:
-        python-version: '3.13'
+        python-version: ${{ fromJSON(needs.package.outputs.plan).packaging_python }}
     - uses: actions/download-artifact@v4
       with:
-        pattern: extension-packages-${{ matrix.artifact_platform }}-*
+        pattern: extension-packages-${{ matrix.platform }}-*
         path: extension_packages
         merge-multiple: true
 
@@ -305,6 +261,7 @@ jobs:
     uses: ./.github/workflows/verify-published.yml
     with:
       version: ${{ github.event.release.tag_name }}
+      plan: ${{ needs.package.outputs.plan }}
 
   report:
     if: always()

@@ -32,6 +32,9 @@ on:
           - '3.14'
   workflow_call:
     inputs:
+      plan:
+        type: string
+        default: ''
       platforms:
         description: Platforms to package.
         type: string
@@ -40,6 +43,9 @@ on:
         description: Python version for wheel packaging.
         type: string
         default: all
+    outputs:
+      plan:
+        value: ${{ jobs.initialize.outputs.plan }}
 
 permissions:
   contents: read
@@ -52,34 +58,11 @@ concurrency:
 
 jobs:
   initialize:
-    name: Initialize
-    runs-on: ubuntu-22.04
-    outputs:
-      cibw_build: ${{ steps.python_versions.outputs.cibw_build }}
-      python_versions: ${{ steps.python_versions.outputs.python_versions }}
-    steps:
-    - uses: actions/checkout@v4
-
-    - name: Select Python Builds
-      id: python_versions
-      shell: bash
-      env:
-        PYTHON_VERSION: ${{ inputs.python_versions || 'all' }}
-      run: |
-        set -euo pipefail
-        if [ "$PYTHON_VERSION" = all ]; then
-          CIBW=$(sed -n 's/^build = "\(.*\)"/\1/p' tools/python_bind/pyproject.toml)
-        else
-          CIBW="cp${PYTHON_VERSION/./}-*"
-        fi
-        versions=()
-        for pattern in $CIBW; do
-          minor="${pattern#cp3}"
-          versions+=("3.${minor%-*}")
-        done
-        python_versions=$(printf '%s\n' "${versions[@]}" | jq -R . | jq -sc .)
-        echo "cibw_build=$CIBW" >> "$GITHUB_OUTPUT"
-        echo "python_versions=$python_versions" >> "$GITHUB_OUTPUT"
+    uses: ./.github/workflows/ci-plan.yml
+    with:
+      platforms: ${{ inputs.platforms || 'all' }}
+      python_versions: ${{ inputs.python_versions || 'all' }}
+      plan: ${{ inputs.plan || '' }}
 
   # ========================================
   # For Linux - Wheel, build standardized wheels with cibuildwheel in dedicated
@@ -87,17 +70,17 @@ jobs:
   # ========================================
   linux_wheel:
     needs: initialize
-    if: (inputs.platforms || 'all') == 'all' || contains(inputs.platforms, 'linux-')
+    if: fromJSON(needs.initialize.outputs.plan).linux[0] != null
     name: Linux Wheel / ${{ matrix.arch }}
     strategy:
       fail-fast: true
       matrix:
-        arch: ${{ fromJSON((inputs.platforms || 'all') == 'all' && '["x86_64","arm64"]' || inputs.platforms == 'linux-arm64' && '["arm64"]' || '["x86_64"]') }}
+        include: ${{ fromJSON(needs.initialize.outputs.plan).linux }}
     permissions:
       contents: read
-    runs-on: ${{ github.repository == 'alibaba/neug' && fromJSON(matrix.arch == 'arm64' && '["self-hosted","daily","linux","arm64"]' || '["self-hosted","daily","linux","x64"]') || (matrix.arch == 'arm64' && 'ubuntu-22.04-arm' || 'ubuntu-22.04') }}
+    runs-on: ${{ matrix.build_runner }}
     env:
-      EXTENSIONS: parquet;httpfs;gds;pattern_matching;vector_search;fts
+      EXTENSIONS: ${{ fromJSON(needs.initialize.outputs.plan).extensions }}
     steps:
     # ========================================
     # Phase 1: Prepare
@@ -109,7 +92,7 @@ jobs:
         fetch-depth: 0
     - uses: actions/setup-python@v5
       with:
-        python-version: '3.13'
+        python-version: ${{ fromJSON(needs.initialize.outputs.plan).packaging_python }}
 
     - name: Install cibuildwheel
       run: python3 -m pip install cibuildwheel==3.4.0 wheel
@@ -121,10 +104,10 @@ jobs:
     - name: Build and Repair Wheels in manylinux
       env:
         CI_INSTALL_EXTENSIONS: ${{ env.EXTENSIONS }}
-        CIBW_BUILD: ${{ needs.initialize.outputs.cibw_build }}
-        CIBW_ARCHS_LINUX: ${{ matrix.arch == 'arm64' && 'aarch64' || 'x86_64' }}
-        CIBW_MANYLINUX_X86_64_IMAGE: neug-registry.cn-hongkong.cr.aliyuncs.com/neug/neug-manylinux:v0.2.0-x86_64
-        CIBW_MANYLINUX_AARCH64_IMAGE: neug-registry.cn-hongkong.cr.aliyuncs.com/neug/neug-manylinux:v0.2.0-arm64
+        CIBW_BUILD: ${{ fromJSON(needs.initialize.outputs.plan).cibw_build }}
+        CIBW_ARCHS_LINUX: ${{ matrix.cibw_arch }}
+        CIBW_MANYLINUX_X86_64_IMAGE: ${{ matrix.wheel_image }}
+        CIBW_MANYLINUX_AARCH64_IMAGE: ${{ matrix.wheel_image }}
         CIBW_TEST_COMMAND: >-
           python -c 'import neug; db=neug.Database(); c=db.connect(); print(c.execute("RETURN 1"))'
           && neug-cli --help && neug-cli --version
@@ -201,18 +184,18 @@ jobs:
   linux-npm:
     needs: initialize
     env:
-      EXTENSIONS: parquet;httpfs;pattern_matching;vector_search;fts;gds
-    if: (inputs.platforms || 'all') == 'all' || contains(inputs.platforms, 'linux-')
+      EXTENSIONS: ${{ fromJSON(needs.initialize.outputs.plan).extensions }}
+    if: fromJSON(needs.initialize.outputs.plan).linux[0] != null
     name: Linux NPM / ${{ matrix.arch }}
     strategy:
       fail-fast: true
       matrix:
-        arch: ${{ fromJSON((inputs.platforms || 'all') == 'all' && '["x86_64","arm64"]' || inputs.platforms == 'linux-arm64' && '["arm64"]' || '["x86_64"]') }}
+        include: ${{ fromJSON(needs.initialize.outputs.plan).linux }}
     permissions:
       contents: read
     container:
-      image: neug-registry.cn-hongkong.cr.aliyuncs.com/neug/neug-manylinux:v0.1.3-${{ matrix.arch }}-node
-    runs-on: ${{ github.repository == 'alibaba/neug' && fromJSON(matrix.arch == 'arm64' && '["self-hosted","daily","linux","arm64"]' || '["self-hosted","daily","linux","x64"]') || (matrix.arch == 'arm64' && 'ubuntu-22.04-arm' || 'ubuntu-22.04') }}
+      image: ${{ matrix.node_image }}
+    runs-on: ${{ matrix.build_runner }}
     steps:
     # ========================================
     # Phase 1: Prepare & Build
@@ -227,10 +210,14 @@ jobs:
 
     - name: Select Packaging Python
       shell: bash
+      env:
+        PACKAGING_PYTHON: ${{ fromJSON(needs.initialize.outputs.plan).packaging_python }}
       run: |
         set -euo pipefail
-        test -x /opt/python/cp313-cp313/bin/python
-        echo /opt/python/cp313-cp313/bin >> "$GITHUB_PATH"
+        abi="cp${PACKAGING_PYTHON/./}"
+        python_dir="/opt/python/$abi-$abi/bin"
+        test -x "$python_dir/python"
+        echo "$python_dir" >> "$GITHUB_PATH"
 
     - name: Compile and Stage Node.js Binding
       shell: bash
@@ -270,12 +257,12 @@ jobs:
   # ========================================
   macos:
     needs: initialize
-    if: (inputs.platforms || 'all') == 'all' || contains(inputs.platforms, 'osx-')
+    if: contains(fromJSON(needs.initialize.outputs.plan).platforms, 'osx-arm64')
     uses: ./.github/workflows/OSX.yml
     with:
       packages: '["wheel","npm"]'
-      python_versions: ${{ inputs.python_versions || 'all' }}
-      extensions: parquet;httpfs;gds;pattern_matching;vector_search;fts
+      python_versions: ${{ fromJSON(needs.initialize.outputs.plan).python_spec }}
+      extensions: ${{ fromJSON(needs.initialize.outputs.plan).extensions }}
       upload_artifacts: true
     secrets: inherit
 
@@ -284,13 +271,13 @@ jobs:
   # ========================================
   windows:
     needs: initialize
-    if: (inputs.platforms || 'all') == 'all' || contains(inputs.platforms, 'windows-')
+    if: fromJSON(needs.initialize.outputs.plan).windows_architectures[0] != null
     uses: ./.github/workflows/Windows.yml
     with:
-      architectures: ${{ (inputs.platforms || 'all') == 'all' && '["x86_64","arm64"]' || inputs.platforms == 'windows-arm64' && '["arm64"]' || '["x86_64"]' }}
-      python_versions: ${{ inputs.python_versions || 'all' }}
+      architectures: ${{ toJSON(fromJSON(needs.initialize.outputs.plan).windows_architectures) }}
+      python_versions: ${{ fromJSON(needs.initialize.outputs.plan).python_spec }}
       # vector_search is not supported by the current Windows build.
-      extensions: parquet;httpfs;gds;pattern_matching;fts
+      extensions: ${{ fromJSON(needs.initialize.outputs.plan).windows_extensions }}
       upload_artifacts: true
     secrets: inherit
 
@@ -299,7 +286,7 @@ jobs:
   # ========================================
   java:
     needs: initialize
-    if: (inputs.platforms || 'all') == 'all' || inputs.platforms == 'java'
+    if: fromJSON(needs.initialize.outputs.plan).verify_java
     runs-on: ubuntu-22.04
     steps:
     - uses: actions/checkout@v4
@@ -328,7 +315,7 @@ jobs:
 
   npm-main:
     needs: initialize
-    if: (inputs.platforms || 'all') != 'java'
+    if: fromJSON(needs.initialize.outputs.plan).platforms[0] != null
     runs-on: ubuntu-22.04
     steps:
     - uses: actions/checkout@v4
@@ -336,9 +323,19 @@ jobs:
       with:
         node-version: '20'
     - name: Package npm Entry Point
+      env:
+        CI_PLAN: ${{ needs.initialize.outputs.plan }}
       run: |
         mkdir -p dist/npm-main
         cp tools/nodejs_bind/assets/package.json tools/nodejs_bind/assets/index.js dist/npm-main/
+        node <<'JS'
+        const fs = require('fs');
+        const filename = 'dist/npm-main/package.json';
+        const pkg = JSON.parse(fs.readFileSync(filename));
+        const plan = JSON.parse(process.env.CI_PLAN);
+        pkg.optionalDependencies = Object.fromEntries(plan.platforms.map(platform => ['@neug-ai/' + platform, pkg.version]));
+        fs.writeFileSync(filename, JSON.stringify(pkg, null, 2) + '\n');
+        JS
         npm pack ./dist/npm-main --pack-destination dist
     - uses: actions/upload-artifact@v4
       with:
@@ -355,9 +352,7 @@ jobs:
     needs: [initialize, linux_wheel, linux-npm, macos, windows, java]
     uses: ./.github/workflows/verify-artifacts.yml
     with:
-      platforms: ${{ (inputs.platforms || 'all') == 'all' && '["linux-x86_64","linux-arm64","osx-arm64","windows-x86_64","windows-arm64"]' || inputs.platforms == 'java' && '[]' || format('["{0}"]', inputs.platforms) }}
-      python_versions: ${{ needs.initialize.outputs.python_versions }}
-      verify_java: ${{ (inputs.platforms || 'all') == 'all' || inputs.platforms == 'java' }}
+      plan: ${{ needs.initialize.outputs.plan }}
     secrets: inherit
 
   # ========================================

@@ -36,15 +36,12 @@ on:
       version:
         type: string
         required: true
-      platforms:
+      plan:
         type: string
-        default: all
+        required: true
       node_version:
         type: string
         default: all
-      python_versions:
-        type: string
-        default: '["3.8","3.9","3.10","3.11","3.12","3.13","3.14"]'
 
 
 env:
@@ -54,20 +51,29 @@ permissions:
   contents: read
 
 jobs:
+  ci-plan:
+    uses: ./.github/workflows/ci-plan.yml
+    with:
+      plan: ${{ inputs.plan || '' }}
+      platforms: ${{ inputs.platforms || 'all' }}
+      python_versions: ${{ inputs.python_versions || 'all' }}
+
   # ========================================
   # Verify published wheel, npm, and extension packages in independent environments.
   # ========================================
   verify:
+    needs: ci-plan
+    if: fromJSON(needs.ci-plan.outputs.plan).platforms[0] != null
     name: Published Packages / ${{ matrix.platform }}
     strategy:
       fail-fast: false
       matrix:
-        platform: ${{ fromJSON(inputs.platforms == 'all' && '["linux-x86_64","linux-arm64","osx-arm64","windows-x86_64","windows-arm64"]' || format('["{0}"]', inputs.platforms)) }}
+        include: ${{ fromJSON(needs.ci-plan.outputs.plan).matrix }}
     container: ${{ startsWith(matrix.platform, 'linux-') && 'ubuntu:22.04' || '' }}
-    runs-on: ${{ matrix.platform == 'linux-x86_64' && 'ubuntu-22.04' || matrix.platform == 'linux-arm64' && 'ubuntu-22.04-arm' || matrix.platform == 'windows-arm64' && 'windows-11-arm' || matrix.platform == 'windows-x86_64' && 'windows-2022' || 'macos-15' }}
+    runs-on: ${{ matrix.runner }}
     env:
       # vector_search is not supported by the current Windows build.
-      EXTENSIONS: ${{ startsWith(matrix.platform, 'windows-') && 'parquet;httpfs;gds;pattern_matching;fts' || 'parquet;httpfs;gds;pattern_matching;vector_search;fts' }}
+      EXTENSIONS: ${{ matrix.extensions }}
     defaults:
       run:
         shell: bash
@@ -82,7 +88,7 @@ jobs:
     - name: Select Python Versions
       id: python_versions
       env:
-        PYTHON_VERSIONS: ${{ join(fromJSON(inputs.python_versions), ' ') }}
+        PYTHON_VERSIONS: ${{ join(fromJSON(needs.ci-plan.outputs.plan).python_versions, ' ') }}
       run: |
         set -euo pipefail
         versions=()
@@ -205,6 +211,8 @@ jobs:
   # Verify the published Java SDK from Maven Central in an independent container.
   # ========================================
   java:
+    needs: ci-plan
+    if: fromJSON(needs.ci-plan.outputs.plan).verify_java
     name: Published Java Package
     runs-on: ubuntu-22.04
     container: ubuntu:22.04

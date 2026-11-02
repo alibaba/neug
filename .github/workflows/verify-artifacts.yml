@@ -3,6 +3,9 @@ name: Verify Artifacts
 on:
   workflow_call:
     inputs:
+      plan:
+        type: string
+        default: ''
       platforms:
         description: JSON array of artifact platforms to verify.
         type: string
@@ -16,29 +19,34 @@ on:
         type: boolean
         default: true
 
-env:
-  EXTENSIONS: parquet;httpfs;gds;pattern_matching;vector_search;fts
-
 permissions:
   contents: read
   actions: read
 
 jobs:
+  ci-plan:
+    uses: ./.github/workflows/ci-plan.yml
+    with:
+      plan: ${{ inputs.plan }}
+      platforms: ${{ inputs.plan == '' && inputs.verify_java && format('{0},java', join(fromJSON(inputs.platforms), ',')) || inputs.platforms }}
+      python_versions: ${{ inputs.python_versions }}
+
   # ========================================
   # Verify wheel, extension, and npm artifacts in one independent environment per platform.
   # ========================================
   verify:
-    if: inputs.platforms != '[]'
+    needs: ci-plan
+    if: fromJSON(needs.ci-plan.outputs.plan).platforms[0] != null
     name: Installed Packages / ${{ matrix.platform }}
     strategy:
       fail-fast: false
       matrix:
-        platform: ${{ fromJSON(inputs.platforms) }}
+        include: ${{ fromJSON(needs.ci-plan.outputs.plan).matrix }}
     container: ${{ startsWith(matrix.platform, 'linux-') && 'ubuntu:22.04' || '' }}
-    runs-on: ${{ matrix.platform == 'linux-x86_64' && 'ubuntu-22.04' || matrix.platform == 'linux-arm64' && 'ubuntu-22.04-arm' || matrix.platform == 'windows-arm64' && 'windows-11-arm' || matrix.platform == 'windows-x86_64' && 'windows-2022' || 'macos-15' }}
+    runs-on: ${{ matrix.runner }}
     env:
       # vector_search is not supported by the current Windows build.
-      EXTENSIONS: ${{ startsWith(matrix.platform, 'windows-') && 'parquet;httpfs;gds;pattern_matching;fts' || 'parquet;httpfs;gds;pattern_matching;vector_search;fts' }}
+      EXTENSIONS: ${{ matrix.extensions }}
     defaults:
       run:
         shell: bash
@@ -62,7 +70,7 @@ jobs:
     - name: Select Python Versions
       id: python_versions
       env:
-        PYTHON_VERSIONS: ${{ join(fromJSON(inputs.python_versions), ' ') }}
+        PYTHON_VERSIONS: ${{ join(fromJSON(needs.ci-plan.outputs.plan).python_versions, ' ') }}
       run: |
         set -euo pipefail
         versions=()
@@ -233,7 +241,8 @@ jobs:
   # ========================================
   java:
     # Native-platform-only package runs do not produce a Java artifact.
-    if: inputs.verify_java
+    needs: ci-plan
+    if: inputs.verify_java && fromJSON(needs.ci-plan.outputs.plan).verify_java
     name: Installed Java Artifact
     runs-on: ubuntu-22.04
     container: ubuntu:22.04
