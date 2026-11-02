@@ -128,6 +128,7 @@ jobs:
           fi
           "$py" -m pip install "$GITHUB_WORKSPACE"/core_wheelhouse/*cp${version/./}-*.whl
           "$py" - <<'PYCODE'
+        import hashlib
         import os
         import shutil
         import sysconfig
@@ -136,6 +137,11 @@ jobs:
         os.environ['NEUG_EXTENSION_HOME_PYENV'] = str(site)
         import neug
         folder = Path(os.environ['GITHUB_WORKSPACE']) / 'extension-packages'
+        for package in folder.glob('*.neug_extension'):
+            checksum = package.with_name(package.name + '.sha256')
+            expected_hash = checksum.read_text(encoding='utf-8').strip()
+            if hashlib.sha256(package.read_bytes()).hexdigest() != expected_hash:
+                raise RuntimeError(f'SHA256 mismatch for {package.name}')
         db = neug.Database()
         conn = db.connect()
         for name in os.environ['EXTENSIONS'].split(';'):
