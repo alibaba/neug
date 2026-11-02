@@ -291,23 +291,6 @@ jobs:
     # Phase 3: Python Tests
     # ========================================
 
-    - name: Start Python Diagnostics
-      id: python-diagnostics
-      shell: bash
-      run: |
-        # Temporary native stack samples to investigate hangs without relying on stderr.
-        mkdir -p "$RUNNER_TEMP/python-diagnostics"
-        nohup bash -c '
-          while sleep 120; do
-            for pid in $(pgrep -if "[p]ython[0-9.]* -m pytest" || true); do
-              output="$RUNNER_TEMP/python-diagnostics/$(date +%s)-$pid"
-              ps -p "$pid" -o pid,ppid,stat,etime,pcpu,rss,command > "$output-process.txt"
-              sample "$pid" 5 -mayDie -file "$output-sample.txt" || true
-            done
-          done
-        ' </dev/null > "$RUNNER_TEMP/python-diagnostics/monitor.log" 2>&1 &
-        echo "pid=$!" >> "$GITHUB_OUTPUT"
-
     - name: Run Python Tests
       timeout-minutes: 30
       uses: ./.github/actions/test-python
@@ -317,22 +300,6 @@ jobs:
       with:
         platform: macos
         extensions: ${{ (inputs.extensions != '' || steps.changes.outputs.extension == 'true') && (inputs.extensions || 'parquet;httpfs;gds;pattern_matching;vector_search;fts') || '' }}
-
-    - name: Stop Python Diagnostics
-      if: always() && steps.python-diagnostics.outputs.pid != ''
-      shell: bash
-      env:
-        DIAGNOSTICS_PID: ${{ steps.python-diagnostics.outputs.pid }}
-      run: |
-        pkill -P "$DIAGNOSTICS_PID" || true
-        kill "$DIAGNOSTICS_PID" || true
-
-    - name: Upload Python Diagnostics
-      if: always() && steps.python-diagnostics.outputs.pid != ''
-      uses: actions/upload-artifact@v4
-      with:
-        name: python-diagnostics-macos-${{ matrix.arch }}-${{ github.run_id }}
-        path: ${{ runner.temp }}/python-diagnostics/
 
     # ========================================
     # Phase 4: Node.js Tests

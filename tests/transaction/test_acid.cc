@@ -20,7 +20,6 @@
 #include <map>
 #include <mutex>
 #include <random>
-#include <sstream>
 #include <string>
 #include <thread>
 #include <tuple>
@@ -1989,42 +1988,11 @@ TEST_F(NeugDBACIDTest, ConcurrentReadsAndInsertsDoNotInterfere) {
   std::atomic<int64_t> reader_anomalies{0};
   std::atomic<int64_t> insert_count{0};
   std::atomic<int64_t> next_id{200000};
-  // Diagnose progress without extending the test window or adding per-write
-  // logging: a zero insert count alone cannot distinguish scheduling from
-  // errors.
-  std::atomic<int> readers_ready{0};
-  std::atomic<int> inserters_started{0};
-  std::atomic<int> inserters_ready{0};
-  std::atomic<int64_t> insert_attempts{0};
-  std::atomic<int64_t> transactions_started{0};
-  std::atomic<int64_t> add_failures{0};
-  std::atomic<int64_t> commit_failures{0};
-  const auto started_at = std::chrono::steady_clock::now();
-  auto progress = [&] {
-    std::ostringstream out;
-    out << "elapsed_ms="
-        << std::chrono::duration_cast<std::chrono::milliseconds>(
-               std::chrono::steady_clock::now() - started_at)
-               .count()
-        << " slots=" << svc->ExecutionSlotNum()
-        << " readers_ready=" << readers_ready.load()
-        << " inserters_started=" << inserters_started.load()
-        << " inserters_ready=" << inserters_ready.load()
-        << " insert_attempts=" << insert_attempts.load()
-        << " transactions_started=" << transactions_started.load()
-        << " add_failures=" << add_failures.load()
-        << " commit_failures=" << commit_failures.load()
-        << " inserts=" << insert_count.load()
-        << " reader_observations=" << reader_observations.load()
-        << " reader_anomalies=" << reader_anomalies.load();
-    return out.str();
-  };
 
   std::vector<std::thread> threads;
   for (int i = 0; i < 8; ++i) {
     threads.emplace_back([&] {
       auto lease = svc->AcquireExecutionSlot();
-      readers_ready.fetch_add(1);
       while (!stop.load()) {
         // Person 5 has age 25 in the seed and is never updated.
         int64_t got = cc_read_age(*lease.get(), db, 5);
@@ -2036,46 +2004,31 @@ TEST_F(NeugDBACIDTest, ConcurrentReadsAndInsertsDoNotInterfere) {
   }
   for (int i = 0; i < kInserterThreads; ++i) {
     threads.emplace_back([&] {
-      inserters_started.fetch_add(1);
       auto lease = svc->AcquireExecutionSlot();
-      inserters_ready.fetch_add(1);
       auto person_label = db.schema().get_vertex_label_id("person");
       while (!stop.load() && insert_count.load() < kMaxInserts) {
         int64_t id = next_id.fetch_add(1);
-        insert_attempts.fetch_add(1);
         auto txn = lease->BeginMvccInsertTransaction();
-        transactions_started.fetch_add(1);
         vid_t vid;
-        auto status = txn.AddVertex(
-            person_label, neug::Value::INT64(id),
-            {neug::Value::STRING(std::string("x")), neug::Value::INT64(99)},
-            vid);
-        if (!status) {
-          if (add_failures.fetch_add(1) == 0) {
-            LOG(WARNING) << "First concurrent insert AddVertex failure: "
-                         << status.ToString();
-          }
-        } else if (txn.Commit()) {
+        if (txn.AddVertex(
+                person_label, neug::Value::INT64(id),
+                {neug::Value::STRING(std::string("x")), neug::Value::INT64(99)},
+                vid) &&
+            txn.Commit()) {
           insert_count.fetch_add(1);
-        } else {
-          commit_failures.fetch_add(1);
         }
       }
     });
   }
   std::this_thread::sleep_for(std::chrono::milliseconds(500));
-  const auto before_stop = progress();
   stop.store(true);
   for (auto& t : threads)
     t.join();
 
-  const auto diagnostics =
-      "Before stop: " + before_stop + "\nAfter join: " + progress();
   EXPECT_EQ(reader_anomalies.load(), 0)
-      << "Reader saw inconsistent state under concurrent insert\n"
-      << diagnostics;
-  EXPECT_GT(reader_observations.load(), 0) << diagnostics;
-  EXPECT_GT(insert_count.load(), 0) << diagnostics;
+      << "Reader saw inconsistent state under concurrent insert";
+  EXPECT_GT(reader_observations.load(), 0);
+  EXPECT_GT(insert_count.load(), 0);
 }
 
 // ============================================================================
