@@ -75,7 +75,7 @@ before-build = [
     ". /root/.neug_env",
     # Keep the native core build, but remove the prior Python ABI's binding
     # so setup.py does not copy it into the next version's wheel.
-    "rm -f '{project}/../../build/tools/python_bind'/neug_py_bind*.so",
+    "rm -f '{project}/build/tools/python_bind'/neug_py_bind*.so",
 ]
 environment = {CMAKE_PREFIX_PATH="/opt/neug/", OPENSSL_ROOT_DIR="/opt/neug", LIBRARY_PATH="/opt/neug/lib:/opt/neug/lib64", LD_LIBRARY_PATH="/opt/neug/lib:/opt/neug/lib64:$LD_LIBRARY_PATH",  DYLD_LIBRARY_PATH="/opt/neug/lib:/opt/neug/lib64:$DYLD_LIBRARY_PATH", PYBIND11_FINDPYTHON="OFF"}
 
