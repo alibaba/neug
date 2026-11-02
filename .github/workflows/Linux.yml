@@ -184,7 +184,7 @@ jobs:
     - name: Install Dependencies (Linux)
       shell: bash
       run: |
-        sudo apt-get update && sudo apt-get install -y ccache libcurl4-openssl-dev libzstd-dev liblz4-dev zlib1g-dev
+        sudo apt-get update && sudo apt-get install -y ccache libcurl4-openssl-dev libzstd-dev liblz4-dev zlib1g-dev unzip
 
     - name: Cache CCache
       uses: actions/cache@v4
