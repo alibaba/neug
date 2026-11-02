@@ -201,7 +201,20 @@ jobs:
           cd "$test_dir"
           npm install "$GITHUB_WORKSPACE/downloaded/npm/neug-ai-${ARTIFACT_PLATFORM}-"*.tgz
           node <<'JS'
-        const { Database } = require('@neug-ai/' + process.env.ARTIFACT_PLATFORM);
+        const fs = require('fs');
+        const path = require('path');
+        const packageName = '@neug-ai/' + process.env.ARTIFACT_PLATFORM;
+        const root = path.dirname(require.resolve(packageName + '/package.json'));
+        const extensionDir = path.join(root, 'build', 'Release', process.env.ARTIFACT_PLATFORM.replaceAll('-', '_'), 'extension');
+        if (fs.existsSync(extensionDir)) throw new Error('Core npm package contains extensions');
+        for (const name of process.env.EXTENSIONS.split(';')) {
+          const suffix = process.platform === 'linux' ? '-cxx11abi' : '';
+          const source = path.join(process.env.GITHUB_WORKSPACE, 'extension-packages', `lib${name}${suffix}.neug_extension`);
+          const target = path.join(extensionDir, name);
+          fs.mkdirSync(target, { recursive: true });
+          fs.copyFileSync(source, path.join(target, `lib${name}.neug_extension`));
+        }
+        const { Database } = require(packageName);
         const db = new Database({ databasePath: '', mode: 'w' });
         const conn = db.connect();
         for (const name of process.env.EXTENSIONS.split(';')) {

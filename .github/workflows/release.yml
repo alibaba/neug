@@ -96,14 +96,6 @@ jobs:
       run: |
         find dist/npm -maxdepth 2 -name '*.tgz' -print | sort
 
-    - name: Prepare Main Package
-      shell: bash
-      run: |
-        MAIN_DIR="dist/npm-main"
-        mkdir -p "$MAIN_DIR"
-        cp tools/nodejs_bind/assets/package.json "$MAIN_DIR/package.json"
-        cp tools/nodejs_bind/assets/index.js "$MAIN_DIR/index.js"
-
     # ========================================
     # Phase 2: Publish
     # ========================================
@@ -162,30 +154,20 @@ jobs:
         python3 tools/nodejs_bind/scripts/validate_npm_version.py \
           "${linux_arm64[0]}" '@neug-ai/linux-arm64' "$VERSION"
         python3 tools/nodejs_bind/scripts/validate_npm_version.py \
-          dist/npm-main '@neug-ai/neug' "$VERSION" \
+          dist/npm/neug-ai-neug-*.tgz '@neug-ai/neug' "$VERSION" \
           --optional-dependency '@neug-ai/linux-x86_64' \
           --optional-dependency '@neug-ai/linux-arm64' \
           --optional-dependency '@neug-ai/osx-arm64' \
           --optional-dependency '@neug-ai/windows-x86_64' \
           --optional-dependency '@neug-ai/windows-arm64'
 
-        # npm publish must run from package directories, so unpack platform tarballs first.
-        mkdir -p dist/npm-packages/linux-x86_64 dist/npm-packages/linux-arm64 dist/npm-packages/osx-arm64 dist/npm-packages/windows-x86_64 dist/npm-packages/windows-arm64
-        tar -xzf "${linux_x86_64[0]}" -C dist/npm-packages/linux-x86_64
-        tar -xzf "${linux_arm64[0]}" -C dist/npm-packages/linux-arm64
-        tar -xzf "${osx_arm64[0]}" -C dist/npm-packages/osx-arm64
-        tar -xzf "${windows_x86_64[0]}" -C dist/npm-packages/windows-x86_64
-        tar -xzf "${windows_arm64[0]}" -C dist/npm-packages/windows-arm64
-
-        # Extensions are published to OSS; npm packages contain the core only.
-        rm -rf dist/npm-packages/*/package/build/Release/*/extension
-
-        npm publish ./dist/npm-packages/linux-x86_64/package --access public
-        npm publish ./dist/npm-packages/linux-arm64/package --access public
-        npm publish ./dist/npm-packages/osx-arm64/package --access public
-        npm publish ./dist/npm-packages/windows-x86_64/package --access public
-        npm publish ./dist/npm-packages/windows-arm64/package --access public
-        npm publish ./dist/npm-main --access public
+        # Publish the exact core tarballs produced and verified by package.
+        npm publish "${linux_x86_64[0]}" --access public
+        npm publish "${linux_arm64[0]}" --access public
+        npm publish "${osx_arm64[0]}" --access public
+        npm publish "${windows_x86_64[0]}" --access public
+        npm publish "${windows_arm64[0]}" --access public
+        npm publish dist/npm/neug-ai-neug-*.tgz --access public
 
   publish_extension:
     name: Publish Extension / ${{ matrix.artifact_platform }}

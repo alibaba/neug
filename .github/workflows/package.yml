@@ -265,59 +265,6 @@ jobs:
         artifact_platform: linux-${{ matrix.arch }}
         upload_artifacts: 'true'
 
-    # Keep the manylinux_2_28/C++11-ABI extensions separate from wheel-built extensions.
-    - name: Extract Node.js Extension Packages
-      id: extensions
-      shell: bash
-      env:
-        ARTIFACT_PLATFORM: linux-${{ matrix.arch }}
-        EXTENSIONS: ${{ env.EXTENSIONS }}
-        RELEASE_TAG: ${{ github.event.release.tag_name }}
-      run: |
-        set -euo pipefail
-        python - <<'PY'
-        import hashlib
-        import json
-        import os
-        import shutil
-        import tarfile
-        from pathlib import Path
-
-        platform = os.environ['ARTIFACT_PLATFORM'].replace('-', '_')
-        packages = list(Path('tools/nodejs_bind').glob(
-            f"neug-ai-{os.environ['ARTIFACT_PLATFORM']}-*.tgz"))
-        if len(packages) != 1:
-            raise RuntimeError(f'Expected one npm package, got {packages}')
-        output = Path('npm_extension_packages')
-        output.mkdir(parents=True, exist_ok=True)
-        with tarfile.open(packages[0], 'r:gz') as archive:
-            metadata = json.load(archive.extractfile('package/package.json'))
-            expected_name = '@neug-ai/' + os.environ['ARTIFACT_PLATFORM']
-            version = os.environ['RELEASE_TAG'].removeprefix('v') or Path('NEUG_VERSION').read_text().strip()
-            if metadata['name'] != expected_name or metadata['version'] != version:
-                raise RuntimeError(f'Package does not match release {version}: {metadata}')
-            for extension in os.environ['EXTENSIONS'].split(';'):
-                member = (f'package/build/Release/{platform}/extension/{extension}/'
-                          f'lib{extension}.neug_extension')
-                target = output / f'lib{extension}-cxx11abi.neug_extension'
-                with archive.extractfile(member) as source, target.open('wb') as destination:
-                    shutil.copyfileobj(source, destination)
-                target.with_name(target.name + '.sha256').write_text(
-                    hashlib.sha256(target.read_bytes()).hexdigest(), encoding='utf-8')
-        with open(os.environ['GITHUB_OUTPUT'], 'a') as outputs:
-            outputs.write(f"version={metadata['version']}\n")
-        PY
-
-    - name: Upload Node.js Extension Packages
-      uses: actions/upload-artifact@v4
-      with:
-        name: extension-packages-linux-${{ matrix.arch }}-cxx11abi-${{ steps.extensions.outputs.version }}
-        path: |
-          npm_extension_packages/*.neug_extension
-          npm_extension_packages/*.sha256
-        if-no-files-found: error
-        retention-days: 7
-
   # ========================================
   # For MacOS, package directly in the development environment through OSX.yml.
   # ========================================
@@ -367,6 +314,27 @@ jobs:
         package: 'true'
         upload_artifacts: 'true'
 
+  npm-main:
+    needs: initialize
+    if: (inputs.platforms || 'all') != 'java'
+    runs-on: ubuntu-22.04
+    steps:
+    - uses: actions/checkout@v4
+    - uses: actions/setup-node@v4
+      with:
+        node-version: '20'
+    - name: Package npm Entry Point
+      run: |
+        mkdir -p dist/npm-main
+        cp tools/nodejs_bind/assets/package.json tools/nodejs_bind/assets/index.js dist/npm-main/
+        npm pack ./dist/npm-main --pack-destination dist
+    - uses: actions/upload-artifact@v4
+      with:
+        name: nodejs-main-${{ github.run_id }}
+        path: dist/*.tgz
+        if-no-files-found: error
+        retention-days: 7
+
   # ========================================
   # Download the uploaded artifacts in independent environments and run package smoke tests.
   # ========================================
@@ -385,7 +353,7 @@ jobs:
   # ========================================
   complete:
     if: always()
-    needs: [initialize, linux_wheel, linux-npm, macos, windows, java, verify]
+    needs: [initialize, linux_wheel, linux-npm, macos, windows, java, npm-main, verify]
     runs-on: ubuntu-22.04
     steps:
 

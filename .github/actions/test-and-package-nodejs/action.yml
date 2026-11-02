@@ -122,7 +122,28 @@ runs:
           awk '/_ZNK4neug12StorageIndex14ModuleTypeNameB5cxx11Ev/ { found = 1 } END { exit !found }'
       fi
       cp package.json "$RUNNER_TEMP/ci-package.json"
-      trap 'cp "$RUNNER_TEMP/ci-package.json" package.json' EXIT
+      extension_dir="build/Release/${ARTIFACT_PLATFORM//-/_}/extension"
+      saved_extensions=$(mktemp -d "$RUNNER_TEMP/npm-extensions.XXXXXX")
+      trap 'cp "$RUNNER_TEMP/ci-package.json" package.json; if [ -d "$saved_extensions/extension" ]; then mv "$saved_extensions/extension" "$extension_dir"; fi' EXIT
+      if [ -d "$extension_dir" ]; then
+        if [[ "$RUNNER_OS" == Linux && -n "$EXTENSIONS" ]]; then
+          mkdir -p "$GITHUB_WORKSPACE/npm_extension_packages"
+          for extension in ${EXTENSIONS//;/ }; do
+            source="$extension_dir/$extension/lib$extension.neug_extension"
+            target="$GITHUB_WORKSPACE/npm_extension_packages/lib$extension-cxx11abi.neug_extension"
+            cp "$source" "$target"
+          done
+          python - <<'PYCODE'
+      import hashlib
+      import os
+      from pathlib import Path
+      for package in (Path(os.environ['GITHUB_WORKSPACE']) / 'npm_extension_packages').glob('*.neug_extension'):
+          package.with_name(package.name + '.sha256').write_text(
+              hashlib.sha256(package.read_bytes()).hexdigest(), encoding='utf-8')
+      PYCODE
+        fi
+        mv "$extension_dir" "$saved_extensions/extension"
+      fi
       node <<'JS'
       const fs = require('fs');
       const p = JSON.parse(fs.readFileSync('package.json'));
@@ -145,7 +166,15 @@ runs:
       cd "$test_dir"
       npm install "$GITHUB_WORKSPACE/tools/nodejs_bind/neug-ai-${ARTIFACT_PLATFORM}-"*.tgz
       node <<'JS'
-      const { Database } = require('@neug-ai/' + process.env.ARTIFACT_PLATFORM);
+      const fs = require('fs');
+      const path = require('path');
+      const name = '@neug-ai/' + process.env.ARTIFACT_PLATFORM;
+      const packageDir = path.dirname(require.resolve(name + '/package.json'));
+      const platformDir = path.join(packageDir, 'build', 'Release', process.env.ARTIFACT_PLATFORM.replaceAll('-', '_'));
+      if (fs.existsSync(path.join(platformDir, 'extension'))) throw new Error('Core npm package contains extensions');
+      const source = path.join(process.env.GITHUB_WORKSPACE, 'tools/nodejs_bind/build/Release', process.env.ARTIFACT_PLATFORM.replaceAll('-', '_'), 'extension');
+      if (process.env.EXTENSIONS) fs.cpSync(source, path.join(platformDir, 'extension'), { recursive: true });
+      const { Database } = require(name);
       const db = new Database({ databasePath: '', mode: 'w' });
       const conn = db.connect();
       for (const extension of process.env.EXTENSIONS.split(';').filter(Boolean)) {
@@ -157,6 +186,17 @@ runs:
       conn.close();
       db.close();
       JS
+
+  - name: Upload Linux Node.js Extension Packages
+    if: runner.os == 'Linux' && inputs.package == 'true' && inputs.upload_artifacts == 'true' && inputs.extensions != ''
+    uses: actions/upload-artifact@v4
+    with:
+      name: extension-packages-${{ inputs.artifact_platform }}-cxx11abi-${{ github.event.release.tag_name || 'package' }}
+      path: |
+        npm_extension_packages/*.neug_extension
+        npm_extension_packages/*.sha256
+      if-no-files-found: error
+      retention-days: 7
 
   - name: Upload Node.js
     if: inputs.package == 'true' && inputs.upload_artifacts == 'true'
