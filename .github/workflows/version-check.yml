@@ -1,0 +1,36 @@
+name: Version Check
+
+on:
+  workflow_dispatch:
+  pull_request:
+    branches:
+      - main
+  push:
+    branches:
+      - main
+
+concurrency:
+  group: ${{ github.repository }}-version-check-${{ github.event.number || github.head_ref || github.sha }}-${{ github.run_id }}
+  cancel-in-progress: true
+
+jobs:
+  version-consistency:
+    # Same runner convention as format-check.yml: self-hosted pool inside
+    # alibaba/neug (fork PRs included), ubuntu-22.04 elsewhere.
+    runs-on: ${{ github.repository == 'alibaba/neug' && fromJSON('["self-hosted"]') || 'ubuntu-22.04' }}
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Set up Python
+      # Skip on self-hosted ARM runners (Python is preinstalled there).
+      if: ${{ !(runner.environment == 'self-hosted' && (runner.arch == 'ARM64' || runner.arch == 'ARM')) }}
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.10'
+
+    - name: Check version strings are consistent
+      # Fails if NEUG_VERSION and the satellite files that hardcode the
+      # version (pyproject.toml, package.json, pom.xml, ...) disagree --
+      # i.e. a partial bump. See scripts/bump_version.py docstring.
+      run: python3 scripts/bump_version.py --check

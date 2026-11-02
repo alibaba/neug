@@ -192,12 +192,17 @@ class NEUG_API NeugDB {
    * config.max_thread_num = 8;
    * config.mode = neug::DBMode::READ_WRITE;
    * config.memory_level = 1;  // Use memory-mapped virtual memory
+   * config.auto_load_extension = false;  // Disabled by default
    *
    * neug::NeugDB db;
    * db.Open(config);
    * @endcode
    *
-   * @param config Configuration object with all database settings
+   * @param config Configuration object with all database settings.
+   * config.auto_load_extension (bool, default false) controls automatic loading
+   * of installed extensions before indexes are opened. See the <a
+   * href="../python_api/database.md">Python configuration reference</a> for
+   * details.
    *
    * @return true if database opened successfully, false otherwise
    *
