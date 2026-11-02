@@ -2,10 +2,6 @@ name: NeuG Test (Lite)
 
 on:
   workflow_dispatch:
-  pull_request:
-    branches: [main]
-  push:
-    branches: [main]
 
 concurrency:
   group: ${{ github.repository }}-${{ github.event.number || github.head_ref || github.sha }}-${{ github.workflow }}
@@ -13,8 +9,6 @@ concurrency:
 
 jobs:
   build_and_test_lite:
-    # Temporarily disable Lite CI.
-    if: ${{ false }}
     name: Build and test lite
     runs-on: ${{ github.repository == 'alibaba/neug' && fromJSON('["self-hosted", "daily", "linux", "x64"]') || 'ubuntu-22.04' }}
     container:
