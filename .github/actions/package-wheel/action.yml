@@ -108,6 +108,7 @@ runs:
     with:
       python-version: ${{ steps.python_versions.outputs.setup_versions }}
       allow-prereleases: true
+      update-environment: false
 
   - name: Build and Validate Wheels
     shell: bash
