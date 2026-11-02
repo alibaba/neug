@@ -300,6 +300,12 @@ jobs:
         echo '::error::Timed out waiting for Maven Central publication'
         exit 1
 
+  verify_published:
+    needs: [package, publish_wheel, publish_npm, publish_extension, publish_java]
+    uses: ./.github/workflows/verify-published.yml
+    with:
+      version: ${{ github.event.release.tag_name }}
+
   report:
     if: always()
     needs:
@@ -308,6 +314,7 @@ jobs:
       - publish_npm
       - publish_extension
       - publish_java
+      - verify_published
     runs-on: ubuntu-22.04
     steps:
 
