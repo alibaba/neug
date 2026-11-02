@@ -212,7 +212,7 @@ jobs:
         const fs = require('fs');
         const path = require('path');
         const packageName = '@neug-ai/' + process.env.ARTIFACT_PLATFORM;
-        const root = path.dirname(require.resolve(packageName + '/package.json'));
+        const root = path.resolve(path.dirname(require.resolve(packageName)), '..');
         const extensionDir = path.join(root, 'build', 'Release', process.env.ARTIFACT_PLATFORM.replaceAll('-', '_'), 'extension');
         if (fs.existsSync(extensionDir)) throw new Error('Core npm package contains extensions');
         for (const name of process.env.EXTENSIONS.split(';')) {

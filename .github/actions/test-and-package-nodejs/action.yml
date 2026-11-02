@@ -169,7 +169,7 @@ runs:
       const fs = require('fs');
       const path = require('path');
       const name = '@neug-ai/' + process.env.ARTIFACT_PLATFORM;
-      const packageDir = path.dirname(require.resolve(name + '/package.json'));
+      const packageDir = path.resolve(path.dirname(require.resolve(name)), '..');
       const platformDir = path.join(packageDir, 'build', 'Release', process.env.ARTIFACT_PLATFORM.replaceAll('-', '_'));
       if (fs.existsSync(path.join(platformDir, 'extension'))) throw new Error('Core npm package contains extensions');
       const source = path.join(process.env.GITHUB_WORKSPACE, 'tools/nodejs_bind/build/Release', process.env.ARTIFACT_PLATFORM.replaceAll('-', '_'), 'extension');
