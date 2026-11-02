@@ -63,7 +63,7 @@ jobs:
       BUILD_EXTENSIONS: ${{ inputs.extensions }}
       BUILD_HTTP_SERVER: 'ON'
       BUILD_NODEJS: 'ON'
-      WITH_MIMALLOC: 'OFF'
+      WITH_MIMALLOC: 'ON'
       ENABLE_BACKTRACES: 'OFF'
       NEUG_PACKAGE_BUILD: 'OFF'
       NEUG_NATIVE_ARCH: 'OFF'
@@ -219,7 +219,7 @@ jobs:
           -DBUILD_HTTP_SERVER=ON `
           -DBUILD_TEST=ON `
           "-DBUILD_EXTENSIONS=$env:BUILD_EXTENSIONS" `
-          -DWITH_MIMALLOC=OFF `
+          -DWITH_MIMALLOC=ON `
           -DNEUG_PACKAGE_BUILD=OFF `
           -DNEUG_NATIVE_ARCH=OFF `
           "-DPython_EXECUTABLE=$python" `

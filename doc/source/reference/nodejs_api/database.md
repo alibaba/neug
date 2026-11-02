@@ -63,6 +63,7 @@ constructor(options = {}) {
     maxThreadNum = 0,
     checkpointOnClose = true,
     bufferStrategy = 'M_FULL',
+    autoLoadExtension = false,
   } = options;
 }
 ```
@@ -99,7 +100,16 @@ Open a database.
     - 'HugePagePreferred' / 'M_HUGE': Similar to 'InMemory', but it will try to use huge pages for memory
     allocation, which may improve performance for large databases.
 
+  - `options.autoLoadExtension` (boolean, default `false`)
+    Controls automatic loading of installed extensions before graph/index opening,
+    for example `new Database({ databasePath: '/data/graph', autoLoadExtension: false })`.
+    Set to `true` to enable it. Omission or `undefined` uses the default.
+    See [auto_load_extension configuration](../python_api/database.md)
+    for directory resolution, failure handling and database mode behavior.
+
 - **Throws:**
+  - **TypeError**
+    If `autoLoadExtension` is not a boolean.
   - **Error** (ERR_INVALID_PATH)
     If the database path contains illegal characters.
   - **Error** (ERR_INVALID_ARGUMENT)

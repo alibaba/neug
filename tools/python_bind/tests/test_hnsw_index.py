@@ -1068,3 +1068,71 @@ def test_index_persistence_after_process_restart(tmp_path):
         """
     )
     subprocess.run([sys.executable, "-c", reopen_script], check=True)
+
+
+def test_auto_load_extension_restores_index_in_new_process(tmp_path):
+    """Persist a manually loaded index, then query it in a fresh interpreter."""
+    db_path = tmp_path / "auto-load-database"
+    csv_path = tmp_path / "vectors.csv"
+    csv_path.write_text(
+        "id|embedding\n"
+        "1|[1.0, 0.0, 0.0, 0.0]\n"
+        "2|[0.0, 1.0, 0.0, 0.0]\n"
+        "3|[0.0, 0.0, 1.0, 0.0]\n"
+    )
+    creator_pid = os.getpid()
+    db = Database(str(db_path), mode="w", auto_load_extension=False)
+    conn = db.connect()
+    try:
+        conn.execute("LOAD EXTENSION vector_search;")
+        conn.execute(
+            "CREATE NODE TABLE Item(id INT64 PRIMARY KEY, embedding FLOAT[4]);"
+        )
+        conn.execute(
+            "CREATE INDEX item_embedding_hnsw ON Item USING HNSW (embedding) "
+            "WITH (metric = 'l2');"
+        )
+        conn.execute(
+            f'COPY Item FROM (LOAD FROM "{csv_path.as_posix()}" '
+            "RETURN id, CAST(embedding, 'FLOAT[4]') AS embedding);"
+        )
+        assert list(conn.execute("MATCH (n:Item) RETURN count(n);")) == [[3]]
+    finally:
+        _close_database(db, conn)
+
+    # subprocess starts a new interpreter, so it cannot reuse this process's
+    # loaded libraries or module registrations. The parent stays alive, making
+    # the explicit PID comparison immune to PID reuse.
+    script = textwrap.dedent(
+        f"""
+        import os
+        from neug import Database
+
+        assert os.getpid() != {creator_pid}, "Query must run in another process"
+        db = Database({str(db_path)!r}, mode="r", auto_load_extension=True)
+        conn = db.connect()
+        try:
+            # No LOAD here: opening the database must load the extension.
+            result = conn.execute(
+                "PROFILE MATCH (n:Item) RETURN n.id, "
+                "vector_distance_l2(n.embedding, [1.0, 0.0, 0.0, 0.0]) "
+                "AS distance ORDER BY distance ASC LIMIT 1;"
+            )
+            rows = list(result)
+            assert rows == [[1, 0.0]], rows
+            operators = result.get_profile_metrics()["operators"]
+            assert "IndexScanOpr" in [op["operator_name"] for op in operators], operators
+        finally:
+            conn.close()
+            db.close()
+        """
+    )
+    result = subprocess.run(
+        [sys.executable, "-c", script],
+        cwd=os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+        check=False,
+        capture_output=True,
+        text=True,
+        timeout=90,
+    )
+    assert result.returncode == 0, result.stdout + result.stderr

@@ -61,7 +61,8 @@ def __init__(db_path: str = None,
              mode: str = "read-write",
              max_thread_num: int = 0,
              checkpoint_on_close: bool = True,
-             buffer_strategy: str = "M_FULL")
+             buffer_strategy: str = "M_FULL",
+             auto_load_extension: bool = False)
 ```
 
 Open a database.
@@ -92,7 +93,26 @@ Open a database.
     - 'SyncToFile' / 'M_LAZY': Load database pages on demand, suitable for databases that do not fit in memory.
     - 'HugePagePreferred' / 'M_HUGE': Similar to 'InMemory', but prefer huge pages when available.
 
+  - `auto_load_extension` (bool)
+    Default is False.
+    Controls whether installed extensions are loaded before graph/index opening.
+    For example, `Database("/data/graph", auto_load_extension=False)` keeps automatic
+    loading disabled; set the option to `True` to enable it.
+
+    When enabled, NeuG scans direct subdirectories of `<extension home>/extension`
+    for `<name>/lib<name>.neug_extension`, without installing or downloading packages.
+
+    A missing directory or a loading failure logs ERROR without interrupting database
+    opening, and other extensions are still attempted. An empty directory is a no-op.
+    Ordinary database/index opening errors retain their behavior. The option supports
+    read-only, read-write and in-memory databases. Read-only databases still reject
+    manual `LOAD` requests, so enable this option at open time when their indexes
+    require extensions. Pass it on each open; it is not persisted in checkpoints.
+    With `False`, this database does not initiate extension loading.
+
 - **Raises:**
+  - **TypeError**
+    If auto_load_extension is not a bool.
   - **RuntimeError**
     If the database file does not exist or the mode is invalid.
   - **ValueError**

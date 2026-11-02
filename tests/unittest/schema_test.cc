@@ -742,6 +742,31 @@ TEST(SchemaYamlRoundTrip, PreservesSortKeyForNbrAndMutability) {
   EXPECT_TRUE(original.Equals(reconstituted));
 }
 
+TEST(SchemaYamlRoundTrip, MissingStoreTypeDoesNotLogDiagnostics) {
+  auto yaml = YAML::Load("schema:\n  vertex_types: []\n");
+
+  ::testing::internal::CaptureStderr();
+  auto loaded = neug::Schema::LoadFromYamlNode(yaml);
+  const std::string logs = ::testing::internal::GetCapturedStderr();
+
+  ASSERT_TRUE(loaded);
+  EXPECT_EQ(logs.find("store_type"), std::string::npos) << logs;
+}
+
+TEST(SchemaYamlRoundTrip, InvalidStoreTypeStillLogsDiagnostics) {
+  auto yaml =
+      YAML::Load("store_type: immutable_csr\nschema:\n  vertex_types: []\n");
+
+  ::testing::internal::CaptureStderr();
+  auto loaded = neug::Schema::LoadFromYamlNode(yaml);
+  const std::string logs = ::testing::internal::GetCapturedStderr();
+
+  ASSERT_TRUE(loaded);
+  EXPECT_NE(logs.find("Expect key: store_type"), std::string::npos) << logs;
+  EXPECT_NE(logs.find("store_type is not set properly"), std::string::npos)
+      << logs;
+}
+
 TEST(SchemaCloneTest, CloneIsDeepCopyAndIndependent) {
   auto original = BuildComplexSchema();
   auto cloned = original.Clone();

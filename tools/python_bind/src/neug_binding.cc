@@ -142,6 +142,8 @@ PYBIND11_MODULE(neug_py_bind, m) {
       if (p) {
         std::rethrow_exception(p);
       }
+    } catch (const pybind11::type_error& e) {
+      e.set_error();
     } catch (const neug::exception::Exception& e) {
       pybind11::set_error(PyExc_RuntimeError, e.what());
     } catch (const std::exception& e) {
