@@ -258,7 +258,14 @@ jobs:
         name: java-${{ github.run_id }}
         path: tools/java_driver
 
+    - name: Download Java Publication Bundle
+      uses: actions/download-artifact@v4
+      with:
+        name: java-publication-${{ github.run_id }}
+        path: tools/java_driver/target/central-publishing
+
     - name: Smoke Test Downloaded JAR
+      # The publication bundle must contain the exact JAR tested by its producer.
       run: |
         set -euo pipefail
         cd tools/java_driver
@@ -267,6 +274,21 @@ jobs:
         mkdir -p target/classes
         jar_file=$(find target -maxdepth 1 -name 'neug-java-driver-*.jar' ! -name '*-sources.jar' ! -name '*-javadoc.jar' -print -quit)
         test -n "$jar_file"
+        python3 - "$jar_file" <<'PY'
+        import hashlib
+        import sys
+        import zipfile
+        from pathlib import Path
+        bundle = Path('target/central-publishing/central-bundle.zip')
+        expected = bundle.with_suffix('.zip.sha256').read_text().strip()
+        if hashlib.sha256(bundle.read_bytes()).hexdigest() != expected:
+            raise RuntimeError('Publication bundle SHA256 mismatch')
+        jar = Path(sys.argv[1])
+        with zipfile.ZipFile(bundle) as archive:
+            matches = [name for name in archive.namelist() if name.endswith('/' + jar.name)]
+            if len(matches) != 1 or archive.read(matches[0]) != jar.read_bytes():
+                raise RuntimeError('Publication bundle does not contain the tested JAR')
+        PY
         unzip -q "$jar_file" -d target/classes
         test -d target/test-classes
         mvn -B '-Dtest=GraphDatabaseTest#testDriverCreationWithUri' -DfailIfNoTests=true surefire:test

@@ -261,53 +261,44 @@ jobs:
     # ========================================
 
 
-    - name: Checkout Repository
-      uses: actions/checkout@v4
+    - uses: actions/download-artifact@v4
       with:
-        submodules: recursive
+        name: java-publication-${{ github.run_id }}
+        path: publication
 
-    - name: Set Up JDK
-      uses: actions/setup-java@v4
-      with:
-        java-version: '17'
-        distribution: temurin
-        server-id: central
-        server-username: MAVEN_CENTRAL_USERNAME
-        server-password: MAVEN_CENTRAL_PASSWORD
-        gpg-private-key: ${{ secrets.GPG_PRIVATE_KEY }}
-        gpg-passphrase: GPG_PASSPHRASE
-
-    - name: Setup Maven
-      uses: s4u/setup-maven-action@v1.19.0
-      with:
-        checkout-enabled: false
-        cache-enabled: false
-        java-version: '17'
-        maven-version: '3.9.6'
-
-    - name: Download Tested Java Packages
-      uses: actions/download-artifact@v4
-      with:
-        name: java-${{ github.run_id }}
-        path: tools/java_driver
-
-    # ========================================
-    # Phase 2: Publish
-    # ========================================
-
-    - name: Remove SNAPSHOT from Version
-      working-directory: tools/java_driver
+    - name: Publish Prepared Central Bundle
       shell: bash
-      run: mvn -B versions:set -DremoveSnapshot -DgenerateBackupPoms=false
-
-    - name: Publish to Maven Central
-      working-directory: tools/java_driver
-      shell: bash
-      run: mvn -B deploy -DskipTests
       env:
         MAVEN_CENTRAL_USERNAME: ${{ secrets.MAVEN_CENTRAL_USERNAME }}
         MAVEN_CENTRAL_PASSWORD: ${{ secrets.MAVEN_CENTRAL_PASSWORD }}
-        GPG_PASSPHRASE: ${{ secrets.GPG_PASSPHRASE }}
+      run: |
+        set -euo pipefail
+        python3 - <<'PY'
+        import hashlib
+        from pathlib import Path
+        bundle = Path('publication/central-bundle.zip')
+        expected = bundle.with_suffix('.zip.sha256').read_text().strip()
+        if hashlib.sha256(bundle.read_bytes()).hexdigest() != expected:
+            raise RuntimeError('Publication bundle SHA256 mismatch')
+        PY
+        token=$(printf '%s:%s' "$MAVEN_CENTRAL_USERNAME" "$MAVEN_CENTRAL_PASSWORD" | base64 | tr -d '\n')
+        echo "::add-mask::$token"
+        deployment=$(curl --fail-with-body --silent --show-error \
+          --header "Authorization: Bearer $token" \
+          --form 'bundle=@publication/central-bundle.zip;type=application/octet-stream' \
+          'https://central.sonatype.com/api/v1/publisher/upload?publishingType=AUTOMATIC')
+        for attempt in $(seq 1 120); do
+          status=$(curl --fail-with-body --silent --show-error --request POST \
+            --header "Authorization: Bearer $token" \
+            "https://central.sonatype.com/api/v1/publisher/status?id=$deployment")
+          state=$(printf '%s' "$status" | jq -r .deploymentState)
+          echo "Central deployment $deployment: $state"
+          if [ "$state" = PUBLISHED ]; then exit 0; fi
+          if [ "$state" = FAILED ]; then printf '%s\n' "$status"; exit 1; fi
+          sleep 15
+        done
+        echo '::error::Timed out waiting for Maven Central publication'
+        exit 1
 
   report:
     if: always()

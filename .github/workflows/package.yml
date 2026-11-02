@@ -308,9 +308,21 @@ jobs:
         java-version: '17'
         maven-version: 3.9.6
 
+    - name: Import Release Signing Key
+      if: github.event_name == 'release' && github.repository == 'alibaba/neug'
+      uses: actions/setup-java@v4
+      with:
+        java-version: '17'
+        distribution: temurin
+        gpg-private-key: ${{ secrets.GPG_PRIVATE_KEY }}
+        gpg-passphrase: GPG_PASSPHRASE
+
     - name: Build and Upload Java Package
       uses: ./.github/actions/test-and-package-java
+      env:
+        GPG_PASSPHRASE: ${{ secrets.GPG_PASSPHRASE }}
       with:
+        sign: ${{ github.event_name == 'release' && github.repository == 'alibaba/neug' && 'true' || 'false' }}
         package: 'true'
         upload_artifacts: 'true'
 

@@ -10,6 +10,10 @@ inputs:
     description: Upload tested packages
     default: 'false'
 
+  sign:
+    description: Sign publication artifacts with the release GPG key
+    default: 'false'
+
 runs:
   using: composite
   steps:
@@ -39,6 +43,8 @@ runs:
     if: inputs.package == 'true'
     working-directory: tools/java_driver
     shell: bash
+    env:
+      GPG_SKIP: ${{ inputs.sign != 'true' && 'true' || 'false' }}
     run: |
       set -euo pipefail
       # Dummy credentials let fork builds reach bundling without secrets.
@@ -48,13 +54,15 @@ runs:
         '<settings xmlns="http://maven.apache.org/SETTINGS/1.0.0">' \
         '  <servers><server><id>central</id>' \
         '    <username>dryrun</username><password>dryrun</password>' \
+        '  </server><server><id>gpg.passphrase</id>' \
+        '    <passphrase>${env.GPG_PASSPHRASE}</passphrase>' \
         '  </server></servers>' \
         '</settings>' > "$dry_settings"
       # Require a newly generated bundle, even when reusing an existing build.
       rm -f target/central-publishing/central-bundle.zip
       set +e
       mvn -B -s "$dry_settings" deploy -DskipTests \
-          -Dgpg.skip=true \
+          -Dgpg.skip="$GPG_SKIP" \
           -DcentralBaseUrl=http://127.0.0.1:9
       status=$?
       set -e
@@ -66,6 +74,8 @@ runs:
     if: inputs.package == 'true'
     working-directory: tools/java_driver
     shell: bash
+    env:
+      REQUIRE_SIGNATURES: ${{ inputs.sign }}
     run: |
       set -euo pipefail
       work=$(mktemp -d)
@@ -91,12 +101,39 @@ runs:
           echo "::error::missing checksum: ${file#"$work"/}.sha1"
           fail=1
         fi
+        if [ "$REQUIRE_SIGNATURES" = true ] && [ ! -f "$file.asc" ]; then
+          echo "::error::missing signature: ${file#"$work"/}.asc"
+          fail=1
+        fi
       done < <(find "$work" \( -name '*.jar' -o -name '*.pom' \) -type f)
       if [ "$fail" -ne 0 ]; then
         echo '::error::Central bundle validation FAILED'
         exit 1
       fi
       echo 'Central bundle validation PASSED'
+
+  - name: Record Publication Bundle Digest
+    if: inputs.package == 'true'
+    working-directory: tools/java_driver
+    shell: bash
+    run: |
+      python3 - <<'PY'
+      import hashlib
+      from pathlib import Path
+      bundle = Path('target/central-publishing/central-bundle.zip')
+      bundle.with_suffix('.zip.sha256').write_text(hashlib.sha256(bundle.read_bytes()).hexdigest())
+      PY
+
+  - name: Upload Java Publication Bundle
+    if: inputs.package == 'true' && inputs.upload_artifacts == 'true'
+    uses: actions/upload-artifact@v4
+    with:
+      name: java-publication-${{ github.run_id }}
+      path: |
+        tools/java_driver/target/central-publishing/central-bundle.zip
+        tools/java_driver/target/central-publishing/central-bundle.zip.sha256
+      if-no-files-found: error
+      retention-days: 7
 
   - name: Upload Java
     if: (inputs.package == 'true') && (inputs.upload_artifacts == 'true')
