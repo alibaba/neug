@@ -46,6 +46,7 @@ runs:
         trap 'exit "$test_failed"' EXIT
       fi
       python -m pytest -sv tests/test_batch_loading.py
+      python -m pytest -sv tests/test_cypher_path.py
       python -m pytest -sv tests/test_alter_property.py
       python -m pytest -sv tests/test_ddl.py
       python -m pytest -sv tests/test_query.py

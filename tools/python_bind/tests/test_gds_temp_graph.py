@@ -19,9 +19,9 @@
 
 import os
 import shutil
-from pathlib import Path
 
 import pytest
+from conftest import cypher_path
 
 from neug import Database
 
@@ -81,11 +81,11 @@ class TestGDSOnTempGraph:
 
         # Create temporary node and edge tables
         self.conn.execute(
-            f'COPY TEMP TNode FROM "{Path(self.node_csv).as_posix()}" '
+            f"COPY TEMP TNode FROM {cypher_path(self.node_csv)} "
             f"(primary_key = 'id', header = true)"
         )
         self.conn.execute(
-            f'COPY TEMP TEdge FROM "{Path(self.edge_csv).as_posix()}" '
+            f"COPY TEMP TEdge FROM {cypher_path(self.edge_csv)} "
             f"(header = true, from = 'TNode', to = 'TNode')"
         )
 
@@ -272,7 +272,7 @@ class TestGDSOnMixedGraph:
 
         # Create temporary edge table referencing persistent nodes
         self.conn.execute(
-            f'COPY TEMP TEdgeMixed FROM "{Path(self.edge_csv).as_posix()}" '
+            f"COPY TEMP TEdgeMixed FROM {cypher_path(self.edge_csv)} "
             f"(header = true, from = 'PNode', to = 'PNode')"
         )
 

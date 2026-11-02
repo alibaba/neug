@@ -20,11 +20,11 @@ import json
 import os
 import shutil
 import sys
-from pathlib import Path
 
 import pytest
 from conftest import COMPREHENSIVE_GRAPH_DIR
 from conftest import HAS_COMPREHENSIVE_GRAPH
+from conftest import cypher_path
 
 from neug import Database
 
@@ -126,7 +126,7 @@ class TestLoadFrom:
             pytest.skip(f"CSV file not found: {csv_path}")
 
         query = f"""
-        LOAD FROM "{Path(csv_path).as_posix()}" (delim=',')
+        LOAD FROM {cypher_path(csv_path)} (delim=',')
         RETURN *
         """
         result = self.conn.execute(query)
@@ -147,7 +147,7 @@ class TestLoadFrom:
             pytest.skip(f"CSV file not found: {csv_path}")
 
         query = f"""
-        LOAD FROM "{Path(csv_path).as_posix()}" (delim=',')
+        LOAD FROM {cypher_path(csv_path)} (delim=',')
         RETURN fName, age
         """
         result = self.conn.execute(query)
@@ -168,7 +168,7 @@ class TestLoadFrom:
             pytest.skip(f"CSV file not found: {csv_path}")
 
         query = f"""
-        LOAD FROM "{Path(csv_path).as_posix()}" (delim=',')
+        LOAD FROM {cypher_path(csv_path)} (delim=',')
         RETURN DISTINCT CAST(isStudent, 'BOOL')
         """
         result = self.conn.execute(query)
@@ -192,7 +192,7 @@ class TestLoadFrom:
             pytest.skip(f"CSV file not found: {csv_path}")
 
         query = f"""
-        LOAD FROM "{Path(csv_path).as_posix()}" (delim=',')
+        LOAD FROM {cypher_path(csv_path)} (delim=',')
         RETURN DISTINCT age
         """
         result = self.conn.execute(query)
@@ -220,7 +220,7 @@ class TestLoadFrom:
             pytest.skip(f"CSV file not found: {csv_path}")
 
         query = f"""
-        LOAD FROM "{Path(csv_path).as_posix()}" (delim=',')
+        LOAD FROM {cypher_path(csv_path)} (delim=',')
         RETURN DISTINCT fName
         """
         result = self.conn.execute(query)
@@ -248,7 +248,7 @@ class TestLoadFrom:
             pytest.skip(f"CSV file not found: {csv_path}")
 
         query = f"""
-        LOAD FROM "{Path(csv_path).as_posix()}" (delim=',')
+        LOAD FROM {cypher_path(csv_path)} (delim=',')
         RETURN DISTINCT CAST(birthdate, 'DATE')
         """
         result = self.conn.execute(query)
@@ -274,7 +274,7 @@ class TestLoadFrom:
             pytest.skip(f"CSV file not found: {csv_path}")
 
         query = f"""
-        LOAD FROM "{Path(csv_path).as_posix()}" (delim=',')
+        LOAD FROM {cypher_path(csv_path)} (delim=',')
         RETURN DISTINCT CAST(registerTime, 'TIMESTAMP')
         """
         result = self.conn.execute(query)
@@ -301,7 +301,7 @@ class TestLoadFrom:
             pytest.skip(f"CSV file not found: {csv_path}")
 
         query = f"""
-        LOAD FROM "{Path(csv_path).as_posix()}" (delim=',')
+        LOAD FROM {cypher_path(csv_path)} (delim=',')
         RETURN DISTINCT isStudent, age
         """
         result = self.conn.execute(query)
@@ -334,7 +334,7 @@ class TestLoadFrom:
             pytest.skip(f"CSV file not found: {csv_path}")
 
         query = f"""
-        LOAD FROM "{Path(csv_path).as_posix()}" (delim=',')
+        LOAD FROM {cypher_path(csv_path)} (delim=',')
         RETURN DISTINCT fName, CAST(birthdate, 'DATE'), CAST(registerTime, 'TIMESTAMP')
         """
         result = self.conn.execute(query)
@@ -364,7 +364,7 @@ class TestLoadFrom:
             pytest.skip(f"CSV file not found: {csv_path}")
 
         query = f"""
-        LOAD FROM "{Path(csv_path).as_posix()}" (delim=',')
+        LOAD FROM {cypher_path(csv_path)} (delim=',')
         WHERE age > 30
         RETURN fName, age
         """
@@ -385,7 +385,7 @@ class TestLoadFrom:
             pytest.skip(f"CSV file not found: {csv_path}")
 
         query = f"""
-        LOAD FROM "{Path(csv_path).as_posix()}" (delim=',')
+        LOAD FROM {cypher_path(csv_path)} (delim=',')
         RETURN fName, age
         ORDER BY age
         """
@@ -405,7 +405,7 @@ class TestLoadFrom:
             pytest.skip(f"CSV file not found: {csv_path}")
 
         query = f"""
-        LOAD FROM "{Path(csv_path).as_posix()}" (delim=',')
+        LOAD FROM {cypher_path(csv_path)} (delim=',')
         RETURN fName, age
         ORDER BY age DESC
         """
@@ -427,7 +427,7 @@ class TestLoadFrom:
             pytest.skip(f"CSV file not found: {csv_path}")
 
         query = f"""
-        LOAD FROM "{Path(csv_path).as_posix()}" (delim=',')
+        LOAD FROM {cypher_path(csv_path)} (delim=',')
         RETURN fName, age
         LIMIT 3
         """
@@ -443,7 +443,7 @@ class TestLoadFrom:
             pytest.skip(f"CSV file not found: {csv_path}")
 
         query = f"""
-        LOAD FROM "{Path(csv_path).as_posix()}" (delim=',')
+        LOAD FROM {cypher_path(csv_path)} (delim=',')
         RETURN gender, COUNT(*) as cnt
         """
         result = self.conn.execute(query)
@@ -464,7 +464,7 @@ class TestLoadFrom:
             pytest.skip(f"CSV file not found: {csv_path}")
 
         query = f"""
-        LOAD FROM "{Path(csv_path).as_posix()}" (delim=',')
+        LOAD FROM {cypher_path(csv_path)} (delim=',')
         RETURN gender, AVG(age) as avg_age, MAX(age) as max_age
         """
         result = self.conn.execute(query)
@@ -485,7 +485,7 @@ class TestLoadFrom:
             pytest.skip(f"CSV file not found: {csv_path}")
 
         query = f"""
-        LOAD FROM "{Path(csv_path).as_posix()}" (delim=',')
+        LOAD FROM {cypher_path(csv_path)} (delim=',')
         WHERE age > 25
         RETURN fName, age
         ORDER BY age DESC
@@ -509,7 +509,7 @@ class TestLoadFrom:
             pytest.skip(f"CSV file not found: {csv_path}")
 
         query = f"""
-        LOAD FROM "{Path(csv_path).as_posix()}" (delim=',')
+        LOAD FROM {cypher_path(csv_path)} (delim=',')
         WHERE age > 30
         RETURN fName, age
         LIMIT 2
@@ -530,7 +530,7 @@ class TestLoadFrom:
             pytest.skip(f"CSV file not found: {csv_path}")
 
         query = f"""
-        LOAD FROM "{Path(csv_path).as_posix()}" (delim=',')
+        LOAD FROM {cypher_path(csv_path)} (delim=',')
         RETURN gender, COUNT(*) as cnt
         ORDER BY cnt DESC
         """
@@ -552,7 +552,7 @@ class TestLoadFrom:
             pytest.skip(f"CSV file not found: {csv_path}")
 
         query = f"""
-        LOAD FROM "{Path(csv_path).as_posix()}" (delim=',')
+        LOAD FROM {cypher_path(csv_path)} (delim=',')
         WHERE age > 25
         RETURN gender, AVG(age) as avg_age
         ORDER BY avg_age DESC
@@ -575,7 +575,7 @@ class TestLoadFrom:
             pytest.skip(f"CSV file not found: {csv_path}")
 
         query = f"""
-        LOAD FROM "{Path(csv_path).as_posix()}" (delim=',')
+        LOAD FROM {cypher_path(csv_path)} (delim=',')
         RETURN *
         """
         result = self.conn.execute(query)
@@ -596,7 +596,7 @@ class TestLoadFrom:
         # Assuming eMeets.csv has location and times columns
         # This is a basic test - adjust based on actual CSV structure
         query = f"""
-        LOAD FROM "{Path(csv_path).as_posix()}" (delim=',')
+        LOAD FROM {cypher_path(csv_path)} (delim=',')
         RETURN to, from, location
         ORDER BY to, from
         LIMIT 5
@@ -620,7 +620,7 @@ class TestLoadFrom:
             pytest.skip(f"CSV file not found: {csv_path}")
 
         query = f"""
-        LOAD FROM "{Path(csv_path).as_posix()}" (delim=',')
+        LOAD FROM {cypher_path(csv_path)} (delim=',')
         RETURN fName AS name, age AS years
         """
         result = self.conn.execute(query)
@@ -641,7 +641,7 @@ class TestLoadFrom:
             pytest.skip(f"CSV file not found: {csv_path}")
 
         query = f"""
-        LOAD FROM "{Path(csv_path).as_posix()}" (delim=',')
+        LOAD FROM {cypher_path(csv_path)} (delim=',')
         WHERE age > 25 AND age < 40
         RETURN fName, age
         """
@@ -661,7 +661,7 @@ class TestLoadFrom:
             pytest.skip(f"CSV file not found: {csv_path}")
 
         query = f"""
-        LOAD FROM "{Path(csv_path).as_posix()}" (delim=',')
+        LOAD FROM {cypher_path(csv_path)} (delim=',')
         RETURN SUM(age) as total_age
         """
         result = self.conn.execute(query)
@@ -680,7 +680,7 @@ class TestLoadFrom:
             pytest.skip(f"CSV file not found: {csv_path}")
 
         query = f"""
-        LOAD FROM "{Path(csv_path).as_posix()}" (delim=',')
+        LOAD FROM {cypher_path(csv_path)} (delim=',')
         RETURN COUNT(*) as total_count
         """
         result = self.conn.execute(query)
@@ -699,7 +699,7 @@ class TestLoadFrom:
             pytest.skip(f"CSV file not found: {csv_path}")
 
         query = f"""
-        LOAD FROM "{Path(csv_path).as_posix()}" (delim=',')
+        LOAD FROM {cypher_path(csv_path)} (delim=',')
         RETURN MIN(age) as min_age, MAX(age) as max_age
         """
         result = self.conn.execute(query)
@@ -719,7 +719,7 @@ class TestLoadFrom:
             pytest.skip(f"CSV file not found: {csv_path}")
 
         query = f"""
-        LOAD FROM "{Path(csv_path).as_posix()}" (delim=',')
+        LOAD FROM {cypher_path(csv_path)} (delim=',')
         RETURN fName, CAST(age, 'DOUBLE') as age_double
         """
         result = self.conn.execute(query)
@@ -741,7 +741,7 @@ class TestLoadFrom:
             pytest.skip(f"CSV file not found: {csv_path}")
 
         query = f"""
-        LOAD FROM "{Path(csv_path).as_posix()}" (delim=',')
+        LOAD FROM {cypher_path(csv_path)} (delim=',')
         RETURN fName, CAST(eyeSight, 'STRING') as eyeSight_str
         """
         result = self.conn.execute(query)
@@ -763,7 +763,7 @@ class TestLoadFrom:
             pytest.skip(f"CSV file not found: {csv_path}")
 
         query = f"""
-        LOAD FROM "{Path(csv_path).as_posix()}" (delim=',')
+        LOAD FROM {cypher_path(csv_path)} (delim=',')
         RETURN
             CAST(ID, 'INT64') as id_int,
             fName,
@@ -793,7 +793,7 @@ class TestLoadFrom:
             pytest.skip(f"CSV file not found: {csv_path}")
 
         query = f"""
-        LOAD FROM "{Path(csv_path).as_posix()}" (delim=',')
+        LOAD FROM {cypher_path(csv_path)} (delim=',')
         WHERE age > 30.0
         RETURN fName, CAST(age, 'DOUBLE') as age_double
         """
@@ -814,7 +814,7 @@ class TestLoadFrom:
             pytest.skip(f"JSON file not found: {json_path}")
 
         query = f"""
-        LOAD FROM "{Path(json_path).as_posix()}"
+        LOAD FROM {cypher_path(json_path)}
         RETURN *
         """
         result = self.conn.execute(query)
@@ -835,7 +835,7 @@ class TestLoadFrom:
             pytest.skip(f"JSON file not found: {json_path}")
 
         query = f"""
-        LOAD FROM "{Path(json_path).as_posix()}"
+        LOAD FROM {cypher_path(json_path)}
         RETURN fName, age
         """
         result = self.conn.execute(query)
@@ -860,7 +860,7 @@ class TestLoadFrom:
             pytest.skip(f"JSON file not found: {json_path}")
 
         query = f"""
-        LOAD FROM "{Path(json_path).as_posix()}"
+        LOAD FROM {cypher_path(json_path)}
         RETURN fName AS name, age AS years
         """
         result = self.conn.execute(query)
@@ -883,7 +883,7 @@ class TestLoadFrom:
             pytest.skip(f"JSONL file not found: {jsonl_path}")
 
         query = f"""
-        LOAD FROM "{Path(jsonl_path).as_posix()}"
+        LOAD FROM {cypher_path(jsonl_path)}
         RETURN fName AS name, age AS years
         """
         result = self.conn.execute(query)
@@ -905,7 +905,7 @@ class TestLoadFrom:
             pytest.skip(f"JSONL file not found: {jsonl_path}")
 
         query = f"""
-        LOAD FROM "{Path(jsonl_path).as_posix()}"
+        LOAD FROM {cypher_path(jsonl_path)}
         RETURN fName, age
         """
         result = self.conn.execute(query)
@@ -928,7 +928,7 @@ class TestLoadFrom:
 
         # Test with multiple conditions: age > 25 AND age < 40 AND gender == 1
         query = f"""
-        LOAD FROM "{Path(jsonl_path).as_posix()}"
+        LOAD FROM {cypher_path(jsonl_path)}
         WHERE age > 25 AND age < 40 AND gender = 1
         RETURN fName, age, gender, eyeSight
         """
@@ -953,7 +953,7 @@ class TestLoadFrom:
 
         # Test with multiple conditions: age >= 30 AND eyeSight >= 5.0 AND height > 1.0
         query = f"""
-        LOAD FROM "{Path(jsonl_path).as_posix()}"
+        LOAD FROM {cypher_path(jsonl_path)}
         WHERE age >= 30 AND eyeSight >= 5.0 AND height > 1.0
         RETURN fName, age, eyeSight, height
         """
@@ -983,7 +983,7 @@ class TestLoadFrom:
         self.conn.execute("load parquet")
 
         query = f"""
-        LOAD FROM "{Path(parquet_path).as_posix()}"
+        LOAD FROM {cypher_path(parquet_path)}
         RETURN *
         """
         result = self.conn.execute(query)
@@ -1005,7 +1005,7 @@ class TestLoadFrom:
         self.conn.execute("load parquet")
 
         query = f"""
-        LOAD FROM "{Path(parquet_path).as_posix()}"
+        LOAD FROM {cypher_path(parquet_path)}
         RETURN *
         """
         result = self.conn.execute(query)
@@ -1028,7 +1028,7 @@ class TestLoadFrom:
         self.conn.execute("load parquet")
 
         query = f"""
-        LOAD FROM "{Path(parquet_path).as_posix()}"
+        LOAD FROM {cypher_path(parquet_path)}
         RETURN fName, age
         """
         result = self.conn.execute(query)
@@ -1053,7 +1053,7 @@ class TestLoadFrom:
 
         # Test with WHERE clause (predicate pushdown)
         query = f"""
-        LOAD FROM "{Path(parquet_path).as_posix()}"
+        LOAD FROM {cypher_path(parquet_path)}
         WHERE age > 30
         RETURN fName, age
         """
@@ -1079,7 +1079,7 @@ class TestLoadFrom:
 
         # Test with multiple conditions: age > 25 AND age < 40 AND gender = 1
         query = f"""
-        LOAD FROM "{Path(parquet_path).as_posix()}"
+        LOAD FROM {cypher_path(parquet_path)}
         WHERE age > 25 AND age < 40 AND gender = 1
         RETURN fName, age, gender, eyeSight
         """
@@ -1107,7 +1107,7 @@ class TestLoadFrom:
 
         # Test ORDER BY
         query = f"""
-        LOAD FROM "{Path(parquet_path).as_posix()}"
+        LOAD FROM {cypher_path(parquet_path)}
         RETURN fName, age
         ORDER BY age ASC
         """
@@ -1131,7 +1131,7 @@ class TestLoadFrom:
 
         # Test with multiple conditions: age >= 30 AND eyeSight >= 5.0 AND height > 1.0
         query = f"""
-        LOAD FROM "{Path(parquet_path).as_posix()}"
+        LOAD FROM {cypher_path(parquet_path)}
         WHERE age >= 30 AND eyeSight >= 5.0 AND height > 1.0
         RETURN fName, age, eyeSight, height
         """
@@ -1164,7 +1164,7 @@ class TestLoadFrom:
             pytest.skip(f"node_a.csv not found: {p}")
 
         result = self.conn.execute(
-            f'LOAD FROM "{Path(p).as_posix()}" (delim="|") '
+            f'LOAD FROM {cypher_path(p)} (delim="|") '
             'RETURN id, i32_property, i64_property, u32_property, CAST(u64_property, "UINT64") as u64_property, '
             "f32_property, f64_property, str_property, "
             "date_property, datetime_property, interval_property "
@@ -1197,7 +1197,7 @@ class TestLoadFrom:
             pytest.skip(f"rel_a.csv not found: {p_rel}")
 
         result = self.conn.execute(
-            f'LOAD FROM "{Path(p_rel).as_posix()}" (delim="|") '
+            f'LOAD FROM {cypher_path(p_rel)} (delim="|") '
             "RETURN f0 as src_id, f1 as dst_id, f2 as double_weight, f3 as i32_weight, "
             "f4 as i64_weight, f5 as datetime_weight "
             "LIMIT 1"
@@ -1242,7 +1242,7 @@ class TestLoadFrom:
         #   interval_property=1year2months3days4hours5minutes6seconds (stored as Parquet STRING)
         p = os.path.join(parquet_dir, "node_a.parquet")
         result = self.conn.execute(
-            f'LOAD FROM "{Path(p).as_posix()}" '
+            f"LOAD FROM {cypher_path(p)} "
             f"RETURN id, i32_property, i64_property, u32_property, u64_property, "
             f"f32_property, f64_property, str_property, date_property, datetime_property, interval_property "
             f"LIMIT 1"
@@ -1271,7 +1271,7 @@ class TestLoadFrom:
         #   i64_weight=-1234567890123456789, datetime_weight=2023-05-17
         p = os.path.join(parquet_dir, "rel_a.parquet")
         result = self.conn.execute(
-            f'LOAD FROM "{Path(p).as_posix()}" '
+            f"LOAD FROM {cypher_path(p)} "
             f"RETURN src_id, dst_id, double_weight, i32_weight, i64_weight, datetime_weight "
             f"ORDER BY src_id LIMIT 1"
         )
@@ -1518,7 +1518,9 @@ class TestCopyFrom:
         self.conn.execute(create_schema)
 
         # Copy data from CSV
-        copy_query = f'COPY person FROM "{Path(csv_path).as_posix()}" (header=true, delimiter=",")'
+        copy_query = (
+            f'COPY person FROM {cypher_path(csv_path)} (header=true, delimiter=",")'
+        )
         self.conn.execute(copy_query)
 
         # Verify data with MATCH query
@@ -1558,7 +1560,7 @@ class TestCopyFrom:
         # We want: ID, age, fName, gender, isStudent
         copy_query = f"""
         COPY person_remap FROM (
-            LOAD FROM "{Path(csv_path).as_posix()}" (header=true, delimiter=",")
+            LOAD FROM {cypher_path(csv_path)} (header=true, delimiter=",")
             RETURN ID, CAST(age, 'INT32') as age, fName, gender, isStudent
         )
         """
@@ -1603,7 +1605,7 @@ class TestCopyFrom:
         # We want: ID, age, fName, gender, eyeSight, isStudent
         copy_query = f"""
         COPY person_jsonl_remap FROM (
-            LOAD FROM "{Path(jsonl_path).as_posix()}"
+            LOAD FROM {cypher_path(jsonl_path)}
             RETURN ID, age, fName, gender, eyeSight, isStudent
         )
         """
@@ -1656,14 +1658,14 @@ class TestCopyFrom:
         # Copy person nodes first
         copy_person = f"""
         COPY person FROM (
-            LOAD FROM "{Path(person_csv).as_posix()}" (header=true, delimiter=",")
+            LOAD FROM {cypher_path(person_csv)} (header=true, delimiter=",")
             RETURN ID, fName, gender, age
         )
         """
         self.conn.execute(copy_person)
 
         # Copy meets edges
-        copy_meets = f'COPY meets FROM "{Path(meets_csv).as_posix()}" (from="person", to="person", header=true, delimiter=",")'
+        copy_meets = f'COPY meets FROM {cypher_path(meets_csv)} (from="person", to="person", header=true, delimiter=",")'
         self.conn.execute(copy_meets)
 
         # Verify data with MATCH query
@@ -1727,7 +1729,7 @@ class TestCopyFrom:
             "CREATE REL TABLE knows (FROM person TO person, weight DOUBLE)"
         )
         edge_result = self.conn.execute(
-            f'{prefix}COPY knows FROM "{edges_path.as_posix()}" '
+            f"{prefix}COPY knows FROM {cypher_path(edges_path)} "
             '(from="person", to="person", header=true, delimiter=",", '
             "batch_rows=1)"
         )
@@ -1762,7 +1764,7 @@ class TestCopyFrom:
             empty_path = self.tmp_path / f"{table}_empty.csv"
             empty_path.write_text(header, encoding="utf-8")
             result = self.conn.execute(
-                f'{prefix}COPY {table} FROM "{empty_path.as_posix()}" '
+                f"{prefix}COPY {table} FROM {cypher_path(empty_path)} "
                 f'({options}header=true, delimiter=",")'
             )
             assert len(result) == 0
@@ -1795,7 +1797,7 @@ class TestCopyFrom:
             "CREATE NODE TABLE json_person (" "id INT64, name STRING, PRIMARY KEY (id))"
         )
         json_result = self.conn.execute(
-            f'{prefix}COPY json_person FROM "{json_path.as_posix()}"'
+            f"{prefix}COPY json_person FROM {cypher_path(json_path)}"
         )
         assert len(json_result) == 2
         if profile:
@@ -1812,7 +1814,7 @@ class TestCopyFrom:
             "id INT64, name STRING, PRIMARY KEY (id))"
         )
         json_fallback_result = self.conn.execute(
-            f'PROFILE COPY json_fallback FROM (LOAD FROM "{json_path.as_posix()}" '
+            f"PROFILE COPY json_fallback FROM (LOAD FROM {cypher_path(json_path)} "
             "RETURN id, name)"
         )
         json_fallback_operators = _operator_names(json_fallback_result)
@@ -1827,7 +1829,7 @@ class TestCopyFrom:
             "weight DOUBLE)"
         )
         jsonl_result = self.conn.execute(
-            f'{prefix}COPY json_knows FROM "{jsonl_path.as_posix()}" '
+            f"{prefix}COPY json_knows FROM {cypher_path(jsonl_path)} "
             '(from="json_person", to="json_person")'
         )
         assert len(jsonl_result) == 1
@@ -1854,7 +1856,7 @@ class TestCopyFrom:
             "id INT64, name STRING, PRIMARY KEY (id))"
         )
         node_result = self.conn.execute(
-            f'PROFILE COPY fallback_node FROM "{nodes_path.as_posix()}" '
+            f"PROFILE COPY fallback_node FROM {cypher_path(nodes_path)} "
             '(header=true, delimiter=",", batch_read=false)'
         )
         node_operators = _operator_names(node_result)
@@ -1868,7 +1870,7 @@ class TestCopyFrom:
             "FROM fallback_node TO fallback_node, weight DOUBLE)"
         )
         edge_result = self.conn.execute(
-            f'PROFILE COPY fallback_edge FROM "{edges_path.as_posix()}" '
+            f"PROFILE COPY fallback_edge FROM {cypher_path(edges_path)} "
             '(from="fallback_node", to="fallback_node", header=true, '
             'delimiter=",", batch_read=false)'
         )
@@ -1920,10 +1922,10 @@ class TestCopyFrom:
         )
         self.conn.execute("CREATE REL TABLE depends(FROM file TO file, weight INT64)")
         self.conn.execute(
-            f'COPY file FROM "{nodes_csv.as_posix()}" (header=true, delimiter=",")'
+            f'COPY file FROM {cypher_path(nodes_csv)} (header=true, delimiter=",")'
         )
         self.conn.execute(
-            f'COPY depends FROM "{edges_csv.as_posix()}" (header=true, delimiter=",")'
+            f'COPY depends FROM {cypher_path(edges_csv)} (header=true, delimiter=",")'
         )
 
         self.conn.execute("CREATE (n:file {id: 'd.py', label: 'd'})")
@@ -1955,13 +1957,13 @@ class TestCopyFrom:
         self.conn.execute("CREATE NODE TABLE node(id INT64, PRIMARY KEY(id))")
         self.conn.execute("CREATE REL TABLE rel(FROM node TO node)")
         self.conn.execute(
-            f'COPY node FROM "{initial_nodes_csv.as_posix()}" (header=true, delimiter=",")'
+            f'COPY node FROM {cypher_path(initial_nodes_csv)} (header=true, delimiter=",")'
         )
         self.conn.execute(
-            f'COPY rel FROM "{edges_csv.as_posix()}" (header=true, delimiter=",")'
+            f'COPY rel FROM {cypher_path(edges_csv)} (header=true, delimiter=",")'
         )
         self.conn.execute(
-            f'COPY node FROM "{appended_nodes_csv.as_posix()}" (header=true, delimiter=",")'
+            f'COPY node FROM {cypher_path(appended_nodes_csv)} (header=true, delimiter=",")'
         )
         self.conn.execute("CHECKPOINT")
         self.conn.close()
@@ -1998,7 +2000,7 @@ class TestCopyFrom:
         self.conn.execute("CREATE NODE TABLE person (ID INT64, PRIMARY KEY(ID))")
         self.conn.execute("CREATE REL TABLE knows (FROM person TO person)")
         self.conn.execute(
-            f'COPY person FROM "{nodes_csv.as_posix()}" (header=true, delimiter=",")'
+            f'COPY person FROM {cypher_path(nodes_csv)} (header=true, delimiter=",")'
         )
 
         # glog writes directly to fd 2, so capture at the fd level instead of
@@ -2011,7 +2013,7 @@ class TestCopyFrom:
         try:
             os.dup2(capture_fd, 2)
             self.conn.execute(
-                f'COPY knows FROM "{edges_csv.as_posix()}" (header=true, delimiter=",")'
+                f'COPY knows FROM {cypher_path(edges_csv)} (header=true, delimiter=",")'
             )
         finally:
             os.dup2(saved_fd, 2)
@@ -2062,7 +2064,7 @@ class TestCopyFrom:
         # Copy person nodes first
         copy_person = f"""
         COPY person FROM (
-            LOAD FROM "{Path(person_csv).as_posix()}" (header=true, delimiter=",")
+            LOAD FROM {cypher_path(person_csv)} (header=true, delimiter=",")
             RETURN ID, fName, gender, age
         )
         """
@@ -2073,7 +2075,7 @@ class TestCopyFrom:
         # We want: from, to, times, location, data
         copy_meets = f"""
         COPY meets FROM (
-            LOAD FROM "{Path(meets_csv).as_posix()}" (header=true, delimiter=",")
+            LOAD FROM {cypher_path(meets_csv)} (header=true, delimiter=",")
             RETURN from, to, times, location, data
         )
         """
@@ -2122,7 +2124,7 @@ class TestCopyFrom:
         # Copy with complete column remapping
         copy_query = f"""
         COPY person_reordered FROM (
-            LOAD FROM "{Path(csv_path).as_posix()}" (header=true, delimiter=",")
+            LOAD FROM {cypher_path(csv_path)} (header=true, delimiter=",")
             RETURN ID, age, fName, gender, isStudent, isWorker, eyeSight
         )
         """
@@ -2168,7 +2170,7 @@ class TestCopyFrom:
 
         copy_query = f"""
         COPY person_parquet_remap FROM (
-            LOAD FROM "{Path(parquet_path).as_posix()}"
+            LOAD FROM {cypher_path(parquet_path)}
             RETURN ID, age, fName, gender, eyeSight, isStudent
         )
         """
@@ -2230,7 +2232,7 @@ class TestCopyFrom:
         # Copy person nodes first
         copy_person = f"""
         COPY person FROM (
-            LOAD FROM "{Path(person_parquet).as_posix()}"
+            LOAD FROM {cypher_path(person_parquet)}
             RETURN ID, fName, gender, age
         )
         """
@@ -2241,7 +2243,7 @@ class TestCopyFrom:
         # Schema expects: from, to, times, location, data
         copy_meets = f"""
         COPY meets FROM (
-            LOAD FROM "{Path(meets_parquet).as_posix()}"
+            LOAD FROM {cypher_path(meets_parquet)}
             RETURN from, to, times, location, data
         )
         """
@@ -2301,7 +2303,7 @@ class TestCopyFrom:
         self.conn.execute(
             f"""
             COPY cg_node_a FROM (
-                LOAD FROM "{Path(node_csv).as_posix()}" (delim="|")
+                LOAD FROM {cypher_path(node_csv)} (delim="|")
                 RETURN id, CAST(i32_property, 'INT32') as i32_property,
                 i64_property, CAST(u32_property, 'UINT32') as u32_property, CAST(u64_property, 'UINT64') as u64_property,
                        CAST(f32_property, 'FLOAT') as f32_property, f64_property, str_property,
@@ -2351,7 +2353,7 @@ class TestCopyFrom:
         self.conn.execute(
             f"""
             COPY cg_rel_a FROM (
-                LOAD FROM "{Path(rel_csv).as_posix()}" (delim="|")
+                LOAD FROM {cypher_path(rel_csv)} (delim="|")
                 RETURN f0 as src, f1 as dst,
                        f2 as double_weight, CAST(f3, 'INT32') as i32_weight,
                        f4 as i64_weight, CAST(f5, 'TIMESTAMP') as datetime_weight
@@ -2419,7 +2421,7 @@ class TestCopyFrom:
         self.conn.execute(
             f"""
             COPY cg_node_a FROM (
-                LOAD FROM "{Path(node_parquet).as_posix()}"
+                LOAD FROM {cypher_path(node_parquet)}
                 RETURN id, i32_property, i64_property, u32_property, u64_property,
                        f32_property, f64_property, str_property,
                        date_property, datetime_property, interval_property
@@ -2469,7 +2471,7 @@ class TestCopyFrom:
         self.conn.execute(
             f"""
             COPY cg_rel_a FROM (
-                LOAD FROM "{Path(rel_parquet).as_posix()}"
+                LOAD FROM {cypher_path(rel_parquet)}
                 RETURN src_id, dst_id, double_weight, i32_weight, i64_weight, datetime_weight
             )
         """
@@ -2528,14 +2530,14 @@ class TestCopyFrom:
             "CREATE REL TABLE Knows(FROM Person TO Person, weight DOUBLE);"
         )
         node_result = self.conn.execute(
-            f'PROFILE COPY Person FROM "{Path(node_pq).as_posix()}";'
+            f"PROFILE COPY Person FROM {cypher_path(node_pq)};"
         )
         assert _operator_names(node_result) == [
             "FusedStreamVertexInsertOpr",
             "SinkOpr",
         ]
         edge_result = self.conn.execute(
-            f'PROFILE COPY Knows FROM "{Path(edge_pq).as_posix()}" '
+            f"PROFILE COPY Knows FROM {cypher_path(edge_pq)} "
             '(from="Person", to="Person");'
         )
         assert _operator_names(edge_result) == [
@@ -2595,8 +2597,8 @@ class TestCopyFrom:
         self.conn.execute(
             "CREATE REL TABLE Knows(FROM Person TO Person, weight DOUBLE);"
         )
-        self.conn.execute(f'COPY Person FROM "{Path(node_pq).as_posix()}";')
-        self.conn.execute(f'COPY Knows FROM "{Path(edge_pq).as_posix()}";')
+        self.conn.execute(f"COPY Person FROM {cypher_path(node_pq)};")
+        self.conn.execute(f"COPY Knows FROM {cypher_path(edge_pq)};")
 
         res = self.conn.execute("MATCH ()-[r:Knows]->() RETURN count(r);")
         count = next(res)[0]
@@ -2617,10 +2619,10 @@ class TestCopyFrom:
             "CREATE REL TABLE Knows(FROM Person TO Person, weight DOUBLE);"
         )
         self.conn.execute(
-            f'COPY Person FROM "{Path(csv_node).as_posix()}" (HEADER=true, delim=",");'
+            f'COPY Person FROM {cypher_path(csv_node)} (HEADER=true, delim=",");'
         )
         self.conn.execute(
-            f'COPY Knows FROM "{Path(csv_edge).as_posix()}" (from="Person", to="Person", HEADER=true, delim=",");'
+            f'COPY Knows FROM {cypher_path(csv_edge)} (from="Person", to="Person", HEADER=true, delim=",");'
         )
 
         res = self.conn.execute("MATCH ()-[r:Knows]->() RETURN count(r);")
@@ -2641,10 +2643,10 @@ class TestCopyFrom:
             "CREATE REL TABLE Knows(FROM Person TO Person, weight DOUBLE);"
         )
         self.conn.execute(
-            f'COPY Person FROM "{Path(csv_node).as_posix()}" (HEADER=true, delim=",");'
+            f'COPY Person FROM {cypher_path(csv_node)} (HEADER=true, delim=",");'
         )
         self.conn.execute(
-            f'COPY Knows FROM "{Path(csv_edge).as_posix()}" (from="Person", to="Person", HEADER=false, delim=",");'
+            f'COPY Knows FROM {cypher_path(csv_edge)} (from="Person", to="Person", HEADER=false, delim=",");'
         )
 
         res = self.conn.execute("MATCH ()-[r:Knows]->() RETURN count(r);")
@@ -2662,12 +2664,12 @@ class TestCopyFrom:
             "CREATE NODE TABLE Person(id INT64 PRIMARY KEY, name STRING);"
         )
         self.conn.execute(
-            f'COPY Person FROM "{Path(csv_node).as_posix()}" (HEADER=true, delim=",");'
+            f'COPY Person FROM {cypher_path(csv_node)} (HEADER=true, delim=",");'
         )
 
         with pytest.raises(Exception, match="Both.*from.*to"):
             self.conn.execute(
-                f'COPY NewEdge FROM "{Path(csv_edge).as_posix()}" '
+                f"COPY NewEdge FROM {cypher_path(csv_edge)} "
                 f'(HEADER=true, delim=",", from="Person")'
             )
 
@@ -2682,12 +2684,12 @@ class TestCopyFrom:
             "CREATE NODE TABLE Person(id INT64 PRIMARY KEY, name STRING);"
         )
         self.conn.execute(
-            f'COPY Person FROM "{Path(csv_node).as_posix()}" (HEADER=true, delim=",");'
+            f'COPY Person FROM {cypher_path(csv_node)} (HEADER=true, delim=",");'
         )
 
         with pytest.raises(Exception, match="Both.*from.*to"):
             self.conn.execute(
-                f'COPY NewEdge FROM "{Path(csv_edge).as_posix()}" '
+                f"COPY NewEdge FROM {cypher_path(csv_edge)} "
                 f'(HEADER=true, delim=",", to="Person")'
             )
 
@@ -2709,9 +2711,9 @@ class TestCopyFrom:
             "CREATE NODE TABLE T(id INT64, nested STRING[][2][], PRIMARY KEY(id));"
         )
         self.conn.execute(
-            f'COPY T FROM "{csv_path.as_posix()}" (header = true, delim = "|");'
+            f'COPY T FROM {cypher_path(csv_path)} (header = true, delim = "|");'
         )
-        self.conn.execute(f'COPY T FROM "{json_path.as_posix()}";')
+        self.conn.execute(f"COPY T FROM {cypher_path(json_path)};")
 
         rows = list(
             self.conn.execute("MATCH (n:T) RETURN n.id, n.nested ORDER BY n.id;")
@@ -2728,4 +2730,4 @@ class TestCopyFrom:
             '[{"id":5,"nested":[[["x"],["y"],["z"]]]}]', encoding="utf-8"
         )
         with pytest.raises(Exception):
-            self.conn.execute(f'COPY T FROM "{bad_json.as_posix()}";')
+            self.conn.execute(f"COPY T FROM {cypher_path(bad_json)};")
