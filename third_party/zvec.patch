@@ -16,6 +16,19 @@ diff --git a/cmake/bazel.cmake b/cmake/bazel.cmake
 -    set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreadedDLL$<$<CONFIG:Debug>:Debug>" CACHE STRING "" FORCE)
 +    set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>DLL" CACHE STRING "" FORCE)
    endif()
+diff --git a/src/core/algorithm/hnsw/hnsw_context.h b/src/core/algorithm/hnsw/hnsw_context.h
+--- a/src/core/algorithm/hnsw/hnsw_context.h
++++ b/src/core/algorithm/hnsw/hnsw_context.h
+@@ -367,7 +367,8 @@
+     }
+     const void *vector = block.data();
+     if (ailego_unlikely(vector == nullptr && skip_missing_vectors)) {
+-      LOG_ERROR("Skip nullptr external vector, id=%u", id);
++      // Missing external vectors are expected when querying an older snapshot.
++      // Storage errors above remain errors; unavailable records are skipped.
+       return false;
+     }
+     distance = dc_.batch_dist(vector, get_extra_values(vector));
 diff --git a/thirdparty/RaBitQ-Library/CMakeLists.txt b/thirdparty/RaBitQ-Library/CMakeLists.txt
 --- a/thirdparty/RaBitQ-Library/CMakeLists.txt
 +++ b/thirdparty/RaBitQ-Library/CMakeLists.txt
