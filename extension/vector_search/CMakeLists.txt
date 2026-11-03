@@ -61,6 +61,8 @@ target_link_libraries(neug_vector_search_extension PRIVATE zvec_rabitq_fastscan)
 add_dependencies(neug_vector_search_extension zvec_external)
 
 # to trigger extension CI workflow
+# Windows C++ tests are currently skipped because DLL exports are incomplete.
+# Enable this test along with the other C++ tests once that limitation is fixed.
 if(BUILD_TEST AND NOT WIN32)
     add_neug_test(hnsw_vec_source_test tests/hnsw_vec_source_test.cc)
     target_include_directories(hnsw_vec_source_test PRIVATE

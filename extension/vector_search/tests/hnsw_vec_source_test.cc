@@ -111,11 +111,8 @@ TEST_F(HNSWVecSourceTest, OldSnapshotSkipsIDsAfterResize) {
   ASSERT_NE(column_->get_buffer_ptr(), snapshot->get_buffer_ptr());
   ASSERT_EQ(snapshot->buffer_size(), capacity);
   EXPECT_NE(old_source.get_vector(capacity - 1), nullptr);
-  testing::internal::CaptureStderr();
   EXPECT_EQ(old_source.get_vector(capacity), nullptr);
   EXPECT_EQ(old_source.get_vector(UINT32_MAX), nullptr);
-  const auto diagnostic = testing::internal::GetCapturedStderr();
-  EXPECT_NE(diagnostic.find("buffer size=4"), std::string::npos);
   HNSWVecSource new_source(column_.get());
   ASSERT_NE(new_source.get_vector(capacity), nullptr);
   EXPECT_FLOAT_EQ(static_cast<const float*>(new_source.get_vector(capacity))[0],

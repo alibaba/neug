@@ -138,8 +138,8 @@ const void* HNSWVecSource::get_vector(uint32_t node_id) const {
   // Only the capacity of this snapshot's payload determines safe access.
   const auto capacity = column_->buffer_size();
   if (node_id >= capacity) {
-    LOG(WARNING) << "HNSW vector source node ID " << node_id
-                 << " is out of range (buffer size=" << capacity << ")";
+    VLOG(1) << "HNSW vector source node ID " << node_id
+            << " is out of range (buffer size=" << capacity << ")";
     // A writer may have resized into a new buffer while this reader retains
     // the old one. ZVec skips unavailable external vectors during traversal.
     return nullptr;
@@ -354,6 +354,11 @@ Status HNSWIndex::BulkBuild(const VertexSet& vertices) {
       continue;
     }
     const auto* vector_data = vec_source_->get_vector(index_id);
+    if (vector_data == nullptr) {
+      return Status::RuntimeError(
+          "HNSW bulk build requires an available vector for vertex " +
+          std::to_string(vid) + " (index ID=" + std::to_string(index_id) + ")");
+    }
     const auto fingerprint =
         static_cast<uint64_t>(std::hash<std::string_view>{}(std::string_view(
             static_cast<const char*>(vector_data), vector_byte_size)));

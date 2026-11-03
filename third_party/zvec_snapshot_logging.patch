@@ -1,0 +1,13 @@
+diff --git a/src/core/algorithm/hnsw/hnsw_context.h b/src/core/algorithm/hnsw/hnsw_context.h
+--- a/src/core/algorithm/hnsw/hnsw_context.h
++++ b/src/core/algorithm/hnsw/hnsw_context.h
+@@ -367,7 +367,8 @@
+     }
+     const void *vector = block.data();
+     if (ailego_unlikely(vector == nullptr && skip_missing_vectors)) {
+-      LOG_ERROR("Skip nullptr external vector, id=%u", id);
++      // Missing external vectors are expected when querying an older snapshot.
++      // Storage errors above remain errors; unavailable records are skipped.
+       return false;
+     }
+     distance = dc_.batch_dist(vector, get_extra_values(vector));

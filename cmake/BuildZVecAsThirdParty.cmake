@@ -55,6 +55,11 @@ function(build_zvec_as_third_party)
     if(EXISTS "${_zvec_patch}")
         _neug_apply_patch("${ZVEC_SOURCE_DIR}" "${_zvec_patch}" "zvec.patch")
     endif()
+    # Keep this separate so existing builds with zvec.patch already applied
+    # can pick up the logging fix without a partially-applied patch failure.
+    _neug_apply_patch("${ZVEC_SOURCE_DIR}"
+        "${CMAKE_SOURCE_DIR}/third_party/zvec_snapshot_logging.patch"
+        "zvec_snapshot_logging.patch")
 
     _neug_apply_zvec_patch(
         "${ZVEC_SOURCE_DIR}/thirdparty/antlr/antlr4"
