@@ -21,7 +21,7 @@ permissions:
 
 jobs:
   select:
-    runs-on: ubuntu-22.04
+    runs-on: ${{ github.repository == 'alibaba/neug' && fromJSON('["self-hosted"]') || 'ubuntu-22.04' }}
     outputs:
       plan: ${{ steps.plan.outputs.plan }}
     steps:
