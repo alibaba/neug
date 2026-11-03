@@ -57,16 +57,13 @@ def resolve(platforms="all", python_versions="all"):
     for platform, (arch, oss_platform, runner) in PLATFORMS.items():
         if platform not in selected:
             continue
-        extensions = EXTENSIONS.split(";")
-        if platform.startswith("windows-"):
-            extensions.remove("vector_search")
         row = dict(
             platform=platform,
             arch=arch,
             oss_platform=oss_platform,
             runner=runner,
             build_runner=runner,
-            extensions=";".join(extensions),
+            extensions=EXTENSIONS,
         )
         if platform.startswith("linux-"):
             row.update(
@@ -95,7 +92,6 @@ def resolve(platforms="all", python_versions="all"):
         ),
         cibw_build=" ".join("cp" + v.replace(".", "") + "-*" for v in versions),
         extensions=EXTENSIONS,
-        windows_extensions=EXTENSIONS.replace(";vector_search", ""),
         dev_image=f"{REGISTRY}/neug-dev:v0.1.3",
         verify_java="java" in selected,
         packaging_python="3.13",
