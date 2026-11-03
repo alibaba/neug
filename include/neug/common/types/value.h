@@ -213,6 +213,12 @@ NEUG_API Value Value::CreateValue(std::string value);
 template <>
 NEUG_API Value Value::CreateValue(std::string_view value);
 
+// Mirrors the GetValue<EmptyType> specialization below: a column over EmptyType
+// carries no payload, so its values convert to an empty Value rather than
+// falling through to the unsupported-type primary template.
+template <>
+NEUG_API Value Value::CreateValue(EmptyType value);
+
 template <>
 NEUG_API Value Value::CreateValue(float value);
 template <>
