@@ -40,11 +40,10 @@ if (BUILD_HTTP_SERVER)
         # server, so it is built for manual runs but not registered with
         # CTest (an argumentless ctest invocation would just exit -1).
         add_executable(httplib_load_client httplib_load_client.cc)
-        # neug_static contains the same object files as neug.dll but exposes
-        # all symbols, which the client's internal-API usage needs. No gtest:
-        # the client has no test cases of its own.
+        # TODO: Restore this internal-API client after completing DLL exports.
+        set_target_properties(httplib_load_client PROPERTIES EXCLUDE_FROM_ALL TRUE)
         target_link_libraries(httplib_load_client PUBLIC
-            neug_static ${ARROW_LIB} ${OPENSSL_LIBRARIES} ${CRYPTO_LIB})
+            neug ${ARROW_LIB} ${OPENSSL_LIBRARIES} ${CRYPTO_LIB})
     else()
         add_neug_test(test_http_server test_http_server.cc)
         add_neug_test(test_db_svc test_db_svc.cc)

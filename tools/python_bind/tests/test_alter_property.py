@@ -20,6 +20,8 @@ import logging
 import os
 import unittest
 
+import pytest
+
 from neug.database import Database
 
 logger = logging.getLogger(__name__)
@@ -29,6 +31,10 @@ class TestBachLoading(unittest.TestCase):
     """
     Test running alter property query on a graph that is already created and loaded
     """
+
+    @pytest.fixture(autouse=True)
+    def inject_tmp_path(self, tmp_path):
+        self.tmp_path = tmp_path
 
     @classmethod
     def setUpClass(cls):
@@ -45,10 +51,8 @@ class TestBachLoading(unittest.TestCase):
         pass
 
     def test_alter_properties(self):
-        # create a tmp directory for the graph
-        db_dir = "/tmp/test_batch_loading"
-        if os.path.exists(db_dir):
-            os.system("rm -rf %s" % db_dir)
+        # Isolate this graph from C++ tests and avoid platform-specific cleanup.
+        db_dir = str(self.tmp_path / "test_alter_properties")
         os.makedirs(db_dir)
 
         # get env : FLEX_DATA_DIR

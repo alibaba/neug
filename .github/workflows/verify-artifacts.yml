@@ -1,0 +1,303 @@
+name: Verify Artifacts
+
+on:
+  workflow_call:
+    inputs:
+      plan:
+        type: string
+        default: ''
+      platforms:
+        description: JSON array of artifact platforms to verify.
+        type: string
+        default: '["linux-x86_64","linux-arm64","osx-arm64","windows-x86_64","windows-arm64"]'
+      python_versions:
+        description: JSON array of Python versions to verify.
+        type: string
+        default: '["3.8","3.9","3.10","3.11","3.12","3.13","3.14"]'
+      verify_java:
+        description: Verify the Java artifact when Java packaging was selected.
+        type: boolean
+        default: true
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  ci-plan:
+    uses: ./.github/workflows/ci-plan.yml
+    with:
+      plan: ${{ inputs.plan }}
+      platforms: ${{ inputs.plan == '' && inputs.verify_java && format('{0},java', join(fromJSON(inputs.platforms), ',')) || inputs.platforms }}
+      python_versions: ${{ inputs.python_versions }}
+
+  # ========================================
+  # Verify wheel, extension, and npm artifacts in one independent environment per platform.
+  # ========================================
+  verify:
+    needs: ci-plan
+    if: fromJSON(needs.ci-plan.outputs.plan).platforms[0] != null
+    name: Installed Packages / ${{ matrix.platform }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include: ${{ fromJSON(needs.ci-plan.outputs.plan).matrix }}
+    container: ${{ startsWith(matrix.platform, 'linux-') && 'ubuntu:22.04' || '' }}
+    runs-on: ${{ matrix.runner }}
+    env:
+      # vector_search is not supported by the current Windows build.
+      EXTENSIONS: ${{ matrix.extensions }}
+    defaults:
+      run:
+        shell: bash
+    steps:
+
+    - name: Fix macOS Hostname Resolution
+      if: runner.os == 'macOS'
+      run: |
+        # Work around https://github.com/actions/runner-images/issues/14568.
+        # Use a non-.local hostname mapped to loopback to avoid the 35s resolver stall.
+        sudo scutil --set HostName neug-ci
+        printf '\n127.0.0.1 neug-ci\n' | sudo tee -a /etc/hosts
+
+    - name: Prepare Independent Linux Test Image
+      if: runner.os == 'Linux'
+      run: |
+        apt-get update
+        apt-get install -y git curl ca-certificates libssl3 libbz2-1.0 libffi8 libsqlite3-0 liblzma5
+    - uses: actions/checkout@v4
+
+    - name: Select Python Versions
+      id: python_versions
+      env:
+        PYTHON_VERSIONS: ${{ join(fromJSON(needs.ci-plan.outputs.plan).python_versions, ' ') }}
+      run: |
+        set -euo pipefail
+        versions=()
+        for version in $PYTHON_VERSIONS; do
+          # Native Windows ARM64 CPython starts at 3.11.
+          if [ "$RUNNER_OS" = Windows ] && [ "$RUNNER_ARCH" = ARM64 ] && (( 10#${version#3.} < 11 )); then
+            continue
+          fi
+          versions+=("$version")
+        done
+        test "${#versions[@]}" -gt 0
+        # setup-python accepts multiple versions via its multiline input;
+        # python-version-file treats the entire file as one version string.
+        {
+          echo 'setup_versions<<EOF'
+          printf '%s\n' "${versions[@]}"
+          echo 'EOF'
+        } >> "$GITHUB_OUTPUT"
+        echo "versions=${versions[*]}" >> "$GITHUB_OUTPUT"
+
+    - name: Setup Python Versions
+      uses: actions/setup-python@v5
+      with:
+        python-version: ${{ steps.python_versions.outputs.setup_versions }}
+
+    - name: Download Wheels
+      uses: actions/download-artifact@v4
+      with:
+        name: ${{ github.event_name == 'schedule' && format('cibw-wheels-{0}-{1}', matrix.platform == 'osx-arm64' && 'macos-arm64' || matrix.platform, github.sha) || format('wheels-{0}-{1}', matrix.platform == 'osx-arm64' && 'macos-arm64' || matrix.platform, github.run_id) }}
+        path: core_wheelhouse
+
+    - name: Download Extension Packages
+      uses: actions/download-artifact@v4
+      with:
+        pattern: extension-packages-${{ matrix.platform }}-*
+        merge-multiple: true
+        path: extension-packages
+
+    - name: Smoke Test Installed Wheels and Extensions
+      env:
+        PYTHON_VERSIONS: ${{ steps.python_versions.outputs.versions }}
+      run: |
+        set -euo pipefail
+        unset PYTHONPATH NEUG_BUILD_DIR NEUG_EXTENSION_HOME_PYENV
+        cd "$RUNNER_TEMP"
+        for version in $PYTHON_VERSIONS; do
+          echo "Verifying wheel and extensions with Python $version"
+          test_dir="$RUNNER_TEMP/verify-python-$version"
+          if [ "$RUNNER_OS" = Windows ]; then
+            cache=$(cygpath -u "$RUNNER_TOOL_CACHE")
+            # Use setup-python's matching version/architecture installation.
+            # Avoid unrelated runner-provided Python executables and nested
+            # Lib/venv launcher templates, which require a pyvenv.cfg file.
+            python=$(find "$cache/Python/$version".* -maxdepth 2 -type f -path "*/${RUNNER_ARCH,,}/python.exe" -print -quit)
+            test -n "$python"
+            echo "Using Python $version ($RUNNER_ARCH): $python"
+            "$python" --version
+            "$python" -m venv "$test_dir"
+            py="$test_dir/Scripts/python.exe"
+          else
+            "python$version" -m venv "$test_dir"
+            py="$test_dir/bin/python"
+          fi
+          "$py" -m pip install "$GITHUB_WORKSPACE"/core_wheelhouse/*cp${version/./}-*.whl
+          "$py" - <<'PYCODE'
+        import hashlib
+        import os
+        import shutil
+        import sysconfig
+        from pathlib import Path
+        site = Path(sysconfig.get_path('platlib')).resolve()
+        os.environ['NEUG_EXTENSION_HOME_PYENV'] = str(site)
+        import neug
+        folder = Path(os.environ['GITHUB_WORKSPACE']) / 'extension-packages'
+        for package in folder.glob('*.neug_extension'):
+            checksum = package.with_name(package.name + '.sha256')
+            expected_hash = checksum.read_text(encoding='utf-8').strip()
+            if hashlib.sha256(package.read_bytes()).hexdigest() != expected_hash:
+                raise RuntimeError(f'SHA256 mismatch for {package.name}')
+        db = neug.Database()
+        conn = db.connect()
+        for name in os.environ['EXTENSIONS'].split(';'):
+            package = folder / f'lib{name}.neug_extension'
+            target = site / 'extension' / name
+            target.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(package, target / package.name)
+            conn.execute(f'LOAD EXTENSION {name}')
+        print(conn.execute('RETURN 1'))
+        db.close()
+        PYCODE
+        done
+
+    - name: Download npm Package
+      uses: actions/download-artifact@v4
+      with:
+        name: nodejs-${{ matrix.platform }}-${{ github.run_id }}
+        path: downloaded/npm
+
+    - name: Setup Node.js 20
+      id: node20
+      uses: actions/setup-node@v4
+      with:
+        node-version: '20'
+
+    - name: Setup Node.js 22
+      id: node22
+      uses: actions/setup-node@v4
+      with:
+        node-version: '22'
+
+    - name: Setup Node.js 24
+      id: node24
+      uses: actions/setup-node@v4
+      with:
+        node-version: '24'
+
+    - name: Smoke Test Installed npm Package
+      env:
+        ARTIFACT_PLATFORM: ${{ matrix.platform }}
+        NODE_VERSIONS: ${{ steps.node20.outputs.node-version }} ${{ steps.node22.outputs.node-version }} ${{ steps.node24.outputs.node-version }}
+        NODE_ARCH: ${{ runner.arch == 'ARM64' && 'arm64' || 'x64' }}
+      run: |
+        set -euo pipefail
+        for version in $NODE_VERSIONS; do
+          if [ "$RUNNER_OS" = Windows ]; then
+            cache=$(cygpath -u "$RUNNER_TOOL_CACHE")
+            node_dir="$cache/node/${version#v}/$NODE_ARCH"
+            test -x "$node_dir/node.exe"
+          else
+            node_dir="$RUNNER_TOOL_CACHE/node/${version#v}/$NODE_ARCH/bin"
+            test -x "$node_dir/node"
+          fi
+          export PATH="$node_dir:$PATH"
+          node --version
+          test_dir=$(mktemp -d "$RUNNER_TEMP/neug-npm-validate.XXXXXX")
+          cd "$test_dir"
+          npm install "$GITHUB_WORKSPACE/downloaded/npm/neug-ai-${ARTIFACT_PLATFORM}-"*.tgz
+          node <<'JS'
+        const fs = require('fs');
+        const path = require('path');
+        const packageName = '@neug-ai/' + process.env.ARTIFACT_PLATFORM;
+        const root = path.resolve(path.dirname(require.resolve(packageName)), '..');
+        const extensionDir = path.join(root, 'build', 'Release', process.env.ARTIFACT_PLATFORM.replaceAll('-', '_'), 'extension');
+        if (fs.existsSync(extensionDir)) throw new Error('Core npm package contains extensions');
+        for (const name of process.env.EXTENSIONS.split(';')) {
+          const suffix = process.platform === 'linux' ? '-cxx11abi' : '';
+          const source = path.join(process.env.GITHUB_WORKSPACE, 'extension-packages', `lib${name}${suffix}.neug_extension`);
+          const target = path.join(extensionDir, name);
+          fs.mkdirSync(target, { recursive: true });
+          fs.copyFileSync(source, path.join(target, `lib${name}.neug_extension`));
+        }
+        const { Database } = require(packageName);
+        const db = new Database({ databasePath: '', mode: 'w' });
+        const conn = db.connect();
+        for (const name of process.env.EXTENSIONS.split(';')) {
+          conn.execute(`LOAD ${name}`).close();
+        }
+        const result = conn.execute('RETURN 1');
+        console.log(result.toString());
+        result.close();
+        conn.close();
+        db.close();
+        JS
+        done
+
+  # ========================================
+  # Verify the platform-independent Java SDK JAR once in a separate Ubuntu environment.
+  # ========================================
+  java:
+    # Native-platform-only package runs do not produce a Java artifact.
+    needs: ci-plan
+    if: inputs.verify_java && fromJSON(needs.ci-plan.outputs.plan).verify_java
+    name: Installed Java Artifact
+    runs-on: ubuntu-22.04
+    container: ubuntu:22.04
+    defaults:
+      run:
+        shell: bash
+    steps:
+
+    - name: Prepare Independent Test Image
+      run: |
+        apt-get update
+        apt-get install -y git curl ca-certificates unzip python3
+    - uses: actions/checkout@v4
+    - uses: s4u/setup-maven-action@v1.19.0
+      with:
+        java-version: '17'
+        maven-version: 3.9.6
+
+    - name: Download Java Artifact
+      uses: actions/download-artifact@v4
+      with:
+        name: java-${{ github.run_id }}
+        path: tools/java_driver
+
+    - name: Download Java Publication Bundle
+      uses: actions/download-artifact@v4
+      with:
+        name: java-publication-${{ github.run_id }}
+        path: tools/java_driver/target/central-publishing
+
+    - name: Smoke Test Downloaded JAR
+      # The publication bundle must contain the exact JAR tested by its producer.
+      run: |
+        set -euo pipefail
+        cd tools/java_driver
+        # Use classes from the actual JAR, not the producer's loose class files.
+        rm -rf target/classes
+        mkdir -p target/classes
+        jar_file=$(find target -maxdepth 1 -name 'neug-java-driver-*.jar' ! -name '*-sources.jar' ! -name '*-javadoc.jar' -print -quit)
+        test -n "$jar_file"
+        python3 - "$jar_file" <<'PY'
+        import hashlib
+        import sys
+        import zipfile
+        from pathlib import Path
+        bundle = Path('target/central-publishing/central-bundle.zip')
+        expected = bundle.with_suffix('.zip.sha256').read_text().strip()
+        if hashlib.sha256(bundle.read_bytes()).hexdigest() != expected:
+            raise RuntimeError('Publication bundle SHA256 mismatch')
+        jar = Path(sys.argv[1])
+        with zipfile.ZipFile(bundle) as archive:
+            matches = [name for name in archive.namelist() if name.endswith('/' + jar.name)]
+            if len(matches) != 1 or archive.read(matches[0]) != jar.read_bytes():
+                raise RuntimeError('Publication bundle does not contain the tested JAR')
+        PY
+        unzip -q "$jar_file" -d target/classes
+        test -d target/test-classes
+        mvn -B '-Dtest=GraphDatabaseTest#testDriverCreationWithUri' -DfailIfNoTests=true surefire:test

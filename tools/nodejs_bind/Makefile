@@ -94,7 +94,7 @@ ifeq ($(UNAME_S),Darwin)
 else
 	@set -e; \
 	shopt -s nullglob; \
-	lib_dir="$(PLATFORM_DIR)/.libs"; \
+	lib_dir="$(PLATFORM_DIR)/neug.libs"; \
 	mkdir -p "$$lib_dir"; \
 	for binary in "$(PLATFORM_DIR)/neug_node_bind.node" "$(PLATFORM_DIR)/libneug.so" "$(PLATFORM_DIR)"/extension/*/*.neug_extension; do \
 		ldd "$$binary"; \
@@ -106,11 +106,11 @@ else
 		echo "Copying $$source -> $$lib_dir/$$soname"; \
 		cp -L "$$source" "$$lib_dir/$$soname"; \
 	done; \
-	patchelf --set-rpath '$$ORIGIN:$$ORIGIN/.libs' "$(PLATFORM_DIR)/neug_node_bind.node"; \
-	patchelf --set-rpath '$$ORIGIN:$$ORIGIN/.libs' "$(PLATFORM_DIR)/libneug.so"; \
+	patchelf --set-rpath '$$ORIGIN:$$ORIGIN/neug.libs' "$(PLATFORM_DIR)/neug_node_bind.node"; \
+	patchelf --set-rpath '$$ORIGIN:$$ORIGIN/neug.libs' "$(PLATFORM_DIR)/libneug.so"; \
 	find "$$lib_dir" -type f -exec patchelf --set-rpath '$$ORIGIN' {} \;; \
 	find "$(PLATFORM_DIR)" -type f -name '*.neug_extension' \
-		-exec patchelf --set-rpath '$$ORIGIN/../..:$$ORIGIN/../../.libs:$$ORIGIN' {} \;; \
+		-exec patchelf --set-rpath '$$ORIGIN/../..:$$ORIGIN/../../neug.libs:$$ORIGIN' {} \;; \
 	find "$(PLATFORM_DIR)" -type f \( -name '*.node' -o -name '*.so' -o -name '*.so.*' -o -name '*.neug_extension' \) \
 		-exec sh -c 'echo "$$1:"; patchelf --print-rpath "$$1"; ldd "$$1"' sh {} \;
 endif

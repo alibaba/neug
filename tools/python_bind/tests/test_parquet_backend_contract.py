@@ -18,6 +18,7 @@ from datetime import datetime
 from pathlib import Path
 
 import pytest
+from conftest import cypher_path
 
 from neug import Database
 
@@ -137,7 +138,7 @@ def test_reader_preserves_types_nulls_and_nested_values(connection, type_file):
     path = type_file
     rows = list(
         connection.execute(
-            f'LOAD FROM "{path.as_posix()}" '
+            f"LOAD FROM {cypher_path(path)} "
             "RETURN id, enabled, signed_value, unsigned_value, score, label, "
             "event_date, timestamp_s, timestamp_ms, items, fixed3, matrix2x2 "
             "ORDER BY id"
@@ -205,7 +206,7 @@ def test_reader_preserves_types_nulls_and_nested_values(connection, type_file):
 
     filtered = list(
         connection.execute(
-            f'LOAD FROM "{path.as_posix()}" WHERE score >= 0 '
+            f"LOAD FROM {cypher_path(path)} WHERE score >= 0 "
             "RETURN id, label ORDER BY id"
         )
     )
@@ -219,7 +220,7 @@ def test_reader_preserves_remaining_physical_type_boundaries(connection, batch_r
 
     rows = list(
         connection.execute(
-            f'LOAD FROM "{path}" '
+            f"LOAD FROM {cypher_path(path)} "
             f"(batch_read={str(batch_read).lower()}, parquet_batch_rows=1) "
             "RETURN * ORDER BY row_id"
         )
@@ -344,7 +345,7 @@ def test_reader_preserves_complete_predicates(
 ):
     rows = list(
         connection.execute(
-            f'LOAD FROM "{type_file.as_posix()}" '
+            f"LOAD FROM {cypher_path(type_file)} "
             f"(batch_read={str(batch_read).lower()}, parquet_batch_rows=1) "
             f"WHERE {predicate} RETURN id ORDER BY id"
         )
@@ -355,7 +356,7 @@ def test_reader_preserves_complete_predicates(
 @pytest.mark.parametrize("batch_read", [False, True])
 def test_reader_fallback_binds_current_parameters(connection, type_file, batch_read):
     query = (
-        f'LOAD FROM "{type_file.as_posix()}" '
+        f"LOAD FROM {cypher_path(type_file)} "
         f"(batch_read={str(batch_read).lower()}, parquet_batch_rows=1) "
         "WHERE CASE WHEN score IS NULL THEN $missing ELSE score END > $minimum "
         "RETURN id ORDER BY id"
@@ -369,7 +370,7 @@ def test_reader_fallback_binds_current_parameters(connection, type_file, batch_r
 def test_reader_fallback_propagates_conversion_errors(connection, type_file):
     with pytest.raises(RuntimeError):
         connection.execute(
-            f'LOAD FROM "{type_file.as_posix()}" '
+            f"LOAD FROM {cypher_path(type_file)} "
             "WHERE CAST(label, 'INT64') > 0 RETURN id"
         )
 
@@ -394,7 +395,7 @@ def test_reader_resolves_explicit_paths_and_globs(connection, multi_file_dataset
         [10, "Hubert Blaine Wolfeschlegelsteinhausenbergerdorff"],
         [10, "Hubert Blaine Wolfeschlegelsteinhausenbergerdorff"],
     ]
-    explicit_paths = f'["{first.as_posix()}", "{second.as_posix()}"]'
+    explicit_paths = f"[{cypher_path(first)}, {cypher_path(second)}]"
     rows = list(
         connection.execute(
             f"LOAD FROM {explicit_paths} "
@@ -407,7 +408,7 @@ def test_reader_resolves_explicit_paths_and_globs(connection, multi_file_dataset
     pattern = first.parent / "part-*.parquet"
     rows = list(
         connection.execute(
-            f'LOAD FROM GLOB("{pattern.as_posix()}") '
+            f"LOAD FROM GLOB({cypher_path(pattern)}) "
             "(parallel=true, batch_read=false, parquet_batch_rows=1) "
             "RETURN ID, fName ORDER BY ID"
         )
@@ -422,14 +423,14 @@ def test_reader_reports_path_and_cross_file_schema_errors(
     with pytest.raises(RuntimeError, match="schema"):
         list(
             connection.execute(
-                f'LOAD FROM ["{first.as_posix()}", "{mismatch.as_posix()}"] '
+                f"LOAD FROM [{cypher_path(first)}, {cypher_path(mismatch)}] "
                 "RETURN ID"
             )
         )
 
     with pytest.raises(RuntimeError, match="No Parquet files match"):
         connection.execute(
-            f'LOAD FROM GLOB("{(tmp_path / "missing-*.parquet").as_posix()}") '
+            f'LOAD FROM GLOB({cypher_path((tmp_path / "missing-*.parquet"))}) '
             "RETURN *"
         )
 
@@ -444,7 +445,7 @@ def test_reader_reports_path_and_cross_file_schema_errors(
 def test_registered_reader_enforces_carquet_option_bounds(connection, options, error):
     path = DATASET_DIR / "tinysnb" / "parquet" / "vPerson.parquet"
     with pytest.raises(RuntimeError, match=error):
-        connection.execute(f'LOAD FROM "{path}" ({options}) RETURN ID')
+        connection.execute(f"LOAD FROM {cypher_path(path)} ({options}) RETURN ID")
 
 
 @pytest.mark.parametrize(
@@ -525,7 +526,7 @@ def test_reader_preserves_encodings_pages_and_row_groups(
         assert "RLE_DICTIONARY" in group.column(3).encodings
     rows = list(
         connection.execute(
-            f'LOAD FROM "{path.as_posix()}" '
+            f"LOAD FROM {cypher_path(path)} "
             "RETURN id, flag, measurement, category ORDER BY id"
         )
     )
@@ -551,7 +552,7 @@ def test_reader_preserves_external_delta_encoding_fixture(connection):
     path = FIXTURE_DIR / "arrow_delta_encodings.parquet"
     rows = list(
         connection.execute(
-            f'LOAD FROM "{path}" WHERE id >= 3 AND id <= 7 '
+            f"LOAD FROM {cypher_path(path)} WHERE id >= 3 AND id <= 7 "
             "RETURN text_length, text_prefix, signed_value, id ORDER BY id"
         )
     )
@@ -568,7 +569,9 @@ def test_reader_preserves_external_delta_encoding_fixture(connection):
 
 def test_reader_preserves_external_byte_stream_split_lz4_fixture(connection):
     path = FIXTURE_DIR / "arrow_byte_stream_split.parquet"
-    rows = list(connection.execute(f'LOAD FROM "{path}" RETURN * ORDER BY id'))
+    rows = list(
+        connection.execute(f"LOAD FROM {cypher_path(path)} RETURN * ORDER BY id")
+    )
     assert len(rows) == 12
     assert math.isnan(rows[0][1])
     assert rows[1][1] == float("inf")
@@ -582,7 +585,8 @@ def test_reader_preserves_external_int96_timestamp_fixture(connection):
     path = FIXTURE_DIR / "arrow_int96.parquet"
     rows = list(
         connection.execute(
-            f'LOAD FROM "{path}" WHERE id >= 3 ' "RETURN id, event_time ORDER BY id"
+            f"LOAD FROM {cypher_path(path)} WHERE id >= 3 "
+            "RETURN id, event_time ORDER BY id"
         )
     )
     assert rows == [
@@ -595,12 +599,14 @@ def test_reader_preserves_external_int96_timestamp_fixture(connection):
 
 def test_reader_handles_empty_files_and_all_null_row_groups(connection):
     empty_path = FIXTURE_DIR / "arrow_empty.parquet"
-    assert list(connection.execute(f'LOAD FROM "{empty_path}" RETURN *')) == []
+    assert (
+        list(connection.execute(f"LOAD FROM {cypher_path(empty_path)} RETURN *")) == []
+    )
 
     null_path = FIXTURE_DIR / "arrow_all_null_groups.parquet"
     rows = list(
         connection.execute(
-            f'LOAD FROM "{null_path}" WHERE text IS NULL '
+            f"LOAD FROM {cypher_path(null_path)} WHERE text IS NULL "
             "RETURN id, text, numbers ORDER BY id"
         )
     )
@@ -627,7 +633,7 @@ def test_reader_preserves_projection_and_filter_semantics(
     connection, dataset, query, expected
 ):
     path = DATASET_DIR / dataset
-    rows = list(connection.execute(f'LOAD FROM "{path.as_posix()}" {query}'))
+    rows = list(connection.execute(f"LOAD FROM {cypher_path(path)} {query}"))
     assert rows == expected
 
 
@@ -646,12 +652,14 @@ def test_writer_preserves_options_and_nested_values(connection, tmp_path):
     )
     connection.execute(
         f"COPY (MATCH (r:ContractRow) "
-        f"RETURN r.id, r.label, r.values ORDER BY r.id) TO '{path}' "
+        f"RETURN r.id, r.label, r.values ORDER BY r.id) TO {cypher_path(path)} "
         "(COMPRESSION='zstd', ROW_GROUP_SIZE=1024, "
         "DICTIONARY_ENCODING=true)"
     )
 
-    rows = list(connection.execute(f'LOAD FROM "{path}" RETURN * ORDER BY "r.id"'))
+    rows = list(
+        connection.execute(f'LOAD FROM {cypher_path(path)} RETURN * ORDER BY "r.id"')
+    )
     assert rows == [[1, "alpha", [1, 2]], [2, "中文", []]]
 
 
@@ -670,7 +678,7 @@ def test_export_preserves_nested_struct_field_names(connection, tmp_path):
     path = tmp_path / "struct_names.parquet"
     connection.execute(
         f"COPY (MATCH (n:ST) RETURN n.info AS info, [1, 'a'] AS positional) "
-        f"TO '{path.as_posix()}'"
+        f"TO {cypher_path(path)}"
     )
     assert pq.read_table(path).to_pylist() == [
         {
@@ -699,7 +707,7 @@ def test_writer_applies_options_through_registered_function(connection, tmp_path
         path = tmp_path / f"writer_options_{dictionary}.parquet"
         connection.execute(
             f"COPY (MATCH (r:WriterOptionRow) "
-            f"RETURN r.id, r.category ORDER BY r.id) TO '{path}' "
+            f"RETURN r.id, r.category ORDER BY r.id) TO {cypher_path(path)} "
             "(COMPRESSION='zstd', ROW_GROUP_SIZE=2, "
             f"DICTIONARY_ENCODING={str(dictionary).lower()})"
         )
@@ -709,5 +717,7 @@ def test_writer_applies_options_through_registered_function(connection, tmp_path
         assert contents[-4:] == b"PAR1"
         assert b"Carquet" in contents
         assert list(
-            connection.execute(f'LOAD FROM "{path}" RETURN * ORDER BY "r.id"')
+            connection.execute(
+                f'LOAD FROM {cypher_path(path)} RETURN * ORDER BY "r.id"'
+            )
         ) == [[1, "a"], [2, "a"], [3, "b"], [4, "b"]]

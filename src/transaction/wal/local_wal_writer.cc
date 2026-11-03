@@ -39,6 +39,27 @@
 
 namespace neug {
 
+#ifdef _WIN32
+namespace {
+
+errno_t ResizeWalFile(int fd, size_t size) {
+  // Unlike _chsize_s, native EOF extension does not eagerly write zeros
+  // across the whole 1 GiB allocation. Sequential WAL writes initialize the
+  // used prefix, including the existing zero terminator, before _commit.
+  FILE_END_OF_FILE_INFO info{};
+  info.EndOfFile.QuadPart = static_cast<LONGLONG>(size);
+  if (!SetFileInformationByHandle(reinterpret_cast<HANDLE>(_get_osfhandle(fd)),
+                                  FileEndOfFileInfo, &info, sizeof(info))) {
+    LOG(ERROR) << "Failed to resize WAL file, Windows error: "
+               << GetLastError();
+    return EIO;
+  }
+  return 0;
+}
+
+}  // namespace
+#endif
+
 std::unique_ptr<IWalWriter> LocalWalWriter::Make(const std::string& wal_uri,
                                                  int slot_id) {
   return std::unique_ptr<IWalWriter>(new LocalWalWriter(wal_uri, slot_id));
@@ -77,7 +98,10 @@ void LocalWalWriter::create_file() {
       continue;
     }
 #ifdef _WIN32
-    fd_ = _open(path.c_str(), O_RDWR | O_CREAT | O_TRUNC, _S_IREAD | _S_IWRITE);
+    // WAL records contain arbitrary bytes. Text mode expands LF to CRLF,
+    // invalidating serialized lengths and the offsets used by write_all_at.
+    fd_ = _open(path.c_str(), O_RDWR | O_CREAT | O_TRUNC | _O_BINARY,
+                _S_IREAD | _S_IWRITE);
 #else
     fd_ = ::open(path.c_str(), O_RDWR | O_CREAT | O_TRUNC, 0644);
 #endif
@@ -93,7 +117,7 @@ void LocalWalWriter::create_file() {
     THROW_IO_EXCEPTION("Failed to fsync WAL directory " + prefix);
   }
 #ifdef _WIN32
-  const errno_t trunc_err = _chsize_s(fd_, TRUNC_SIZE);
+  const errno_t trunc_err = ResizeWalFile(fd_, TRUNC_SIZE);
 #else
   const int trunc_err = ftruncate(fd_, TRUNC_SIZE);
 #endif
@@ -200,7 +224,7 @@ bool LocalWalWriter::append(const char* data, size_t length) {
   if (expected_size > file_size_) {
     size_t new_file_size = (expected_size / TRUNC_SIZE + 1) * TRUNC_SIZE;
 #ifdef _WIN32
-    const errno_t resize_err = _chsize_s(fd_, new_file_size);
+    const errno_t resize_err = ResizeWalFile(fd_, new_file_size);
 #else
     const int resize_err = ftruncate(fd_, new_file_size);
 #endif

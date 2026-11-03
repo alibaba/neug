@@ -1,0 +1,145 @@
+name: Java Tests and Packaging
+
+description: Build the binding, run tests, and optionally package and upload existing outputs.
+
+inputs:
+  package:
+    description: Enable packaging tests
+    default: 'false'
+  upload_artifacts:
+    description: Upload tested packages
+    default: 'false'
+
+  sign:
+    description: Sign publication artifacts with the release GPG key
+    default: 'false'
+
+runs:
+  using: composite
+  steps:
+
+  - name: Java SDK Unit Tests
+    shell: bash
+    run: |-
+      set -euo pipefail
+      mvn -B -f tools/java_driver/pom.xml test
+
+  # Native integration requires the backend built by the caller.
+  - name: Java against This Build of NeuG
+    if: hashFiles('build/CMakeCache.txt') != ''
+    shell: bash
+    run: |-
+      set -euo pipefail
+      cd tools/python_bind
+      python3 -m pytest -sv tests/test_java_driver.py
+
+  - name: Remove SNAPSHOT from Version
+    if: inputs.package == 'true'
+    working-directory: tools/java_driver
+    shell: bash
+    run: mvn -B versions:set -DremoveSnapshot -DgenerateBackupPoms=false
+
+  - name: Build Central Bundle (Dry-Run, No Upload)
+    if: inputs.package == 'true'
+    working-directory: tools/java_driver
+    shell: bash
+    env:
+      GPG_SKIP: ${{ inputs.sign != 'true' && 'true' || 'false' }}
+    run: |
+      set -euo pipefail
+      # Dummy credentials let fork builds reach bundling without secrets.
+      dry_settings=$(mktemp)
+      trap 'rm -f "$dry_settings"' EXIT
+      printf '%s\n' \
+        '<settings xmlns="http://maven.apache.org/SETTINGS/1.0.0">' \
+        '  <servers><server><id>central</id>' \
+        '    <username>dryrun</username><password>dryrun</password>' \
+        '  </server><server><id>gpg.passphrase</id>' \
+        '    <passphrase>${env.GPG_PASSPHRASE}</passphrase>' \
+        '  </server></servers>' \
+        '</settings>' > "$dry_settings"
+      # Require a newly generated bundle, even when reusing an existing build.
+      rm -f target/central-publishing/central-bundle.zip
+      set +e
+      mvn -B -s "$dry_settings" deploy -DskipTests \
+          -Dgpg.skip="$GPG_SKIP" \
+          -DcentralBaseUrl=http://127.0.0.1:9
+      status=$?
+      set -e
+      # Upload fails at the local URL after the plugin has produced the bundle.
+      echo "mvn exited with $status (upload to dummy Central URL is expected to fail)"
+      test -f target/central-publishing/central-bundle.zip
+
+  - name: Validate Central Bundle
+    if: inputs.package == 'true'
+    working-directory: tools/java_driver
+    shell: bash
+    env:
+      REQUIRE_SIGNATURES: ${{ inputs.sign }}
+    run: |
+      set -euo pipefail
+      work=$(mktemp -d)
+      trap 'rm -rf "$work"' EXIT
+      unzip -q target/central-publishing/central-bundle.zip -d "$work"
+      fail=0
+      # Reject local repository metadata that Central does not accept.
+      while IFS= read -r bad; do
+        echo "::error::forbidden file in bundle: ${bad#"$work"/}"
+        fail=1
+      done < <(find "$work" \( -name 'maven-metadata-local.xml' -o -name '_remote.repositories' -o -name '*.lastUpdated' \) -type f)
+      # Each directory containing files must contain a POM.
+      while IFS= read -r dir; do
+        [ -n "$(find "$dir" -maxdepth 1 -type f -print -quit)" ] || continue
+        if [ -z "$(find "$dir" -maxdepth 1 -type f -name '*.pom' -print -quit)" ]; then
+          echo "::error::directory has content but no .pom: ${dir#"$work"/}"
+          fail=1
+        fi
+      done < <(find "$work" -type d)
+      # Every JAR/POM must have a SHA-1 checksum file.
+      while IFS= read -r file; do
+        if [ ! -f "$file.sha1" ]; then
+          echo "::error::missing checksum: ${file#"$work"/}.sha1"
+          fail=1
+        fi
+        if [ "$REQUIRE_SIGNATURES" = true ] && [ ! -f "$file.asc" ]; then
+          echo "::error::missing signature: ${file#"$work"/}.asc"
+          fail=1
+        fi
+      done < <(find "$work" \( -name '*.jar' -o -name '*.pom' \) -type f)
+      if [ "$fail" -ne 0 ]; then
+        echo '::error::Central bundle validation FAILED'
+        exit 1
+      fi
+      echo 'Central bundle validation PASSED'
+
+  - name: Record Publication Bundle Digest
+    if: inputs.package == 'true'
+    working-directory: tools/java_driver
+    shell: bash
+    run: |
+      python3 - <<'PY'
+      import hashlib
+      from pathlib import Path
+      bundle = Path('target/central-publishing/central-bundle.zip')
+      bundle.with_suffix('.zip.sha256').write_text(hashlib.sha256(bundle.read_bytes()).hexdigest())
+      PY
+
+  - name: Upload Java Publication Bundle
+    if: inputs.package == 'true' && inputs.upload_artifacts == 'true'
+    uses: actions/upload-artifact@v4
+    with:
+      name: java-publication-${{ github.run_id }}
+      path: |
+        tools/java_driver/target/central-publishing/central-bundle.zip
+        tools/java_driver/target/central-publishing/central-bundle.zip.sha256
+      if-no-files-found: error
+      retention-days: 7
+
+  - name: Upload Java
+    if: (inputs.package == 'true') && (inputs.upload_artifacts == 'true')
+    uses: actions/upload-artifact@v4
+    with:
+      name: java-${{ github.run_id }}
+      path: tools/java_driver/
+      if-no-files-found: error
+      retention-days: 7

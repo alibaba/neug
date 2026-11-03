@@ -549,14 +549,13 @@ message(STATUS "CMAKE_CXX_COMPILER: ${CMAKE_CXX_COMPILER}")
 function(add_neug_test TEST_NAME)
     set(SRCS ${ARGN})
     add_executable(${TEST_NAME} ${SRCS})
-    if(WIN32 AND BUILD_TEST)
-        # neug_static contains the same object files as neug.dll but exposes all
-        # symbols, which is required by tests that exercise internal APIs.
-        target_link_libraries(${TEST_NAME} PUBLIC neug::GTest neug_static)
-    else()
-        target_link_libraries(${TEST_NAME} PUBLIC neug::GTest neug
-            ${Protobuf_LIBRARIES} ${GLOG_LIBRARIES}
-            ${YAML_CPP_LIBRARIES})
+    target_link_libraries(${TEST_NAME} PUBLIC neug::GTest neug
+        ${Protobuf_LIBRARIES} ${GLOG_LIBRARIES}
+        ${YAML_CPP_LIBRARIES})
+    if(WIN32)
+        # TODO: Complete DLL exports before restoring Windows C++ test builds.
+        # Whole-archive static linking made every test executable too slow to link.
+        set_target_properties(${TEST_NAME} PROPERTIES EXCLUDE_FROM_ALL TRUE)
     endif()
     # The bundled googletest (v1.13.0, fetched into _deps) must beat any
     # system/Homebrew gtest that leaks in via an -isystem include path; otherwise

@@ -1615,7 +1615,7 @@ int64_t cc_read_age(NeugDBService& svc, int64_t person_id) {
   auto slot = svc.AcquireExecutionSlot();
   auto txn = slot->BeginSnapshotReadTransaction();
   StorageReadInterface gi(txn.view(), txn.timestamp());
-  auto person_label = svc.db().schema().get_vertex_label_id("person");
+  auto person_label = txn.schema().get_vertex_label_id("person");
   vid_t vid;
   if (!gi.GetVertexIndex(person_label, neug::Value::INT64(person_id), vid)) {
     return -1;
@@ -1628,7 +1628,7 @@ int64_t cc_read_age(NeugDBService& svc, int64_t person_id) {
 int64_t cc_read_age(ExecutionSlot& slot, NeugDB& db, int64_t person_id) {
   auto txn = slot.BeginSnapshotReadTransaction();
   StorageReadInterface gi(txn.view(), txn.timestamp());
-  auto person_label = db.schema().get_vertex_label_id("person");
+  auto person_label = txn.schema().get_vertex_label_id("person");
   vid_t vid;
   if (!gi.GetVertexIndex(person_label, neug::Value::INT64(person_id), vid)) {
     return -1;
@@ -1643,7 +1643,7 @@ std::pair<int64_t, int64_t> cc_read_age_timed(ExecutionSlot& slot, NeugDB& db,
   auto t0 = std::chrono::high_resolution_clock::now();
   auto txn = slot.BeginSnapshotReadTransaction();
   StorageReadInterface gi(txn.view(), txn.timestamp());
-  auto person_label = db.schema().get_vertex_label_id("person");
+  auto person_label = txn.schema().get_vertex_label_id("person");
   vid_t vid;
   int64_t age = -1;
   if (gi.GetVertexIndex(person_label, neug::Value::INT64(person_id), vid)) {
@@ -1660,7 +1660,7 @@ std::pair<int64_t, int64_t> cc_read_age_timed(ExecutionSlot& slot, NeugDB& db,
 int64_t cc_read_age_via(const SnapshotReadTransaction& txn, NeugDB& db,
                         int64_t person_id) {
   StorageReadInterface gi(txn.view(), txn.timestamp());
-  auto person_label = db.schema().get_vertex_label_id("person");
+  auto person_label = txn.schema().get_vertex_label_id("person");
   vid_t vid;
   if (!gi.GetVertexIndex(person_label, neug::Value::INT64(person_id), vid)) {
     return -1;
@@ -1717,7 +1717,7 @@ size_t cc_count_persons(NeugDBService& svc) {
   auto slot = svc.AcquireExecutionSlot();
   auto txn = slot->BeginSnapshotReadTransaction();
   StorageReadInterface gi(txn.view(), txn.timestamp());
-  auto person_label = svc.db().schema().get_vertex_label_id("person");
+  auto person_label = txn.schema().get_vertex_label_id("person");
   size_t n = 0;
   for ([[maybe_unused]] auto v : gi.GetVertexSet(person_label))
     ++n;
@@ -2918,7 +2918,7 @@ TEST_F(NeugDBACIDTest, LongRunningReadDoesNotBlockUpdateCommit) {
     auto txn = sess_r->BeginSnapshotReadTransaction();
     reader_acquired.store(true);
     StorageReadInterface gi(txn.view(), txn.timestamp());
-    auto person_label = db.schema().get_vertex_label_id("person");
+    auto person_label = txn.schema().get_vertex_label_id("person");
     vid_t vid;
     ASSERT_TRUE(gi.GetVertexIndex(person_label, neug::Value::INT64(1), vid));
     // Hold the read for 300ms — well beyond Update::Commit's typical

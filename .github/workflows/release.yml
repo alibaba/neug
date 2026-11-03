@@ -1,0 +1,284 @@
+name: Release
+
+on:
+  release:
+    types:
+      - published
+
+permissions:
+  contents: read
+  actions: read
+  pull-requests: read
+  id-token: write
+
+concurrency:
+  group: ci-release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  ci-plan:
+    uses: ./.github/workflows/ci-plan.yml
+
+  package:
+    name: Build and Verify Release Packages
+    needs: ci-plan
+    uses: ./.github/workflows/package.yml
+    with:
+      plan: ${{ needs.ci-plan.outputs.plan }}
+    secrets: inherit
+
+  publish_wheel:
+    name: Publish Wheel
+    needs: package
+    if: github.repository == 'alibaba/neug' && github.event_name == 'release' && github.event.action == 'published'
+    runs-on: ubuntu-22.04
+    permissions:
+      contents: read
+      actions: read
+    steps:
+    # ========================================
+    # Phase 1: Prepare
+    # ========================================
+
+    - uses: actions/checkout@v4
+    - uses: actions/setup-python@v5
+      with:
+        python-version: ${{ fromJSON(needs.package.outputs.plan).packaging_python }}
+    - uses: actions/download-artifact@v4
+      with:
+        pattern: wheels-*${{ github.run_id }}
+        path: downloaded
+        merge-multiple: true
+
+    # ========================================
+    # Phase 2: Publish
+    # ========================================
+
+    - name: Check Wheel Metadata
+      shell: bash
+      run: |-
+        python3 -m pip install twine
+        python3 -m twine check downloaded/*.whl
+
+    - name: Publish Verified Wheels
+      shell: bash
+      run: python3 -m twine upload downloaded/*.whl
+      env:
+        TWINE_USERNAME: __token__
+        TWINE_PASSWORD: ${{ secrets.PYPI_PASSWORD }}
+
+  publish_npm:
+    name: Publish npm
+    needs: package
+    if: github.repository == 'alibaba/neug' && github.event_name == 'release' && github.event.action == 'published'
+    runs-on: ubuntu-22.04
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+    # ========================================
+    # Phase 1: Prepare
+    # ========================================
+
+
+    - name: Checkout
+      uses: actions/checkout@v4
+
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '20'
+        registry-url: https://registry.npmjs.org
+
+    - name: Download npm Tarballs
+      uses: actions/download-artifact@v4
+      with:
+        pattern: nodejs-*-${{ github.run_id }}
+        path: dist/npm
+        merge-multiple: true
+
+    - name: List npm Tarballs
+      shell: bash
+      run: |
+        find dist/npm -maxdepth 2 -name '*.tgz' -print | sort
+
+    # ========================================
+    # Phase 2: Publish
+    # ========================================
+
+    - name: Publish npm Packages
+      shell: bash
+      env:
+        CI_PLAN: ${{ needs.package.outputs.plan }}
+        NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        RELEASE_TAG: ${{ github.event_name == 'release' && github.event.release.tag_name || github.ref_name }}
+      run: |
+        set -euo pipefail
+
+        VERSION="${RELEASE_TAG#v}"
+        optional_dependencies=()
+        while IFS= read -r platform; do
+          tarballs=(dist/npm/neug-ai-${platform}-*.tgz)
+          if [ "${#tarballs[@]}" -ne 1 ] || [ ! -f "${tarballs[0]}" ]; then
+            echo "::error::Expected one npm tarball for $platform"
+            exit 1
+          fi
+          python3 tools/nodejs_bind/scripts/validate_npm_version.py \
+            "${tarballs[0]}" "@neug-ai/$platform" "$VERSION"
+          optional_dependencies+=(--optional-dependency "@neug-ai/$platform")
+        done < <(printf '%s' "$CI_PLAN" | jq -r '.platforms[]')
+        python3 tools/nodejs_bind/scripts/validate_npm_version.py \
+          dist/npm/neug-ai-neug-*.tgz '@neug-ai/neug' "$VERSION" "${optional_dependencies[@]}"
+        # Upload exactly the tarballs produced and verified by package.
+        while IFS= read -r platform; do
+          npm publish dist/npm/neug-ai-${platform}-*.tgz --access public
+        done < <(printf '%s' "$CI_PLAN" | jq -r '.platforms[]')
+        npm publish dist/npm/neug-ai-neug-*.tgz --access public
+
+  publish_extension:
+    name: Publish Extension / ${{ matrix.platform }}
+    needs: package
+    if: github.repository == 'alibaba/neug' && github.event_name == 'release' && github.event.action == 'published'
+    runs-on: ubuntu-22.04
+    strategy:
+      fail-fast: false
+      matrix:
+        include: ${{ fromJSON(needs.package.outputs.plan).matrix }}
+    permissions:
+      contents: read
+      actions: read
+    steps:
+    # ========================================
+    # Phase 1: Prepare
+    # ========================================
+
+    - uses: actions/checkout@v4
+    - uses: actions/setup-python@v5
+      with:
+        python-version: ${{ fromJSON(needs.package.outputs.plan).packaging_python }}
+    - uses: actions/download-artifact@v4
+      with:
+        pattern: extension-packages-${{ matrix.platform }}-*
+        path: extension_packages
+        merge-multiple: true
+
+    - name: Install OSS Client
+      shell: bash
+      run: python3 -m pip install oss2
+
+    # ========================================
+    # Phase 2: Publish
+    # ========================================
+
+    - name: Upload Extensions using Original OSS Helper
+      shell: bash
+      run: |
+        python3 - <<'PYCODE'
+        import importlib.util
+        import os
+        from pathlib import Path
+        spec = importlib.util.spec_from_file_location('extensions', 'scripts/publish_extensions_from_wheel.py')
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        folder = Path('extension_packages')
+        # Both ABIs use the logical extension name as the OSS directory.
+        # Their filenames differ, so publishing one must not replace the other.
+        variants = {'default': {}, 'cxx11abi': {}}
+        for path in folder.glob('*.neug_extension'):
+            extension = path.name.removeprefix('lib').removesuffix('.neug_extension')
+            abi = 'cxx11abi' if extension.endswith('-cxx11abi') else 'default'
+            extension = extension.removesuffix('-cxx11abi')
+            variants[abi][extension] = (path, path.with_name(path.name + '.sha256'))
+        if not any(variants.values()):
+            raise RuntimeError(f"No extension artifacts for {os.environ['OSS_PLATFORM']}")
+        for files in variants.values():
+            if files:
+                module.upload_artifacts(files, os.environ['RELEASE_TAG'], os.environ['OSS_PLATFORM'])
+        PYCODE
+      env:
+        OSS_ACCESS_KEY_ID: ${{ secrets.OSS_ACCESS_KEY_ID }}
+        OSS_ACCESS_KEY_SECRET: ${{ secrets.OSS_ACCESS_KEY_SECRET }}
+        OSS_ENDPOINT: ${{ secrets.OSS_ENDPOINT }}
+        OSS_BUCKET_NAME: ${{ secrets.OSS_BUCKET_NAME }}
+        OSS_PLATFORM: ${{ matrix.oss_platform }}
+        RELEASE_TAG: ${{ github.event.release.tag_name }}
+
+  publish_java:
+    name: Publish Java
+    needs: package
+    if: github.repository == 'alibaba/neug' && github.event_name == 'release' && github.event.action == 'published'
+    runs-on: ubuntu-22.04
+    permissions:
+      contents: read
+      actions: read
+    steps:
+    # ========================================
+    # Phase 1: Prepare
+    # ========================================
+
+
+    - uses: actions/download-artifact@v4
+      with:
+        name: java-publication-${{ github.run_id }}
+        path: publication
+
+    - name: Publish Prepared Central Bundle
+      shell: bash
+      env:
+        MAVEN_CENTRAL_USERNAME: ${{ secrets.MAVEN_CENTRAL_USERNAME }}
+        MAVEN_CENTRAL_PASSWORD: ${{ secrets.MAVEN_CENTRAL_PASSWORD }}
+      run: |
+        set -euo pipefail
+        python3 - <<'PY'
+        import hashlib
+        from pathlib import Path
+        bundle = Path('publication/central-bundle.zip')
+        expected = bundle.with_suffix('.zip.sha256').read_text().strip()
+        if hashlib.sha256(bundle.read_bytes()).hexdigest() != expected:
+            raise RuntimeError('Publication bundle SHA256 mismatch')
+        PY
+        token=$(printf '%s:%s' "$MAVEN_CENTRAL_USERNAME" "$MAVEN_CENTRAL_PASSWORD" | base64 | tr -d '\n')
+        echo "::add-mask::$token"
+        deployment=$(curl --fail-with-body --silent --show-error \
+          --header "Authorization: Bearer $token" \
+          --form 'bundle=@publication/central-bundle.zip;type=application/octet-stream' \
+          'https://central.sonatype.com/api/v1/publisher/upload?publishingType=AUTOMATIC')
+        for attempt in $(seq 1 120); do
+          status=$(curl --fail-with-body --silent --show-error --request POST \
+            --header "Authorization: Bearer $token" \
+            "https://central.sonatype.com/api/v1/publisher/status?id=$deployment")
+          state=$(printf '%s' "$status" | jq -r .deploymentState)
+          echo "Central deployment $deployment: $state"
+          if [ "$state" = PUBLISHED ]; then exit 0; fi
+          if [ "$state" = FAILED ]; then printf '%s\n' "$status"; exit 1; fi
+          sleep 15
+        done
+        echo '::error::Timed out waiting for Maven Central publication'
+        exit 1
+
+  verify_published:
+    needs: [package, publish_wheel, publish_npm, publish_extension, publish_java]
+    uses: ./.github/workflows/verify-published.yml
+    with:
+      version: ${{ github.event.release.tag_name }}
+      plan: ${{ needs.package.outputs.plan }}
+
+  report:
+    if: always()
+    needs:
+      - package
+      - publish_wheel
+      - publish_npm
+      - publish_extension
+      - publish_java
+      - verify_published
+    runs-on: ubuntu-22.04
+    steps:
+
+    - name: Summarize Results
+      shell: bash
+      env:
+        RESULTS: ${{ toJSON(needs) }}
+      run: |
+        set -euo pipefail
+        printf '## CI result\n```json\n%s\n```\n' "$RESULTS" >> "$GITHUB_STEP_SUMMARY"

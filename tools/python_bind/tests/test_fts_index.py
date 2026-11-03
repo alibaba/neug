@@ -949,7 +949,8 @@ def test_fts_stopwords_crlf_file(tmp_path):
         )
         connection.execute(
             "CREATE INDEX item_text_fts ON Item USING FTS (text) "
-            f"WITH (stopwords = '{stopwords_file}');"
+            # Use '/' so Windows separators are not parsed as Cypher escapes.
+            f"WITH (stopwords = '{stopwords_file.as_posix()}');"
         )
         assert search(connection, "custom") == []
         assert {row[0] for row in search(connection, "alpha")} == {1, 2}
@@ -963,7 +964,8 @@ def test_fts_stopwords_persist_across_checkpoint(tmp_path, from_file):
     stopwords_file = tmp_path / "stop_words.txt"
     if from_file:
         stopwords_file.write_text("custom\n", encoding="utf-8")
-    stopwords = f"'{stopwords_file}'" if from_file else "['custom']"
+    # Use '/' so Windows separators are not parsed as Cypher escapes.
+    stopwords = f"'{stopwords_file.as_posix()}'" if from_file else "['custom']"
     database_path = str(tmp_path / f"stopwords_{from_file}_fts_db")
 
     db = Database(db_path=database_path, mode="w")
@@ -1115,7 +1117,8 @@ def test_jieba_user_dict_extends_builtin_dictionary(tmp_path):
         connection.execute(
             "CREATE INDEX item_text_fts ON Item USING FTS (text) "
             "WITH (tokenizer = 'jieba', jieba_mode = 'mp', "
-            f"jieba_dict = '{user_dict}');"
+            # Use '/' so Windows separators are not parsed as Cypher escapes.
+            f"jieba_dict = '{user_dict.as_posix()}');"
         )
         # Text: 万圣节 / 后 / 举行 / 派对; query: 万圣节.
         assert [row[0] for row in search(connection, "万圣节")] == [1]

@@ -2,21 +2,25 @@ name: NeuG Test (Lite)
 
 on:
   workflow_dispatch:
-  pull_request:
-    branches: [main]
-  push:
-    branches: [main]
+  workflow_call:
 
 concurrency:
   group: ${{ github.repository }}-${{ github.event.number || github.head_ref || github.sha }}-${{ github.workflow }}
   cancel-in-progress: true
 
 jobs:
+  ci-plan:
+    uses: ./.github/workflows/ci-plan.yml
+    with:
+      platforms: '[]'
+      python_versions: '3.13'
+
   build_and_test_lite:
+    needs: ci-plan
     name: Build and test lite
     runs-on: ${{ github.repository == 'alibaba/neug' && fromJSON('["self-hosted", "daily", "linux", "x64"]') || 'ubuntu-22.04' }}
     container:
-      image: neug-registry.cn-hongkong.cr.aliyuncs.com/neug/neug-dev:v0.1.3
+      image: ${{ fromJSON(needs.ci-plan.outputs.plan).dev_image }}
     defaults:
       run:
         shell: bash
