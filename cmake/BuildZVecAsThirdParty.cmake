@@ -122,6 +122,12 @@ function(build_zvec_as_third_party)
         set(_zvec_auto_detect_arch ON)
     endif()
 
+    # RaBitQ 0.7 moved its kernels from headers into compiled libraries.
+    set(_zvec_rabitq_core_library
+        "${_zvec_binary_dir}/lib/${CMAKE_STATIC_LIBRARY_PREFIX}rabitq_core${CMAKE_STATIC_LIBRARY_SUFFIX}")
+    set(_zvec_rabitq_fastscan_library
+        "${_zvec_binary_dir}/lib/${CMAKE_STATIC_LIBRARY_PREFIX}rabitq_fastscan${CMAKE_STATIC_LIBRARY_SUFFIX}")
+
     set(_zvec_cmake_args
         "-DCMAKE_BUILD_TYPE=${CMAKE_BUILD_TYPE}"
         "-DCMAKE_POLICY_VERSION_MINIMUM=3.5"
@@ -146,12 +152,17 @@ function(build_zvec_as_third_party)
     ExternalProject_Add(zvec_external
         SOURCE_DIR "${ZVEC_SOURCE_DIR}"
         BINARY_DIR "${_zvec_binary_dir}"
+        # Recheck source changes after updating the pinned ZVec revision.
+        # The nested build still rebuilds only out-of-date objects.
+        BUILD_ALWAYS TRUE
         INSTALL_COMMAND ""
         # Ninja needs explicit file-producing rules for imported static libraries.
         BUILD_BYPRODUCTS
             "${_zvec_core_library}"
             "${_zvec_ailego_library}"
             "${_zvec_turbo_library}"
+            "${_zvec_rabitq_core_library}"
+            "${_zvec_rabitq_fastscan_library}"
             "${_zvec_roaring_library}"
         BUILD_COMMAND
             "${CMAKE_COMMAND}" --build <BINARY_DIR>
@@ -180,6 +191,16 @@ function(build_zvec_as_third_party)
         IMPORTED_LOCATION "${_zvec_roaring_library}"
         INTERFACE_INCLUDE_DIRECTORIES "${_zvec_roaring_include_dir}")
     add_dependencies(zvec_roaring zvec_external)
+
+    add_library(zvec_rabitq_core STATIC IMPORTED GLOBAL)
+    set_target_properties(zvec_rabitq_core PROPERTIES
+        IMPORTED_LOCATION "${_zvec_rabitq_core_library}")
+    add_dependencies(zvec_rabitq_core zvec_external)
+    add_library(zvec_rabitq_fastscan STATIC IMPORTED GLOBAL)
+    set_target_properties(zvec_rabitq_fastscan PROPERTIES
+        IMPORTED_LOCATION "${_zvec_rabitq_fastscan_library}"
+        INTERFACE_LINK_LIBRARIES zvec_rabitq_core)
+    add_dependencies(zvec_rabitq_fastscan zvec_external)
 
     set(ZVEC_SOURCE_DIR "${ZVEC_SOURCE_DIR}" PARENT_SCOPE)
 endfunction()
