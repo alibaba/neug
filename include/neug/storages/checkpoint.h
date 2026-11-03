@@ -29,6 +29,7 @@
 #include "neug/storages/checkpoint_manifest.h"
 #include "neug/storages/chunk/object_writer.h"
 #include "neug/storages/module_descriptor.h"
+#include "neug/utils/api.h"
 
 namespace neug {
 
@@ -60,8 +61,12 @@ class LegacyCheckpointMigrator;
  * maintenance/publish lifecycle. File operations are synchronized by
  * `CheckpointFileManager`; this does not make concurrent mutation of the
  * same `IDataContainer` safe.
+ *
+ * Exported because ChunkedColumn::Dump/::Open call the non-inline members below
+ * from inline definitions in a public header, so an extension that persists a
+ * chunked column resolves them from libneug.
  */
-class Checkpoint {
+class NEUG_API Checkpoint {
  public:
   ~Checkpoint();
   Checkpoint(const Checkpoint&) = delete;

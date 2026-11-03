@@ -21,6 +21,7 @@
 #include <vector>
 
 #include "neug/storages/chunk/chunk_types.h"
+#include "neug/utils/api.h"
 
 namespace neug {
 
@@ -36,7 +37,11 @@ namespace neug {
 /// checkpoint container path, which adds the standard file header. Each
 /// block's offset/length/crc32c is relative to the payload exposed by
 /// IDataContainer and lives in the chunk directory.
-class ObjectWriter {
+///
+/// Exported for the same reason as Checkpoint: ChunkedColumn::Dump reaches
+/// AppendBlock/Seal through Checkpoint::object_writer() from an inline
+/// definition in a public header.
+class NEUG_API ObjectWriter {
  public:
   static constexpr size_t kObjectTargetBytes = 64ull * 1024 * 1024;
 

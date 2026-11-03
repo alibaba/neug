@@ -19,6 +19,8 @@
 #include <string>
 #include <vector>
 
+#include "neug/utils/api.h"
+
 namespace neug {
 
 /// Descriptor path key for a chunked column's serialized chunk-directory
@@ -29,7 +31,11 @@ inline constexpr const char* kChunkDirPath = "chunk_dir";
 /// CRC32C (Castagnoli) checksum of a payload, used to verify object-slice
 /// integrity on read. Software table-driven implementation; may be replaced by
 /// a hardware CRC32C intrinsic later without changing callers.
-uint32_t Crc32c(const void* data, size_t length);
+///
+/// Exported because ChunkedColumn's inline members call it: an extension that
+/// instantiates a chunked column resolves this from libneug, which on Windows
+/// requires an explicit dllexport (LNK2019 otherwise).
+NEUG_API uint32_t Crc32c(const void* data, size_t length);
 
 /// Parse a serialized chunk-directory blob (the format written by
 /// ChunkedColumn::Dump) and return the checkpoint-local object IDs it
@@ -68,9 +74,12 @@ struct ChunkDirectory {
   std::vector<ChunkDirectoryPage> pages;
 };
 
-/// Versioned, checksummed encoding shared by column recovery and GC.
-std::vector<char> EncodeChunkDirectory(const ChunkDirectory& directory);
-ChunkDirectory DecodeChunkDirectory(const void* data, size_t size);
+/// Versioned, checksummed encoding shared by column recovery and GC. Exported
+/// for the same reason as Crc32c: ChunkedColumn::Dump and ::Open call both from
+/// inline member definitions.
+NEUG_API std::vector<char> EncodeChunkDirectory(
+    const ChunkDirectory& directory);
+NEUG_API ChunkDirectory DecodeChunkDirectory(const void* data, size_t size);
 
 /// Reserved for a future global chunk index. The current directory format uses
 /// the module key and local chunk ordinal, so this type is intentionally not
