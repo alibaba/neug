@@ -107,8 +107,8 @@ int ParsePositive(const common::case_insensitive_map_t<std::string>& options,
 }
 }  // namespace
 
-HNSWVecSource::HNSWVecSource(const VecColumn* column, index_id_t index_id_count)
-    : column_(column), vector_byte_size_(0), index_id_count_(index_id_count) {
+HNSWVecSource::HNSWVecSource(const VecColumn* column)
+    : column_(column), vector_byte_size_(0) {
   if (!column_) {
     THROW_INVALID_ARGUMENT_EXCEPTION("HNSW vector source requires a VecColumn");
   }
@@ -133,14 +133,19 @@ HNSWVecSource::HNSWVecSource(const VecColumn* column, index_id_t index_id_count)
 }
 
 const void* HNSWVecSource::get_vector(uint32_t node_id) const {
-  if (static_cast<index_id_t>(node_id) >= index_id_count_) {
-    THROW_INVALID_ARGUMENT_EXCEPTION(
-        "HNSW vector source node ID " + std::to_string(node_id) +
-        " is out of range (index ID count=" + std::to_string(index_id_count_) +
-        ")");
+  // HNSW computes neighbor distances before applying the visibility filter.
+  // Newly appended IDs can therefore exceed this reader's visible ID count.
+  // Only the capacity of this snapshot's payload determines safe access.
+  const auto capacity = column_->buffer_size();
+  if (node_id >= capacity) {
+    VLOG(1) << "HNSW vector source node ID " << node_id
+            << " is out of range (buffer size=" << capacity << ")";
+    // A writer may have resized into a new buffer while this reader retains
+    // the old one. ZVec skips unavailable external vectors during traversal.
+    return nullptr;
   }
   return static_cast<const uint8_t*>(column_->get_buffer_ptr()) +
-         node_id * vector_byte_size_;
+         static_cast<size_t>(node_id) * vector_byte_size_;
 }
 
 ZVecDumpContainer::ZVecDumpContainer(zvec::core_interface::Index* index,
@@ -148,7 +153,7 @@ ZVecDumpContainer::ZVecDumpContainer(zvec::core_interface::Index* index,
     : zvec_index_(index), runtime_path_(std::move(runtime_path)) {}
 
 void ZVecDumpContainer::Sync() {
-  if (zvec_index_ && zvec_index_->Flush() != 0) {
+  if (zvec_index_ && zvec_index_->flush() != 0) {
     THROW_RUNTIME_ERROR("[zvec] Failed to flush HNSW index");
   }
 }
@@ -160,7 +165,7 @@ void ZVecDumpContainer::Dump(const std::string& new_path) {
 }
 
 bool ZVecDumpContainer::IsDirty() {
-  return zvec_index_ && zvec_index_->IsDirty();
+  return zvec_index_ && zvec_index_->is_dirty();
 }
 
 std::shared_ptr<IDataContainer> ZVecDumpContainer::Fork(Checkpoint&,
@@ -172,7 +177,7 @@ HNSWIndex::~HNSWIndex() {
   // Clone() shares the read-only zvec handle until one of the copies is
   // detached. Closing a shared handle here would invalidate the other clone.
   if (zvec_index_ && zvec_index_.use_count() == 1)
-    zvec_index_->Close();
+    zvec_index_->close();
 }
 
 void HNSWIndex::ParseOptions() {
@@ -259,7 +264,7 @@ void HNSWIndex::Open(Checkpoint& ckp, const ModuleDescriptor& descriptor,
   options.create_new = !has_existing;
   options.read_only = false;
   options.copy_on_write = false;
-  auto ret = zvec_index_->Open(zvec_runtime_path_, options);
+  auto ret = zvec_index_->open(zvec_runtime_path_, options);
   if (ret != 0) {
     THROW_RUNTIME_ERROR(
         "ZVec internal open failed for HNSW index at " + zvec_runtime_path_ +
@@ -286,7 +291,7 @@ void HNSWIndex::Dump(Checkpoint& ckp, CheckpointManifest& manifest,
   // before that extension is loaded; the pending index is activated after
   // LOAD vector_search registers the hnsw_index module type.
   descriptor->required = false;
-  if (zvec_index_->GetDocCount() == 0) {
+  if (zvec_index_->get_doc_count() == 0) {
     return;
   }
 
@@ -331,8 +336,7 @@ Status HNSWIndex::Rebind(const IndexBindContext& context) {
   }
   index_id_accessor_ =
       std::make_unique<VecColumnBackedIndexIDAccessor>(*offset_accessor);
-  vec_source_ = std::make_unique<HNSWVecSource>(
-      column, index_id_accessor_->GetNextIndexID());
+  vec_source_ = std::make_unique<HNSWVecSource>(column);
   return Status::OK();
 }
 
@@ -350,6 +354,11 @@ Status HNSWIndex::BulkBuild(const VertexSet& vertices) {
       continue;
     }
     const auto* vector_data = vec_source_->get_vector(index_id);
+    if (vector_data == nullptr) {
+      return Status::RuntimeError(
+          "HNSW bulk build requires an available vector for vertex " +
+          std::to_string(vid) + " (index ID=" + std::to_string(index_id) + ")");
+    }
     const auto fingerprint =
         static_cast<uint64_t>(std::hash<std::string_view>{}(std::string_view(
             static_cast<const char*>(vector_data), vector_byte_size)));
@@ -357,7 +366,7 @@ Status HNSWIndex::BulkBuild(const VertexSet& vertices) {
     duplicate_statistics.insert(fingerprint);
     zvec::core_interface::VectorData vector;
     vector.vector = zvec::core_interface::DenseVector{vector_data};
-    auto ret = zvec_index_->AddWithSource(vector, index_id, *vec_source_);
+    auto ret = zvec_index_->add_with_source(vector, index_id, *vec_source_);
     if (ret != 0) {
       return Status::RuntimeError(
           "ZVec internal bulk build failed for vertex " + std::to_string(vid) +
@@ -493,8 +502,8 @@ result<std::vector<SearchCandidate>> HNSWIndex::SearchImpl(
   zvec::core_interface::VectorData query;
   query.vector = zvec::core_interface::DenseVector{target.data()};
   zvec::core_interface::SearchResult search_result;
-  auto ret = zvec_index_->SearchWithSource(query, query_param, *vec_source_,
-                                           &search_result);
+  auto ret = zvec_index_->search_with_source(query, query_param, *vec_source_,
+                                             &search_result);
   if (ret != 0) {
     RETURN_ERROR(
         Status::RuntimeError("ZVec internal search failed with error code " +
@@ -545,11 +554,10 @@ Status HNSWIndex::AppendImpl(index_id_t index_id, const IndexValues& values) {
     return dense_result.error();
   }
   auto dense = std::move(dense_result).value();
-  vec_source_->UpdateIndexIDCount(index_id_accessor_->GetNextIndexID());
 
   zvec::core_interface::VectorData vector;
   vector.vector = zvec::core_interface::DenseVector{dense.data()};
-  auto ret = zvec_index_->AddWithSource(vector, index_id, *vec_source_);
+  auto ret = zvec_index_->add_with_source(vector, index_id, *vec_source_);
   if (ret != 0) {
     return Status::RuntimeError("ZVec internal append failed with error code " +
                                 std::to_string(ret) +

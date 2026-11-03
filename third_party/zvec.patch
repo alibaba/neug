@@ -2,12 +2,10 @@ diff --git a/CMakeLists.txt b/CMakeLists.txt
 index 2c5301f..0e88f02 100644
 --- a/CMakeLists.txt
 +++ b/CMakeLists.txt
-@@ -1,4 +1,4 @@
+@@ -1,2 +1,2 @@
 -cmake_minimum_required(VERSION 3.26)
 +cmake_minimum_required(VERSION 3.22.1)
  cmake_policy(SET CMP0077 NEW)
- project(zvec)
- set(CC_CXX_STANDARD 17)
 diff --git a/cmake/bazel.cmake b/cmake/bazel.cmake
 --- a/cmake/bazel.cmake
 +++ b/cmake/bazel.cmake
@@ -18,3 +16,32 @@ diff --git a/cmake/bazel.cmake b/cmake/bazel.cmake
 -    set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreadedDLL$<$<CONFIG:Debug>:Debug>" CACHE STRING "" FORCE)
 +    set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>DLL" CACHE STRING "" FORCE)
    endif()
+diff --git a/src/core/algorithm/hnsw/hnsw_context.h b/src/core/algorithm/hnsw/hnsw_context.h
+--- a/src/core/algorithm/hnsw/hnsw_context.h
++++ b/src/core/algorithm/hnsw/hnsw_context.h
+@@ -367,7 +367,8 @@
+     }
+     const void *vector = block.data();
+     if (ailego_unlikely(vector == nullptr && skip_missing_vectors)) {
+-      LOG_ERROR("Skip nullptr external vector, id=%u", id);
++      // Missing external vectors are expected when querying an older snapshot.
++      // Storage errors above remain errors; unavailable records are skipped.
+       return false;
+     }
+     distance = dc_.batch_dist(vector, get_extra_values(vector));
+diff --git a/thirdparty/RaBitQ-Library/CMakeLists.txt b/thirdparty/RaBitQ-Library/CMakeLists.txt
+--- a/thirdparty/RaBitQ-Library/CMakeLists.txt
++++ b/thirdparty/RaBitQ-Library/CMakeLists.txt
+@@ -11,6 +11,11 @@
+   set(RABITQ_BUILD_PYTHON_BINDINGS OFF)
+   set(RABITQ_USE_OPENMP OFF)
+   set(RABITQ_ENABLE_NATIVE_OPTIMIZATION OFF)
+-  add_subdirectory("${RABITQ_SOURCE_DIR}" rabitq SYSTEM)
++  # add_subdirectory(SYSTEM) requires CMake 3.25.
++  if(CMAKE_VERSION VERSION_LESS "3.25")
++    add_subdirectory("${RABITQ_SOURCE_DIR}" rabitq)
++  else()
++    add_subdirectory("${RABITQ_SOURCE_DIR}" rabitq SYSTEM)
++  endif()
+   target_link_libraries(rabitqlib INTERFACE rabitqlib::fastscan)
+ endif()
