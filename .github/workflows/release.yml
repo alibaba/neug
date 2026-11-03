@@ -282,3 +282,39 @@ jobs:
       run: |
         set -euo pipefail
         printf '## CI result\n```json\n%s\n```\n' "$RESULTS" >> "$GITHUB_STEP_SUMMARY"
+
+    - name: Send DingTalk notification
+      if: always() && github.repository == 'alibaba/neug'
+      env:
+        DINGTALK_TOKEN: ${{ secrets.DINGTALK_TOKEN }}
+      run: |
+        if [ -z "$DINGTALK_TOKEN" ]; then
+          echo "DINGTALK_TOKEN not set, skipping notification."
+          exit 0
+        fi
+        WEBHOOK_URL="https://oapi.dingtalk.com/robot/send?access_token=${DINGTALK_TOKEN}"
+        TAG="${{ github.event.release.tag_name }}"
+        STATUS_PACKAGE="${{ needs.package.result }}"
+        STATUS_WHEEL="${{ needs.publish_wheel.result }}"
+        STATUS_NPM="${{ needs.publish_npm.result }}"
+        STATUS_EXTENSION="${{ needs.publish_extension.result }}"
+        STATUS_JAVA="${{ needs.publish_java.result }}"
+        STATUS_VERIFY="${{ needs.verify_published.result }}"
+        # A release passes unless a stage actually failed or was cancelled; a
+        # legitimately skipped stage (e.g. package when reusing dry-run
+        # artifacts) must not be reported as a failure.
+        STATUSES=" $STATUS_PACKAGE $STATUS_WHEEL $STATUS_NPM $STATUS_EXTENSION $STATUS_JAVA $STATUS_VERIFY "
+        if [[ "$STATUSES" == *" failure "* || "$STATUSES" == *" cancelled "* ]]; then
+          TITLE="[Release] NeuG $TAG Failed"
+        else
+          TITLE="[Release] NeuG $TAG Passed"
+        fi
+        curl -s -X POST "$WEBHOOK_URL" \
+          -H 'Content-Type: application/json' \
+          -d "{
+            \"msgtype\": \"markdown\",
+            \"markdown\": {
+              \"title\": \"$TITLE\",
+              \"text\": \"## $TITLE\\n\\n- **package**: ${STATUS_PACKAGE}\\n- **publish_wheel**: ${STATUS_WHEEL}\\n- **publish_npm**: ${STATUS_NPM}\\n- **publish_extension**: ${STATUS_EXTENSION}\\n- **publish_java**: ${STATUS_JAVA}\\n- **verify_published**: ${STATUS_VERIFY}\\n- **Repo**: ${{ github.repository }}\\n- **Branch**: ${{ github.ref_name }}\\n- **Commit**: ${{ github.sha }}\\n- [View Run](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})\"
+            }
+          }"
