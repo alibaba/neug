@@ -115,9 +115,10 @@ function(build_zvec_as_third_party)
     # ZVec currently creates several common third-party targets unconditionally.
     # Build it in an isolated CMake project to avoid collisions with NeuG targets.
     set(_zvec_auto_detect_arch OFF)
-    if(CMAKE_SYSTEM_NAME STREQUAL "Linux"
+    if(CMAKE_SYSTEM_NAME MATCHES "^(Linux|Darwin)$"
        AND CMAKE_SYSTEM_PROCESSOR MATCHES "^(x86_64|amd64|AMD64|x86|i[3-6]86)$")
         # ZVec's RaBitQ sources require their per-source AVX2 flags on x86.
+        # Also enable this for macOS x86_64.
         set(_zvec_auto_detect_arch ON)
     endif()
 

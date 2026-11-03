@@ -75,6 +75,27 @@ class Database {
   }
 
   /**
+   * Attach to an open database exported by another Worker in this process.
+   * Closing this attachment releases its connections without closing the owner.
+   * @param {string} handle - An opaque handle returned by share().
+   * @returns {Database}
+   */
+  static attach(handle) {
+    if (typeof handle !== 'string' || handle.length === 0) {
+      throw new TypeError('Database handle must be a non-empty string.');
+    }
+    const db = Object.create(Database.prototype);
+    db._database = new nativeBinding.NodeDatabase(handle);
+    const options = db._database.getOptions();
+    db._dbPath = options.databasePath;
+    db._mode = options.mode;
+    db._maxThreadNum = options.maxThreadNum;
+    db._connections = [];
+    db._asyncConnections = [];
+    return db;
+  }
+
+  /**
    * Open a NeuG database.
    *
    * @param {Object} options - Database configuration options.
@@ -167,7 +188,7 @@ class Database {
     this._database = new nativeBinding.NodeDatabase({
       databasePath: dbPath,
       maxThreadNum,
-      mode: readable(mode),
+      mode,
       planner: 'gopt',
       checkpointOnClose,
       bufferStrategy,
@@ -195,6 +216,18 @@ class Database {
    */
   get mode() {
     return this._mode;
+  }
+
+  /**
+   * Share this database with other Workers through a process-local handle.
+   * The handle remains valid while the database is open and retained by a user.
+   * @returns {string}
+   */
+  share() {
+    if (!this._database) {
+      throw new Error('Database is closed.');
+    }
+    return this._database.share();
   }
 
   /**

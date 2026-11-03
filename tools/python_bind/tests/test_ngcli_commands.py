@@ -16,16 +16,18 @@
 # limitations under the License.
 #
 
-import ctypes
 import os
 import shutil
+import socket
 import sys
 import threading
-import time
+from contextlib import contextmanager
 
 import pytest
 import requests
 from click.testing import CliRunner
+from conftest import wait_for_server_ready
+from werkzeug.serving import make_server
 
 from neug import neug_cli
 from neug import web_ui
@@ -36,6 +38,41 @@ from neug.session import Session
 @pytest.fixture
 def runner():
     return CliRunner()
+
+
+@pytest.fixture
+def run_web_ui(monkeypatch):
+    if sys.platform == "darwin":
+        # Avoid the 35s getfqdn lookup between bind() and listen() on macOS CI.
+        # https://github.com/actions/runner-images/issues/14409#issuecomment-5034633535
+        monkeypatch.setattr(socket, "getfqdn", lambda name="": name)
+
+    @contextmanager
+    def run(shell):
+        server = None
+        ready = threading.Event()
+
+        def run_server(app, host, port, **kwargs):
+            nonlocal server
+            server = make_server(host, port, app, threaded=True)
+            ready.set()
+            server.serve_forever()
+
+        monkeypatch.setattr(web_ui.Flask, "run", run_server)
+        thread = threading.Thread(target=shell.default, args=(":ui",), daemon=True)
+        thread.start()
+        try:
+            assert ready.wait(timeout=10), "Web UI did not start listening"
+            yield
+        finally:
+            if server is not None:
+                if thread.is_alive():
+                    server.shutdown()
+                server.server_close()
+            thread.join(timeout=5)
+            assert not thread.is_alive(), "Web UI thread did not stop"
+
+    return run
 
 
 def _install_dummy_shell(monkeypatch):
@@ -189,63 +226,45 @@ def test_connect_remote_database_fails_without_uri(runner):
     assert "Error: Missing argument 'DB_URI'." in result.output
 
 
-def test_start_remote_database_neug_ui(runner, tmp_path):
+def test_start_remote_database_neug_ui(runner, tmp_path, run_web_ui):
     db_endpoint = "http://127.0.0.1:10010"
     db_path = tmp_path / "modern_graph"
     db = Database(db_path=str(db_path), mode="w")
-    db.load_builtin_dataset("modern_graph")
-    db.serve(host="127.0.0.1", port=10010, blocking=False)
-
-    time.sleep(1)
-    session = Session(endpoint=db_endpoint)
-    shell = neug_cli.NeugShell(session)
-    thread = threading.Thread(
-        target=shell.default,
-        args=(":ui",),
-    )
-    thread.start()
-    time.sleep(1)
-    url = "http://127.0.0.1:5000/cypherv2"
-    headers = {"Content-Type": "text/plain"}
-    data = "MATCH (n) RETURN count(n)"
-    response = requests.post(url, headers=headers, data=data)
-    db.stop_serving()
-    db.close()
-
-    if thread.is_alive():
-        tid = thread.ident
-        ctypes.pythonapi.PyThreadState_SetAsyncExc(
-            ctypes.c_long(tid), ctypes.py_object(SystemExit)
-        )
-    thread.join()
-    expected_output = """COUNT(_0_n)": 6"""
-    assert response.status_code == 200
-    assert expected_output in response.text
+    session = None
+    try:
+        db.load_builtin_dataset("modern_graph")
+        db.serve(host="127.0.0.1", port=10010, blocking=False)
+        wait_for_server_ready(db_endpoint)
+        session = Session(endpoint=db_endpoint)
+        shell = neug_cli.NeugShell(session)
+        with run_web_ui(shell):
+            url = "http://127.0.0.1:5000/cypherv2"
+            headers = {"Content-Type": "text/plain"}
+            data = "MATCH (n) RETURN count(n)"
+            response = requests.post(url, headers=headers, data=data, timeout=10)
+            expected_output = """COUNT(_0_n)": 6"""
+            assert response.status_code == 200
+            assert expected_output in response.text
+    finally:
+        if session is not None:
+            session.close()
+        db.close()
 
 
-def test_start_local_database_neug_ui(runner, tmp_path):
+def test_start_local_database_neug_ui(runner, tmp_path, run_web_ui):
     db_path = tmp_path / "modern_graph"
     db = Database(db_path=str(db_path), mode="w")
-    db.load_builtin_dataset("modern_graph")
-    connection = db.connect()
-    shell = neug_cli.NeugShell(connection)
-    thread = threading.Thread(
-        target=shell.default,
-        args=(":ui",),
-    )
-    thread.start()
-    time.sleep(1)
-    url = "http://127.0.0.1:5000/cypherv2"
-    headers = {"Content-Type": "text/plain"}
-    data = "MATCH (n) RETURN count(n)"
-    response = requests.post(url, headers=headers, data=data)
-    db.close()
-    if thread.is_alive():
-        tid = thread.ident
-        ctypes.pythonapi.PyThreadState_SetAsyncExc(
-            ctypes.c_long(tid), ctypes.py_object(SystemExit)
-        )
-    thread.join()
-    expected_output = """COUNT(_0_n)": 6"""
-    assert response.status_code == 200
-    assert expected_output in response.text
+    try:
+        db.load_builtin_dataset("modern_graph")
+        connection = db.connect()
+        shell = neug_cli.NeugShell(connection)
+        with run_web_ui(shell):
+            url = "http://127.0.0.1:5000/cypherv2"
+            headers = {"Content-Type": "text/plain"}
+            data = "MATCH (n) RETURN count(n)"
+            response = requests.post(url, headers=headers, data=data, timeout=10)
+            expected_output = """COUNT(_0_n)": 6"""
+            assert response.status_code == 200
+            assert expected_output in response.text
+    finally:
+        db.close()

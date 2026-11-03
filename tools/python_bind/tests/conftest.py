@@ -26,6 +26,12 @@ import pytest
 from neug.session import Session
 
 
+def cypher_path(path) -> str:
+    value = os.fspath(path)
+    escaped = value.replace("\\", "\\\\").replace("'", "\\'")
+    return f"'{escaped}'"
+
+
 def ensure_result_cnt_gt_zero(result):
     """
     Ensure that the result of a query contains at least one record.

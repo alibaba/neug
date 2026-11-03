@@ -20,6 +20,7 @@ import os
 import random
 import sys
 from collections import defaultdict
+from pathlib import Path
 
 import pytest
 
@@ -97,8 +98,13 @@ def large_graph_db(tmp_path_factory):
     try:
         conn.execute("CREATE NODE TABLE v(id INT64, PRIMARY KEY(id));")
         conn.execute("CREATE REL TABLE e(FROM v TO v);")
-        conn.execute(f"COPY v FROM '{v_path}' (DELIMITER=',', HEADER=true);")
-        conn.execute(f"COPY e FROM '{e_path}' (DELIMITER=',', HEADER=true);")
+        # Use '/' so Windows separators are not parsed as Cypher escapes.
+        conn.execute(
+            f"COPY v FROM '{Path(v_path).as_posix()}' (DELIMITER=',', HEADER=true);"
+        )
+        conn.execute(
+            f"COPY e FROM '{Path(e_path).as_posix()}' (DELIMITER=',', HEADER=true);"
+        )
         conn.execute("CALL project_graph('g', ['v'], {'[v, e, v]': ''});")
         conn.execute("LOAD gds;")
         yield conn

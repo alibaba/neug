@@ -385,12 +385,19 @@ static void sparse_copy_zero_detect(int src_fd, int dst_fd, off_t size,
  */
 void fallback_copy(const std::string& src_path, const std::string& dst_path,
                    const struct stat& src_stat) {
-  int src_fd = ::open(src_path.c_str(), O_RDONLY);
+  int read_flags = O_RDONLY;
+  int write_flags = O_WRONLY | O_CREAT | O_TRUNC;
+#ifdef _WIN32
+  // Copy byte offsets verbatim: text mode translates CRLF and treats CTRL+Z
+  // as EOF, corrupting binary storage and SQLite index files.
+  read_flags |= _O_BINARY;
+  write_flags |= _O_BINARY;
+#endif
+  int src_fd = ::open(src_path.c_str(), read_flags);
   if (src_fd < 0) {
     throw std::runtime_error("Failed to open source file: " + src_path);
   }
-  int dst_fd =
-      ::open(dst_path.c_str(), O_WRONLY | O_CREAT | O_TRUNC, src_stat.st_mode);
+  int dst_fd = ::open(dst_path.c_str(), write_flags, src_stat.st_mode);
   if (dst_fd < 0) {
     ::close(src_fd);
     throw std::runtime_error("Failed to create destination file: " + dst_path);

@@ -16,6 +16,7 @@
 #include <napi.h>
 
 #include <iostream>
+#include <mutex>
 #include <string>
 
 #include <glog/logging.h>
@@ -29,29 +30,33 @@
 namespace neug {
 
 void SetupLogging() {
-  google::InitGoogleLogging("neug");
-  const char* debug = std::getenv("DEBUG");
+  static std::once_flag logging_once;
+  std::call_once(logging_once, [] {
+    google::InitGoogleLogging("neug");
+    const char* debug = std::getenv("DEBUG");
 
-  if (debug) {
-    std::string mode = debug;
-    if (mode == "1" || mode == "true" || mode == "ON") {
-      FLAGS_minloglevel = 0;     // 0 for verbose
-      FLAGS_logtostderr = true;  // Log to stderr
+    if (debug) {
+      std::string mode = debug;
+      if (mode == "1" || mode == "true" || mode == "ON") {
+        FLAGS_minloglevel = 0;     // 0 for verbose
+        FLAGS_logtostderr = true;  // Log to stderr
+      } else {
+        std::cerr << "Invalid DEBUG value: " << mode
+                  << ". Expected '1', 'true', or 'ON'." << std::endl;
+        FLAGS_minloglevel = 2;      // 2 for error
+        FLAGS_logtostderr = false;  // Log to file instead of stderr
+      }
     } else {
-      std::cerr << "Invalid DEBUG value: " << mode
-                << ". Expected '1', 'true', or 'ON'." << std::endl;
       FLAGS_minloglevel = 2;      // 2 for error
       FLAGS_logtostderr = false;  // Log to file instead of stderr
     }
-  } else {
-    FLAGS_minloglevel = 2;      // 2 for error
-    FLAGS_logtostderr = false;  // Log to file instead of stderr
-  }
+  });
 }
 
 }  // namespace neug
 
 static Napi::Object InitAll(Napi::Env env, Napi::Object exports) {
+  env.SetInstanceData(new neug::AddonData());
   neug::NodeDatabase::Init(env, exports);
   neug::NodeConnection::Init(env, exports);
   neug::NodeQueryResult::Init(env, exports);

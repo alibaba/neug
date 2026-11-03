@@ -19,13 +19,36 @@
 #include <napi.h>
 
 #include <memory>
-#include <mutex>
 #include <string>
 
 #include "neug/main/neug_db.h"
 #include "node_connection.h"
 
 namespace neug {
+
+struct AddonData {
+  Napi::FunctionReference connection_constructor;
+  Napi::FunctionReference query_result_constructor;
+};
+
+// Contains no JS references: environments share this state, not their wrappers.
+struct DatabaseState : public std::enable_shared_from_this<DatabaseState> {
+  DatabaseState(const NeugDBConfig& config, const std::string& mode);
+  ~DatabaseState();
+
+  static std::shared_ptr<DatabaseState> Attach(const std::string& handle);
+  std::string Share();
+  void Close();
+
+  // Keep the native object alive until all attachments/connections release it.
+  const std::unique_ptr<NeugDB> database;
+  const NeugDBConfig options;
+  const std::string mode;
+
+ private:
+  void RevokeHandle();
+  std::string handle_;
+};
 
 class NodeDatabase : public Napi::ObjectWrap<NodeDatabase> {
  public:
@@ -37,15 +60,14 @@ class NodeDatabase : public Napi::ObjectWrap<NodeDatabase> {
 
   Napi::Value Connect(const Napi::CallbackInfo& info);
   Napi::Value Close(const Napi::CallbackInfo& info);
+  Napi::Value Share(const Napi::CallbackInfo& info);
+  Napi::Value GetOptions(const Napi::CallbackInfo& info);
 
  private:
-  static Napi::FunctionReference constructor;
-
   MemoryLevel ParseBufferStrategy(const std::string& level);
 
-  std::recursive_mutex mtx_;
-  std::string db_dir_;
-  std::unique_ptr<NeugDB> database;
+  std::shared_ptr<DatabaseState> state_;
+  bool owner_{false};
 };
 
 }  // namespace neug

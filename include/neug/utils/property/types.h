@@ -379,7 +379,9 @@ struct NEUG_API Date {
   } value;
 };
 
-struct DateTime {
+// Export out-of-line methods for Windows DLL consumers, as with Date.
+// TODO: Check that DateTime's NEUG_API export is correct for Windows DLL users.
+struct NEUG_API DateTime {
   DateTime() = default;
   ~DateTime() = default;
   explicit DateTime(int64_t x) : milli_second(x) {}

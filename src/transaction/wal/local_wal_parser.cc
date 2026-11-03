@@ -55,7 +55,9 @@ void LocalWalParser::open(const std::string& wal_uri) {
       continue;
     }
 #ifdef _WIN32
-    int fd = _open(path.c_str(), O_RDONLY, 0);
+    // WAL is a binary format: keep the descriptor untranslated so any CRT
+    // reads preserve CRLF and CTRL+Z rather than treating them as text/EOF.
+    int fd = _open(path.c_str(), O_RDONLY | _O_BINARY, 0);
 #else
     int fd = ::open(path.c_str(), O_RDONLY);
 #endif

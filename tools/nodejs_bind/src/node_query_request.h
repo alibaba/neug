@@ -39,8 +39,6 @@ class NodeQueryRequest : public Napi::ObjectWrap<NodeQueryRequest> {
   NodeQueryRequest(const Napi::CallbackInfo& info);
 
  private:
-  static Napi::FunctionReference constructor;
-
   static Napi::Value SerializeRequest(const Napi::CallbackInfo& info);
 };
 

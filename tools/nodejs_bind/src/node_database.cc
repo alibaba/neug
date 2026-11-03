@@ -15,16 +15,106 @@
 
 #include "node_database.h"
 
-#include <thread>
-
+#include <mutex>
+#include <random>
+#include <sstream>
 #include <string>
+#include <thread>
+#include <unordered_map>
 
 #include "neug/config.h"
 #include "neug/utils/exception/exception.h"
 
 namespace neug {
 
-Napi::FunctionReference NodeDatabase::constructor;
+namespace {
+
+struct DatabaseRegistry {
+  std::mutex mutex;
+  std::unordered_map<std::string, std::weak_ptr<DatabaseState>> databases;
+};
+
+DatabaseRegistry& GetDatabaseRegistry() {
+  static DatabaseRegistry registry;
+  return registry;
+}
+
+}  // namespace
+
+DatabaseState::DatabaseState(const NeugDBConfig& config,
+                             const std::string& mode)
+    : database(std::make_unique<NeugDB>()), options(config), mode(mode) {
+  database->Open(config);
+}
+
+DatabaseState::~DatabaseState() {
+  try {
+    Close();
+  } catch (const std::exception& e) {
+    LOG(ERROR) << "Failed to close shared database: " << e.what();
+  }
+  RevokeHandle();
+}
+
+std::shared_ptr<DatabaseState> DatabaseState::Attach(
+    const std::string& handle) {
+  std::shared_ptr<DatabaseState> state;
+  {
+    auto& registry = GetDatabaseRegistry();
+    std::lock_guard<std::mutex> lock(registry.mutex);
+    auto it = registry.databases.find(handle);
+    if (it != registry.databases.end()) {
+      state = it->second.lock();
+    }
+  }
+  if (state && !state->database->IsClosed()) {
+    return state;
+  }
+  THROW_INVALID_ARGUMENT_EXCEPTION("Invalid or closed database handle");
+}
+
+std::string DatabaseState::Share() {
+  auto& registry = GetDatabaseRegistry();
+  std::lock_guard<std::mutex> lock(registry.mutex);
+  if (database->IsClosed()) {
+    THROW_RUNTIME_ERROR("Database is closed.");
+  }
+  if (handle_.empty()) {
+    std::random_device random;
+    do {
+      std::ostringstream token;
+      token << std::hex;
+      for (int i = 0; i < 4; ++i) {
+        token << random() << '-';
+      }
+      handle_ = token.str();
+    } while (registry.databases.count(handle_));
+    registry.databases.emplace(handle_, shared_from_this());
+  }
+  return handle_;
+}
+
+void DatabaseState::RevokeHandle() {
+  auto& registry = GetDatabaseRegistry();
+  std::lock_guard<std::mutex> lock(registry.mutex);
+  if (!handle_.empty()) {
+    registry.databases.erase(handle_);
+    handle_.clear();
+  }
+}
+
+void DatabaseState::Close() {
+  // Preserve the core's retry behavior if checkpoint preparation fails.
+  try {
+    database->Close();
+  } catch (...) {
+    if (database->IsClosed()) {
+      RevokeHandle();
+    }
+    throw;
+  }
+  RevokeHandle();
+}
 
 Napi::Object NodeDatabase::Init(Napi::Env env, Napi::Object exports) {
   Napi::Function func =
@@ -32,10 +122,10 @@ Napi::Object NodeDatabase::Init(Napi::Env env, Napi::Object exports) {
                   {
                       InstanceMethod("connect", &NodeDatabase::Connect),
                       InstanceMethod("close", &NodeDatabase::Close),
+                      InstanceMethod("share", &NodeDatabase::Share),
+                      InstanceMethod("getOptions", &NodeDatabase::GetOptions),
                       StaticMethod("cpuCount", &NodeDatabase::GetCpuCount),
                   });
-  constructor = Napi::Persistent(func);
-  constructor.SuppressDestruct();
   exports.Set("NodeDatabase", func);
   return exports;
 }
@@ -43,6 +133,15 @@ Napi::Object NodeDatabase::Init(Napi::Env env, Napi::Object exports) {
 NodeDatabase::NodeDatabase(const Napi::CallbackInfo& info)
     : Napi::ObjectWrap<NodeDatabase>(info) {
   Napi::Env env = info.Env();
+
+  if (info.Length() == 1 && info[0].IsString()) {
+    try {
+      state_ = DatabaseState::Attach(info[0].As<Napi::String>().Utf8Value());
+    } catch (const std::exception& e) {
+      Napi::Error::New(env, e.what()).ThrowAsJavaScriptException();
+    }
+    return;
+  }
 
   if (info.Length() < 1 || !info[0].IsObject()) {
     Napi::TypeError::New(env, "Options object required")
@@ -110,45 +209,36 @@ NodeDatabase::NodeDatabase(const Napi::CallbackInfo& info)
     return;
   }
 
-  db_dir_ = database_path;
-  database = std::make_unique<NeugDB>();
-  NeugDBConfig config(db_dir_, max_thread_num);
+  NeugDBConfig config(database_path, max_thread_num);
   config.auto_load_extension = auto_load_extension;
   config.mode = mode_;
   config.planner_kind = planner;
   config.checkpoint_on_close = checkpoint_on_close;
   try {
     config.memory_level = ParseBufferStrategy(buffer_strategy);
-    database->Open(config);
+    state_ = std::make_shared<DatabaseState>(config, mode);
+    owner_ = true;
   } catch (const neug::exception::Exception& e) {
     Napi::Error::New(env, e.what()).ThrowAsJavaScriptException();
-    database.reset();
     return;
   } catch (const std::exception& e) {
     Napi::Error::New(env, e.what()).ThrowAsJavaScriptException();
-    database.reset();
     return;
   }
 }
 
-NodeDatabase::~NodeDatabase() {
-  std::lock_guard<std::recursive_mutex> lock(mtx_);
-  if (database) {
-    database->Close();
-    database.reset();
-  }
-}
+NodeDatabase::~NodeDatabase() = default;
 
 Napi::Value NodeDatabase::Connect(const Napi::CallbackInfo& info) {
   Napi::Env env = info.Env();
-  if (!database) {
+  if (!state_) {
     Napi::Error::New(env, "Database is not initialized.")
         .ThrowAsJavaScriptException();
     return env.Null();
   }
   try {
-    auto conn = database->Connect();
-    return NodeConnection::NewInstance(env, *database, conn);
+    auto conn = state_->database->Connect();
+    return NodeConnection::NewInstance(env, state_, std::move(conn));
   } catch (const neug::exception::Exception& e) {
     Napi::Error::New(env, e.what()).ThrowAsJavaScriptException();
     return env.Null();
@@ -159,12 +249,40 @@ Napi::Value NodeDatabase::Connect(const Napi::CallbackInfo& info) {
 }
 
 Napi::Value NodeDatabase::Close(const Napi::CallbackInfo& info) {
-  std::lock_guard<std::recursive_mutex> lock(mtx_);
-  if (database) {
-    database->Close();
-    database.reset();
+  try {
+    if (state_ && owner_) {
+      state_->Close();
+    }
+    state_.reset();
+  } catch (const std::exception& e) {
+    Napi::Error::New(info.Env(), e.what()).ThrowAsJavaScriptException();
   }
   return info.Env().Undefined();
+}
+
+Napi::Value NodeDatabase::Share(const Napi::CallbackInfo& info) {
+  try {
+    if (!state_) {
+      THROW_RUNTIME_ERROR("Database is closed.");
+    }
+    return Napi::String::New(info.Env(), state_->Share());
+  } catch (const std::exception& e) {
+    Napi::Error::New(info.Env(), e.what()).ThrowAsJavaScriptException();
+    return info.Env().Undefined();
+  }
+}
+
+Napi::Value NodeDatabase::GetOptions(const Napi::CallbackInfo& info) {
+  if (!state_) {
+    Napi::Error::New(info.Env(), "Database is closed.")
+        .ThrowAsJavaScriptException();
+    return info.Env().Undefined();
+  }
+  auto options = Napi::Object::New(info.Env());
+  options.Set("databasePath", state_->options.data_dir);
+  options.Set("mode", state_->mode);
+  options.Set("maxThreadNum", state_->options.max_thread_num);
+  return options;
 }
 
 Napi::Value NodeDatabase::GetCpuCount(const Napi::CallbackInfo& info) {

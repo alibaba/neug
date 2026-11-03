@@ -121,6 +121,81 @@ def _run_issue_651_checkpoint_copy_scenario(executor, tmp_path, db_dir):
     _assert_issue_651_pk_lookups(executor)
 
 
+def test_binary_wal_replay_across_checkpoints(tmp_path):
+    """Replay WALs containing LF, CR and CTRL+Z after changing timelines."""
+    db_dir = str(tmp_path / "binary_wal")
+    first = "before\n\r\x1acheckpoint"
+    second = "after\r\n\x1acheckpoint"
+
+    def open_db():
+        return Database(db_path=db_dir, checkpoint_on_close=False, max_thread_num=2)
+
+    def insert(conn, row_id, payload):
+        conn.execute(
+            "CREATE (:Item {id: $id, payload: $payload});",
+            "insert",
+            {"id": row_id, "payload": payload},
+        )
+
+    def rows(conn):
+        return list(conn.execute("MATCH (n:Item) RETURN n.id, n.payload ORDER BY n.id"))
+
+    with closing(open_db()) as db, closing(db.connect()) as conn:
+        conn.execute(
+            "CREATE NODE TABLE Item(id INT64, payload STRING, PRIMARY KEY(id))"
+        )
+        conn.execute("CHECKPOINT;")
+        insert(conn, 0, first)
+    # No close-time checkpoint: these values must be recovered from the WAL.
+    with closing(open_db()) as db, closing(db.connect()) as conn:
+        assert rows(conn) == [[0, first]]
+        conn.execute("CHECKPOINT;")
+        insert(conn, 1, second)
+    with closing(open_db()) as db, closing(db.connect()) as conn:
+        assert rows(conn) == [[0, first], [1, second]]
+
+
+def test_binary_checkpoint_file_copy(tmp_path):
+    """M_LAZY reopens snapshot files through the native file-copy path."""
+    db_dir = tmp_path / "binary_copy"
+    payload = "binary\n\r\x1adata"
+
+    def open_db():
+        return Database(
+            db_path=str(db_dir),
+            checkpoint_on_close=False,
+            buffer_strategy="M_LAZY",
+            max_thread_num=2,
+        )
+
+    with closing(open_db()) as db, closing(db.connect()) as conn:
+        conn.execute(
+            "CREATE NODE TABLE Item(id INT64, payload STRING, PRIMARY KEY(id))"
+        )
+        conn.execute(
+            "CREATE (:Item {id: 0, payload: $payload});",
+            "insert",
+            {"payload": payload},
+        )
+        conn.execute("CHECKPOINT;")
+    # Compare the copied native files themselves, not a Python shutil copy.
+    objects = [
+        path.read_bytes() for path in (db_dir / "checkpoint" / "objects").iterdir()
+    ]
+    assert any(payload.encode() in data for data in objects)
+    with closing(open_db()) as db, closing(db.connect()) as conn:
+        copied = [
+            path.read_bytes()
+            for path in (db_dir / "runtime").rglob("*")
+            if path.is_file()
+        ]
+        assert copied
+        assert all(data in objects for data in copied)
+        assert list(conn.execute("MATCH (n:Item) RETURN n.id, n.payload")) == [
+            [0, payload]
+        ]
+
+
 def test_checkpoint(tmp_path):
     db_dir = str(tmp_path / "test_checkpoint")
     shutil.rmtree(db_dir, ignore_errors=True)

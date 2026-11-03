@@ -116,7 +116,8 @@ TEST(DatabaseTest, TestDangling) {
     throw std::runtime_error(
         "MODERN_GRAPH_DATA_DIR environment variable is not set");
   }
-  std::string csv_dir = csv_dir_ptr;
+  // Cypher string literals need '/' separators, including on Windows.
+  std::string csv_dir = std::filesystem::path(csv_dir_ptr).generic_string();
   LOG(INFO) << "CSV data dir: " << csv_dir;
   std::string data_path = "/tmp/test_dangling";
   if (std::filesystem::exists(data_path)) {
@@ -246,7 +247,9 @@ TEST(DatabaseTest, TestPersist) {
     neug::NeugDB db;
     db.Open(db_dir, 1, neug::DBMode::READ_WRITE, "gopt", true);
     auto conn = db.Connect();
-    std::string flex_data_dir = std::getenv("FLEX_DATA_DIR");
+    // Normalize native separators before embedding the path in Cypher.
+    std::string flex_data_dir =
+        std::filesystem::path(std::getenv("FLEX_DATA_DIR")).generic_string();
     EXPECT_FALSE(flex_data_dir.empty());
     EXPECT_TRUE(conn->Query(
         "CREATE NODE TABLE person(id INT64, name STRING, age INT64, "
@@ -275,7 +278,9 @@ TEST(DatabaseTest, TestCompaction) {
     neug::NeugDB db;
     db.Open(db_dir, 1, neug::DBMode::READ_WRITE, "gopt", true);
     auto conn = db.Connect();
-    std::string flex_data_dir = std::getenv("FLEX_DATA_DIR");
+    // Normalize native separators before embedding the path in Cypher.
+    std::string flex_data_dir =
+        std::filesystem::path(std::getenv("FLEX_DATA_DIR")).generic_string();
     EXPECT_FALSE(flex_data_dir.empty());
     EXPECT_TRUE(conn->Query(
         "CREATE NODE TABLE person(id INT64, name STRING, age INT64, "
