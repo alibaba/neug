@@ -93,7 +93,7 @@ class VecColumn : public ColumnBase {
   size_t size() const override;
   // Number of index-ID slots currently allocated in the vector payload
   // buffer. This is independent from size(), which reports VID slots.
-  size_t buffer_size() const;
+  NEUG_API size_t buffer_size() const;
   void resize(size_t size) override;
   void resize(size_t size, const Value& default_value) override;
   DataTypeId type() const override;
