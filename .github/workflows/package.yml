@@ -276,8 +276,7 @@ jobs:
     with:
       architectures: ${{ toJSON(fromJSON(needs.initialize.outputs.plan).windows_architectures) }}
       python_versions: ${{ fromJSON(needs.initialize.outputs.plan).python_spec }}
-      # vector_search is not supported by the current Windows build.
-      extensions: ${{ fromJSON(needs.initialize.outputs.plan).windows_extensions }}
+      extensions: ${{ fromJSON(needs.initialize.outputs.plan).extensions }}
       upload_artifacts: true
     secrets: inherit
 
