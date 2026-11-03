@@ -254,7 +254,7 @@ jobs:
     - name: Prepare Independent Test Image
       run: |
         apt-get update
-        apt-get install -y git curl ca-certificates unzip
+        apt-get install -y git curl ca-certificates unzip python3
     - uses: actions/checkout@v4
     - uses: s4u/setup-maven-action@v1.19.0
       with:
