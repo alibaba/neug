@@ -85,8 +85,7 @@ jobs:
     uses: ./.github/workflows/Windows.yml
     with:
       architectures: ${{ toJSON(fromJSON(needs.ci-plan.outputs.plan).windows_architectures) }}
-      # vector_search is not supported by the current Windows build.
-      extensions: ${{ fromJSON(needs.ci-plan.outputs.plan).windows_extensions }}
+      extensions: ${{ fromJSON(needs.ci-plan.outputs.plan).extensions }}
       python_versions: ${{ fromJSON(needs.ci-plan.outputs.plan).python_spec }}
       upload_artifacts: true
       test_electron: true

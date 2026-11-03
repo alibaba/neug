@@ -45,7 +45,6 @@ jobs:
     container: ${{ startsWith(matrix.platform, 'linux-') && 'ubuntu:22.04' || '' }}
     runs-on: ${{ matrix.runner }}
     env:
-      # vector_search is not supported by the current Windows build.
       EXTENSIONS: ${{ matrix.extensions }}
     defaults:
       run:
