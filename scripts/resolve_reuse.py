@@ -10,7 +10,9 @@ lookup failure -- ``reuse_run_id`` stays empty so the release rebuilds.
 import datetime
 import json
 import os
+import shutil
 import subprocess
+import tempfile
 
 
 def gh(path, *fields):
@@ -52,6 +54,37 @@ def is_complete(names, platforms, verify_java):
     )
 
 
+def manifest_name(run_id):
+    """Reuse-manifest artifact name package.yml records for a run."""
+    return f"reuse-manifest-{run_id}"
+
+
+def fetch_dry_run_versions(repo, run_id, artifacts):
+    """Python versions a candidate dry-run actually built, or None.
+
+    Downloads the run's ``reuse-manifest`` artifact (the plan package.yml
+    resolved) and returns its ``python_versions`` as a set. A missing manifest
+    or any download/parse failure yields None, so the caller rebuilds rather
+    than reusing a run whose Python coverage it cannot confirm.
+    """
+    name = manifest_name(run_id)
+    if not any(a["name"] == name for a in artifacts):
+        return None
+    dest = tempfile.mkdtemp()
+    try:
+        cmd = ["gh", "run", "download", str(run_id), "--repo", repo]
+        cmd += ["-n", name, "-D", dest]
+        download = subprocess.run(cmd, capture_output=True, text=True)
+        if download.returncode != 0:
+            return None
+        with open(os.path.join(dest, "plan.json")) as handle:
+            return set(json.load(handle).get("python_versions", []))
+    except (OSError, ValueError):
+        return None
+    finally:
+        shutil.rmtree(dest, ignore_errors=True)
+
+
 def find_reusable_run():
     """Return the id of the newest complete dry-run for this commit, else None."""
     repo = os.environ["GITHUB_REPOSITORY"]
@@ -59,6 +92,7 @@ def find_reusable_run():
     plan = json.loads(os.environ["PLAN"])
     platforms = plan["platforms"]
     verify_java = bool(plan.get("verify_java"))
+    python_versions = set(plan.get("python_versions", []))
 
     runs = gh(
         f"repos/{repo}/actions/workflows/package.yml/runs",
@@ -86,9 +120,16 @@ def find_reusable_run():
         arts = gh(f"repos/{repo}/actions/runs/{run_id}/artifacts", ("per_page", "200"))
         if arts.returncode != 0:
             continue
-        names = [a["name"] for a in json.loads(arts.stdout).get("artifacts", [])]
-        if is_complete(names, platforms, verify_java):
-            return run_id
+        artifacts = json.loads(arts.stdout).get("artifacts", [])
+        names = [a["name"] for a in artifacts]
+        if not is_complete(names, platforms, verify_java):
+            continue
+        # Artifact names carry no Python version, so a dry-run dispatched with a
+        # narrowed python_versions still looks complete by name. Require the
+        # recorded plan to match this release's Python coverage before reusing.
+        if fetch_dry_run_versions(repo, run_id, artifacts) != python_versions:
+            continue
+        return run_id
     return None
 
 

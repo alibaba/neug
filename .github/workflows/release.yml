@@ -283,11 +283,25 @@ jobs:
         set -euo pipefail
         python3 - <<'PY'
         import hashlib
+        import zipfile
         from pathlib import Path
         bundle = Path('publication/central-bundle.zip')
         expected = bundle.with_suffix('.zip.sha256').read_text().strip()
         if hashlib.sha256(bundle.read_bytes()).hexdigest() != expected:
             raise RuntimeError('Publication bundle SHA256 mismatch')
+        # Central rejects unsigned deployments. A reused dry-run bundle must
+        # carry a GPG signature (.asc) for every published .jar and .pom; fail
+        # here rather than uploading a bundle Central will refuse.
+        entries = zipfile.ZipFile(bundle).namelist()
+        present = set(entries)
+        unsigned = [
+            e for e in entries
+            if e.endswith(('.jar', '.pom')) and e + '.asc' not in present
+        ]
+        if unsigned:
+            raise RuntimeError(
+                'Publication bundle missing GPG signatures: ' + ', '.join(unsigned)
+            )
         PY
         token=$(printf '%s:%s' "$MAVEN_CENTRAL_USERNAME" "$MAVEN_CENTRAL_PASSWORD" | base64 | tr -d '\n')
         echo "::add-mask::$token"
