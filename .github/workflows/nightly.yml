@@ -136,7 +136,7 @@ jobs:
         else
           TITLE="[Nightly Report] NeuG CI Passed"
         fi
-        curl -s -X POST "$WEBHOOK_URL" \
+        RESP=$(curl -s -X POST "$WEBHOOK_URL" \
           -H 'Content-Type: application/json' \
           -d "{
             \"msgtype\": \"markdown\",
@@ -144,4 +144,12 @@ jobs:
               \"title\": \"$TITLE\",
               \"text\": \"## $TITLE\\n\\n- **ci-plan**: ${STATUS_PLAN}\\n- **lite**: ${STATUS_LITE}\\n- **linux_x86_64**: ${STATUS_LINUX_X86}\\n- **linux_arm64**: ${STATUS_LINUX_ARM}\\n- **macos**: ${STATUS_MACOS}\\n- **windows**: ${STATUS_WINDOWS}\\n- **Repo**: ${{ github.repository }}\\n- **Branch**: ${{ github.ref_name }}\\n- **Commit**: ${{ github.sha }}\\n- [View Run](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})\"
             }
-          }"
+          }")
+        echo "DingTalk response: $RESP"
+        # DingTalk signals rejection (keyword filter 310000, rate limit 130101,
+        # invalid token, ...) via HTTP 200 + errcode != 0, which curl --fail
+        # cannot catch. Surface it as a warning so the silent-drop failure mode
+        # this PR fixes stays visible, without failing the report job.
+        if ! echo "$RESP" | grep -q '"errcode":0'; then
+          echo "::warning::DingTalk rejected the notification: $RESP"
+        fi
