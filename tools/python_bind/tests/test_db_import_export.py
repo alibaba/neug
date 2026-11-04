@@ -291,6 +291,50 @@ def test_copy_rel_from_subquery_type_mismatch_raises(tmp_path):
         db.close()
 
 
+# DB-005-04e
+# Companion to #1125 on the *relationship* COPY path: a *compatible* edge
+# property type mismatch (source INT64 -> target DOUBLE) must be cast to the
+# target type and stored correctly. Unlike the node path, the rel projection
+# must keep the src/dst key columns (positions 0 and 1) aligned with the
+# property columns, so this pins the whole chain end to end: projection
+# materialization -> positional mapping -> BatchInsertEdge.
+def test_copy_rel_from_subquery_compatible_cast(tmp_path):
+    db_dir = tmp_path / "copy_rel_subquery_compatible_cast"
+    db_dir.mkdir()
+    db = Database(db_path=str(db_dir), mode="w")
+    conn = db.connect()
+    try:
+        conn.execute("CREATE NODE TABLE person(id INT64, PRIMARY KEY(id));")
+        person_csv = tmp_path / "person.csv"
+        with open(person_csv, "w") as f:
+            f.write("id\n1\n2\n")
+        conn.execute(f'COPY person FROM "{person_csv.as_posix()}" (header=true);')
+        # Target edge property `weight` is DOUBLE.
+        conn.execute("CREATE REL TABLE knows(FROM person TO person, weight DOUBLE);")
+        edge_csv = tmp_path / "knows.csv"
+        with open(edge_csv, "w") as f:
+            # `weight` is sniffed as INT64 by LOAD FROM but the target is DOUBLE,
+            # while the src/dst key columns already match INT64: the projection
+            # must pass the keys through by reference and cast only `weight`.
+            f.write("src|dst|weight\n1|2|100\n2|1|250\n")
+        conn.execute(
+            f'COPY knows FROM (LOAD FROM "{edge_csv.as_posix()}" '
+            '(delim="|", header=true) RETURN src, dst, weight) '
+            '(from="person", to="person");'
+        )
+        rows = [
+            list(r)
+            for r in conn.execute(
+                "MATCH (a:person)-[k:knows]->(b:person) "
+                "RETURN a.id, b.id, k.weight ORDER BY a.id, b.id;"
+            )
+        ]
+        assert rows == [[1, 2, 100.0], [2, 1, 250.0]]
+    finally:
+        conn.close()
+        db.close()
+
+
 def test_import_string_pk(tmp_path):
     db_dir = tmp_path / "import_type"
     db_dir.mkdir()
