@@ -27,6 +27,10 @@ jobs:
     name: Resolve Reusable Dry-Run
     needs: ci-plan
     runs-on: ubuntu-22.04
+    # Best-effort lookup: never let a resolve failure (e.g. a checkout error)
+    # block the release. On any failure reuse_run_id stays empty and the
+    # package job below rebuilds from source.
+    continue-on-error: true
     permissions:
       contents: read
       actions: read

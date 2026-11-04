@@ -25,8 +25,35 @@ def write_output(key, value):
         handle.write(f"{key}={value}\n")
 
 
+def wheel_prefix(platform):
+    """Wheel-artifact name prefix for a plan platform id.
+
+    macOS wheels are uploaded under a ``macos-`` prefix while the plan (and the
+    npm/extension artifacts) identify that platform as ``osx-``; every other
+    platform's wheel name matches its id.
+    """
+    if platform.startswith("osx-"):
+        platform = "macos-" + platform.removeprefix("osx-")
+    return f"wheels-{platform}-"
+
+
+def is_complete(names, platforms, verify_java):
+    """True when a run's artifacts cover every part of the release plan."""
+
+    def has(prefix):
+        return any(name.startswith(prefix) for name in names)
+
+    return (
+        all(has(wheel_prefix(p)) for p in platforms)
+        and has("nodejs-main-")
+        and all(has(f"nodejs-{p}-") for p in platforms)
+        and all(has(f"extension-packages-{p}-") for p in platforms)
+        and (has("java-publication-") if verify_java else True)
+    )
+
+
 def find_reusable_run():
-    """Return the id of a complete, recent dry-run for this commit, else None."""
+    """Return the id of the newest complete dry-run for this commit, else None."""
     repo = os.environ["GITHUB_REPOSITORY"]
     sha = os.environ["GITHUB_SHA"]
     plan = json.loads(os.environ["PLAN"])
@@ -43,8 +70,10 @@ def find_reusable_run():
     if runs.returncode != 0:
         return None
 
+    # Runs come back newest-first. Return the first one whose artifacts fully
+    # cover the plan, so a later partial dry-run cannot shadow an earlier
+    # complete one for the same commit.
     now = datetime.datetime.now(datetime.timezone.utc)
-    chosen = None
     for run in json.loads(runs.stdout).get("workflow_runs", []):
         if run.get("conclusion") != "success":
             continue
@@ -53,30 +82,14 @@ def find_reusable_run():
         )
         if (now - created).days > 6:
             continue
-        chosen = run
-        break
-    if chosen is None:
-        return None
-
-    run_id = chosen["id"]
-    arts = gh(f"repos/{repo}/actions/runs/{run_id}/artifacts", ("per_page", "200"))
-    if arts.returncode != 0:
-        return None
-    names = [a["name"] for a in json.loads(arts.stdout).get("artifacts", [])]
-    wheels = [n for n in names if n.startswith("wheels-")]
-    nodejs_main = [n for n in names if n.startswith("nodejs-main-")]
-    javas = [n for n in names if n.startswith("java-publication-")]
-    complete = (
-        len(wheels) == len(platforms)
-        and len(nodejs_main) == 1
-        and all(any(n.startswith(f"nodejs-{p}-") for n in names) for p in platforms)
-        and all(
-            any(n.startswith(f"extension-packages-{p}-") for n in names)
-            for p in platforms
-        )
-        and (len(javas) >= 1 if verify_java else True)
-    )
-    return run_id if complete else None
+        run_id = run["id"]
+        arts = gh(f"repos/{repo}/actions/runs/{run_id}/artifacts", ("per_page", "200"))
+        if arts.returncode != 0:
+            continue
+        names = [a["name"] for a in json.loads(arts.stdout).get("artifacts", [])]
+        if is_complete(names, platforms, verify_java):
+            return run_id
+    return None
 
 
 def main():
