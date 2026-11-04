@@ -253,6 +253,44 @@ def test_copy_from_subquery_compatible_cast(tmp_path):
     db.close()
 
 
+# DB-005-04d
+# Regression test for issue #1125 on the *relationship* COPY path: an edge
+# property whose source type is incompatible with the target column type must be
+# rejected at bind time, exactly like the node path. The rel path also carries
+# src/dst key columns (positions 0 and 1), so this guards the positional cast
+# wiring in bindCopyRelFrom against the key columns.
+def test_copy_rel_from_subquery_type_mismatch_raises(tmp_path):
+    db_dir = tmp_path / "copy_rel_subquery_type_mismatch"
+    db_dir.mkdir()
+    db = Database(db_path=str(db_dir), mode="w")
+    conn = db.connect()
+    try:
+        conn.execute("CREATE NODE TABLE person(id INT64, PRIMARY KEY(id));")
+        person_csv = tmp_path / "person.csv"
+        with open(person_csv, "w") as f:
+            f.write("id\n1\n2\n")
+        conn.execute(f'COPY person FROM "{person_csv.as_posix()}" (header=true);')
+        # Target edge property `note` is INT64.
+        conn.execute("CREATE REL TABLE knows(FROM person TO person, note INT64);")
+        edge_csv = tmp_path / "knows.csv"
+        with open(edge_csv, "w") as f:
+            # `note` is STRING in the source but INT64 in the target.
+            f.write("src|dst|note\n1|2|hello\n")
+        # No implicit cast exists STRING -> INT64, so COPY must reject it at bind
+        # time (ERR_TYPE_CONVERSION naming the column and both types) rather than
+        # reinterpret the raw bytes.
+        with pytest.raises(Exception) as excinfo:
+            conn.execute(
+                f'COPY knows FROM (LOAD FROM "{edge_csv.as_posix()}" '
+                '(delim="|", header=true) RETURN src, dst, note) '
+                '(from="person", to="person");'
+            )
+        assert str(ERR_TYPE_CONVERSION) in str(excinfo.value)
+    finally:
+        conn.close()
+        db.close()
+
+
 def test_import_string_pk(tmp_path):
     db_dir = tmp_path / "import_type"
     db_dir.mkdir()
