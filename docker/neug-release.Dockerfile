@@ -1,4 +1,4 @@
-FROM neug-registry.cn-hongkong.cr.aliyuncs.com/neug/neug-dev:v0.3.0 as builder
+FROM neug-registry.cn-hongkong.cr.aliyuncs.com/neug/neug-dev:2026.03.13-2 as builder
 
 ARG NEUG_PACKAGE_BUILD=ON
 ARG NEUG_NATIVE_ARCH=OFF

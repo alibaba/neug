@@ -67,8 +67,8 @@ def resolve(platforms="all", python_versions="all"):
         )
         if platform.startswith("linux-"):
             row.update(
-                wheel_image=f"{REGISTRY}/neug-manylinux:v0.2.0-{arch}",
-                node_image=f"{REGISTRY}/neug-manylinux:v0.1.3-{arch}-node",
+                wheel_image=f"{REGISTRY}/neug-manylinux:2026.03.13-2-{arch}",
+                node_image=f"{REGISTRY}/neug-manylinux:2026.03.13-2-{arch}-node",
                 cibw_arch="aarch64" if arch == "arm64" else arch,
             )
             if os.environ.get("GITHUB_REPOSITORY") == "alibaba/neug":
@@ -92,7 +92,7 @@ def resolve(platforms="all", python_versions="all"):
         ),
         cibw_build=" ".join("cp" + v.replace(".", "") + "-*" for v in versions),
         extensions=EXTENSIONS,
-        dev_image=f"{REGISTRY}/neug-dev:v0.1.3",
+        dev_image=f"{REGISTRY}/neug-dev:2026.03.13-2",
         verify_java="java" in selected,
         packaging_python="3.13",
     )
