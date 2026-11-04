@@ -98,6 +98,21 @@ void expect_signature_eq(const ColumnCowSignature& lhs,
   EXPECT_EQ(lhs.first_element_size, rhs.first_element_size);
 }
 
+// Regression test for #1100: a DataType built from a bare DataTypeId (e.g. a
+// function parameter type placeholder such as PROPERTIES's LIST argument) has
+// no ExtraTypeInfo. ToString() must degrade gracefully instead of
+// dereferencing a null type_info_, which previously segfaulted the process
+// while rendering the "supported inputs" binder error for single-argument
+// properties(n).
+TEST(DataTypeToStringTest, BareNestedTypeWithoutExtraInfoDoesNotCrash) {
+  EXPECT_EQ(DataType(DataTypeId::kList).ToString(), "LIST");
+  EXPECT_EQ(DataType(DataTypeId::kArray).ToString(), "ARRAY");
+  EXPECT_EQ(DataType(DataTypeId::kMap).ToString(), "MAP");
+  EXPECT_EQ(DataType(DataTypeId::kStruct).ToString(), "STRUCT");
+  // Sanity check: fully-specified nested types still render their children.
+  EXPECT_EQ(DataType::List(DataType::INT32).ToString(), "LIST<INT32>");
+}
+
 #ifndef NDEBUG
 TEST(ArrayValueTest, ConstructorValidatesPayloadShapeInDebug) {
   auto array_type = DataType::Array(DataType::INT32, 2);
