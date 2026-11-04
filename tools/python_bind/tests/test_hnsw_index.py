@@ -157,7 +157,9 @@ def test_local_buffer_copy_builds_existing_tail(tmp_path):
         assert _local_buffer_checkpoint(tmp_path / "copy-db", "buffered_hnsw")[0] == 3
         rows = list(
             conn.execute(
-                "MATCH (n:Buffered) RETURN n.id, vector_distance_l2(n.embedding, [0.0,0.0,0.0,0.0]) AS score ORDER BY score LIMIT 3;"
+                "MATCH (n:Buffered) RETURN n.id, "
+                "vector_distance_l2(n.embedding, [0.0,0.0,0.0,0.0]) "
+                "AS score ORDER BY score LIMIT 3;"
             )
         )
         assert rows == [[0, 0.0], [1, 1.0], [2, 4.0]]
@@ -245,7 +247,8 @@ def test_local_buffer_copy_retry_after_transaction_failure(
         copy_from(second)
         conn.commit()
         captured = capfd.readouterr()
-        for i in ([1] if delete_local_buffer else [0, 1]):
+        existing_ids = [1] if delete_local_buffer else [0, 1]
+        for i in existing_ids:
             assert (
                 f"Skip existing HNSW index_id during bulk append: {i}" in captured.err
             )
