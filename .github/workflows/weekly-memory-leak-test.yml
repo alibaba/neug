@@ -36,7 +36,7 @@ jobs:
     #     image: neug-registry.cn-hongkong.cr.aliyuncs.com/neug/neug-dev:v0.1.2
     runs-on: ubuntu-22.04
     container:
-      image: neug-registry.cn-hongkong.cr.aliyuncs.com/neug/neug-dev:v0.1.2
+      image: neug-registry.cn-hongkong.cr.aliyuncs.com/neug/neug-dev:2026.03.13-2
     timeout-minutes: 300
     # In container mode GitHub Actions defaults `run:` shell to `sh -e {0}`
     # (dash on debian-based images), which does NOT support `set -o pipefail`.

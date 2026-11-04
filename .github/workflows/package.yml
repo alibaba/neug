@@ -66,7 +66,7 @@ jobs:
 
   # ========================================
   # For Linux - Wheel, build standardized wheels with cibuildwheel in dedicated
-  # manylinux2014 images (neug-manylinux:v0.2.0-<arch>).
+  # manylinux2014 images (neug-manylinux:2026.03.13-2-<arch>).
   # ========================================
   linux_wheel:
     needs: initialize
@@ -179,7 +179,7 @@ jobs:
 
   # ========================================
   # For Linux - NPM, manually build packages in dedicated manylinux_2_28 images
-  # (neug-manylinux:v0.1.3-<arch>-node).
+  # (neug-manylinux:2026.03.13-2-<arch>-node).
   # ========================================
   linux-npm:
     needs: initialize
