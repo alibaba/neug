@@ -133,7 +133,8 @@ add_dependencies(neug_parquet_carquet_impl neug_proto)
 target_link_libraries(neug_parquet_extension PRIVATE
     neug_parquet_carquet_impl
     neug
-    ${Protobuf_LIBRARIES})
+    protobuf::libprotobuf)
+neug_apply_symbol_visibility(neug_parquet_extension)
 
 # Build tests by compiling extension sources directly (no link to
 # neug_parquet_extension).

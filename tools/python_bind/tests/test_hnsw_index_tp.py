@@ -17,6 +17,8 @@ import os
 import subprocess
 import sys
 import textwrap
+from concurrent.futures import ThreadPoolExecutor
+from threading import Barrier
 
 import pytest
 from conftest import wait_for_server_ready
@@ -46,6 +48,141 @@ def _run_cold_process(script, *args):
         [sys.executable, "-c", textwrap.dedent(script), *map(str, args)],
         check=True,
         env=env,
+    )
+
+
+def test_local_buffer_tp_concurrent_writes_and_wal_replay(tmp_path, unused_tcp_port):
+    """An existing HNSW checkpoint plus WAL-only tail survives cold activation."""
+    from test_hnsw_index import _local_buffer_checkpoint
+    from test_hnsw_index import _profile_operator_names
+
+    path = tmp_path / "local-buffer-tp"
+    db = Database(str(path), mode="w", checkpoint_on_close=False)
+    conn = db.connect()
+    try:
+        conn.execute("LOAD vector_search;")
+        conn.execute(
+            "CREATE NODE TABLE Item(id INT64 PRIMARY KEY, name STRING, embedding FLOAT[4]);"
+        )
+        conn.execute(
+            "CREATE (:Item {id: 0, name: 'base', embedding: [0.0,0.0,0.0,0.0]});"
+        )
+        # Build more than 1000 HNSW nodes to exceed ZVec's default brute-force
+        # threshold. Distant vectors leave the snapshot's nearest two unchanged.
+        conn.begin_transaction()
+        for i in range(1000):
+            conn.execute(
+                f"CREATE (:Item {{id: {-i - 2}, name: 'base', "
+                f"embedding: [{float(100 + i)},0.0,0.0,0.0]}});"
+            )
+        conn.commit()
+        assert list(conn.execute("MATCH (n:Item) RETURN count(n);")) == [[1001]]
+        conn.execute("CREATE INDEX item_hnsw ON Item USING HNSW (embedding);")
+        # Persist a nonempty Flat tail, then recover additional WAL-only IDs.
+        conn.execute(
+            "CREATE (:Item {id: -1, name: 'checkpoint-tail', embedding: [30.0,0.0,0.0,0.0]});"
+        )
+        conn.execute("CHECKPOINT;")
+    finally:
+        conn.close()
+    before = _local_buffer_checkpoint(path, "item_hnsw")
+    assert before[0] == 1001
+    endpoint = db.serve(unused_tcp_port, "localhost", False)
+    wait_for_server_ready(endpoint)
+
+    phase = Barrier(3, timeout=20)
+
+    def search_rows(reader, value):
+        result = reader.execute(
+            "PROFILE MATCH (n:Item) RETURN n.id, vector_distance_l2(n.embedding, "
+            f"[{float(value)},0.0,0.0,0.0]) AS score ORDER BY score LIMIT 2;",
+            access_mode="read",
+        )
+        rows = list(result)
+        assert "IndexScanOpr" in _profile_operator_names(result)
+        return rows
+
+    def read_repeatedly():
+        reader = Session.open(endpoint, timeout="30s")
+        try:
+            reader.begin_transaction(read_only=True)
+            assert search_rows(reader, 1) == [[0, 1.0], [-1, 841.0]]
+            # Both readers pin their snapshots before the first write.
+            phase.wait()
+            for i in range(1, 15):
+                phase.wait()  # The writer has committed this exact vector.
+                assert search_rows(reader, i) == [
+                    [0, float(i * i)],
+                    [-1, float((30 - i) ** 2)],
+                ]
+                phase.wait()
+            reader.rollback()
+            # Releasing the old snapshot makes the committed tail visible.
+            assert search_rows(reader, 14)[0] == [14, 0.0]
+        except BaseException:
+            phase.abort()
+            raise
+        finally:
+            reader.close()
+
+    session = Session.open(endpoint, timeout="30s")
+    try:
+        with ThreadPoolExecutor(max_workers=2) as pool:
+            readers = [pool.submit(read_repeatedly) for _ in range(2)]
+            try:
+                phase.wait()
+                for i in range(1, 15):
+                    session.execute(
+                        f"CREATE (:Item {{id: {i}, name: 'tail', "
+                        f"embedding: [{float(i)},0.0,0.0,0.0]}});"
+                    )
+                    # A fresh read sees the exact match; pinned readers must not.
+                    assert search_rows(session, i)[0] == [i, 0.0]
+                    phase.wait()
+                    phase.wait()
+            except BaseException:
+                phase.abort()
+                raise
+            for reader in readers:
+                reader.result()
+        session.execute(
+            "MERGE (n:Item {id: 15}) SET n.name='merged', n.embedding=[15.0,0.0,0.0,0.0];"
+        )
+        session.execute("MATCH (n:Item {id: 1}) SET n.embedding=[20.0,0.0,0.0,0.0];")
+        session.execute("MATCH (n:Item {id: 2}) DELETE n;")
+        assert _search(session, [20.0, 0.0, 0.0, 0.0])[:2] == [1, "tail"]
+        assert _search(session, [15.0, 0.0, 0.0, 0.0])[:2] == [15, "merged"]
+    finally:
+        session.close()
+        db.stop_serving()
+        db.close()
+    # No checkpoint during TP writes: the graph file and F are unchanged.
+    assert _local_buffer_checkpoint(path, "item_hnsw") == before
+    _run_cold_process(
+        r"""
+        import sys
+        from pathlib import Path
+        from neug import Database
+        from test_hnsw_index import _local_buffer_checkpoint
+        path = Path(sys.argv[1])
+        db = Database(str(path), mode="w", checkpoint_on_close=False)
+        conn = db.connect()
+        conn.execute("LOAD vector_search;")
+        for value, expected in ((20.0, 1), (15.0, 15), (0.0, 0), (30.0, -1)):
+            result = conn.execute(
+                "PROFILE MATCH (n:Item) RETURN n.id, "
+                f"vector_distance_l2(n.embedding, [{value},0.0,0.0,0.0]) AS score "
+                "ORDER BY score LIMIT 1;"
+            )
+            assert list(result) == [[expected, 0.0]]
+            assert "IndexScanOpr" in [op["operator_name"] for op in result.get_profile_metrics()["operators"]]
+        assert list(conn.execute("MATCH (n:Item {id: 2}) RETURN n.id;")) == []
+        conn.execute("CHECKPOINT;")
+        assert _local_buffer_checkpoint(path, "item_hnsw")[0] == 1001
+        conn.close()
+        db.close()
+    """,
+        path,
     )
 
 

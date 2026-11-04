@@ -95,6 +95,7 @@ Status AddBatchVertexIndexData(
       }
       RETURN_IF_NOT_OK(index->Upsert(vid, values));
     }
+    RETURN_IF_NOT_OK(index->FinishBulkInsert());
   }
   return Status::OK();
 }

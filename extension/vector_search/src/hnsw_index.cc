@@ -15,6 +15,8 @@
 
 #include "hnsw_index.h"
 
+#include <algorithm>
+#include <cmath>
 #include <filesystem>
 #include <functional>
 #include <limits>
@@ -25,6 +27,7 @@
 #include <variant>
 
 #include <glog/logging.h>
+#include <zvec/core/framework/index_error.h>
 #include <zvec/core/interface/index_factory.h>
 #include <roaring.hh>
 
@@ -41,6 +44,8 @@ namespace neug::vector_search_ext {
 
 namespace {
 constexpr const char* kIndexBufferPath = "index_buffer";
+constexpr const char* kFlatOffset = "flat_index_offset";
+constexpr const char* kFlatBufferPath = "flat_index_buffer";
 constexpr double kDuplicateWarningThresholdPercentage = 20.0;
 
 struct DenseValueBuffer {
@@ -148,13 +153,36 @@ const void* HNSWVecSource::get_vector(uint32_t node_id) const {
          static_cast<size_t>(node_id) * vector_byte_size_;
 }
 
+FlatVecSource::FlatVecSource(const VecColumn* column, index_id_t index_id_count,
+                             index_id_t begin)
+    : vector_byte_size_(0), index_id_count_(index_id_count) {
+  if (!column || begin > index_id_count ||
+      ArrayType::GetChildType(column->array_type()).id() !=
+          DataTypeId::kFloat) {
+    THROW_INVALID_ARGUMENT_EXCEPTION("Invalid HNSW vector source");
+  }
+  auto view = column->PinVectorView(begin, index_id_count);
+  vector_byte_size_ = view.stride;
+  view_ = {view.data, begin, index_id_count - begin, view.stride, view.lease};
+}
+
+const void* FlatVecSource::get_vector(uint32_t node_id) const {
+  // ZVec skips unavailable external vectors, including nodes appended after
+  // this snapshot. Never form an out-of-bounds pointer or throw for them.
+  if (node_id < view_.first_id || node_id >= index_id_count_) {
+    return nullptr;
+  }
+  return static_cast<const uint8_t*>(view_.data) +
+         size_t(node_id - view_.first_id) * vector_byte_size_;
+}
+
 ZVecDumpContainer::ZVecDumpContainer(zvec::core_interface::Index* index,
                                      std::string runtime_path)
     : zvec_index_(index), runtime_path_(std::move(runtime_path)) {}
 
 void ZVecDumpContainer::Sync() {
   if (zvec_index_ && zvec_index_->flush() != 0) {
-    THROW_RUNTIME_ERROR("[zvec] Failed to flush HNSW index");
+    THROW_RUNTIME_ERROR("[zvec] Failed to flush index");
   }
 }
 
@@ -178,6 +206,8 @@ HNSWIndex::~HNSWIndex() {
   // detached. Closing a shared handle here would invalidate the other clone.
   if (zvec_index_ && zvec_index_.use_count() == 1)
     zvec_index_->close();
+  if (flat_index_ && flat_index_.use_count() == 1)
+    flat_index_->close();
 }
 
 void HNSWIndex::ParseOptions() {
@@ -227,11 +257,25 @@ void HNSWIndex::Open(Checkpoint& ckp, const ModuleDescriptor& descriptor,
                      MemoryLevel level) {
   StorageIndex::Open(ckp, descriptor, level);
   ParseOptions();
+  const auto offset = descriptor.get(kFlatOffset);
+  flat_index_offset_.reset();
+  if (offset) {
+    if (offset->empty() ||
+        offset->find_first_not_of("0123456789") != std::string::npos) {
+      THROW_RUNTIME_ERROR("Invalid HNSW LocalBuffer offset");
+    }
+    const auto parsed = std::stoull(*offset);
+    if (parsed > std::numeric_limits<index_id_t>::max()) {
+      THROW_RUNTIME_ERROR("HNSW LocalBuffer offset is out of range");
+    }
+    flat_index_offset_ = static_cast<index_id_t>(parsed);
+  }
 
   zvec::core_interface::HNSWIndexParam param(metric_, dimension_, m_,
                                              ef_construction_);
   param.data_type = ResolveDataType();
   param.use_external_vector = true;
+  param.params.set("proxima.hnsw.streamer.filter_same_key", true);
   zvec_index_ = zvec::core_interface::IndexFactory::CreateAndInitIndex(param);
   if (!zvec_index_) {
     THROW_RUNTIME_ERROR("[zvec] Failed to create HNSW index");
@@ -270,6 +314,32 @@ void HNSWIndex::Open(Checkpoint& ckp, const ModuleDescriptor& descriptor,
         "ZVec internal open failed for HNSW index at " + zvec_runtime_path_ +
         ", error code: " + std::to_string(ret) + ". See logs for details.");
   }
+  zvec::core_interface::FlatIndexParam flat_param;
+  flat_param.dimension = dimension_;
+  flat_param.data_type = ResolveDataType();
+  flat_param.metric_type = metric_ == zvec::core_interface::MetricType::kCosine
+                               ? zvec::core_interface::MetricType::kInnerProduct
+                               : metric_;
+  flat_param.use_external_vector = true;
+  flat_index_ =
+      zvec::core_interface::IndexFactory::CreateAndInitIndex(flat_param);
+  auto flat_file = ckp.CreateRuntimeFile();
+  flat_runtime_path_ = flat_file.path();
+  flat_runtime_file_ =
+      std::make_shared<CheckpointFileManager::RuntimeFileHandle>(
+          std::move(flat_file));
+  const auto flat_path = descriptor.get_path(kFlatBufferPath);
+  const bool has_flat =
+      flat_path && !flat_path->empty() && std::filesystem::exists(*flat_path);
+  if (has_flat) {
+    file_utils::copy_file(*flat_path, flat_runtime_path_, true);
+  } else {
+    std::filesystem::remove(flat_runtime_path_);
+  }
+  options.create_new = !has_flat;
+  if (!flat_index_ || flat_index_->open(flat_runtime_path_, options) != 0) {
+    THROW_RUNTIME_ERROR("Failed to open External Flat");
+  }
   LOG(INFO) << "[zvec] Opened HNSW index at " << zvec_runtime_path_;
 }
 
@@ -291,6 +361,16 @@ void HNSWIndex::Dump(Checkpoint& ckp, CheckpointManifest& manifest,
   // before that extension is loaded; the pending index is activated after
   // LOAD vector_search registers the hnsw_index module type.
   descriptor->required = false;
+  descriptor->set(kFlatOffset,
+                  std::to_string(local_buffer_enabled_
+                                     ? flat_index_offset_.value()
+                                     : index_id_accessor_->GetVisibleLimit()));
+  // Persist registrations even when all vectors are still in LocalBuffer.
+  ZVecDumpContainer flat_container(flat_index_.get(), flat_runtime_path_);
+  auto flat_persisted_path = ckp.Commit(flat_container);
+  flat_runtime_file_.reset();
+  flat_runtime_path_ = flat_persisted_path;
+  descriptor->set_path(kFlatBufferPath, std::move(flat_persisted_path));
   if (zvec_index_->get_doc_count() == 0) {
     return;
   }
@@ -336,24 +416,41 @@ Status HNSWIndex::Rebind(const IndexBindContext& context) {
   }
   index_id_accessor_ =
       std::make_unique<VecColumnBackedIndexIDAccessor>(*offset_accessor);
-  vec_source_ = std::make_unique<HNSWVecSource>(column);
+  column_ = column;
+  const auto limit = index_id_accessor_->GetVisibleLimit();
+  local_buffer_enabled_ =
+      metric_ != zvec::core_interface::MetricType::kCosine ||
+      column->is_l2_normalized();
+  if (!flat_index_offset_) {
+    flat_index_offset_ = limit;
+    LOG(WARNING)
+        << "HNSW flat_index_offset is absent; initialize it to visible "
+           "limit "
+        << limit;
+  }
+  if (flat_index_offset_ > limit) {
+    return Status::RuntimeError(
+        "HNSW LocalBuffer offset exceeds visible limit");
+  }
   return Status::OK();
 }
 
 Status HNSWIndex::BulkBuild(const VertexSet& vertices) {
-  if (!zvec_index_ || !vec_source_ || !index_id_accessor_) {
+  if (!zvec_index_ || !column_ || !index_id_accessor_) {
     return Status::RuntimeError(
         "HNSWIndex must be open and bound before bulk build");
   }
+  // BulkBuild is the explicit full-prefix build path, separate from Upsert.
+  HNSWVecSource source(column_);
   flat_hash_set<uint64_t> duplicate_statistics;
   size_t indexed_vector_count = 0;
-  const auto vector_byte_size = vec_source_->GetVectorByteSize();
+  const auto vector_byte_size = source.GetVectorByteSize();
   for (auto vid : vertices) {
     auto index_id = index_id_accessor_->GetIndexIDByVID(vid);
     if (index_id == INVALID_INDEX_ID) {
       continue;
     }
-    const auto* vector_data = vec_source_->get_vector(index_id);
+    const auto* vector_data = source.get_vector(index_id);
     if (vector_data == nullptr) {
       return Status::RuntimeError(
           "HNSW bulk build requires an available vector for vertex " +
@@ -366,7 +463,7 @@ Status HNSWIndex::BulkBuild(const VertexSet& vertices) {
     duplicate_statistics.insert(fingerprint);
     zvec::core_interface::VectorData vector;
     vector.vector = zvec::core_interface::DenseVector{vector_data};
-    auto ret = zvec_index_->add_with_source(vector, index_id, *vec_source_);
+    auto ret = zvec_index_->add_with_source(vector, index_id, source);
     if (ret != 0) {
       return Status::RuntimeError(
           "ZVec internal bulk build failed for vertex " + std::to_string(vid) +
@@ -374,6 +471,7 @@ Status HNSWIndex::BulkBuild(const VertexSet& vertices) {
           ". See logs for details.");
     }
   }
+  flat_index_offset_ = index_id_accessor_->GetVisibleLimit();
   const auto duplicate_vector_count =
       indexed_vector_count - duplicate_statistics.size();
   const auto duplicate_percentage =
@@ -391,6 +489,30 @@ Status HNSWIndex::BulkBuild(const VertexSet& vertices) {
   } else {
     LOG(INFO) << message;
   }
+  return Status::OK();
+}
+
+Status HNSWIndex::FinishBulkInsert() {
+  if (!local_buffer_enabled_)
+    return Status::OK();
+  const auto limit = index_id_accessor_->GetVisibleLimit();
+  HNSWVecSource source(column_);
+  for (index_id_t id = flat_index_offset_.value(); id < limit; ++id) {
+    if (index_id_accessor_->GetVIDByIndexID(id) == INVALID_VID)
+      continue;
+    zvec::core_interface::VectorData vector;
+    vector.vector = zvec::core_interface::DenseVector{source.get_vector(id)};
+    const auto ret = zvec_index_->add_with_source(vector, id, source);
+    if (ret == zvec::core::IndexError_Duplicate) {
+      LOG(WARNING) << "Skip existing HNSW index_id during bulk append: " << id;
+      continue;
+    }
+    if (ret != 0) {
+      return Status::RuntimeError("HNSW bulk append failed: " +
+                                  std::to_string(ret));
+    }
+  }
+  flat_index_offset_ = limit;
   return Status::OK();
 }
 
@@ -414,9 +536,12 @@ std::unique_ptr<Module> HNSWIndex::Clone() const {
   // thread-local contexts and its HNSW streamer protects shared state with
   // internal shared locks. Keep one index instance across read-only clones.
   cloned->zvec_index_ = zvec_index_;
-  if (vec_source_) {
-    cloned->vec_source_ = std::make_unique<HNSWVecSource>(*vec_source_);
-  }
+  cloned->flat_index_ = flat_index_;
+  cloned->flat_runtime_file_ = flat_runtime_file_;
+  cloned->flat_runtime_path_ = flat_runtime_path_;
+  cloned->column_ = column_;
+  cloned->flat_index_offset_ = flat_index_offset_;
+  cloned->local_buffer_enabled_ = local_buffer_enabled_;
   cloned->zvec_runtime_path_ = zvec_runtime_path_;
   cloned->zvec_runtime_file_ = zvec_runtime_file_;
   cloned->dimension_ = dimension_;
@@ -428,140 +553,149 @@ std::unique_ptr<Module> HNSWIndex::Clone() const {
 
 result<std::vector<SearchCandidate>> HNSWIndex::SearchImpl(
     const IndexQueryParams& params) {
-  const auto* hnsw_params = dynamic_cast<const HNSWIndexQueryParams*>(&params);
-  if (!hnsw_params) {
+  const auto* p = dynamic_cast<const HNSWIndexQueryParams*>(&params);
+  if (!p || !zvec_index_ || !flat_index_ || !column_ || !index_id_accessor_) {
     RETURN_INVALID_ARGUMENT_ERROR(
-        "HNSWIndex::Search requires HNSWIndexQueryParams");
+        "HNSW search requires a bound index and query");
   }
-  if (!zvec_index_ || !vec_source_) {
-    RETURN_INVALID_ARGUMENT_ERROR(
-        "HNSWIndex must be open and bound before search");
+  if (p->topk == 0 || p->ef_search == 0) {
+    RETURN_INVALID_ARGUMENT_ERROR("HNSW topk and ef_search must be positive");
   }
-  if (hnsw_params->topk == 0 || hnsw_params->ef_search == 0) {
-    RETURN_INVALID_ARGUMENT_ERROR(
-        "HNSW search topk and ef_search must be positive");
+  Value query_value = p->target_value;
+  const bool cosine_flat = local_buffer_enabled_ &&
+                           metric_ == zvec::core_interface::MetricType::kCosine;
+  if (cosine_flat) {
+    auto status =
+        VectorNormalizer::ValueNormalize(p->target_value, query_value);
+    if (!status.ok())
+      return tl::unexpected(status);
   }
-
   GS_AUTO(target, ConvertDenseValue(meta_->schema.columns[0].property_type,
-                                    hnsw_params->target_value, dimension_));
-
-  auto query_param = std::make_shared<zvec::core_interface::HNSWQueryParam>();
-  query_param->topk = hnsw_params->topk;
-  query_param->fetch_vector = hnsw_params->fetch_vector;
-  query_param->radius = hnsw_params->radius;
-  query_param->ef_search = hnsw_params->ef_search;
-  query_param->prefetch_offset = hnsw_params->prefetch_offset;
-  query_param->prefetch_lines = hnsw_params->prefetch_lines;
-
-  if (hnsw_params->use_scalar_filter) {
-    // Build the allowlist from each matching vertex's current index ID. This
-    // also filters tombstones: deleted vertices resolve to INVALID_INDEX_ID,
-    // while an updated vertex contributes only its latest index ID, not the
-    // stale ID left in HNSW.
-    auto allowed = std::make_shared<roaring::Roaring>();
-    for (auto vid : hnsw_params->scalar_filter) {
-      auto index_id = index_id_accessor_->GetIndexIDByVID(vid);
-      if (index_id != INVALID_INDEX_ID)
-        allowed->add(index_id);
+                                    query_value, dimension_));
+  const auto limit = index_id_accessor_->GetVisibleLimit();
+  const auto boundary = local_buffer_enabled_
+                            ? std::min(flat_index_offset_.value(), limit)
+                            : limit;
+  const bool has_deleted_ids =
+      !index_id_accessor_->GetDeletedIndexIDs().empty();
+  std::shared_ptr<roaring::Roaring> allowed;
+  if (p->use_scalar_filter) {
+    allowed = std::make_shared<roaring::Roaring>();
+    for (auto vid : p->scalar_filter) {
+      const auto id = index_id_accessor_->GetIndexIDByVID(vid);
+      if (id != INVALID_INDEX_ID)
+        allowed->add(id);
     }
-    // An enabled scalar filter with no valid index IDs cannot match anything.
-    // Avoid invoking ZVec with a filter that rejects every document.
-    if (allowed->isEmpty()) {
+    if (allowed->isEmpty())
       return std::vector<SearchCandidate>{};
-    }
-    allowed->runOptimize();
-    query_param->filter = std::make_shared<zvec::core_interface::IndexFilter>();
-    // ZVec's filter predicate returns true to exclude the key.
-    query_param->filter->set([allowed](uint64_t key) {
-      return key > std::numeric_limits<uint32_t>::max() ||
-             !allowed->contains(static_cast<uint32_t>(key));
-    });
-  } else if (index_id_accessor_) {
-    const auto visible_limit = index_id_accessor_->GetVisibleLimit();
-    const auto& deleted_index_ids = index_id_accessor_->GetDeletedIndexIDs();
-    // Skip the filter in the read-only steady state: every allocated index ID
-    // is visible and there are no tombstones to exclude.
-    if (visible_limit < index_id_accessor_->GetNextIndexID() ||
-        !deleted_index_ids.empty()) {
-      auto deleted = std::make_shared<roaring::Roaring>();
-      if (!deleted_index_ids.empty()) {
-        for (auto index_id : deleted_index_ids) {
-          deleted->add(index_id);
-        }
-        deleted->runOptimize();
-      }
-      query_param->filter =
-          std::make_shared<zvec::core_interface::IndexFilter>();
-      query_param->filter->set([visible_limit, deleted](uint64_t key) {
-        return key >= visible_limit ||
-               deleted->contains(static_cast<uint32_t>(key));
-      });
-    }
   }
-
+  // Accessors and payload belong to the pinned graph snapshot. Query-local
+  // source/filter objects must not be stored in the shared ZVec handles.
+  const auto* accessor = index_id_accessor_.get();
+  auto make_filter = [&](index_id_t begin, index_id_t end) {
+    auto filter = std::make_shared<zvec::core_interface::IndexFilter>();
+    filter->set([begin, end, accessor, allowed,
+                 use_allowlist = p->use_scalar_filter](uint64_t id) {
+      return id < begin || id >= end ||
+             accessor->GetVIDByIndexID(static_cast<index_id_t>(id)) ==
+                 INVALID_VID ||
+             (use_allowlist && !allowed->contains(static_cast<uint32_t>(id)));
+    });
+    return filter;
+  };
   zvec::core_interface::VectorData query;
   query.vector = zvec::core_interface::DenseVector{target.data()};
-  zvec::core_interface::SearchResult search_result;
-  auto ret = zvec_index_->search_with_source(query, query_param, *vec_source_,
-                                             &search_result);
-  if (ret != 0) {
-    RETURN_ERROR(
-        Status::RuntimeError("ZVec internal search failed with error code " +
-                             std::to_string(ret) + ". See logs for details."));
-  }
-
-  std::vector<SearchCandidate> result;
-  result.reserve(search_result.doc_list_.size());
-  for (const auto& document : search_result.doc_list_) {
-    if (document.key() <= std::numeric_limits<index_id_t>::max()) {
-      result.push_back(SearchCandidate{static_cast<index_id_t>(document.key()),
-                                       document.score()});
+  std::vector<SearchCandidate> candidates;
+  auto append_results = [&](const zvec::core_interface::SearchResult& result,
+                            bool convert_cosine) {
+    for (const auto& doc : result.doc_list_) {
+      const auto score = convert_cosine ? 1.0f - doc.score() : doc.score();
+      if (convert_cosine && p->radius > 0 && score > p->radius)
+        continue;
+      candidates.push_back({static_cast<index_id_t>(doc.key()), score});
     }
+  };
+  if (boundary != 0 && zvec_index_->get_doc_count() != 0) {
+    HNSWVecSource source(column_);
+    auto qp = std::make_shared<zvec::core_interface::HNSWQueryParam>();
+    qp->topk = p->topk;
+    qp->ef_search = p->ef_search;
+    qp->prefetch_offset = p->prefetch_offset;
+    qp->prefetch_lines = p->prefetch_lines;
+    qp->fetch_vector = p->fetch_vector;
+    qp->radius = p->radius;
+    // A graph may contain physical additions beyond this snapshot's F after
+    // an aborted bulk append, including after checkpoint/reopen.
+    const bool needs_filter = p->use_scalar_filter || has_deleted_ids ||
+                              zvec_index_->get_doc_count() != boundary;
+    if (needs_filter) {
+      qp->filter = make_filter(0, boundary);
+    }
+    zvec::core_interface::SearchResult result;
+    const auto ret =
+        zvec_index_->search_with_source(query, qp, source, &result);
+    if (ret != 0) {
+      RETURN_ERROR(
+          Status::RuntimeError("HNSW search failed: " + std::to_string(ret)));
+    }
+    append_results(result, false);
   }
-  return result;
+  if (boundary < limit) {
+    FlatVecSource source(column_, limit, boundary);
+    auto qp = std::make_shared<zvec::core_interface::FlatQueryParam>();
+    qp->topk = p->topk;
+    qp->fetch_vector = p->fetch_vector;
+    qp->radius = cosine_flat ? 0 : p->radius;
+    // The contiguous source already limits enumeration to [boundary, limit).
+    // Without snapshot gaps or scalar predicates every enumerated ID is valid.
+    const bool needs_filter = p->use_scalar_filter || has_deleted_ids ||
+                              limit != index_id_accessor_->GetNextIndexID();
+    if (needs_filter) {
+      qp->filter = make_filter(boundary, limit);
+    }
+    zvec::core_interface::SearchResult result;
+    const auto ret =
+        flat_index_->search_with_source(query, qp, source, &result);
+    if (ret != 0) {
+      RETURN_ERROR(Status::RuntimeError("External Flat search failed: " +
+                                        std::to_string(ret)));
+    }
+    append_results(result, cosine_flat);
+  }
+  const bool descending =
+      metric_ == zvec::core_interface::MetricType::kInnerProduct;
+  std::sort(candidates.begin(), candidates.end(),
+            [descending](const SearchCandidate& a, const SearchCandidate& b) {
+              if (a.score == b.score)
+                return a.index_id < b.index_id;
+              return descending ? a.score > b.score : a.score < b.score;
+            });
+  if (candidates.size() > p->topk)
+    candidates.resize(p->topk);
+  return candidates;
 }
 
 Status HNSWIndex::AppendImpl(index_id_t index_id, const IndexValues& values) {
-  if (!zvec_index_ || !vec_source_) {
-    return Status::RuntimeError(
-        "HNSWIndex must be open and bound before append");
+  if (!zvec_index_ || !flat_index_ || !column_ || !index_id_accessor_) {
+    return Status::RuntimeError("HNSW must be open and bound before append");
   }
-
-  if (values.size() != 1) {
+  if (values.size() != 1 || values[0].IsNull()) {
     return Status(StatusCode::ERR_INVALID_ARGUMENT,
-                  "HNSWIndex requires exactly one value");
+                  "HNSW requires one non-null vector");
   }
-
-  const auto& value = values[0];
-  if (value.IsNull()) {
-    return Status(StatusCode::ERR_INVALID_ARGUMENT,
-                  "HNSW index does not support NULL vector values");
-  }
-  Value index_value = value;
-  auto cosine_normalize = meta_->options.find("cosine_normalize");
-  if (metric_ == zvec::core_interface::MetricType::kCosine &&
-      (cosine_normalize == meta_->options.end() ||
-       cosine_normalize->second == "true" ||
-       cosine_normalize->second == "TRUE")) {
-    auto status = VectorNormalizer::ValueNormalize(value, index_value);
-    if (!status.ok()) {
-      return status;
-    }
-  }
-  auto dense_result = ConvertDenseValue(meta_->schema.columns[0].property_type,
-                                        index_value, dimension_);
-  if (!dense_result) {
-    return dense_result.error();
-  }
-  auto dense = std::move(dense_result).value();
-
+  // VecColumn already validates and stores the value before index maintenance.
+  // Register the actual slot without copying/normalizing the vector again.
+  HNSWVecSource source(column_);
+  const auto* data = source.get_vector(index_id);
+  if (!data)
+    return Status::RuntimeError("Missing vector slot during append");
   zvec::core_interface::VectorData vector;
-  vector.vector = zvec::core_interface::DenseVector{dense.data()};
-  auto ret = zvec_index_->add_with_source(vector, index_id, *vec_source_);
+  vector.vector = zvec::core_interface::DenseVector{data};
+  auto& index = local_buffer_enabled_ ? flat_index_ : zvec_index_;
+  const auto ret = index->add_with_source(vector, index_id, source);
   if (ret != 0) {
-    return Status::RuntimeError("ZVec internal append failed with error code " +
-                                std::to_string(ret) +
-                                ". See logs for details.");
+    return Status::RuntimeError("Vector index append failed: " +
+                                std::to_string(ret));
   }
   return Status::OK();
 }

@@ -45,3 +45,54 @@ diff --git a/thirdparty/RaBitQ-Library/CMakeLists.txt b/thirdparty/RaBitQ-Librar
 +  endif()
    target_link_libraries(rabitqlib INTERFACE rabitqlib::fastscan)
  endif()
+diff --git a/src/core/interface/index.cc b/src/core/interface/index.cc
+index e80bce6..afba15f 100644
+--- a/src/core/interface/index.cc
++++ b/src/core/interface/index.cc
+@@ -927,10 +927,11 @@ int Index::_dense_add(const VectorData &vector_data, const uint32_t doc_id,
+       LOG_ERROR("Failed to quantize vector with turbo quantizer");
+       return core::IndexError_Runtime;
+     }
+-    if (streamer_->add_with_id_impl(doc_id, new_vector->data(), new_meta,
+-                                    context) != 0) {
++    const int ret = streamer_->add_with_id_impl(
++        doc_id, new_vector->data(), new_meta, context);
++    if (ret != 0) {
+       LOG_ERROR("Failed to add vector");
+-      return core::IndexError_Runtime;
++      return ret == core::IndexError_Duplicate ? ret : core::IndexError_Runtime;
+     }
+     return 0;
+   }
+@@ -948,14 +949,14 @@ int Index::_dense_add(const VectorData &vector_data, const uint32_t doc_id,
+                                       context);
+     if (ret != 0) {
+       LOG_ERROR("Failed to add vector");
+-      return core::IndexError_Runtime;
++      return ret == core::IndexError_Duplicate ? ret : core::IndexError_Runtime;
+     }
+   } else {
+     int ret = streamer_->add_with_id_impl(doc_id, dense_vector.data,
+                                           input_vector_meta_, context);
+     if (ret != 0) {
+       LOG_ERROR("Failed to add vector");
+-      return core::IndexError_Runtime;
++      return ret == core::IndexError_Duplicate ? ret : core::IndexError_Runtime;
+     }
+   }
+   return 0;
+diff --git a/src/core/interface/indexes/hnsw_index.cc b/src/core/interface/indexes/hnsw_index.cc
+index 3dd81f5..9d0457c 100644
+--- a/src/core/interface/indexes/hnsw_index.cc
++++ b/src/core/interface/indexes/hnsw_index.cc
+@@ -216,5 +216,10 @@ int HNSWIndex::create_and_init_streamer(const BaseIndexParam &param) {
+   } else {
+     proxima_index_params_.set(core::PARAM_HNSW_STREAMER_EFCONSTRUCTION,
+                               param_.ef_construction);
++    bool filter_same_key = false;
++    param_.params.get(core::PARAM_HNSW_STREAMER_FILTER_SAME_KEY,
++                      &filter_same_key);
++    proxima_index_params_.set(core::PARAM_HNSW_STREAMER_FILTER_SAME_KEY,
++                              filter_same_key);
+     proxima_index_params_.set(core::PARAM_HNSW_STREAMER_MAX_NEIGHBOR_COUNT,
+                               param_.m);

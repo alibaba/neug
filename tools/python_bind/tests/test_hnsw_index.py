@@ -13,6 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import hashlib
 import json
 import math
 import os
@@ -38,6 +39,293 @@ pytestmark = pytest.mark.skipif(
 
 DIMENSION = 16
 NUM_VECTORS = 2000
+
+
+def _local_buffer_checkpoint(path, name):
+    checkpoint = path / "checkpoint"
+    current = (checkpoint / "CURRENT").read_text().strip()
+    manifest = json.loads(
+        (checkpoint / "manifests" / (current + ".manifest")).read_text()
+    )
+    descriptor = manifest["modules"]["index_" + name]
+    assert "hybrid_format_version" not in descriptor["extra"]
+    flat_object = descriptor["objects"]["flat_index_buffer"]
+    assert (checkpoint / "objects" / flat_object).is_file()
+    object_id = descriptor.get("objects", {}).get("index_buffer")
+    digest = (
+        hashlib.sha256((checkpoint / "objects" / object_id).read_bytes()).hexdigest()
+        if object_id
+        else None
+    )
+    return int(descriptor["extra"]["flat_index_offset"]), digest
+
+
+@pytest.mark.parametrize("metric", ["l2", "ip", "cosine"])
+@pytest.mark.parametrize("initial_count", [0, 6])
+def test_local_buffer_mixed_search_and_checkpoint(tmp_path, metric, initial_count):
+    """Writes stay out of HNSW while Flat remains exact, including after reopen."""
+    path = tmp_path / "local-buffer"
+    db, conn = _open_database(path, checkpoint_on_close=False)
+    rng = random.Random(481)
+    vectors = [[rng.uniform(-1, 1) for _ in range(4)] for _ in range(12)]
+
+    def create(index):
+        conn.execute(
+            f"CREATE (:Buffered {{id: {index}, group_id: {index % 2}, "
+            f"embedding: {_array_literal(vectors[index])}}});"
+        )
+
+    def check():
+        for predicate in ("", "WHERE n.group_id=0 ", "WHERE n.group_id=99 "):
+            distance = f"vector_distance_{metric}(n.embedding, $query)"
+            direction = "DESC" if metric == "ip" else "ASC"
+            body = f"MATCH (n:Buffered) {predicate}RETURN n.id, "
+            suffix = f" AS score ORDER BY score {direction} SKIP 1 LIMIT 3;"
+            params = {"query": vectors[10]}
+            indexed = conn.execute(
+                "PROFILE " + body + distance + suffix, parameters=params
+            )
+            actual = list(indexed)
+            assert "IndexScanOpr" in _profile_operator_names(indexed)
+            # Arithmetic around the distance prevents the ANN rewrite.
+            expected = list(
+                conn.execute(body + distance + " + 0.0" + suffix, parameters=params)
+            )
+            assert [row[0] for row in actual] == [row[0] for row in expected]
+            assert [row[1] for row in actual] == pytest.approx(
+                [row[1] for row in expected], abs=2e-5
+            )
+
+    try:
+        conn.execute(
+            "CREATE NODE TABLE Buffered(id INT64 PRIMARY KEY, group_id INT64, embedding FLOAT[4]);"
+        )
+        for i in range(initial_count):
+            create(i)
+        conn.execute(
+            "CREATE INDEX buffered_hnsw ON Buffered USING HNSW (embedding) "
+            f"WITH (metric='{metric}', cosine_normalize=true, m=8, ef_construction=40);"
+        )
+        conn.execute("CHECKPOINT;")
+        initial_offset, original_graph = _local_buffer_checkpoint(path, "buffered_hnsw")
+        assert initial_offset == initial_count
+        for i in range(initial_count, 8):
+            create(i)
+        conn.execute(
+            "MERGE (n:Buffered {id: 8}) SET n.group_id=0, "
+            f"n.embedding={_array_literal(vectors[8])};"
+        )
+        for i in (9, 10):
+            conn.execute(
+                f"MATCH (n:Buffered {{id: 0}}) SET n.embedding={_array_literal(vectors[i])};"
+            )
+        conn.execute("MATCH (n:Buffered) WHERE n.id=1 OR n.id=7 DELETE n;")
+        conn.begin_transaction()
+        create(11)
+        conn.rollback()
+        check()
+        conn.execute("CHECKPOINT;")
+        assert _local_buffer_checkpoint(path, "buffered_hnsw") == (
+            initial_count,
+            original_graph,
+        )
+    finally:
+        _close_database(db, conn)
+    db, conn = _open_database(path, checkpoint_on_close=False)
+    try:
+        check()
+        create(11)
+        check()
+    finally:
+        _close_database(db, conn)
+
+
+def test_local_buffer_copy_builds_existing_tail(tmp_path):
+    db, conn = _open_database(tmp_path / "copy-db", checkpoint_on_close=False)
+    try:
+        conn.execute(
+            "CREATE NODE TABLE Buffered(id INT64 PRIMARY KEY, embedding FLOAT[4]);"
+        )
+        conn.execute("CREATE INDEX buffered_hnsw ON Buffered USING HNSW (embedding);")
+        conn.execute("CREATE (:Buffered {id: 0, embedding: [0.0, 0.0, 0.0, 0.0]});")
+        csv = tmp_path / "tail.csv"
+        csv.write_text("id|embedding\n1|[1.0,0.0,0.0,0.0]\n2|[2.0,0.0,0.0,0.0]\n")
+        conn.execute(
+            f"COPY Buffered FROM (LOAD FROM \"{csv}\" (delim='|') RETURN id, CAST(embedding, 'FLOAT[4]') AS embedding);"
+        )
+        conn.execute("CHECKPOINT;")
+        assert _local_buffer_checkpoint(tmp_path / "copy-db", "buffered_hnsw")[0] == 3
+        rows = list(
+            conn.execute(
+                "MATCH (n:Buffered) RETURN n.id, vector_distance_l2(n.embedding, [0.0,0.0,0.0,0.0]) AS score ORDER BY score LIMIT 3;"
+            )
+        )
+        assert rows == [[0, 0.0], [1, 1.0], [2, 4.0]]
+    finally:
+        _close_database(db, conn)
+
+
+@pytest.mark.parametrize("delete_local_buffer", [False, True], ids=["append", "delete"])
+def test_local_buffer_copy_retry_after_transaction_failure(
+    tmp_path, capfd, delete_local_buffer
+):
+    path = tmp_path / "copy-retry"
+    db, conn = _open_database(path, checkpoint_on_close=False)
+
+    def copy_from(csv):
+        conn.execute(
+            f"COPY Buffered FROM (LOAD FROM \"{csv}\" (delim='|') "
+            "RETURN id, CAST(embedding, 'FLOAT[4]') AS embedding);"
+        )
+
+    def check(expected_ids):
+        assert list(conn.execute("MATCH (n:Buffered) RETURN n.id ORDER BY n.id;")) == [
+            [i] for i in expected_ids
+        ]
+        result = conn.execute(
+            "PROFILE MATCH (n:Buffered) RETURN n.id, "
+            "vector_distance_l2(n.embedding, [0.0,0.0,0.0,0.0]) AS score "
+            "ORDER BY score LIMIT 10;"
+        )
+        assert list(result) == [[i, float(i * i)] for i in expected_ids]
+        assert "IndexScanOpr" in _profile_operator_names(result)
+        for i in expected_ids:
+            result = conn.execute(
+                "PROFILE MATCH (n:Buffered) RETURN n.id, "
+                f"vector_distance_l2(n.embedding, [{float(i)},0.0,0.0,0.0]) "
+                "AS score ORDER BY score LIMIT 1;"
+            )
+            assert list(result) == [[i, 0.0]]
+            assert "IndexScanOpr" in _profile_operator_names(result)
+
+    try:
+        conn.execute(
+            "CREATE NODE TABLE Buffered(id INT64 PRIMARY KEY, embedding FLOAT[4]);"
+        )
+        conn.execute("CREATE INDEX buffered_hnsw ON Buffered USING HNSW (embedding);")
+        for i in range(2):
+            conn.execute(
+                f"CREATE (:Buffered {{id: {i}, embedding: [{float(i)},0.0,0.0,0.0]}});"
+            )
+        conn.execute("CHECKPOINT;")
+        assert _local_buffer_checkpoint(path, "buffered_hnsw")[0] == 0
+        first = tmp_path / "first.csv"
+        first.write_text("id|embedding\n10|[10.0,0.0,0.0,0.0]\n")
+        second = tmp_path / "second.csv"
+        second.write_text("id|embedding\n20|[20.0,0.0,0.0,0.0]\n")
+
+        conn.begin_transaction()
+        if delete_local_buffer:
+            conn.execute("MATCH (n:Buffered {id: 0}) DELETE n;")
+            # Both scalar and index queries must respect the private deletion.
+            check([1])
+        copy_from(first)
+        check([1, 10] if delete_local_buffer else [0, 1, 10])
+        # COPY has appended the LocalBuffer to the shared HNSW. Fail commit
+        # afterwards so the transaction rolls back its rows and F, but not
+        # those physical HNSW additions. A malformed CSV would fail too early.
+        manifests = path / "checkpoint" / "manifests"
+        saved = path / "checkpoint" / "saved_manifests"
+        manifests.rename(saved)
+        try:
+            manifests.write_text("block checkpoint directory creation")
+            with pytest.raises(RuntimeError, match="failed to create"):
+                conn.commit()
+        finally:
+            manifests.unlink()
+            saved.rename(manifests)
+        with pytest.raises(RuntimeError, match="rollback-only"):
+            conn.commit()
+        conn.rollback()
+        check([0, 1])
+        assert _local_buffer_checkpoint(path, "buffered_hnsw")[0] == 0
+
+        capfd.readouterr()
+        conn.begin_transaction()
+        copy_from(second)
+        conn.commit()
+        captured = capfd.readouterr()
+        for i in ([1] if delete_local_buffer else [0, 1]):
+            assert (
+                f"Skip existing HNSW index_id during bulk append: {i}" in captured.err
+            )
+        if delete_local_buffer:
+            # The aborted COPY skipped this ID. After rollback it must be
+            # appended for the first time, rather than treated as a duplicate.
+            assert (
+                "Skip existing HNSW index_id during bulk append: 0" not in captured.err
+            )
+        check([0, 1, 20])
+        assert _local_buffer_checkpoint(path, "buffered_hnsw")[0] > 0
+    finally:
+        _close_database(db, conn)
+
+    db, conn = _open_database(path, checkpoint_on_close=False)
+    try:
+        check([0, 1, 20])
+    finally:
+        _close_database(db, conn)
+
+
+@pytest.mark.parametrize(
+    "offset",
+    [None, "", "-1", "abc", "1x", "4294967296", "999999999999999999999999", "4"],
+)
+def test_local_buffer_offset_metadata(tmp_path, offset):
+    path = tmp_path / "offset-metadata"
+    db, conn = _open_database(path, checkpoint_on_close=False)
+    try:
+        conn.execute(
+            "CREATE NODE TABLE Item(id INT64 PRIMARY KEY, embedding FLOAT[4]);"
+        )
+        for i in range(3):
+            conn.execute(
+                f"CREATE (:Item {{id: {i}, embedding: [{float(i)},0.0,0.0,0.0]}});"
+            )
+        conn.execute("CREATE INDEX item_hnsw ON Item USING HNSW (embedding);")
+        conn.execute("CHECKPOINT;")
+    finally:
+        _close_database(db, conn)
+    checkpoint = path / "checkpoint"
+    current = (checkpoint / "CURRENT").read_text().strip()
+    manifest_path = checkpoint / "manifests" / (current + ".manifest")
+    manifest = json.loads(manifest_path.read_text())
+    descriptor = manifest["modules"]["index_item_hnsw"]
+    if offset is None:
+        # Legacy checkpoint: neither an offset nor a persisted Flat registry.
+        del descriptor["extra"]["flat_index_offset"]
+        del descriptor["objects"]["flat_index_buffer"]
+    else:
+        descriptor["extra"]["flat_index_offset"] = offset
+    manifest_path.write_text(json.dumps(manifest))
+    if offset is not None:
+        reopened = None
+        try:
+            with pytest.raises(RuntimeError):
+                reopened = Database(str(path), mode="w", checkpoint_on_close=False)
+                connection = reopened.connect()
+                try:
+                    connection.execute("LOAD vector_search;")
+                finally:
+                    connection.close()
+        finally:
+            if reopened is not None:
+                reopened.close()
+        return
+    db, conn = _open_database(path, checkpoint_on_close=False)
+    try:
+        conn.execute("CREATE (:Item {id: 3, embedding: [3.0,0.0,0.0,0.0]});")
+        result = conn.execute(
+            "PROFILE MATCH (n:Item) RETURN n.id, "
+            "vector_distance_l2(n.embedding, [3.0,0.0,0.0,0.0]) AS score "
+            "ORDER BY score LIMIT 1;"
+        )
+        assert list(result) == [[3, 0.0]]
+        assert "IndexScanOpr" in _profile_operator_names(result)
+        conn.execute("CHECKPOINT;")
+        assert _local_buffer_checkpoint(path, "item_hnsw")[0] == 3
+    finally:
+        _close_database(db, conn)
 
 
 def _array_literal(values):
