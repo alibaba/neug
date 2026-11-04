@@ -33,6 +33,7 @@
 #include "neug/compiler/function/gds/project_graph_function.h"
 #include "neug/compiler/function/import/csv_read_function.h"
 #include "neug/compiler/function/import/json_read_function.h"
+#include "neug/compiler/function/index_optimize_function.h"
 #include "neug/compiler/function/list/vector_list_functions.h"
 #include "neug/compiler/function/path/vector_path_functions.h"
 #include "neug/compiler/function/schema/vector_node_rel_functions.h"
@@ -160,6 +161,7 @@ FunctionCollection* FunctionCollection::getFunctions() {
 
       TABLE_FUNCTION(ShowLoadedExtensionsFunction),
       TABLE_FUNCTION(ShowIndexesFunction),
+      TABLE_FUNCTION(IndexOptimizeFunction),
       TABLE_FUNCTION(ShowNodeTablesFunction),
       TABLE_FUNCTION(ShowRelTablesFunction),
       TABLE_FUNCTION(ShowNodeTableInfoFunction),

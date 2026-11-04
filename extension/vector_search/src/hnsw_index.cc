@@ -137,6 +137,10 @@ HNSWVecSource::HNSWVecSource(const VecColumn* column)
   }
 }
 
+bool HNSWVecSource::is_l2_normalized() const {
+  return column_->is_l2_normalized();
+}
+
 const void* HNSWVecSource::get_vector(uint32_t node_id) const {
   // HNSW computes neighbor distances before applying the visibility filter.
   // Newly appended IDs can therefore exceed this reader's visible ID count.
@@ -361,10 +365,7 @@ void HNSWIndex::Dump(Checkpoint& ckp, CheckpointManifest& manifest,
   // before that extension is loaded; the pending index is activated after
   // LOAD vector_search registers the hnsw_index module type.
   descriptor->required = false;
-  descriptor->set(kFlatOffset,
-                  std::to_string(local_buffer_enabled_
-                                     ? flat_index_offset_.value()
-                                     : index_id_accessor_->GetVisibleLimit()));
+  descriptor->set(kFlatOffset, std::to_string(flat_index_offset_.value()));
   // Persist registrations even when all vectors are still in LocalBuffer.
   ZVecDumpContainer flat_container(flat_index_.get(), flat_runtime_path_);
   auto flat_persisted_path = ckp.Commit(flat_container);
@@ -492,28 +493,36 @@ Status HNSWIndex::BulkBuild(const VertexSet& vertices) {
   return Status::OK();
 }
 
-Status HNSWIndex::FinishBulkInsert() {
+result<IndexOptimizeStats> HNSWIndex::Optimize() {
+  IndexOptimizeStats stats;
   if (!local_buffer_enabled_)
-    return Status::OK();
+    return stats;
   const auto limit = index_id_accessor_->GetVisibleLimit();
+  if (limit <= flat_index_offset_.value())
+    return stats;
   HNSWVecSource source(column_);
   for (index_id_t id = flat_index_offset_.value(); id < limit; ++id) {
-    if (index_id_accessor_->GetVIDByIndexID(id) == INVALID_VID)
+    if (index_id_accessor_->GetVIDByIndexID(id) == INVALID_VID) {
+      ++stats.skipped_count;
       continue;
+    }
     zvec::core_interface::VectorData vector;
     vector.vector = zvec::core_interface::DenseVector{source.get_vector(id)};
     const auto ret = zvec_index_->add_with_source(vector, id, source);
     if (ret == zvec::core::IndexError_Duplicate) {
       LOG(WARNING) << "Skip existing HNSW index_id during bulk append: " << id;
+      ++stats.skipped_count;
       continue;
     }
     if (ret != 0) {
-      return Status::RuntimeError("HNSW bulk append failed: " +
-                                  std::to_string(ret));
+      return tl::unexpected(Status::RuntimeError("HNSW bulk append failed: " +
+                                                 std::to_string(ret)));
     }
+    ++stats.indexed_count;
   }
   flat_index_offset_ = limit;
-  return Status::OK();
+  stats.changed = true;
+  return stats;
 }
 
 void HNSWIndex::Detach(Checkpoint& ckp, MemoryLevel level) {
@@ -561,10 +570,16 @@ result<std::vector<SearchCandidate>> HNSWIndex::SearchImpl(
   if (p->topk == 0 || p->ef_search == 0) {
     RETURN_INVALID_ARGUMENT_ERROR("HNSW topk and ef_search must be positive");
   }
-  Value query_value = p->target_value;
   const bool cosine_flat = local_buffer_enabled_ &&
                            metric_ == zvec::core_interface::MetricType::kCosine;
-  if (cosine_flat) {
+  const auto limit = index_id_accessor_->GetVisibleLimit();
+  const auto boundary = local_buffer_enabled_
+                            ? std::min(flat_index_offset_.value(), limit)
+                            : limit;
+  Value query_value = p->target_value;
+  // External Flat cosine uses IP and needs a normalized query. Share one
+  // converted buffer; HNSW-only searches leave normalization to ZVec.
+  if (cosine_flat && boundary < limit) {
     auto status =
         VectorNormalizer::ValueNormalize(p->target_value, query_value);
     if (!status.ok())
@@ -572,10 +587,6 @@ result<std::vector<SearchCandidate>> HNSWIndex::SearchImpl(
   }
   GS_AUTO(target, ConvertDenseValue(meta_->schema.columns[0].property_type,
                                     query_value, dimension_));
-  const auto limit = index_id_accessor_->GetVisibleLimit();
-  const auto boundary = local_buffer_enabled_
-                            ? std::min(flat_index_offset_.value(), limit)
-                            : limit;
   const bool has_deleted_ids =
       !index_id_accessor_->GetDeletedIndexIDs().empty();
   std::shared_ptr<roaring::Roaring> allowed;
@@ -696,6 +707,11 @@ Status HNSWIndex::AppendImpl(index_id_t index_id, const IndexValues& values) {
   if (ret != 0) {
     return Status::RuntimeError("Vector index append failed: " +
                                 std::to_string(ret));
+  }
+  if (!local_buffer_enabled_) {
+    // Direct appends maintain IDs in order; do not advance over other slots
+    // that the column may already have allocated for a pending batch.
+    flat_index_offset_ = std::max(flat_index_offset_.value(), index_id + 1);
   }
   return Status::OK();
 }

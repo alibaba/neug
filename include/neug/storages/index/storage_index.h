@@ -171,8 +171,8 @@ class NEUG_API StorageIndex : public Module {
    */
   virtual Status BulkBuild(const VertexSet& vertices) = 0;
 
-  // Called after COPY has registered all rows. Ordinary Upsert never calls it.
-  virtual Status FinishBulkInsert() { return Status::OK(); }
+  // Shared by explicit maintenance and COPY. The caller owns the transaction.
+  virtual result<IndexOptimizeStats> Optimize() { return IndexOptimizeStats{}; }
 
   /**
    * @brief Search the index and translate internal index ids to vertex ids.

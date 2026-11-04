@@ -185,6 +185,26 @@ void ActivateIndexesRedo::Serialize(InArchive& arc) {
   arc << static_cast<uint8_t>(OpType::kActivateIndexes);
 }
 
+void OptimizeIndexesRedo::Serialize(InArchive& arc,
+                                    const std::vector<std::string>& names) {
+  arc << static_cast<uint8_t>(OpType::kOptimizeIndexes);
+  arc << static_cast<uint32_t>(names.size());
+  for (const auto& name : names)
+    arc << name;
+}
+
+std::vector<std::string> OptimizeIndexesRedo::Deserialize(OutArchive& arc) {
+  uint32_t count;
+  arc >> count;
+  std::vector<std::string> names;
+  for (uint32_t i = 0; i < count; ++i) {
+    std::string name;
+    arc >> name;
+    names.push_back(std::move(name));
+  }
+  return names;
+}
+
 void AddVertexPropertiesRedo::Serialize(
     InArchive& arc, const std::string& vertex_type,
     const AddVertexPropertiesParam& config) {

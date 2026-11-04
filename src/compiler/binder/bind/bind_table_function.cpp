@@ -32,6 +32,7 @@
 #include "neug/compiler/function/table/bind_input.h"
 #include "neug/compiler/function/table/table_function.h"
 #include "neug/compiler/main/client_context.h"
+#include "neug/utils/exception/exception.h"
 
 using namespace neug::common;
 using namespace neug::function;
@@ -123,6 +124,36 @@ BoundTableScanInfo Binder::bindTableFunc(
     }
   }
   const auto& tableFunc = callFunc->constPtrCast<TableFunction>();
+  if (!tableFunc->namedParameters.empty()) {
+    const auto& names = tableFunc->namedParameters;
+    expression_vector canonical(names.size());
+    for (size_t i = 0; i < positionalParams.size(); ++i)
+      canonical[i] = positionalParams[i];
+    for (const auto& param : optionalParamsLegacy) {
+      size_t pos = 0;
+      while (pos < names.size() && names[pos].first != param->getAlias())
+        ++pos;
+      if (pos == names.size() || canonical[pos])
+        THROW_INVALID_ARGUMENT_EXCEPTION("Unknown or repeated CALL argument: " +
+                                         param->getAlias());
+      canonical[pos] = param;
+    }
+    for (size_t i = 0; i < canonical.size(); ++i) {
+      if (!canonical[i]) {
+        canonical[i] = std::make_shared<LiteralExpression>(
+            compiler_impl::Value(std::string{}), "omitted_" + names[i].first);
+      } else if (canonical[i]->expressionType == ExpressionType::LITERAL) {
+        const auto value =
+            canonical[i]->constCast<LiteralExpression>().getValue();
+        if (value.isNull() ||
+            value.getDataType().id() != DataTypeId::kVarchar ||
+            value.getValue<std::string>().empty())
+          THROW_INVALID_ARGUMENT_EXCEPTION(
+              "CALL named arguments must be nonempty strings");
+      }
+    }
+    positionalParams = std::move(canonical);
+  }
   const auto& bindFunc = tableFunc->bindFunc;
   if (bindFunc) {
     TableFuncBindInput tableBindInput;

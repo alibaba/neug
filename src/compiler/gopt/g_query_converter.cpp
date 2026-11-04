@@ -107,7 +107,9 @@ std::unique_ptr<::physical::PhysicalPlan> GQueryConvertor::convert(
   if (!skipSink) {
     auto sink = std::make_unique<::physical::Sink>();
     auto lastOp = plan.getLastOperator();
-    if (lastOp->getOperatorType() == planner::LogicalOperatorType::UNION_ALL) {
+    if (lastOp->getOperatorType() == planner::LogicalOperatorType::UNION_ALL ||
+        lastOp->getOperatorType() ==
+            planner::LogicalOperatorType::TABLE_FUNCTION_CALL) {
       auto* schema = lastOp->getSchema();
       if (schema == nullptr) {
         THROW_EXCEPTION_WITH_FILE_LINE(
@@ -1352,7 +1354,9 @@ void GQueryConvertor::convertProcedureCall(
     // keep const / var.
     if (param->expressionType == common::ExpressionType::PARAMETER) {
       const auto& paramExpr = param->constCast<binder::ParameterExpression>();
-      if (pos >= callFunc.parameterTypes.size()) {
+      if (pos >= (callFunc.namedParameters.empty()
+                      ? callFunc.parameterTypes.size()
+                      : callFunc.namedParameters.size())) {
         THROW_EXCEPTION_WITH_FILE_LINE("CALL $param index out of signature: " +
                                        paramExpr.getName());
       }
@@ -1361,9 +1365,11 @@ void GQueryConvertor::convertProcedureCall(
       dynPB->set_index(static_cast<int32_t>(pos));
       // CALL $params keep UNKNOWN in the binder; use the procedure signature
       // type for ParamsMap deserialization.
+      const auto& type = callFunc.namedParameters.empty()
+                             ? callFunc.parameterTypes[pos]
+                             : callFunc.namedParameters[pos].second;
       dynPB->set_allocated_data_type(
-          typeConverter->convertLogicalType(callFunc.parameterTypes[pos].copy())
-              .release());
+          typeConverter->convertLogicalType(type.copy()).release());
       queryArgPB->set_allocated_param(dynPB.release());
     } else {
       if (param->expressionType == common::ExpressionType::LITERAL) {

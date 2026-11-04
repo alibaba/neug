@@ -48,6 +48,8 @@ class HNSWVecSource final : public zvec::core::VectorSource {
  public:
   explicit HNSWVecSource(const VecColumn* column);
 
+  bool is_l2_normalized() const override;
+
   const void* get_vector(uint32_t node_id) const override;
   size_t GetVectorByteSize() const { return vector_byte_size_; }
 
@@ -107,7 +109,7 @@ class HNSWIndex final : public StorageIndex {
             const std::string& key) override;
   Status Rebind(const IndexBindContext& context) override;
   Status BulkBuild(const VertexSet& vertices) override;
-  Status FinishBulkInsert() override;
+  result<IndexOptimizeStats> Optimize() override;
   Status Upsert(vid_t vid, const IndexValue& new_value) override;
   void Detach(Checkpoint& ckp, MemoryLevel level) override;
   std::unique_ptr<Module> Clone() const override;

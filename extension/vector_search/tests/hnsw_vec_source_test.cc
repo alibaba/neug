@@ -80,6 +80,18 @@ class HNSWVecSourceTest : public ::testing::Test {
   std::unique_ptr<VecColumn> column_;
 };
 
+TEST_F(HNSWVecSourceTest, NormalizationOptInFollowsColumnRepresentation) {
+  column_->set_any(1, MakeVector(7), true);
+  HNSWVecSource source(column_.get());
+  EXPECT_FALSE(source.is_l2_normalized());
+  ASSERT_TRUE(column_->EnsureL2Normalized().ok());
+  EXPECT_TRUE(source.is_l2_normalized());
+  EXPECT_FLOAT_EQ(static_cast<const float*>(source.get_vector(1))[0], 1);
+  EXPECT_FLOAT_EQ(static_cast<const float*>(source.get_vector(0))[0], 0);
+  TrackingSource raw_source(column_.get());
+  EXPECT_FALSE(raw_source.is_l2_normalized());
+}
+
 TEST_F(HNSWVecSourceTest, ReadsNewIDWithinSnapshotCapacity) {
   auto snapshot_module = column_->Clone();
   auto* snapshot = static_cast<VecColumn*>(snapshot_module.get());

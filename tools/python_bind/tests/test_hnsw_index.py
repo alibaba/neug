@@ -268,6 +268,135 @@ def test_local_buffer_copy_retry_after_transaction_failure(
 
 
 @pytest.mark.parametrize(
+    "arguments,expected_names",
+    [
+        ("", ["a_hnsw", "b_hnsw"]),
+        ("'hnsw'", ["a_hnsw", "b_hnsw"]),
+        ("'hnsw', 'b_hnsw'", ["b_hnsw"]),
+        ("'hnsw', index_name := 'b_hnsw'", ["b_hnsw"]),
+        ("type := 'HNSW'", ["a_hnsw", "b_hnsw"]),
+        ("index_name := 'b_hnsw'", ["b_hnsw"]),
+        ("type := 'hnsw', index_name := 'b_hnsw'", ["b_hnsw"]),
+        ("index_name := 'b_hnsw', type := 'hnsw'", ["b_hnsw"]),
+        ("index_name := $name, type := $type", ["b_hnsw"]),
+        ("$type, $name", ["b_hnsw"]),
+    ],
+)
+def test_index_optimize_selection_and_checkpoint(tmp_path, arguments, expected_names):
+    path = tmp_path / "optimize"
+    db, conn = _open_database(path, checkpoint_on_close=False)
+    try:
+        conn.execute("CREATE NODE TABLE Item(id INT64 PRIMARY KEY, v FLOAT[4]);")
+        for name in ("a_hnsw", "b_hnsw"):
+            conn.execute(f"CREATE INDEX {name} ON Item USING HNSW (v);")
+        for i in range(3):
+            conn.execute(f"CREATE (:Item {{id: {i}, v: [{float(i)},0.0,0.0,0.0]}});")
+        conn.execute("MATCH (n:Item {id: 1}) DELETE n;")
+        conn.execute("MATCH (n:Item {id: 2}) SET n.v=[4.0,0.0,0.0,0.0];")
+        parameters = {"name": "b_hnsw", "type": "HNSW"} if "$" in arguments else None
+        rows = list(
+            conn.execute(f"CALL index_optimize({arguments});", parameters=parameters)
+        )
+        assert [row[:4] for row in rows] == [
+            ["hnsw", name, 2, 2] for name in expected_names
+        ]
+        assert all(len(row) == 5 and row[4] >= 0 for row in rows)
+        repeated = list(
+            conn.execute(f"CALL index_optimize({arguments});", parameters=parameters)
+        )
+        assert [row[:4] for row in repeated] == [
+            ["hnsw", name, 0, 0] for name in expected_names
+        ]
+        conn.execute("CHECKPOINT;")
+        for name in ("a_hnsw", "b_hnsw"):
+            assert _local_buffer_checkpoint(path, name)[0] == (
+                4 if name in expected_names else 0
+            )
+    finally:
+        _close_database(db, conn)
+    db, conn = _open_database(path, checkpoint_on_close=False)
+    try:
+        result = conn.execute(
+            "PROFILE MATCH (n:Item) RETURN n.id, vector_distance_l2(n.v, [4.0,0.0,0.0,0.0]) "
+            "AS score ORDER BY score LIMIT 5;"
+        )
+        assert list(result) == [[2, 0.0], [0, 16.0]]
+        assert "IndexScanOpr" in _profile_operator_names(result)
+    finally:
+        _close_database(db, conn)
+
+
+def test_index_optimize_validation_and_deleted_tail(tmp_path):
+    path = tmp_path / "optimize-validation"
+    db, conn = _open_database(path, checkpoint_on_close=False)
+    try:
+        assert list(conn.execute("CALL index_optimize();")) == []
+        conn.execute("CREATE NODE TABLE Item(id INT64 PRIMARY KEY, v FLOAT[4]);")
+        conn.execute("CREATE INDEX item_hnsw ON Item USING HNSW (v);")
+        conn.execute("CREATE (:Item {id: 0, v: [0.0,0.0,0.0,0.0]});")
+        for arguments in (
+            "index_name := 'missing'",
+            "type := 'fts', index_name := 'item_hnsw'",
+            "typo := 'hnsw'",
+            "type := 'hnsw', type := 'hnsw'",
+            "'hnsw', type := 'hnsw'",
+            "type := 12",
+            "type := null",
+            "index_name := ''",
+            "'hnsw', 'item_hnsw', 'extra'",
+        ):
+            with pytest.raises(RuntimeError):
+                conn.execute(f"CALL index_optimize({arguments});")
+        assert list(conn.execute("CALL index_optimize(type := 'missing');")) == []
+        conn.begin_transaction(read_only=True)
+        with pytest.raises(RuntimeError):
+            conn.execute("CALL index_optimize();")
+        conn.rollback()
+        conn.execute("MATCH (n:Item) DELETE n;")
+        rows = list(conn.execute("CALL index_optimize();"))
+        assert rows[0][:4] == ["hnsw", "item_hnsw", 0, 1]
+        conn.execute("CHECKPOINT;")
+        assert _local_buffer_checkpoint(path, "item_hnsw")[0] == 1
+    finally:
+        _close_database(db, conn)
+
+
+def test_index_optimize_atomic_rollback_and_retry(tmp_path, capfd):
+    path = tmp_path / "optimize-retry"
+    db, conn = _open_database(path, checkpoint_on_close=False)
+    try:
+        conn.execute("CREATE NODE TABLE Item(id INT64 PRIMARY KEY, v FLOAT[4]);")
+        for name in ("a_hnsw", "b_hnsw"):
+            conn.execute(f"CREATE INDEX {name} ON Item USING HNSW (v);")
+        conn.execute("CREATE (:Item {id: 0, v: [1.0,0.0,0.0,0.0]});")
+        conn.begin_transaction()
+        rows = list(conn.execute("CALL index_optimize();"))
+        assert [row[:4] for row in rows] == [
+            ["hnsw", name, 1, 0] for name in ("a_hnsw", "b_hnsw")
+        ]
+        with pytest.raises(RuntimeError):
+            conn.execute("CALL index_optimize(index_name := 'missing');")
+        with pytest.raises(RuntimeError, match="rollback-only"):
+            conn.commit()
+        conn.rollback()
+        conn.execute("CHECKPOINT;")
+        for name in ("a_hnsw", "b_hnsw"):
+            assert _local_buffer_checkpoint(path, name)[0] == 0
+        capfd.readouterr()
+        rows = list(conn.execute("CALL index_optimize();"))
+        assert [row[:4] for row in rows] == [
+            ["hnsw", name, 0, 1] for name in ("a_hnsw", "b_hnsw")
+        ]
+        assert capfd.readouterr().err.count("Skip existing HNSW index_id") == 2
+        assert list(conn.execute("MATCH (n:Item) RETURN n.id;")) == [[0]]
+        conn.execute("CHECKPOINT;")
+        for name in ("a_hnsw", "b_hnsw"):
+            assert _local_buffer_checkpoint(path, name)[0] == 1
+    finally:
+        _close_database(db, conn)
+
+
+@pytest.mark.parametrize(
     "offset",
     [None, "", "-1", "abc", "1x", "4294967296", "999999999999999999999999", "4"],
 )
@@ -1192,9 +1321,8 @@ def test_cosine_normalize_is_ignored_for_non_cosine_metrics(tmp_path, metric):
 
 
 def test_cosine_normalize_false_preserves_valid_unit_vectors(tmp_path):
-    db, conn = _open_database(
-        tmp_path / "cosine-normalize-disabled", checkpoint_on_close=False
-    )
+    path = tmp_path / "cosine-normalize-disabled"
+    db, conn = _open_database(path, checkpoint_on_close=False)
     try:
         conn.execute(
             "CREATE NODE TABLE UnitVectorItem("
@@ -1213,6 +1341,27 @@ def test_cosine_normalize_false_preserves_valid_unit_vectors(tmp_path):
             conn.execute("MATCH (n:UnitVectorItem {id: 1}) RETURN n.embedding;")
         )[0][0]
         assert stored == pytest.approx([0.6, 0.8, 0.0, 0.0])
+        conn.execute("CHECKPOINT;")
+        assert _local_buffer_checkpoint(path, "unit_vector_hnsw")[0] == 1
+        conn.execute("CREATE (:UnitVectorItem {id: 3, embedding: [0.0,1.0,0.0,0.0]});")
+        conn.execute("CHECKPOINT;")
+        assert _local_buffer_checkpoint(path, "unit_vector_hnsw")[0] == 2
+        conn.begin_transaction()
+        conn.execute("CREATE (:UnitVectorItem {id: 2, embedding: [1.0,0.0,0.0,0.0]});")
+        conn.rollback()
+        conn.execute("CHECKPOINT;")
+        assert _local_buffer_checkpoint(path, "unit_vector_hnsw")[0] == 2
+        _close_database(db, conn)
+        db, conn = _open_database(path, checkpoint_on_close=False)
+        result = conn.execute(
+            "PROFILE MATCH (n:UnitVectorItem) RETURN n.id, "
+            "vector_distance_cosine(n.embedding, [0.0,7.0,0.0,0.0]) AS score "
+            "ORDER BY score LIMIT 2;"
+        )
+        rows = list(result)
+        assert [row[0] for row in rows] == [3, 1]
+        assert [row[1] for row in rows] == pytest.approx([0.0, 0.2], abs=1e-5)
+        assert "IndexScanOpr" in _profile_operator_names(result)
     finally:
         _close_database(db, conn)
 

@@ -54,7 +54,8 @@ enum class OpType : uint8_t {
   kDropGraphEntry = 17,
   kCreateIndex = 18,
   kDropIndex = 19,
-  kActivateIndexes = 20
+  kActivateIndexes = 20,
+  kOptimizeIndexes = 21
 };
 
 inline InArchive& operator<<(InArchive& in_archive, OpType& value) {

@@ -52,7 +52,9 @@ The major features include:
   - `HNSWIndex` supports both:
     - Bulk index construction
     - Incremental index updates
-  - When data is imported or updated, the corresponding HNSW index is automatically updated.
+  - Imported and updated vectors are automatically included in index-based queries.
+    Since v0.3.1, incremental writes can use a Local Buffer before being added
+    to the HNSW graph.
 
 ---
 
@@ -279,8 +281,8 @@ The following parameters control HNSW index construction and search behavior:
 When creating an index:
 
 - Existing nodes are automatically indexed.
-- Nodes inserted after index creation are automatically added to the HNSW
-  index.
+- Nodes inserted after index creation are automatically searchable through the
+  index, including vectors in the Local Buffer described below.
 
 ### Vector normalization
 
@@ -609,9 +611,10 @@ The query combines:
 ## Vector Modification
 
 You can modify vector data after creating an HNSW index. Inserts, updates, and
-deletes automatically update the corresponding index, so subsequent HNSW
-queries operate on the latest data without requiring manual index
-synchronization.
+deletes are automatically reflected in subsequent index-based queries under
+the usual transaction visibility rules. Since v0.3.1, incremental writes can
+remain in the Local Buffer until HNSW maintenance, without requiring manual
+synchronization for query visibility.
 
 ### Insert Vector Data
 
@@ -621,7 +624,7 @@ Example:
 
 ```cypher
 // Insert node property data
-// Update corresponding HNSW index automatically
+// Make the vector searchable through the index automatically
 CREATE (
     n:vector_node {
         id: 3,
@@ -646,14 +649,93 @@ DELETE n;
 
 ### Update Vector Data
 
-Updating a vector property automatically updates the HNSW index.
+Updating a vector property automatically makes the new value searchable
+through the index, including through the Local Buffer when applicable.
 
 Example:
 
 ```cypher
 // Update vector property
-// Update HNSW index automatically
+// Make the updated vector searchable through the index automatically
 MATCH (n:vector_node)
 WHERE n.id = 1
 SET n.vec = [0.2, 0.2, 0.1, 0.1];
 ```
+
+---
+
+## Faster Writes with Local Buffer (Since v0.3.1)
+
+Starting with **v0.3.1**, NeuG reduces the latency of incremental vector writes
+by placing newly inserted or updated vectors in a **Local Buffer** instead of
+adding each vector to the HNSW graph immediately. This benefits applications
+that continuously write individual vectors through `CREATE` (insert), `MERGE`,
+or `SET`. It applies to L2, inner-product, and cosine indexes backed by a
+normalized vector column.
+
+Buffered vectors remain searchable under the usual transaction visibility
+rules. Queries search both HNSW and the Local Buffer, using a Flat index to
+efficiently search the buffered vectors. Applications can keep using the same
+write and query statements; no manual optimization is required to make newly
+committed data searchable.
+
+### Write latency comparison
+
+The following measurements compare **v0.3.0** and **v0.3.1** on datasets of
+**10,000 and 26,000 vectors**, with **1,024 dimensions** and cosine HNSW settings
+**M=50**, **ef_construction=500**. Tests ran on an **Apple M2 Pro, 32 GB RAM,
+macOS 15.3.1**, using Python 3.9 and AP mode with four threads.
+
+- **Insert:** insert a new vector using `CREATE` into a dataset with an existing
+  HNSW index.
+- **MERGE:** match an existing record and update its vector using `MERGE`.
+
+The table reports median single-vector write latencies, including automatic commit.
+
+| Dataset size (vectors) | Operation | v0.3.0 (ms) | v0.3.1 (ms) | Speedup |
+| --- | --- | ---: | ---: | ---: |
+| 10,000 | Insert | 11.991 | 3.916 | 3.06× |
+| 10,000 | MERGE | 12.779 | 3.029 | 4.22× |
+| 26,000 | Insert | 87.887 | 4.041 | 21.75× |
+| 26,000 | MERGE | 87.199 | 4.059 | 21.48× |
+
+Insert and MERGE are faster because individual writes no longer wait for HNSW
+graph maintenance; new vectors enter the searchable Local Buffer instead.
+COPY FROM performance remains comparable to the previous version.
+
+### When and how to optimize
+
+Use `index_optimize` to explicitly add buffered vectors to HNSW:
+
+```cypher
+// Named arguments use :=, not =.
+CALL index_optimize(type := 'hnsw', index_name := 'vec_hnsw_index');
+
+// Equivalent positional arguments: type, index_name.
+CALL index_optimize('hnsw', 'vec_hnsw_index');
+
+// Optimize all HNSW indexes.
+CALL index_optimize(type := 'hnsw');
+
+// Optimize all indexes using each index's own maintenance implementation.
+CALL index_optimize();
+```
+
+The call runs synchronously and returns one row per selected index, with
+`type`, `index_name`, `indexed_count`, `skipped_count`, and `duration_ms`.
+All selected indexes are maintained in one transaction: their changes are
+committed together, or the call fails. When called inside an explicit write
+transaction, changes are committed when that transaction commits.
+
+Ordinary single-vector writes do not automatically merge the Local Buffer
+into HNSW, and there is no background merge or automatic size threshold.
+The Flat index keeps buffered vectors searchable without requiring an
+optimization after every write. **COPY FROM is a bulk-maintenance exception:**
+it also adds existing buffered vectors to HNSW as part of the import workflow.
+
+As a starting guideline, explicitly optimize an index when its Local Buffer
+grows beyond **100,000 vectors**. At that scale, HNSW is generally a more
+cost-effective choice for repeated similarity queries than scanning a growing
+buffer. This is a tuning guideline, not a hard limit; the best interval depends
+on vector dimensions and the balance between reads and writes. Schedule
+optimization after a burst of writes or during a quieter period.

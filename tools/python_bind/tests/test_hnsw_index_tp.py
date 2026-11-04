@@ -186,6 +186,86 @@ def test_local_buffer_tp_concurrent_writes_and_wal_replay(tmp_path, unused_tcp_p
     )
 
 
+@pytest.mark.parametrize("preload_extension", [False, True])
+def test_index_optimize_tp_snapshot_and_wal(
+    tmp_path, unused_tcp_port, preload_extension
+):
+    path = tmp_path / "optimize-tp"
+    db = Database(str(path), mode="w", checkpoint_on_close=False)
+    conn = db.connect()
+    try:
+        conn.execute("LOAD vector_search;")
+        conn.execute("CREATE NODE TABLE Item(id INT64 PRIMARY KEY, v FLOAT[4]);")
+        conn.execute("CREATE INDEX item_hnsw ON Item USING HNSW (v);")
+        conn.execute("CHECKPOINT;")
+        for i in range(2):
+            conn.execute(f"CREATE (:Item {{id: {i}, v: [{float(i)},0.0,0.0,0.0]}});")
+    finally:
+        conn.close()
+    endpoint = db.serve(unused_tcp_port, "localhost", False)
+    wait_for_server_ready(endpoint)
+    reader = Session.open(endpoint)
+    writer = Session.open(endpoint)
+    query = (
+        "MATCH (n:Item) RETURN n.id, vector_distance_l2(n.v, [2.0,0.0,0.0,0.0]) "
+        "AS score ORDER BY score LIMIT 5;"
+    )
+    try:
+        reader.begin_transaction(read_only=True)
+        assert list(reader.execute(query, access_mode="read")) == [[1, 1.0], [0, 4.0]]
+        writer.execute("CREATE (:Item {id: 2, v: [2.0,0.0,0.0,0.0]});")
+        with pytest.raises(Exception):
+            writer.execute("CALL index_optimize();", access_mode="read")
+        rows = list(
+            writer.execute(
+                "CALL index_optimize(type := $type);", parameters={"type": "hnsw"}
+            )
+        )
+        assert rows[0][:4] == ["hnsw", "item_hnsw", 3, 0]
+        assert list(writer.execute("CALL index_optimize();"))[0][2:4] == [0, 0]
+        assert list(reader.execute(query, access_mode="read")) == [[1, 1.0], [0, 4.0]]
+        reader.rollback()
+        assert list(reader.execute(query, access_mode="read"))[0] == [2, 0.0]
+    finally:
+        reader.close()
+        writer.close()
+        db.stop_serving()
+        db.close()
+    _run_cold_process(
+        r"""
+        import sys
+        from pathlib import Path
+        from neug import Database
+        path = Path(sys.argv[1])
+        preload = sys.argv[2] == "True"
+        if preload:
+            bootstrap = Database(str(path.parent / "bootstrap"), mode="w", checkpoint_on_close=False)
+            c = bootstrap.connect()
+            c.execute("LOAD vector_search;")
+            c.close()
+            bootstrap.close()
+        db = Database(str(path), mode="w", checkpoint_on_close=False)
+        conn = db.connect()
+        conn.execute("LOAD vector_search;")
+        assert list(conn.execute("MATCH (n:Item) RETURN count(n);")) == [[3]]
+        result = conn.execute(
+            "PROFILE MATCH (n:Item) RETURN n.id, vector_distance_l2(n.v, [2.0,0.0,0.0,0.0]) "
+            "AS score ORDER BY score LIMIT 5;"
+        )
+        assert list(result) == [[2, 0.0], [1, 1.0], [0, 4.0]]
+        assert "IndexScanOpr" in [op["operator_name"] for op in result.get_profile_metrics()["operators"]]
+        rows = list(conn.execute("CALL index_optimize();"))
+        # Available indexes replay maintenance; unavailable extensions retain
+        # their existing pending activation behavior and can be optimized later.
+        assert rows[0][2:4] == ([0, 0] if preload else [3, 0]), rows
+        conn.close()
+        db.close()
+        """,
+        path,
+        preload_extension,
+    )
+
+
 def test_hnsw_create_index_wal_cold_restart(tmp_path, unused_tcp_port):
     """Replay CREATE INDEX before the extension is registered in the process."""
     db_path = tmp_path / "cold-restart-db"

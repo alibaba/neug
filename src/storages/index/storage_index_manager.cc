@@ -16,6 +16,8 @@
 #include "neug/storages/index/storage_index_manager.h"
 
 #include <glog/logging.h>
+#include <algorithm>
+#include <chrono>
 
 #include "neug/compiler/common/string_utils.h"
 #include "neug/storages/graph/schema.h"
@@ -37,6 +39,69 @@ static Status PendingIndexError(const std::string& name,
           "' before module type '" + module_type +
           "' is loaded. Load the extension that registers this module type "
           "first.");
+}
+
+result<std::vector<IndexOptimizeResult>> StorageIndexManager::OptimizeIndexes(
+    const IndexOptimizeOptions& options) {
+  auto type = options.type;
+  if ((type && type->empty()) ||
+      (options.index_name && options.index_name->empty())) {
+    return tl::unexpected(
+        Status(StatusCode::ERR_INVALID_ARGUMENT,
+               "INDEX_OPTIMIZE requires nonempty type/index_name"));
+  }
+  if (type)
+    common::StringUtils::toLower(*type);
+  auto matches = [&](const IndexMeta& meta) {
+    auto actual = meta.type;
+    common::StringUtils::toLower(actual);
+    return (!options.index_name || meta.name == *options.index_name) &&
+           (!type || actual == *type);
+  };
+  // Validate all targets before changing any index.
+  if (options.index_name) {
+    auto target = GetIndexByName(*options.index_name);
+    if (!target)
+      return tl::unexpected(target.error());
+    if (!matches(target.value()->GetMeta()))
+      return tl::unexpected(Status(
+          StatusCode::ERR_INVALID_ARGUMENT,
+          "INDEX_OPTIMIZE index type does not match: " + *options.index_name));
+  }
+  for (const auto& [name, pending] : pending_indexes_) {
+    if (matches(pending.meta))
+      return tl::unexpected(
+          PendingIndexError(name, "optimize", pending.descriptor.module_type));
+  }
+  std::vector<StorageIndex*> targets;
+  for (const auto& [name, index] : indexes_) {
+    if (index && matches(index->GetMeta()))
+      targets.push_back(index.get());
+  }
+  std::sort(targets.begin(), targets.end(),
+            [](const auto* lhs, const auto* rhs) {
+              return lhs->GetMeta().name < rhs->GetMeta().name;
+            });
+  std::vector<IndexOptimizeResult> results;
+  for (auto* index : targets) {
+    const auto start = std::chrono::steady_clock::now();
+    IndexOptimizeResult row;
+    row.type = index->GetMeta().type;
+    row.index_name = index->GetMeta().name;
+    auto optimized = index->Optimize();
+    if (!optimized)
+      return tl::unexpected(
+          Status::RuntimeError("INDEX_OPTIMIZE failed for '" + row.index_name +
+                               "': " + optimized.error().ToString()));
+    row.stats = optimized.value();
+    row.duration_ms = std::chrono::duration<double, std::milli>(
+                          std::chrono::steady_clock::now() - start)
+                          .count();
+    if (row.stats.changed)
+      dirty_index_names_.insert(row.index_name);
+    results.push_back(std::move(row));
+  }
+  return results;
 }
 
 neug::result<CreatedIndex> StorageIndexManager::CreateIndex(

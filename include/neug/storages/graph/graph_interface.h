@@ -585,6 +585,11 @@ class StorageUpdateInterface : public StorageReadInterface,
   virtual Status AddGraphEntry(const std::string& name,
                                const ProjectedGraphEntry& entry) = 0;
   virtual Status DropGraphEntry(const std::string& name) = 0;
+  virtual result<std::vector<IndexOptimizeResult>> OptimizeIndexes(
+      const IndexOptimizeOptions& options) {
+    return tl::unexpected(Status(StatusCode::ERR_NOT_SUPPORTED,
+                                 "Index optimization is not supported"));
+  }
 
   bool readable() const override { return true; }
   bool writable() const override { return true; }
