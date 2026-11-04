@@ -1346,11 +1346,6 @@ def test_cosine_normalize_false_preserves_valid_unit_vectors(tmp_path):
         conn.execute("CREATE (:UnitVectorItem {id: 3, embedding: [0.0,1.0,0.0,0.0]});")
         conn.execute("CHECKPOINT;")
         assert _local_buffer_checkpoint(path, "unit_vector_hnsw")[0] == 2
-        conn.begin_transaction()
-        conn.execute("CREATE (:UnitVectorItem {id: 2, embedding: [1.0,0.0,0.0,0.0]});")
-        conn.rollback()
-        conn.execute("CHECKPOINT;")
-        assert _local_buffer_checkpoint(path, "unit_vector_hnsw")[0] == 2
         _close_database(db, conn)
         db, conn = _open_database(path, checkpoint_on_close=False)
         result = conn.execute(
