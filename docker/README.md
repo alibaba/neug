@@ -13,6 +13,12 @@ docker pull neug-registry.cn-hongkong.cr.aliyuncs.com/neug/neug-manylinux:2026.0
 docker pull neug-registry.cn-hongkong.cr.aliyuncs.com/neug/neug-dev:2026.03.13-2
 ```
 
+## Image Tag Convention
+
+All build-environment images share a single **generation tag** (e.g. `2026.03.13-2`). The tag is decoupled from the NeuG release version and is bumped only when a build input actually changes (`scripts/install_deps.sh`, any of the three Dockerfiles, or the upstream PyPA `BASETAG`).
+
+When the generation is bumped, **all five images are rebuilt or retagged together** — even if a particular image's own content is unchanged (e.g. `neug-dev` when only `BASETAG` moves). This keeps the invariant: one tag greps the entire repo and uniquely identifies the build-environment generation. For `neug-dev` (multi-arch manifest list), a retag is a zero-cost server-side `docker buildx imagetools create`.
+
 ## Building Manylinux Images
 
 To create wheel packages compatible with various Linux distributions, we utilize the manylinux approach. Use the following commands to build images equipped with the necessary environments for NeuG:
