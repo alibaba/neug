@@ -748,7 +748,7 @@ def test_documented_vector_import_examples(tmp_path, file_format):
             )
             conn.execute("LOAD parquet;")
         conn.execute(
-            f'COPY vector_node FROM (LOAD FROM "{path}" '
+            f'COPY vector_node FROM (LOAD FROM "{path.as_posix()}" '
             "RETURN id, CAST(vec, 'FLOAT[4]') AS vec);"
         )
         assert list(conn.execute("MATCH (n:vector_node) RETURN count(n);"))[0][0] == 2

@@ -22,6 +22,7 @@ import tempfile
 import time
 
 import pytest
+from conftest import cypher_path
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
@@ -64,11 +65,11 @@ def ldbc_db():
     """
     )
     conn.execute(
-        f'COPY PERSON FROM "{DATA_DIR}/person_0_0.csv" '
+        f"COPY PERSON FROM {cypher_path(os.path.join(DATA_DIR, 'person_0_0.csv'))} "
         f'(header=true, delimiter="|");'
     )
     conn.execute(
-        f'COPY KNOWS FROM "{DATA_DIR}/person_knows_person_0_0.csv" '
+        f"COPY KNOWS FROM {cypher_path(os.path.join(DATA_DIR, 'person_knows_person_0_0.csv'))} "
         f'(from="PERSON", to="PERSON", header=true, delimiter="|");'
     )
     conn.execute("LOAD gds;")

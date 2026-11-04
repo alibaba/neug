@@ -184,7 +184,7 @@ def test_hnsw_index_tp_mutations(tmp_path, unused_tcp_port):
         )
         conn.execute("CREATE REL TABLE Similar(FROM Item TO Item, weight DOUBLE);")
         conn.execute(
-            f'COPY Item FROM (LOAD FROM "{csv_path}" '
+            f'COPY Item FROM (LOAD FROM "{csv_path.as_posix()}" '
             "RETURN id, name, CAST(embedding, 'FLOAT[4]') AS embedding);"
         )
     finally:
