@@ -1,0 +1,25 @@
+# Run macOS and Windows builds and tests in forks so development validation
+# does not occupy the upstream repository's Actions runners or block its workflows.
+name: Fork CI
+
+on:
+  push:
+    branches:
+      - '**'
+
+permissions:
+  contents: read
+  pull-requests: read
+
+concurrency:
+  group: fork-ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  macos:
+    if: github.event.repository.fork
+    uses: ./.github/workflows/OSX.yml
+
+  windows:
+    if: github.event.repository.fork
+    uses: ./.github/workflows/Windows.yml
