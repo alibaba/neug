@@ -716,9 +716,6 @@ CALL index_optimize('hnsw', 'vec_hnsw_index');
 
 // Optimize all HNSW indexes.
 CALL index_optimize(type := 'hnsw');
-
-// Optimize all indexes using each index's own maintenance implementation.
-CALL index_optimize();
 ```
 
 The call runs synchronously and returns one row per selected index, with
