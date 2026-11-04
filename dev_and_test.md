@@ -185,8 +185,7 @@ When running python test, set environment variable `DEBUG` to `ON`, to display a
 
 ## Dev images
 
-- neug-registry.cn-hongkong.cr.aliyuncs.com/neug/neug-dev:v0.3.0-x86_64: dev container built upload ubuntu for x86_64
-- neug-registry.cn-hongkong.cr.aliyuncs.com/neug/neug-dev:v0.3.0-arm64: dev container built upload ubuntu for amr64
+- neug-registry.cn-hongkong.cr.aliyuncs.com/neug/neug-dev:2026.03.13-2: dev container (Ubuntu-based), published as a single multi-arch manifest list (linux/amd64 + linux/arm64); Docker selects the matching architecture automatically on pull. There are no per-arch `neug-dev` tags.
 
 ## Alter property on edge
 1. Alter property on edge with single property
