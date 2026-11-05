@@ -44,12 +44,15 @@ VERSION_RE = re.compile(r"^\d+\.\d+\.\d+$")
 #   - bare form: preceded by a non-word, non-dot char (hyphen OK), so
 #     `neug-0.3.0.tgz` and `0.3.0-SNAPSHOT` match, while `10.3.0` and
 #     `csv0.3.0` never do;
-#   - v-prefixed form: `v` not preceded by a word char;
+#   - v-prefixed form: `v` not preceded by a word char; the `v` is captured
+#     (group 1) so a replacement can preserve it -- `vX.Y.Z` must stay
+#     `vX.Y.Z`, never be flattened to the bare form (that would corrupt
+#     v-prefixed literals such as the OSS path neug/extensions/vX.Y.Z/);
 #   - trailing guard rejects only digit continuations (0.3.01, 0.3.0.1),
 #     so `.tgz` / `-SNAPSHOT` suffixes still match -- the X.Y.Z substring
 #     is what gets replaced.
 VERSION_OCCURRENCE_RE_TMPL = (
-    r"(?:(?<![A-Za-z0-9_.]){ver}|(?<![A-Za-z0-9_])v{ver})(?![0-9]|\.\d)"
+    r"(?:(?<![A-Za-z0-9_.]){ver}|(?<![A-Za-z0-9_])(v){ver})(?![0-9]|\.\d)"
 )
 
 # Build-image references: tags here follow the content-version scheme and are
@@ -143,7 +146,10 @@ def replace_in_file(rel: str, old: str, new: str, apply: bool):
                 skipped += 1
             out_lines.append(line)
             continue
-        line_new, k = old_re.subn(new, line)
+        # Preserve an existing `v` prefix (group 1): `vX.Y.Z` -> `vA.B.C`,
+        # bare `X.Y.Z` -> `A.B.C`. A plain string replacement would flatten
+        # the v-prefixed form and corrupt literals like neug/extensions/v*.
+        line_new, k = old_re.subn(lambda m: (m.group(1) or "") + new, line)
         n += k
         out_lines.append(line_new)
     if apply and n:
@@ -238,8 +244,12 @@ VERSION_CAPTURE_RE = {
     "tools/java_driver/README.md": re.compile(
         rf"<version>{_V}(?:-SNAPSHOT)?</version>"
     ),
+    # The help examples pass a bare version (`--version X.Y.Z`): the script
+    # reads VERSION verbatim and hard-adds the `v` when building the OSS path
+    # (neug/extensions/v{version}/), so `--version vX.Y.Z` would double the v.
+    # Hence alt 2 matches the bare form while alt 3/4 keep the v-prefixed path.
     "scripts/build_and_upload_extensions.sh": re.compile(
-        rf"^VERSION=\"{_V}\"|--version v{_V}|extensions/v{_V}|\bneug/extensions/v{_V}",
+        rf"^VERSION=\"{_V}\"|--version {_V}|extensions/v{_V}|\bneug/extensions/v{_V}",
         re.M,
     ),
 }
