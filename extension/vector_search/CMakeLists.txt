@@ -58,7 +58,9 @@ function(link_vector_search_dependencies target_name)
             zvec_ailego_static
             zvec_turbo_static)
     endif()
-    target_link_libraries(${target_name} PRIVATE zvec_rabitq_fastscan)
+    if(TARGET zvec_rabitq_fastscan)
+        target_link_libraries(${target_name} PRIVATE zvec_rabitq_fastscan)
+    endif()
     add_dependencies(${target_name} zvec_external)
 endfunction()
 

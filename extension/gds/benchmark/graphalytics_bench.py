@@ -164,15 +164,15 @@ def main():
                 conn.execute("CREATE REL TABLE IF NOT EXISTS rel (FROM node TO node);")
 
             t0 = time.time()
-            conn.execute(f'COPY node FROM "{v_file}" (HEADER=false);')
+            conn.execute(f'COPY node FROM "{v_file.as_posix()}" (HEADER=false);')
             results["load_node"] = time.time() - t0
             print(f"[load] node {results['load_node']:.3f}s", flush=True)
 
             t0 = time.time()
             if edge_delim == " ":
-                conn.execute(f'COPY rel FROM "{e_file}" (HEADER=false, DELIMITER=" ");')
+                conn.execute(f'COPY rel FROM "{e_file.as_posix()}" (HEADER=false, DELIMITER=" ");')
             else:
-                conn.execute(f'COPY rel FROM "{e_file}" (HEADER=false);')
+                conn.execute(f'COPY rel FROM "{e_file.as_posix()}" (HEADER=false);')
             results["load_rel"] = time.time() - t0
             print(f"[load] rel  {results['load_rel']:.3f}s", flush=True)
 

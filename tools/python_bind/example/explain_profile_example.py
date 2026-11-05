@@ -61,7 +61,7 @@ def load_sample_data(conn):
     # Create temporary directory for CSV files
     with tempfile.TemporaryDirectory() as tmpdir:
         # Create person.csv
-        person_csv = os.path.join(tmpdir, "person.csv")
+        person_csv = os.path.join(tmpdir, "person.csv").replace(os.sep, "/")
         with open(person_csv, "w") as f:
             f.write("id|name|age\n")
             f.write("1|marko|29\n")
@@ -70,14 +70,14 @@ def load_sample_data(conn):
             f.write("4|peter|35\n")
 
         # Create software.csv
-        software_csv = os.path.join(tmpdir, "software.csv")
+        software_csv = os.path.join(tmpdir, "software.csv").replace(os.sep, "/")
         with open(software_csv, "w") as f:
             f.write("id|name|lang\n")
             f.write("10|lop|java\n")
             f.write("11|ripple|java\n")
 
         # Create knows.csv
-        knows_csv = os.path.join(tmpdir, "knows.csv")
+        knows_csv = os.path.join(tmpdir, "knows.csv").replace(os.sep, "/")
         with open(knows_csv, "w") as f:
             f.write("from|to|weight\n")
             f.write("1|2|0.5\n")
@@ -86,7 +86,7 @@ def load_sample_data(conn):
             f.write("3|4|0.4\n")
 
         # Create created.csv
-        created_csv = os.path.join(tmpdir, "created.csv")
+        created_csv = os.path.join(tmpdir, "created.csv").replace(os.sep, "/")
         with open(created_csv, "w") as f:
             f.write("from|to|weight\n")
             f.write("1|10|0.4\n")
