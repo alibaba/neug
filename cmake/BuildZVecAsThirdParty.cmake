@@ -114,14 +114,9 @@ function(build_zvec_as_third_party)
 
     # ZVec currently creates several common third-party targets unconditionally.
     # Build it in an isolated CMake project to avoid collisions with NeuG targets.
-    set(_zvec_auto_detect_arch OFF)
-    if(CMAKE_SYSTEM_NAME MATCHES "^(Linux|Darwin|Windows)$"
-       AND CMAKE_SYSTEM_PROCESSOR MATCHES "^(x86_64|amd64|AMD64|x86|i[3-6]86)$")
-        # ZVec's RaBitQ and Turbo kernels require per-source SIMD flags on x86.
-        # This also enables MSVC's /arch flags; without them, Turbo's runtime
-        # dispatch can select AVX2/AVX512 kernels compiled as no-op stubs.
-        set(_zvec_auto_detect_arch ON)
-    endif()
+    # Let ZVec select SIMD compiler flags for each target architecture.
+    # Without them, runtime dispatch can select kernels built as no-op stubs.
+    set(_zvec_auto_detect_arch ON)
 
     # ZVec disables RaBitQ on Windows ARM64 but still supports ordinary HNSW.
     string(TOLOWER "${CMAKE_SYSTEM_PROCESSOR}" _zvec_target_processor)
