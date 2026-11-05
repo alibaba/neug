@@ -98,6 +98,7 @@ def resolve(platforms="all", python_versions="all"):
         dev_image=f"{REGISTRY}/neug-dev:2026.03.13-2",
         verify_java="java" in selected,
         packaging_python="3.13",
+        wheel_host_python="3.11",
     )
 
 
