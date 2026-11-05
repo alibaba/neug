@@ -19,9 +19,36 @@ jobs:
   ci-plan:
     uses: ./.github/workflows/ci-plan.yml
 
+  # Locate a prior successful dry-run of package.yml on this exact commit so the
+  # release can publish already-built-and-verified artifacts instead of
+  # rebuilding identical code. Best-effort: any doubt falls back to a full
+  # rebuild in the package job below.
+  resolve-reuse:
+    name: Resolve Reusable Dry-Run
+    needs: ci-plan
+    runs-on: ubuntu-22.04
+    # Best-effort lookup: never let a resolve failure (e.g. a checkout error)
+    # block the release. On any failure reuse_run_id stays empty and the
+    # package job below rebuilds from source.
+    continue-on-error: true
+    permissions:
+      contents: read
+      actions: read
+    outputs:
+      reuse_run_id: ${{ steps.resolve.outputs.reuse_run_id }}
+    steps:
+    - uses: actions/checkout@v4
+    - name: Find Reusable Package Run
+      id: resolve
+      env:
+        GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        PLAN: ${{ needs.ci-plan.outputs.plan }}
+      run: python3 scripts/resolve_reuse.py || echo "::warning::dry-run lookup failed; rebuilding"
+
   package:
     name: Build and Verify Release Packages
-    needs: ci-plan
+    needs: [ci-plan, resolve-reuse]
+    if: needs.resolve-reuse.outputs.reuse_run_id == ''
     uses: ./.github/workflows/package.yml
     with:
       plan: ${{ needs.ci-plan.outputs.plan }}
@@ -29,8 +56,12 @@ jobs:
 
   publish_wheel:
     name: Publish Wheel
-    needs: package
-    if: github.repository == 'alibaba/neug' && github.event_name == 'release' && github.event.action == 'published'
+    needs: [ci-plan, resolve-reuse, package]
+    if: >-
+      !cancelled() && needs.ci-plan.result == 'success' &&
+      github.repository == 'alibaba/neug' &&
+      github.event_name == 'release' && github.event.action == 'published' &&
+      (needs.package.result == 'success' || needs.package.result == 'skipped')
     runs-on: ubuntu-22.04
     permissions:
       contents: read
@@ -43,12 +74,14 @@ jobs:
     - uses: actions/checkout@v4
     - uses: actions/setup-python@v5
       with:
-        python-version: ${{ fromJSON(needs.package.outputs.plan).packaging_python }}
+        python-version: ${{ fromJSON(needs.ci-plan.outputs.plan).packaging_python }}
     - uses: actions/download-artifact@v4
       with:
-        pattern: wheels-*${{ github.run_id }}
+        pattern: wheels-*${{ needs.resolve-reuse.outputs.reuse_run_id || github.run_id }}
         path: downloaded
         merge-multiple: true
+        github-token: ${{ secrets.GITHUB_TOKEN }}
+        run-id: ${{ needs.resolve-reuse.outputs.reuse_run_id || github.run_id }}
 
     # ========================================
     # Phase 2: Publish
@@ -69,11 +102,16 @@ jobs:
 
   publish_npm:
     name: Publish npm
-    needs: package
-    if: github.repository == 'alibaba/neug' && github.event_name == 'release' && github.event.action == 'published'
+    needs: [ci-plan, resolve-reuse, package]
+    if: >-
+      !cancelled() && needs.ci-plan.result == 'success' &&
+      github.repository == 'alibaba/neug' &&
+      github.event_name == 'release' && github.event.action == 'published' &&
+      (needs.package.result == 'success' || needs.package.result == 'skipped')
     runs-on: ubuntu-22.04
     permissions:
       contents: read
+      actions: read
       id-token: write
     steps:
     # ========================================
@@ -93,9 +131,11 @@ jobs:
     - name: Download npm Tarballs
       uses: actions/download-artifact@v4
       with:
-        pattern: nodejs-*-${{ github.run_id }}
+        pattern: nodejs-*-${{ needs.resolve-reuse.outputs.reuse_run_id || github.run_id }}
         path: dist/npm
         merge-multiple: true
+        github-token: ${{ secrets.GITHUB_TOKEN }}
+        run-id: ${{ needs.resolve-reuse.outputs.reuse_run_id || github.run_id }}
 
     - name: List npm Tarballs
       shell: bash
@@ -109,7 +149,7 @@ jobs:
     - name: Publish npm Packages
       shell: bash
       env:
-        CI_PLAN: ${{ needs.package.outputs.plan }}
+        CI_PLAN: ${{ needs.ci-plan.outputs.plan }}
         NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
         RELEASE_TAG: ${{ github.event_name == 'release' && github.event.release.tag_name || github.ref_name }}
       run: |
@@ -137,13 +177,17 @@ jobs:
 
   publish_extension:
     name: Publish Extension / ${{ matrix.platform }}
-    needs: package
-    if: github.repository == 'alibaba/neug' && github.event_name == 'release' && github.event.action == 'published'
+    needs: [ci-plan, resolve-reuse, package]
+    if: >-
+      !cancelled() && needs.ci-plan.result == 'success' &&
+      github.repository == 'alibaba/neug' &&
+      github.event_name == 'release' && github.event.action == 'published' &&
+      (needs.package.result == 'success' || needs.package.result == 'skipped')
     runs-on: ubuntu-22.04
     strategy:
       fail-fast: false
       matrix:
-        include: ${{ fromJSON(needs.package.outputs.plan).matrix }}
+        include: ${{ fromJSON(needs.ci-plan.outputs.plan).matrix }}
     permissions:
       contents: read
       actions: read
@@ -155,12 +199,14 @@ jobs:
     - uses: actions/checkout@v4
     - uses: actions/setup-python@v5
       with:
-        python-version: ${{ fromJSON(needs.package.outputs.plan).packaging_python }}
+        python-version: ${{ fromJSON(needs.ci-plan.outputs.plan).packaging_python }}
     - uses: actions/download-artifact@v4
       with:
         pattern: extension-packages-${{ matrix.platform }}-*
         path: extension_packages
         merge-multiple: true
+        github-token: ${{ secrets.GITHUB_TOKEN }}
+        run-id: ${{ needs.resolve-reuse.outputs.reuse_run_id || github.run_id }}
 
     - name: Install OSS Client
       shell: bash
@@ -205,8 +251,12 @@ jobs:
 
   publish_java:
     name: Publish Java
-    needs: package
-    if: github.repository == 'alibaba/neug' && github.event_name == 'release' && github.event.action == 'published'
+    needs: [ci-plan, resolve-reuse, package]
+    if: >-
+      !cancelled() && needs.ci-plan.result == 'success' &&
+      github.repository == 'alibaba/neug' &&
+      github.event_name == 'release' && github.event.action == 'published' &&
+      (needs.package.result == 'success' || needs.package.result == 'skipped')
     runs-on: ubuntu-22.04
     permissions:
       contents: read
@@ -219,8 +269,10 @@ jobs:
 
     - uses: actions/download-artifact@v4
       with:
-        name: java-publication-${{ github.run_id }}
+        name: java-publication-${{ needs.resolve-reuse.outputs.reuse_run_id || github.run_id }}
         path: publication
+        github-token: ${{ secrets.GITHUB_TOKEN }}
+        run-id: ${{ needs.resolve-reuse.outputs.reuse_run_id || github.run_id }}
 
     - name: Publish Prepared Central Bundle
       shell: bash
@@ -231,11 +283,25 @@ jobs:
         set -euo pipefail
         python3 - <<'PY'
         import hashlib
+        import zipfile
         from pathlib import Path
         bundle = Path('publication/central-bundle.zip')
         expected = bundle.with_suffix('.zip.sha256').read_text().strip()
         if hashlib.sha256(bundle.read_bytes()).hexdigest() != expected:
             raise RuntimeError('Publication bundle SHA256 mismatch')
+        # Central rejects unsigned deployments. A reused dry-run bundle must
+        # carry a GPG signature (.asc) for every published .jar and .pom; fail
+        # here rather than uploading a bundle Central will refuse.
+        entries = zipfile.ZipFile(bundle).namelist()
+        present = set(entries)
+        unsigned = [
+            e for e in entries
+            if e.endswith(('.jar', '.pom')) and e + '.asc' not in present
+        ]
+        if unsigned:
+            raise RuntimeError(
+                'Publication bundle missing GPG signatures: ' + ', '.join(unsigned)
+            )
         PY
         token=$(printf '%s:%s' "$MAVEN_CENTRAL_USERNAME" "$MAVEN_CENTRAL_PASSWORD" | base64 | tr -d '\n')
         echo "::add-mask::$token"
@@ -257,16 +323,24 @@ jobs:
         exit 1
 
   verify_published:
-    needs: [package, publish_wheel, publish_npm, publish_extension, publish_java]
+    needs: [ci-plan, package, publish_wheel, publish_npm, publish_extension, publish_java]
+    if: >-
+      !cancelled() &&
+      (needs.package.result == 'success' || needs.package.result == 'skipped') &&
+      needs.publish_wheel.result == 'success' &&
+      needs.publish_npm.result == 'success' &&
+      needs.publish_extension.result == 'success' &&
+      needs.publish_java.result == 'success'
     uses: ./.github/workflows/verify-published.yml
     with:
       version: ${{ github.event.release.tag_name }}
-      plan: ${{ needs.package.outputs.plan }}
+      plan: ${{ needs.ci-plan.outputs.plan }}
 
   report:
     if: always()
     needs:
       - ci-plan
+      - resolve-reuse
       - package
       - publish_wheel
       - publish_npm
