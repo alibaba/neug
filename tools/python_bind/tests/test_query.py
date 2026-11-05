@@ -371,6 +371,28 @@ def test_string_property_cannot_be_compared_with_node(
     assert "LABELS(" not in message
 
 
+def test_single_argument_properties_raises_clean_error(empty_db):
+    # Regression test for #1100: the single-argument form properties(n) is
+    # unsupported (PROPERTIES is a two-argument path function). It used to
+    # segfault the whole process while rendering the "supported inputs" binder
+    # error, because the function's bare LIST parameter type has no child type
+    # info. It must instead raise a clean, catchable compilation error,
+    # consistent with other unsupported functions such as keys(n) / type(r).
+    _, conn = empty_db
+    conn.execute(
+        "CREATE NODE TABLE N(id STRING PRIMARY KEY, name STRING);",
+        access_mode="schema",
+    )
+
+    with pytest.raises(Exception) as excinfo:
+        conn.execute("MATCH (n:N) RETURN properties(n)", access_mode="read")
+
+    message = str(excinfo.value)
+    assert str(ERR_COMPILATION) in message
+    assert "Cannot match a built-in function" in message
+    assert "PROPERTIES" in message
+
+
 def test_cross_match_where_followed_by_unwind(empty_db):
     _, conn = empty_db
     conn.execute(

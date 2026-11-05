@@ -197,6 +197,144 @@ def test_import_type_conversion_overflow(tmp_path):
     db.close()
 
 
+# DB-005-04b
+# Regression test for issue #1125: COPY FROM (LOAD FROM ...) must not silently
+# write garbage when a source column's type differs from the target column type.
+def test_copy_from_subquery_type_mismatch_raises(tmp_path):
+    db_dir = tmp_path / "copy_subquery_type_mismatch"
+    db_dir.mkdir()
+    db = Database(db_path=str(db_dir), mode="w")
+    conn = db.connect()
+    conn.execute(
+        "CREATE NODE TABLE bad_typed(id INT64 PRIMARY KEY, name INT64, price DOUBLE);"
+    )
+    csv_path = tmp_path / "item.csv"
+    with open(csv_path, "w") as f:
+        f.write("id|name|price\n1|apple|1.5\n2|banana|2.5\n")
+    # `name` is STRING in the source but INT64 in the target: no implicit cast
+    # exists, so COPY must reject it at bind time (ERR_TYPE_CONVERSION naming the
+    # column and both types) rather than reinterpret the raw bytes.
+    with pytest.raises(Exception) as excinfo:
+        conn.execute(
+            f'COPY bad_typed FROM (LOAD FROM "{Path(csv_path).as_posix()}" '
+            '(delim="|", header=true) RETURN id, name, price);'
+        )
+    assert str(ERR_TYPE_CONVERSION) in str(excinfo.value)
+    conn.close()
+    db.close()
+
+
+# DB-005-04c
+# Companion to #1125: a *compatible* source/target type mismatch must be cast to
+# the target type (previously the raw source buffer was reinterpreted, corrupting
+# the stored value).
+def test_copy_from_subquery_compatible_cast(tmp_path):
+    db_dir = tmp_path / "copy_subquery_compatible_cast"
+    db_dir.mkdir()
+    db = Database(db_path=str(db_dir), mode="w")
+    conn = db.connect()
+    conn.execute("CREATE NODE TABLE good_typed(id INT64 PRIMARY KEY, count DOUBLE);")
+    csv_path = tmp_path / "count.csv"
+    with open(csv_path, "w") as f:
+        f.write("id|count\n1|100\n2|250\n")
+    # `count` is sniffed as INT64 by LOAD FROM but the target column is DOUBLE.
+    conn.execute(
+        f'COPY good_typed FROM (LOAD FROM "{Path(csv_path).as_posix()}" '
+        '(delim="|", header=true) RETURN id, count);'
+    )
+    rows = [
+        list(r)
+        for r in conn.execute(
+            "MATCH (n:good_typed) RETURN n.id, n.count ORDER BY n.id;"
+        )
+    ]
+    assert rows == [[1, 100.0], [2, 250.0]]
+    conn.close()
+    db.close()
+
+
+# DB-005-04d
+# Regression test for issue #1125 on the *relationship* COPY path: an edge
+# property whose source type is incompatible with the target column type must be
+# rejected at bind time, exactly like the node path. The rel path also carries
+# src/dst key columns (positions 0 and 1), so this guards the positional cast
+# wiring in bindCopyRelFrom against the key columns.
+def test_copy_rel_from_subquery_type_mismatch_raises(tmp_path):
+    db_dir = tmp_path / "copy_rel_subquery_type_mismatch"
+    db_dir.mkdir()
+    db = Database(db_path=str(db_dir), mode="w")
+    conn = db.connect()
+    try:
+        conn.execute("CREATE NODE TABLE person(id INT64, PRIMARY KEY(id));")
+        person_csv = tmp_path / "person.csv"
+        with open(person_csv, "w") as f:
+            f.write("id\n1\n2\n")
+        conn.execute(f'COPY person FROM "{person_csv.as_posix()}" (header=true);')
+        # Target edge property `note` is INT64.
+        conn.execute("CREATE REL TABLE knows(FROM person TO person, note INT64);")
+        edge_csv = tmp_path / "knows.csv"
+        with open(edge_csv, "w") as f:
+            # `note` is STRING in the source but INT64 in the target.
+            f.write("src|dst|note\n1|2|hello\n")
+        # No implicit cast exists STRING -> INT64, so COPY must reject it at bind
+        # time (ERR_TYPE_CONVERSION naming the column and both types) rather than
+        # reinterpret the raw bytes.
+        with pytest.raises(Exception) as excinfo:
+            conn.execute(
+                f'COPY knows FROM (LOAD FROM "{edge_csv.as_posix()}" '
+                '(delim="|", header=true) RETURN src, dst, note) '
+                '(from="person", to="person");'
+            )
+        assert str(ERR_TYPE_CONVERSION) in str(excinfo.value)
+    finally:
+        conn.close()
+        db.close()
+
+
+# DB-005-04e
+# Companion to #1125 on the *relationship* COPY path: a *compatible* edge
+# property type mismatch (source INT64 -> target DOUBLE) must be cast to the
+# target type and stored correctly. Unlike the node path, the rel projection
+# must keep the src/dst key columns (positions 0 and 1) aligned with the
+# property columns, so this pins the whole chain end to end: projection
+# materialization -> positional mapping -> BatchInsertEdge.
+def test_copy_rel_from_subquery_compatible_cast(tmp_path):
+    db_dir = tmp_path / "copy_rel_subquery_compatible_cast"
+    db_dir.mkdir()
+    db = Database(db_path=str(db_dir), mode="w")
+    conn = db.connect()
+    try:
+        conn.execute("CREATE NODE TABLE person(id INT64, PRIMARY KEY(id));")
+        person_csv = tmp_path / "person.csv"
+        with open(person_csv, "w") as f:
+            f.write("id\n1\n2\n")
+        conn.execute(f'COPY person FROM "{person_csv.as_posix()}" (header=true);')
+        # Target edge property `weight` is DOUBLE.
+        conn.execute("CREATE REL TABLE knows(FROM person TO person, weight DOUBLE);")
+        edge_csv = tmp_path / "knows.csv"
+        with open(edge_csv, "w") as f:
+            # `weight` is sniffed as INT64 by LOAD FROM but the target is DOUBLE,
+            # while the src/dst key columns already match INT64: the projection
+            # must pass the keys through by reference and cast only `weight`.
+            f.write("src|dst|weight\n1|2|100\n2|1|250\n")
+        conn.execute(
+            f'COPY knows FROM (LOAD FROM "{edge_csv.as_posix()}" '
+            '(delim="|", header=true) RETURN src, dst, weight) '
+            '(from="person", to="person");'
+        )
+        rows = [
+            list(r)
+            for r in conn.execute(
+                "MATCH (a:person)-[k:knows]->(b:person) "
+                "RETURN a.id, b.id, k.weight ORDER BY a.id, b.id;"
+            )
+        ]
+        assert rows == [[1, 2, 100.0], [2, 1, 250.0]]
+    finally:
+        conn.close()
+        db.close()
+
+
 def test_import_string_pk(tmp_path):
     db_dir = tmp_path / "import_type"
     db_dir.mkdir()
