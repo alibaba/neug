@@ -56,7 +56,7 @@ function(build_zvec_as_third_party)
         _neug_apply_patch("${ZVEC_SOURCE_DIR}" "${_zvec_patch}" "zvec.patch")
     endif()
 
-    # GCC 10 in the manylinux image lacks _mm_storeu_si32.
+    # GCC 10 in the manylinux image lacks _mm_loadu_si32/_mm_storeu_si32.
     _neug_apply_patch(
         "${ZVEC_SOURCE_DIR}/thirdparty/RaBitQ-Library/RaBitQ-Library-0.7.0"
         "${CMAKE_SOURCE_DIR}/third_party/rabitq.patch"

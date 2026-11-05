@@ -16,3 +16,42 @@ diff --git a/src/simd/pack_excode_kernels.hpp b/src/simd/pack_excode_kernels.hpp
          }
          if constexpr (Bits % 2 != 0) {
              const auto last = static_cast<uint16_t>(_mm_extract_epi16(packed, Bits - 1));
+diff --git a/src/simd/packed_tail_avx2.hpp b/src/simd/packed_tail_avx2.hpp
+--- a/src/simd/packed_tail_avx2.hpp
++++ b/src/simd/packed_tail_avx2.hpp
+@@ -10,24 +10,31 @@
+ namespace rabitqlib::simd::detail {
++// GCC 10 lacks _mm_loadu_si32. Read exactly four bytes and zero the upper lanes.
++inline __m128i load_excode_word(const uint8_t* compact) {
++    int32_t word;
++    std::memcpy(&word, compact, sizeof(word));
++    return _mm_cvtsi32_si128(word);
++}
++
+ // Read exactly 2 * Bits bytes for 16 codes. Staging short stores through a
+ // 16-byte stack buffer blocks store forwarding on the following vector load.
+ template <size_t Bits>
+ inline __m128i load_excode_tail(const uint8_t* compact) {
+     static_assert(Bits == 2 || Bits == 3 || Bits == 5 || Bits == 6 || Bits == 7);
+     if constexpr (Bits == 2) {
+-        return _mm_loadu_si32(compact);
++        return load_excode_word(compact);
+     } else if constexpr (Bits == 3) {
+         uint16_t high;
+         std::memcpy(&high, compact + 4, sizeof(high));
+-        return _mm_insert_epi16(_mm_loadu_si32(compact), high, 2);
++        return _mm_insert_epi16(load_excode_word(compact), high, 2);
+     } else if constexpr (Bits == 5) {
+         uint16_t high;
+         std::memcpy(&high, compact + 8, sizeof(high));
+         return _mm_insert_epi16(_mm_loadu_si64(compact), high, 4);
+     } else if constexpr (Bits == 6) {
+-        return _mm_unpacklo_epi64(_mm_loadu_si64(compact), _mm_loadu_si32(compact + 8));
++        return _mm_unpacklo_epi64(_mm_loadu_si64(compact), load_excode_word(compact + 8));
+     } else {
+         uint16_t high;
+         std::memcpy(&high, compact + 12, sizeof(high));
+-        const __m128i upper = _mm_insert_epi16(_mm_loadu_si32(compact + 8), high, 2);
++        const __m128i upper = _mm_insert_epi16(load_excode_word(compact + 8), high, 2);
+         return _mm_unpacklo_epi64(_mm_loadu_si64(compact), upper);
+     }
