@@ -298,6 +298,25 @@ COPY Person FROM "person.parquet";
 
 Since `COPY FROM` builds on `LOAD FROM`, you can use a `LOAD FROM` subquery to **preprocess data before persisting** — including column reordering, renaming, type casting, and filtering.
 
+### Column Type Matching
+
+`COPY FROM` maps source columns to target columns **by position, not by name**: the first column returned by the subquery fills the first column of the table (for relationship tables, positions 0 and 1 are the source and destination keys), the second fills the second, and so on.
+
+For each position, the source column's type is reconciled with the target column's type:
+
+- **Identical types** are passed through unchanged.
+- **Compatible types** (e.g. an `INT64` source column targeting a `DOUBLE` column) are automatically cast to the target type.
+- **Incompatible types** (e.g. a `STRING` source column targeting an `INT64` column) have no implicit cast, so `COPY` is rejected at bind time with an `ERR_TYPE_CONVERSION` error naming the column and both types.
+
+> **Note:** Automatic casting for compatible types and rejection of incompatible types were introduced together. In earlier versions, a type mismatch in a `LOAD FROM` subquery would silently reinterpret the raw source bytes and store a corrupted value. If a `COPY` that previously "worked" now fails with `ERR_TYPE_CONVERSION`, add an explicit `CAST` in the `RETURN` clause to convert the column to the target type:
+
+```cypher
+COPY Person FROM (
+    LOAD FROM "person.csv"
+    RETURN id, name, CAST(age, 'INT64') AS age
+);
+```
+
 ### Reordering Columns
 
 When the file columns are in a different order from the table schema:
