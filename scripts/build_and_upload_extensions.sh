@@ -78,10 +78,10 @@ Environment variables required for OSS upload:
 
 Examples:
     # Build json extension and upload
-    $0 --extensions json --version v0.3.0 --platform linux-x86_64
+    $0 --extensions json --version 0.3.0 --platform linux-x86_64
 
     # Build multiple extensions
-    $0 --extensions "json;csv" --version v0.3.0
+    $0 --extensions "json;csv" --version 0.3.0
 
     # Only package and upload (skip build)
     $0 --extensions json --skip-build
