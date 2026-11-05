@@ -377,15 +377,53 @@ jobs:
         assert all(job['result'] in ('success', 'skipped') for job in results.values()), results
         PYCODE
 
-    - name: Notify Package Results
-      if: always()
+    - name: Send DingTalk notification
+      # Only notify for standalone package runs (the Monday dry-run schedule and
+      # manual dispatches). When package.yml is reused by release.yml the event
+      # is `release`, and release.yml already sends one consolidated
+      # [Release Report]; notifying here too would double-post to the group.
+      if: >-
+        always() && github.repository == 'alibaba/neug' &&
+        (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch')
       env:
         DINGTALK_TOKEN: ${{ secrets.DINGTALK_TOKEN }}
       run: |
-        set -euo pipefail
-        if [ -n "$DINGTALK_TOKEN" ] && [ "$GITHUB_REPOSITORY" = alibaba/neug ]; then
-          text="NeuG CI: $GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"
-          curl --fail -sS -X POST "https://oapi.dingtalk.com/robot/send?access_token=$DINGTALK_TOKEN" \
-            -H 'Content-Type: application/json' \
-            -d "{\"msgtype\":\"text\",\"text\":{\"content\":\"$text\"}}"
+        if [ -z "$DINGTALK_TOKEN" ]; then
+          echo "DINGTALK_TOKEN not set, skipping notification."
+          exit 0
+        fi
+        WEBHOOK_URL="https://oapi.dingtalk.com/robot/send?access_token=${DINGTALK_TOKEN}"
+        STATUS_INITIALIZE="${{ needs.initialize.result }}"
+        STATUS_LINUX_WHEEL="${{ needs.linux_wheel.result }}"
+        STATUS_LINUX_NPM="${{ needs.linux-npm.result }}"
+        STATUS_MACOS="${{ needs.macos.result }}"
+        STATUS_WINDOWS="${{ needs.windows.result }}"
+        STATUS_JAVA="${{ needs.java.result }}"
+        STATUS_NPM_MAIN="${{ needs.npm-main.result }}"
+        STATUS_VERIFY="${{ needs.verify.result }}"
+        # A package run passes unless a stage actually failed or was cancelled;
+        # a legitimately skipped stage (a platform not selected by the plan)
+        # must not be reported as a failure.
+        STATUSES=" $STATUS_INITIALIZE $STATUS_LINUX_WHEEL $STATUS_LINUX_NPM $STATUS_MACOS $STATUS_WINDOWS $STATUS_JAVA $STATUS_NPM_MAIN $STATUS_VERIFY "
+        if [[ "$STATUSES" == *" failure "* || "$STATUSES" == *" cancelled "* ]]; then
+          TITLE="[Package Report] NeuG CI Failed"
+        else
+          TITLE="[Package Report] NeuG CI Passed"
+        fi
+        RESP=$(curl -s -X POST "$WEBHOOK_URL" \
+          -H 'Content-Type: application/json' \
+          -d "{
+            \"msgtype\": \"markdown\",
+            \"markdown\": {
+              \"title\": \"$TITLE\",
+              \"text\": \"## $TITLE\\n\\n- **initialize**: ${STATUS_INITIALIZE}\\n- **linux_wheel**: ${STATUS_LINUX_WHEEL}\\n- **linux-npm**: ${STATUS_LINUX_NPM}\\n- **macos**: ${STATUS_MACOS}\\n- **windows**: ${STATUS_WINDOWS}\\n- **java**: ${STATUS_JAVA}\\n- **npm-main**: ${STATUS_NPM_MAIN}\\n- **verify**: ${STATUS_VERIFY}\\n- **Repo**: ${{ github.repository }}\\n- **Branch**: ${{ github.ref_name }}\\n- **Commit**: ${{ github.sha }}\\n- [View Run](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})\"
+            }
+          }")
+        echo "DingTalk response: $RESP"
+        # DingTalk signals rejection (keyword filter 310000, rate limit 130101,
+        # invalid token, ...) via HTTP 200 + errcode != 0, which curl --fail
+        # cannot catch. Surface it as a warning so the silent-drop failure mode
+        # stays visible, without failing the package complete job.
+        if ! echo "$RESP" | grep -q '"errcode":0'; then
+          echo "::warning::DingTalk rejected the notification: $RESP"
         fi

@@ -23,30 +23,18 @@
 #pragma once
 
 #include <memory>
-#include "index_look_up_info.h"
 #include "neug/compiler/binder/bound_scan_source.h"
 #include "neug/compiler/binder/ddl/bound_create_table_info.h"
 #include "neug/compiler/binder/expression/expression.h"
 #include "neug/compiler/binder/expression_binder.h"
 #include "neug/compiler/catalog/catalog_entry/node_table_catalog_entry.h"
 #include "neug/compiler/catalog/catalog_entry/table_catalog_entry.h"
-#include "neug/compiler/common/enums/column_evaluate_type.h"
 #include "neug/compiler/common/types/types.h"
 #include "neug/compiler/gopt/g_rel_table_entry.h"
 #include "neug/storages/graph/schema.h"
 
 namespace neug {
 namespace binder {
-
-struct ExtraBoundCopyFromInfo {
-  virtual ~ExtraBoundCopyFromInfo() = default;
-  virtual std::unique_ptr<ExtraBoundCopyFromInfo> copy() const = 0;
-
-  template <class TARGET>
-  const TARGET& constCast() const {
-    return common::neug_dynamic_cast<const TARGET&>(*this);
-  }
-};
 
 // Supplemental DDL for COPY when the target vertex/edge type is inferred from
 // scan columns (not parser::ExtraCreateTableInfo — that name lives in parser
@@ -110,23 +98,25 @@ struct NEUG_API BoundCopyFromInfo {
   // Row offset.
   std::shared_ptr<Expression> offset;
   expression_vector columnExprs;
-  std::vector<common::ColumnEvaluateType> columnEvaluateTypes;
-  std::unique_ptr<ExtraBoundCopyFromInfo> extraInfo;
+  // Per-column expressions to materialize before the copy operator when a
+  // source column's type differs from the target column's type. Empty when no
+  // cast is required (all columns are passed through by reference). When set,
+  // the planner appends a projection over these expressions so that mismatched
+  // columns are cast (raising ERR_TYPE_CONVERSION on incompatible values)
+  // instead of being reinterpreted as raw bytes by storage. This projection is
+  // the single mechanism that reconciles source/target column types for COPY.
+  expression_vector columnCastExprs;
   // extra table info to create vertex or edge type from inferred results
   std::shared_ptr<DDLTableInfo> ddlTableInfo;
 
   BoundCopyFromInfo(SchemaEntry* tableEntry,
                     std::unique_ptr<BoundBaseScanSource> source,
                     std::shared_ptr<Expression> offset,
-                    expression_vector columnExprs,
-                    std::vector<common::ColumnEvaluateType> columnEvaluateTypes,
-                    std::unique_ptr<ExtraBoundCopyFromInfo> extraInfo)
+                    expression_vector columnExprs)
       : tableEntry{tableEntry},
         source{std::move(source)},
         offset{std::move(offset)},
         columnExprs{std::move(columnExprs)},
-        columnEvaluateTypes{std::move(columnEvaluateTypes)},
-        extraInfo{std::move(extraInfo)},
         ddlTableInfo{nullptr} {}
 
   // to support vertex or edge type not exist in catalog
@@ -135,8 +125,6 @@ struct NEUG_API BoundCopyFromInfo {
   BoundCopyFromInfo(std::unique_ptr<BoundBaseScanSource> source,
                     std::shared_ptr<Expression> offset,
                     expression_vector columnExprs,
-                    std::vector<common::ColumnEvaluateType> columnEvaluateTypes,
-                    std::unique_ptr<ExtraBoundCopyFromInfo> extraInfo,
                     std::unique_ptr<DDLTableInfo> extraTableInfo);
 
   EXPLICIT_COPY_DEFAULT_MOVE(BoundCopyFromInfo);
@@ -155,33 +143,12 @@ struct NEUG_API BoundCopyFromInfo {
   BoundCopyFromInfo(const BoundCopyFromInfo& other)
       : offset{other.offset},
         columnExprs{other.columnExprs},
-        columnEvaluateTypes{other.columnEvaluateTypes} {
+        columnCastExprs{other.columnCastExprs} {
     // ref to table entry in catalog or ddl table info
     tableEntry = other.tableEntry;
     // Shadow copy of ddl table info to avoid extra overhead
     ddlTableInfo = other.ddlTableInfo;
     source = other.source ? other.source->copy() : nullptr;
-    if (other.extraInfo) {
-      extraInfo = other.extraInfo->copy();
-    }
-  }
-};
-
-struct ExtraBoundCopyRelInfo final : ExtraBoundCopyFromInfo {
-  // We process internal ID column as offset (INT64) column until partitioner.
-  // In partitioner, we need to manually change offset(INT64) type to internal
-  // ID type.
-  std::vector<common::idx_t> internalIDColumnIndices;
-  std::vector<IndexLookupInfo> infos;
-
-  ExtraBoundCopyRelInfo(std::vector<common::idx_t> internalIDColumnIndices,
-                        std::vector<IndexLookupInfo> infos)
-      : internalIDColumnIndices{std::move(internalIDColumnIndices)},
-        infos{std::move(infos)} {}
-  ExtraBoundCopyRelInfo(const ExtraBoundCopyRelInfo& other) = default;
-
-  std::unique_ptr<ExtraBoundCopyFromInfo> copy() const override {
-    return std::make_unique<ExtraBoundCopyRelInfo>(*this);
   }
 };
 
