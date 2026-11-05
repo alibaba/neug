@@ -57,7 +57,9 @@ else()
         zvec_ailego_static
         zvec_turbo_static)
 endif()
-target_link_libraries(neug_vector_search_extension PRIVATE zvec_rabitq_fastscan)
+if(TARGET zvec_rabitq_fastscan)
+    target_link_libraries(neug_vector_search_extension PRIVATE zvec_rabitq_fastscan)
+endif()
 add_dependencies(neug_vector_search_extension zvec_external)
 
 # to trigger extension CI workflow

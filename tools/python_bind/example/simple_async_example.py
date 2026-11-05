@@ -32,8 +32,10 @@ logger.setLevel(logging.INFO)
 
 
 async def create_graph(conn: AsyncConnection, data_dir: str):
-    person_csv = os.path.join(data_dir, "person.csv")
-    person_knows_person_csv = os.path.join(data_dir, "person_knows_person.csv")
+    person_csv = os.path.join(data_dir, "person.csv").replace(os.sep, "/")
+    person_knows_person_csv = os.path.join(data_dir, "person_knows_person.csv").replace(
+        os.sep, "/"
+    )
 
     # First create the graph schema, should be sequential.
     await conn.execute(
