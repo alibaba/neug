@@ -28,6 +28,7 @@ For pure install/load coverage see tests/test_extension_install_load.py.
 import os
 
 import pytest
+from conftest import cypher_path
 
 from neug.database import Database
 
@@ -74,9 +75,9 @@ def test_extension_parquet(tmp_path):
 
         parquet_path = os.path.join(db_dir, "person.parquet")
         conn.execute(
-            f'COPY (MATCH (p:person) RETURN p.id, p.name, p.age) TO "{parquet_path}";'
+            f"COPY (MATCH (p:person) RETURN p.id, p.name, p.age) TO {cypher_path(parquet_path)};"
         )
-        rows = list(conn.execute(f'LOAD FROM "{parquet_path}" RETURN *;'))
+        rows = list(conn.execute(f"LOAD FROM {cypher_path(parquet_path)} RETURN *;"))
         assert len(rows) == 2
     finally:
         conn.close()

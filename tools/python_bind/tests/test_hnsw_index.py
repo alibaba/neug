@@ -22,6 +22,7 @@ import sys
 import textwrap
 
 import pytest
+from conftest import cypher_path
 
 from neug import Database
 
@@ -748,7 +749,7 @@ def test_documented_vector_import_examples(tmp_path, file_format):
             )
             conn.execute("LOAD parquet;")
         conn.execute(
-            f'COPY vector_node FROM (LOAD FROM "{path}" '
+            f"COPY vector_node FROM (LOAD FROM {cypher_path(path)} "
             "RETURN id, CAST(vec, 'FLOAT[4]') AS vec);"
         )
         assert list(conn.execute("MATCH (n:vector_node) RETURN count(n);"))[0][0] == 2
@@ -1093,7 +1094,7 @@ def test_auto_load_extension_restores_index_in_new_process(tmp_path):
             "WITH (metric = 'l2');"
         )
         conn.execute(
-            f'COPY Item FROM (LOAD FROM "{csv_path.as_posix()}" '
+            f"COPY Item FROM (LOAD FROM {cypher_path(csv_path)} "
             "RETURN id, CAST(embedding, 'FLOAT[4]') AS embedding);"
         )
         assert list(conn.execute("MATCH (n:Item) RETURN count(n);")) == [[3]]
