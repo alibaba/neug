@@ -19,7 +19,7 @@ import sys
 import textwrap
 
 import pytest
-from conftest import wait_for_server_ready
+from conftest import cypher_path, wait_for_server_ready
 
 from neug.database import Database
 from neug.session import Session
@@ -184,7 +184,7 @@ def test_hnsw_index_tp_mutations(tmp_path, unused_tcp_port):
         )
         conn.execute("CREATE REL TABLE Similar(FROM Item TO Item, weight DOUBLE);")
         conn.execute(
-            f'COPY Item FROM (LOAD FROM "{csv_path.as_posix()}" '
+            f"COPY Item FROM (LOAD FROM {cypher_path(csv_path)} "
             "RETURN id, name, CAST(embedding, 'FLOAT[4]') AS embedding);"
         )
     finally:
