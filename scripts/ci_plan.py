@@ -83,6 +83,9 @@ def resolve(platforms="all", python_versions="all"):
         platforms=[r["platform"] for r in rows],
         matrix=rows,
         linux=[r for r in rows if r["platform"].startswith("linux-")],
+        linux_architectures=[
+            r["arch"] for r in rows if r["platform"].startswith("linux-")
+        ],
         windows_architectures=[
             r["arch"] for r in rows if r["platform"].startswith("windows-")
         ],
