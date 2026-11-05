@@ -277,6 +277,23 @@ jobs:
         artifact_platform: linux-${{ matrix.arch }}
         upload_artifacts: 'true'
 
+    # ========================================
+    # Phase 4: Restore workspace ownership
+    # ========================================
+
+    # This job builds as root inside the manylinux-node container, leaving
+    # root-owned artifacts (build/, gstest/, tools/nodejs_bind/build/) in the
+    # self-hosted runner's shared work directory. Later PR jobs run as neug
+    # (uid 1001); their actions/checkout cannot unlink root-owned files and
+    # fail with EACCES. Hand ownership back so the next job can clean up.
+    - name: Restore workspace ownership for shared runner
+      if: always()
+      shell: bash
+      run: |
+        if [ "$(id -u)" = 0 ] && id neug >/dev/null 2>&1; then
+          chown -R neug:neug "${GITHUB_WORKSPACE}" || true
+        fi
+
   # ========================================
   # For MacOS, package directly in the development environment through OSX.yml.
   # ========================================
