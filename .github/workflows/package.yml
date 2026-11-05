@@ -135,7 +135,11 @@ jobs:
         fetch-depth: 0
     - uses: actions/setup-python@v5
       with:
-        python-version: ${{ fromJSON(needs.initialize.outputs.plan).packaging_python }}
+        # Drive cibuildwheel with a glibc-compatible host Python; the self-hosted
+        # arm64 runner (glibc <2.33) cannot execute the 3.13 binary. Wheel
+        # coverage comes from CIBW_BUILD, not this interpreter. See
+        # wheel_host_python in scripts/ci_plan.py.
+        python-version: ${{ fromJSON(needs.initialize.outputs.plan).wheel_host_python }}
 
     - name: Install cibuildwheel
       run: python3 -m pip install cibuildwheel==3.4.0 wheel
