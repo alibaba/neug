@@ -65,6 +65,31 @@ jobs:
       plan: ${{ inputs.plan || '' }}
 
   # ========================================
+  # Record the resolved plan as a run-level artifact. Wheel artifact names carry
+  # no Python version, so a dry-run dispatched with a narrowed python_versions
+  # still produces every platform's wheel and looks "complete" by name alone.
+  # The release workflow downloads this manifest to confirm a reused dry-run
+  # built the same Python coverage before it skips the rebuild.
+  # ========================================
+  record-reuse-manifest:
+    needs: initialize
+    runs-on: ubuntu-22.04
+    steps:
+    - name: Write Reuse Manifest
+      env:
+        PLAN: ${{ needs.initialize.outputs.plan }}
+      run: |
+        set -euo pipefail
+        mkdir -p reuse-manifest
+        printf '%s' "$PLAN" > reuse-manifest/plan.json
+    - uses: actions/upload-artifact@v4
+      with:
+        name: reuse-manifest-${{ github.run_id }}
+        path: reuse-manifest/plan.json
+        if-no-files-found: error
+        retention-days: 7
+
+  # ========================================
   # For Linux - Wheel, build standardized wheels with cibuildwheel in dedicated
   # manylinux2014 images (neug-manylinux:2026.03.13-2-<arch>).
   # ========================================
@@ -295,7 +320,9 @@ jobs:
         maven-version: 3.9.6
 
     - name: Import Release Signing Key
-      if: github.event_name == 'release' && github.repository == 'alibaba/neug'
+      # Sign on any upstream run, not just release: a dry-run must produce a
+      # signed bundle so the release workflow can safely reuse it.
+      if: github.repository == 'alibaba/neug'
       uses: actions/setup-java@v4
       with:
         java-version: '17'
@@ -308,7 +335,7 @@ jobs:
       env:
         GPG_PASSPHRASE: ${{ secrets.GPG_PASSPHRASE }}
       with:
-        sign: ${{ github.event_name == 'release' && github.repository == 'alibaba/neug' && 'true' || 'false' }}
+        sign: ${{ github.repository == 'alibaba/neug' && 'true' || 'false' }}
         package: 'true'
         upload_artifacts: 'true'
 
