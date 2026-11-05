@@ -57,7 +57,25 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  # Release/dry-run gate: fail before any build/publish if the version strings
+  # across the managed files disagree with NEUG_VERSION (i.e. a partial bump).
+  # package.yml is the shared entry for BOTH the dry-run (workflow_dispatch)
+  # and the release (called by release.yml), so this runs in exactly those
+  # flows and never on a regular PR. Cheap (~15s); initialize waits on it so
+  # the expensive builds are skipped when versions are inconsistent.
+  version-check:
+    name: Version Consistency
+    runs-on: ubuntu-22.04
+    steps:
+    - uses: actions/checkout@v4
+    - uses: actions/setup-python@v5
+      with:
+        python-version: '3.10'
+    - name: Check version strings are consistent
+      run: python3 scripts/bump_version.py --check
+
   initialize:
+    needs: version-check
     uses: ./.github/workflows/ci-plan.yml
     with:
       platforms: ${{ inputs.platforms || 'all' }}
@@ -386,7 +404,7 @@ jobs:
   # ========================================
   complete:
     if: always()
-    needs: [initialize, linux_wheel, linux-npm, macos, windows, java, npm-main, verify]
+    needs: [version-check, initialize, linux_wheel, linux-npm, macos, windows, java, npm-main, verify]
     runs-on: ubuntu-22.04
     steps:
 
@@ -420,6 +438,7 @@ jobs:
           exit 0
         fi
         WEBHOOK_URL="https://oapi.dingtalk.com/robot/send?access_token=${DINGTALK_TOKEN}"
+        STATUS_VERSION_CHECK="${{ needs.version-check.result }}"
         STATUS_INITIALIZE="${{ needs.initialize.result }}"
         STATUS_LINUX_WHEEL="${{ needs.linux_wheel.result }}"
         STATUS_LINUX_NPM="${{ needs.linux-npm.result }}"
@@ -431,7 +450,7 @@ jobs:
         # A package run passes unless a stage actually failed or was cancelled;
         # a legitimately skipped stage (a platform not selected by the plan)
         # must not be reported as a failure.
-        STATUSES=" $STATUS_INITIALIZE $STATUS_LINUX_WHEEL $STATUS_LINUX_NPM $STATUS_MACOS $STATUS_WINDOWS $STATUS_JAVA $STATUS_NPM_MAIN $STATUS_VERIFY "
+        STATUSES=" $STATUS_VERSION_CHECK $STATUS_INITIALIZE $STATUS_LINUX_WHEEL $STATUS_LINUX_NPM $STATUS_MACOS $STATUS_WINDOWS $STATUS_JAVA $STATUS_NPM_MAIN $STATUS_VERIFY "
         if [[ "$STATUSES" == *" failure "* || "$STATUSES" == *" cancelled "* ]]; then
           TITLE="[Package Report] NeuG CI Failed"
         else
@@ -443,7 +462,7 @@ jobs:
             \"msgtype\": \"markdown\",
             \"markdown\": {
               \"title\": \"$TITLE\",
-              \"text\": \"## $TITLE\\n\\n- **initialize**: ${STATUS_INITIALIZE}\\n- **linux_wheel**: ${STATUS_LINUX_WHEEL}\\n- **linux-npm**: ${STATUS_LINUX_NPM}\\n- **macos**: ${STATUS_MACOS}\\n- **windows**: ${STATUS_WINDOWS}\\n- **java**: ${STATUS_JAVA}\\n- **npm-main**: ${STATUS_NPM_MAIN}\\n- **verify**: ${STATUS_VERIFY}\\n- **Repo**: ${{ github.repository }}\\n- **Branch**: ${{ github.ref_name }}\\n- **Commit**: ${{ github.sha }}\\n- [View Run](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})\"
+              \"text\": \"## $TITLE\\n\\n- **version-check**: ${STATUS_VERSION_CHECK}\\n- **initialize**: ${STATUS_INITIALIZE}\\n- **linux_wheel**: ${STATUS_LINUX_WHEEL}\\n- **linux-npm**: ${STATUS_LINUX_NPM}\\n- **macos**: ${STATUS_MACOS}\\n- **windows**: ${STATUS_WINDOWS}\\n- **java**: ${STATUS_JAVA}\\n- **npm-main**: ${STATUS_NPM_MAIN}\\n- **verify**: ${STATUS_VERIFY}\\n- **Repo**: ${{ github.repository }}\\n- **Branch**: ${{ github.ref_name }}\\n- **Commit**: ${{ github.sha }}\\n- [View Run](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})\"
             }
           }")
         echo "DingTalk response: $RESP"
