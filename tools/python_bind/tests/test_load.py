@@ -2307,7 +2307,8 @@ class TestCopyFrom:
                 RETURN id, CAST(i32_property, 'INT32') as i32_property,
                 i64_property, CAST(u32_property, 'UINT32') as u32_property, CAST(u64_property, 'UINT64') as u64_property,
                        CAST(f32_property, 'FLOAT') as f32_property, f64_property, str_property,
-                       date_property, datetime_property, interval_property
+                       date_property, datetime_property,
+                       CAST(interval_property, 'INTERVAL') as interval_property
             )
         """
         )
@@ -2332,7 +2333,9 @@ class TestCopyFrom:
         assert rows[0][7] == "test_string_0"  # str_property: STRING
         assert str(rows[0][8]) == "2023-01-15"  # date_property: DATE
         assert str(rows[0][9]).startswith("2023-01-15")  # datetime_property: TIMESTAMP
-        assert rows[0][10] is not None  # interval_property: INTERVAL
+        assert (
+            str(rows[0][10]) == "1 year 2 months 3 days 4 hours 5 minutes 6 seconds"
+        )  # interval_property: INTERVAL
 
         # --- edge: CREATE + COPY ---
         if not os.path.exists(rel_csv):

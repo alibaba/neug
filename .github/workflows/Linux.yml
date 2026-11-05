@@ -336,8 +336,9 @@ jobs:
     - name: Run Python Tests
       uses: ./.github/actions/test-python
       env:
-        OSS_ACCESS_KEY_ID: ${{ secrets.OSS_ACCESS_KEY_ID }}
-        OSS_ACCESS_KEY_SECRET: ${{ secrets.OSS_ACCESS_KEY_SECRET }}
+        # Only enable OSS write tests on the Linux x86-64 CI leg.
+        OSS_ACCESS_KEY_ID: ${{ matrix.arch == 'x86_64' && secrets.OSS_ACCESS_KEY_ID || '' }}
+        OSS_ACCESS_KEY_SECRET: ${{ matrix.arch == 'x86_64' && secrets.OSS_ACCESS_KEY_SECRET || '' }}
       with:
         platform: linux
         extensions: ${{ (inputs.extensions != '' || steps.changes.outputs.extension == 'true') && (inputs.extensions || fromJSON(needs.ci-plan.outputs.plan).extensions) || '' }}
