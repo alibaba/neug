@@ -295,6 +295,11 @@ jobs:
         artifact_platform: linux-${{ matrix.arch }}
         upload_artifacts: 'true'
 
+    - name: Restore Workspace Ownership
+      if: always()
+      shell: bash
+      run: chown -R neug:neug "$GITHUB_WORKSPACE"
+
   # ========================================
   # For MacOS, package directly in the development environment through OSX.yml.
   # ========================================
