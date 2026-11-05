@@ -7,7 +7,6 @@
 #include "neug/compiler/planner/operator/logical_partitioner.h"
 #include "neug/compiler/planner/operator/persistent/logical_copy_from.h"
 #include "neug/compiler/planner/operator/persistent/logical_copy_to.h"
-#include "neug/compiler/planner/operator/scan/logical_index_look_up.h"
 #include "neug/compiler/planner/planner.h"
 #include "neug/storages/graph/schema.h"
 
@@ -19,14 +18,6 @@ using namespace neug::function;
 
 namespace neug {
 namespace planner {
-
-static void appendIndexScan(const ExtraBoundCopyRelInfo& extraInfo,
-                            LogicalPlan& plan) {
-  auto indexScan = std::make_shared<LogicalPrimaryKeyLookup>(
-      extraInfo.infos, plan.getLastOperator());
-  indexScan->computeFactorizedSchema();
-  plan.setLastOperator(std::move(indexScan));
-}
 
 static void appendPartitioner(const BoundCopyFromInfo& copyFromInfo,
                               LogicalPlan& plan) {
@@ -121,6 +112,11 @@ std::unique_ptr<LogicalPlan> Planner::planCopyNodeFrom(
   default:
     NEUG_UNREACHABLE;
   }
+  // Materialize casts for source columns whose type differs from the target
+  // column type, so storage never reinterprets a raw buffer as the wrong type.
+  if (!info->columnCastExprs.empty()) {
+    appendProjection(info->columnCastExprs, *plan);
+  }
   appendCopyFrom(*info, results, *plan);
   return plan;
 }
@@ -170,7 +166,11 @@ std::unique_ptr<LogicalPlan> Planner::planCopyRelFrom(
   default:
     NEUG_UNREACHABLE;
   }
-  auto& extraInfo = info->extraInfo->constCast<ExtraBoundCopyRelInfo>();
+  // Materialize casts for source columns whose type differs from the target
+  // column type, so storage never reinterprets a raw buffer as the wrong type.
+  if (!info->columnCastExprs.empty()) {
+    appendProjection(info->columnCastExprs, *plan);
+  }
   appendCopyFrom(*info, results, *plan);
   return plan;
 }
