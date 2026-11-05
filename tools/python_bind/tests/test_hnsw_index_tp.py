@@ -19,7 +19,8 @@ import sys
 import textwrap
 
 import pytest
-from conftest import cypher_path, wait_for_server_ready
+from conftest import cypher_path
+from conftest import wait_for_server_ready
 
 from neug.database import Database
 from neug.session import Session
