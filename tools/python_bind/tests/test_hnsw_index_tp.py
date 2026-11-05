@@ -13,6 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import json
 import os
 import subprocess
 import sys
@@ -263,6 +264,133 @@ def test_index_optimize_tp_snapshot_and_wal(
         """,
         path,
         preload_extension,
+    )
+
+
+@pytest.mark.parametrize(
+    "metric,legacy", [("cosine", False), ("l2", False), ("l2", True)]
+)
+def test_hnsw_pending_final_vectors_cold_restart(
+    tmp_path, unused_tcp_port, metric, legacy
+):
+    """Deferred activation restores final slots and the checkpoint-time boundary."""
+    path = tmp_path / "pending-final-vectors"
+    _run_cold_process(
+        r"""
+        import sys
+        from neug import Database
+        from neug.session import Session
+        from conftest import wait_for_server_ready
+
+        db = Database(sys.argv[1], mode="w", checkpoint_on_close=False)
+        conn = db.connect()
+        conn.execute("LOAD vector_search;")
+        conn.execute(
+            "CREATE NODE TABLE Item(id INT64 PRIMARY KEY, name STRING, embedding FLOAT[4]);"
+        )
+        for id, vector in [(0, [1.,0.,0.,0.]), (1, [0.,1.,0.,0.]),
+                           (2, [0.,0.,1.,0.]), (9, [0.5,0.5,0.5,0.5])]:
+            conn.execute(f"CREATE (:Item {{id: {id}, name: 'base', embedding: {vector}}});")
+        conn.execute(
+            "CREATE INDEX item_hnsw ON Item USING HNSW (embedding) "
+            f"WITH (metric='{sys.argv[3]}', cosine_normalize=false);"
+        )
+        conn.execute("CHECKPOINT;")
+        conn.close()
+        endpoint = db.serve(int(sys.argv[2]), "localhost", False)
+        wait_for_server_ready(endpoint)
+        session = Session.open(endpoint, timeout="30s")
+        for vector in ([0.6,0.,0.8,0.], [0.,0.,0.,1.]):
+            session.execute(f"MATCH (n:Item {{id: 0}}) SET n.embedding = {vector};")
+        # A later unrelated update must not hide the vector mutation.
+        session.execute("MATCH (n:Item {id: 0}) SET n.name = 'final';")
+        session.execute("MATCH (n:Item {id: 1}) SET n.embedding = [0.6,0.8,0.0,0.0];")
+        session.execute("MATCH (n:Item {id: 1}) DELETE n;")
+        session.execute("CREATE (:Item {id: 3, name: 'new', embedding: [1.0,0.0,0.0,0.0]});")
+        session.execute("MATCH (n:Item {id: 3}) SET n.embedding = [0.0,1.0,0.0,0.0];")
+        session.execute("CREATE (:Item {id: 4, name: 'deleted', embedding: [1.0,0.0,0.0,0.0]});")
+        session.execute("MATCH (n:Item {id: 4}) DELETE n;")
+        session.close()
+        db.stop_serving()
+        db.close()
+        """,
+        path,
+        unused_tcp_port,
+        metric,
+    )
+    if legacy:
+        checkpoint = path / "checkpoint"
+        current = (checkpoint / "CURRENT").read_text().strip()
+        manifest_path = checkpoint / "manifests" / (current + ".manifest")
+        manifest = json.loads(manifest_path.read_text())
+        descriptor = manifest["modules"]["index_item_hnsw"]
+        del descriptor["extra"]["flat_index_offset"]
+        del descriptor["objects"]["flat_index_buffer"]
+        manifest_path.write_text(json.dumps(manifest))
+    _run_cold_process(
+        r"""
+        import sys
+        from neug import Database
+        from test_hnsw_index import _profile_operator_names
+
+        db = Database(sys.argv[1], mode="w", checkpoint_on_close=False)
+        conn = db.connect()
+        conn.execute("LOAD vector_search;")
+        metric = sys.argv[2]
+        def check():
+            assert list(conn.execute("MATCH (n:Item) RETURN n.id ORDER BY n.id;")) == [
+                [0], [2], [3], [9]
+            ]
+            for id, target in [(0, [0.,0.,0.,1.]), (3, [0.,1.,0.,0.])]:
+                result = conn.execute(
+                    "PROFILE MATCH (n:Item) RETURN n.id, "
+                    f"vector_distance_{metric}(n.embedding, {target}) AS score "
+                    "ORDER BY score LIMIT 4;"
+                )
+                rows = list(result)
+                assert "IndexScanOpr" in _profile_operator_names(result)
+                assert rows[0][0] == id, rows
+                assert sorted(row[0] for row in rows) == [0, 2, 3, 9], rows
+        check()
+        stats = list(conn.execute("CALL index_optimize('hnsw', 'item_hnsw');"))
+        if metric == "l2":
+            assert stats[0][2] == 2, stats
+        check()
+        conn.execute("CHECKPOINT;")
+        conn.close()
+        db.close()
+        """,
+        path,
+        metric,
+    )
+    # The repaired state and boundary must survive another cold checkpoint open.
+    _run_cold_process(
+        r"""
+        import sys
+        from pathlib import Path
+        from neug import Database
+        from test_hnsw_index import _local_buffer_checkpoint, _profile_operator_names
+
+        path = Path(sys.argv[1])
+        assert _local_buffer_checkpoint(path, "item_hnsw")[0] > 0
+        db = Database(str(path), mode="w", checkpoint_on_close=False)
+        conn = db.connect()
+        conn.execute("LOAD vector_search;")
+        result = conn.execute(
+            "PROFILE MATCH (n:Item) RETURN n.id, "
+            f"vector_distance_{sys.argv[2]}(n.embedding, [0.0,1.0,0.0,0.0]) AS score "
+            "ORDER BY score LIMIT 4;"
+        )
+        rows = list(result)
+        assert "IndexScanOpr" in _profile_operator_names(result)
+        assert rows[0][0] == 3, rows
+        assert sorted(row[0] for row in rows) == [0, 2, 3, 9], rows
+        assert list(conn.execute("CALL index_optimize('hnsw', 'item_hnsw');"))[0][2] == 0
+        conn.close()
+        db.close()
+        """,
+        path,
+        metric,
     )
 
 

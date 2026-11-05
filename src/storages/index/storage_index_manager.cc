@@ -18,6 +18,7 @@
 #include <glog/logging.h>
 #include <algorithm>
 #include <chrono>
+#include <map>
 
 #include "neug/compiler/common/string_utils.h"
 #include "neug/storages/graph/schema.h"
@@ -392,9 +393,46 @@ static result<bool> ReplayPendingMutations(
     StorageIndex& index,
     const std::vector<
         std::shared_ptr<const StorageIndexManager::PendingIndexMutation>>&
-        mutations) {
+        mutations,
+    const VecColumn* vector_column) {
   bool replayed = false;
   const auto& meta = index.GetMeta();
+  if (IsHNSWIndex(meta)) {
+    if (!vector_column || meta.schema.columns.size() != 1) {
+      return Status::InternalError("Invalid VecColumn for pending HNSW index");
+    }
+    // WAL has already restored the column and its final VID-to-slot mapping.
+    // Historical upserts would repeatedly append the same final slot.
+    // Keep the final deletion state too: vertex deletion during WAL replay
+    // does not remove the slot from a pending index's column accessor.
+    std::map<vid_t, bool> affected;
+    for (const auto& mutation : mutations) {
+      if (mutation->label_id != meta.schema.label_id)
+        continue;
+      const bool deleted =
+          mutation->type ==
+          StorageIndexManager::PendingIndexMutation::Type::kDelete;
+      if (deleted ||
+          std::any_of(mutation->properties.begin(), mutation->properties.end(),
+                      [&](const auto& property) {
+                        return meta.schema.ContainsProperty(property.first);
+                      })) {
+        affected[mutation->vid] = deleted;
+      }
+    }
+    for (const auto& [vid, deleted] : affected) {
+      if (deleted) {
+        RETURN_IF_NOT_OK(index.Delete(vid));
+        continue;
+      }
+      if (vector_column->get_offset_accessor()->GetIndexIDByVID(vid) ==
+          INVALID_INDEX_ID)
+        continue;
+      RETURN_IF_NOT_OK(
+          index.Upsert(vid, IndexValue{0, vector_column->get_any(vid)}));
+    }
+    return !affected.empty();
+  }
   for (const auto& mutation_ptr : mutations) {
     const auto& mutation = *mutation_ptr;
     if (mutation.label_id != meta.schema.label_id) {
@@ -570,11 +608,14 @@ result<size_t> StorageIndexManager::ActivateIndexes(
       // would apply the same insert/update/delete twice.
       dirty = true;
     } else {
+      const auto* vector_column =
+          dynamic_cast<const VecColumn*>(bound_columns.front());
       static_cast<Module*>(index.get())
           ->Open(*ckp_, ckp_->manifest(), pending.descriptor, memory_level_);
       RETURN_IF_NOT_OK(
           index->Rebind(IndexBindContext{std::move(bound_columns)}));
-      auto replayed = ReplayPendingMutations(*index, pending_mutations_);
+      auto replayed =
+          ReplayPendingMutations(*index, pending_mutations_, vector_column);
       if (!replayed) {
         return replayed.error();
       }
