@@ -864,12 +864,11 @@ class TestParquetExport:
 
 # =============================================================================
 # HTTPFS Export E2E Tests (OSS / HTTP)
-# Linux only; requires NEUG_RUN_EXTENSION_TESTS=1 and a writable bucket
+# Requires: NEUG_RUN_EXTENSION_TESTS=1, HTTPFS extension loaded, and writable bucket
 # =============================================================================
 
 HTTPFS_WRITE_TESTS_ENABLED = all(
     [
-        sys.platform == "linux",
         EXTENSION_TESTS_ENABLED,
         os.environ.get("OSS_ACCESS_KEY_ID"),
         os.environ.get("OSS_ACCESS_KEY_SECRET"),
@@ -878,7 +877,7 @@ HTTPFS_WRITE_TESTS_ENABLED = all(
 httpfs_write_test = pytest.mark.skipif(
     not HTTPFS_WRITE_TESTS_ENABLED,
     reason=(
-        "HTTPFS write tests disabled; on Linux, set NEUG_RUN_EXTENSION_TESTS=1, "
+        "HTTPFS write tests disabled; set NEUG_RUN_EXTENSION_TESTS=1, "
         "OSS_ACCESS_KEY_ID, and OSS_ACCESS_KEY_SECRET to enable."
     ),
 )
