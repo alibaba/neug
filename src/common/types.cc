@@ -229,6 +229,10 @@ DataType DataType::InternalId() { return DataType(DataTypeId::kInternalId); }
 bool DataType::containsAny() const {
   if (id_ == DataTypeId::kUnknown)
     return true;
+  // A DataType built from a bare DataTypeId (e.g. a function parameter type
+  // placeholder) carries no ExtraTypeInfo. It can never contain ANY, and this
+  // early return also keeps the nested-type branches below from dereferencing a
+  // null type_info_ -- the same hazard fixed in ToString().
   if (!type_info_)
     return false;
   switch (id_) {
