@@ -1,0 +1,47 @@
+# Run Linux, macOS, and Windows builds and extension tests in forks so development validation
+# does not occupy the upstream repository's Actions runners or block its workflows.
+name: Fork CI
+
+on:
+  push:
+    branches:
+      - '**'
+
+permissions:
+  contents: read
+  pull-requests: read
+
+concurrency:
+  group: fork-ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  ci-plan:
+    if: github.event.repository.fork
+    uses: ./.github/workflows/ci-plan.yml
+    with:
+      platforms: linux-x86_64,osx-arm64,windows-x86_64
+      python_versions: '3.13'
+
+  linux_x86_64:
+    needs: ci-plan
+    uses: ./.github/workflows/Linux.yml
+    with:
+      architectures: ${{ toJSON(fromJSON(needs.ci-plan.outputs.plan).linux_architectures) }}
+      extensions: ${{ fromJSON(needs.ci-plan.outputs.plan).extensions }}
+      python_versions: ${{ fromJSON(needs.ci-plan.outputs.plan).python_spec }}
+
+  macos:
+    needs: ci-plan
+    uses: ./.github/workflows/OSX.yml
+    with:
+      extensions: ${{ fromJSON(needs.ci-plan.outputs.plan).extensions }}
+      python_versions: ${{ fromJSON(needs.ci-plan.outputs.plan).python_spec }}
+
+  windows:
+    needs: ci-plan
+    uses: ./.github/workflows/Windows.yml
+    with:
+      architectures: ${{ toJSON(fromJSON(needs.ci-plan.outputs.plan).windows_architectures) }}
+      extensions: ${{ fromJSON(needs.ci-plan.outputs.plan).extensions }}
+      python_versions: ${{ fromJSON(needs.ci-plan.outputs.plan).python_spec }}

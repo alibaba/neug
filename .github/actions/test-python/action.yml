@@ -314,9 +314,8 @@ runs:
     run: |
       python -m pytest -sv tests/test_call_params.py
 
-  # Upstream excludes Windows vector_search until the ZVec MSVC port is available.
   - name: Run Vector Search Python Test
-    if: inputs.platform != 'windows' && contains(format(';{0};', inputs.extensions), ';vector_search;')
+    if: contains(format(';{0};', inputs.extensions), ';vector_search;')
     shell: bash
     working-directory: tools/python_bind
     env:

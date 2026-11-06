@@ -122,11 +122,23 @@ function(build_zvec_as_third_party)
         set(_zvec_auto_detect_arch ON)
     endif()
 
-    # RaBitQ 0.7 moved its kernels from headers into compiled libraries.
-    set(_zvec_rabitq_core_library
-        "${_zvec_binary_dir}/lib/${CMAKE_STATIC_LIBRARY_PREFIX}rabitq_core${CMAKE_STATIC_LIBRARY_SUFFIX}")
-    set(_zvec_rabitq_fastscan_library
-        "${_zvec_binary_dir}/lib/${CMAKE_STATIC_LIBRARY_PREFIX}rabitq_fastscan${CMAKE_STATIC_LIBRARY_SUFFIX}")
+    # ZVec disables RaBitQ on Windows ARM64 but still supports ordinary HNSW.
+    string(TOLOWER "${CMAKE_SYSTEM_PROCESSOR}" _zvec_target_processor)
+    set(_zvec_rabitq_supported ON)
+    if(WIN32 AND _zvec_target_processor MATCHES "^(arm64|aarch64)$")
+        set(_zvec_rabitq_supported OFF)
+    endif()
+    set(_zvec_rabitq_byproducts)
+    if(_zvec_rabitq_supported)
+        # RaBitQ 0.7 moved its kernels from headers into compiled libraries.
+        set(_zvec_rabitq_core_library
+            "${_zvec_binary_dir}/lib/${CMAKE_STATIC_LIBRARY_PREFIX}rabitq_core${CMAKE_STATIC_LIBRARY_SUFFIX}")
+        set(_zvec_rabitq_fastscan_library
+            "${_zvec_binary_dir}/lib/${CMAKE_STATIC_LIBRARY_PREFIX}rabitq_fastscan${CMAKE_STATIC_LIBRARY_SUFFIX}")
+        list(APPEND _zvec_rabitq_byproducts
+            "${_zvec_rabitq_core_library}"
+            "${_zvec_rabitq_fastscan_library}")
+    endif()
 
     set(_zvec_cmake_args
         "-DCMAKE_BUILD_TYPE=${CMAKE_BUILD_TYPE}"
@@ -161,8 +173,7 @@ function(build_zvec_as_third_party)
             "${_zvec_core_library}"
             "${_zvec_ailego_library}"
             "${_zvec_turbo_library}"
-            "${_zvec_rabitq_core_library}"
-            "${_zvec_rabitq_fastscan_library}"
+            ${_zvec_rabitq_byproducts}
             "${_zvec_roaring_library}"
         BUILD_COMMAND
             "${CMAKE_COMMAND}" --build <BINARY_DIR>
@@ -192,15 +203,17 @@ function(build_zvec_as_third_party)
         INTERFACE_INCLUDE_DIRECTORIES "${_zvec_roaring_include_dir}")
     add_dependencies(zvec_roaring zvec_external)
 
-    add_library(zvec_rabitq_core STATIC IMPORTED GLOBAL)
-    set_target_properties(zvec_rabitq_core PROPERTIES
-        IMPORTED_LOCATION "${_zvec_rabitq_core_library}")
-    add_dependencies(zvec_rabitq_core zvec_external)
-    add_library(zvec_rabitq_fastscan STATIC IMPORTED GLOBAL)
-    set_target_properties(zvec_rabitq_fastscan PROPERTIES
-        IMPORTED_LOCATION "${_zvec_rabitq_fastscan_library}"
-        INTERFACE_LINK_LIBRARIES zvec_rabitq_core)
-    add_dependencies(zvec_rabitq_fastscan zvec_external)
+    if(_zvec_rabitq_supported)
+        add_library(zvec_rabitq_core STATIC IMPORTED GLOBAL)
+        set_target_properties(zvec_rabitq_core PROPERTIES
+            IMPORTED_LOCATION "${_zvec_rabitq_core_library}")
+        add_dependencies(zvec_rabitq_core zvec_external)
+        add_library(zvec_rabitq_fastscan STATIC IMPORTED GLOBAL)
+        set_target_properties(zvec_rabitq_fastscan PROPERTIES
+            IMPORTED_LOCATION "${_zvec_rabitq_fastscan_library}"
+            INTERFACE_LINK_LIBRARIES zvec_rabitq_core)
+        add_dependencies(zvec_rabitq_fastscan zvec_external)
+    endif()
 
     set(ZVEC_SOURCE_DIR "${ZVEC_SOURCE_DIR}" PARENT_SCOPE)
 endfunction()

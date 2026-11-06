@@ -22,6 +22,7 @@ from concurrent.futures import ThreadPoolExecutor
 from threading import Barrier
 
 import pytest
+from conftest import cypher_path
 from conftest import wait_for_server_ready
 
 from neug.database import Database
@@ -545,7 +546,7 @@ def test_hnsw_index_tp_mutations(tmp_path, unused_tcp_port):
         )
         conn.execute("CREATE REL TABLE Similar(FROM Item TO Item, weight DOUBLE);")
         conn.execute(
-            f'COPY Item FROM (LOAD FROM "{csv_path}" '
+            f"COPY Item FROM (LOAD FROM {cypher_path(csv_path)} "
             "RETURN id, name, CAST(embedding, 'FLOAT[4]') AS embedding);"
         )
     finally:
