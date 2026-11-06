@@ -57,10 +57,6 @@ on:
         type: boolean
         default: false
     secrets:
-      OSS_ACCESS_KEY_ID:
-        required: false
-      OSS_ACCESS_KEY_SECRET:
-        required: false
       CODECOV_TOKEN:
         description: 'Codecov token used to upload coverage reports.'
         required: false
@@ -302,9 +298,6 @@ jobs:
     - name: Run Python Tests
       timeout-minutes: 30
       uses: ./.github/actions/test-python
-      env:
-        OSS_ACCESS_KEY_ID: ${{ secrets.OSS_ACCESS_KEY_ID }}
-        OSS_ACCESS_KEY_SECRET: ${{ secrets.OSS_ACCESS_KEY_SECRET }}
       with:
         platform: macos
         extensions: ${{ (inputs.extensions != '' || steps.changes.outputs.extension == 'true') && (inputs.extensions || fromJSON(needs.ci-plan.outputs.plan).extensions) || '' }}

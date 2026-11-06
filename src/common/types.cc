@@ -229,6 +229,10 @@ DataType DataType::InternalId() { return DataType(DataTypeId::kInternalId); }
 bool DataType::containsAny() const {
   if (id_ == DataTypeId::kUnknown)
     return true;
+  // A DataType built from a bare DataTypeId (e.g. a function parameter type
+  // placeholder) carries no ExtraTypeInfo. It can never contain ANY, and this
+  // early return also keeps the nested-type branches below from dereferencing a
+  // null type_info_ -- the same hazard fixed in ToString().
   if (!type_info_)
     return false;
   switch (id_) {
@@ -426,20 +430,35 @@ std::string DataType::ToString() const {
   case DataTypeId::kPath:
     return "PATH";
   case DataTypeId::kList: {
+    // A DataType may be constructed from a bare DataTypeId (e.g. a function
+    // parameter type placeholder) without any ExtraTypeInfo. Rendering such a
+    // type must degrade gracefully instead of dereferencing a null type_info_.
+    if (type_info_ == nullptr) {
+      return "LIST";
+    }
     const DataType& child_type = ListType::GetChildType(*this);
     return "LIST<" + child_type.ToString() + ">";
   }
   case DataTypeId::kArray: {
+    if (type_info_ == nullptr) {
+      return "ARRAY";
+    }
     auto& arr_info = type_info_->Cast<ArrayTypeInfo>();
     return arr_info.child_type.ToString() + "[" +
            std::to_string(arr_info.num_elements) + "]";
   }
   case DataTypeId::kMap: {
+    if (type_info_ == nullptr) {
+      return "MAP";
+    }
     auto& map_info = type_info_->Cast<MapTypeInfo>();
     return "MAP(" + map_info.key_type.ToString() + ", " +
            map_info.value_type.ToString() + ")";
   }
   case DataTypeId::kStruct: {
+    if (type_info_ == nullptr) {
+      return "STRUCT";
+    }
     const auto& info = getStructInfo(*this);
     std::string result = "STRUCT(";
     for (size_t i = 0; i < info.child_types.size(); ++i) {

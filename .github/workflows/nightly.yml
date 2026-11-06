@@ -103,17 +103,53 @@ jobs:
     runs-on: ubuntu-22.04
     steps:
 
-    - name: Summarize and Notify Results
+    - name: Summarize Results
       shell: bash
       env:
         RESULTS: ${{ toJSON(needs) }}
-        DINGTALK_TOKEN: ${{ secrets.DINGTALK_TOKEN }}
       run: |
         set -euo pipefail
         printf '## CI result\n```json\n%s\n```\n' "$RESULTS" >> "$GITHUB_STEP_SUMMARY"
-        if [ -n "$DINGTALK_TOKEN" ] && [ "$GITHUB_REPOSITORY" = alibaba/neug ]; then
-          text="NeuG CI: $GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"
-          curl --fail -sS -X POST "https://oapi.dingtalk.com/robot/send?access_token=$DINGTALK_TOKEN" \
-            -H 'Content-Type: application/json' \
-            -d "{\"msgtype\":\"text\",\"text\":{\"content\":\"$text\"}}"
+
+    - name: Send DingTalk notification
+      if: always() && github.repository == 'alibaba/neug'
+      env:
+        DINGTALK_TOKEN: ${{ secrets.DINGTALK_TOKEN }}
+      run: |
+        if [ -z "$DINGTALK_TOKEN" ]; then
+          echo "DINGTALK_TOKEN not set, skipping notification."
+          exit 0
+        fi
+        WEBHOOK_URL="https://oapi.dingtalk.com/robot/send?access_token=${DINGTALK_TOKEN}"
+        STATUS_PLAN="${{ needs.ci-plan.result }}"
+        STATUS_LITE="${{ needs.lite.result }}"
+        STATUS_LINUX_X86="${{ needs.linux_x86_64.result }}"
+        STATUS_LINUX_ARM="${{ needs.linux_arm64.result }}"
+        STATUS_MACOS="${{ needs.macos.result }}"
+        STATUS_WINDOWS="${{ needs.windows.result }}"
+        # A nightly run passes unless a stage actually failed or was cancelled;
+        # on workflow_dispatch the unselected platform jobs (and `lite`, which
+        # only runs on schedule) are legitimately skipped, not failures.
+        STATUSES=" $STATUS_PLAN $STATUS_LITE $STATUS_LINUX_X86 $STATUS_LINUX_ARM $STATUS_MACOS $STATUS_WINDOWS "
+        if [[ "$STATUSES" == *" failure "* || "$STATUSES" == *" cancelled "* ]]; then
+          TITLE="[Nightly Report] NeuG CI Failed"
+        else
+          TITLE="[Nightly Report] NeuG CI Passed"
+        fi
+        RESP=$(curl -s -X POST "$WEBHOOK_URL" \
+          -H 'Content-Type: application/json' \
+          -d "{
+            \"msgtype\": \"markdown\",
+            \"markdown\": {
+              \"title\": \"$TITLE\",
+              \"text\": \"## $TITLE\\n\\n- **ci-plan**: ${STATUS_PLAN}\\n- **lite**: ${STATUS_LITE}\\n- **linux_x86_64**: ${STATUS_LINUX_X86}\\n- **linux_arm64**: ${STATUS_LINUX_ARM}\\n- **macos**: ${STATUS_MACOS}\\n- **windows**: ${STATUS_WINDOWS}\\n- **Repo**: ${{ github.repository }}\\n- **Branch**: ${{ github.ref_name }}\\n- **Commit**: ${{ github.sha }}\\n- [View Run](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})\"
+            }
+          }")
+        echo "DingTalk response: $RESP"
+        # DingTalk signals rejection (keyword filter 310000, rate limit 130101,
+        # invalid token, ...) via HTTP 200 + errcode != 0, which curl --fail
+        # cannot catch. Surface it as a warning so the silent-drop failure mode
+        # this PR fixes stays visible, without failing the report job.
+        if ! echo "$RESP" | grep -q '"errcode":0'; then
+          echo "::warning::DingTalk rejected the notification: $RESP"
         fi
