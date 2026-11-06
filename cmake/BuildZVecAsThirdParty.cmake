@@ -114,20 +114,12 @@ function(build_zvec_as_third_party)
 
     # ZVec currently creates several common third-party targets unconditionally.
     # Build it in an isolated CMake project to avoid collisions with NeuG targets.
-    set(_zvec_auto_detect_arch OFF)
-    if(CMAKE_SYSTEM_NAME MATCHES "^(Linux|Darwin)$"
-       AND CMAKE_SYSTEM_PROCESSOR MATCHES "^(x86_64|amd64|AMD64|x86|i[3-6]86)$")
-        # ZVec's RaBitQ sources require their per-source AVX2 flags on x86.
-        # Also enable this for macOS x86_64.
-        set(_zvec_auto_detect_arch ON)
-    endif()
+    # Let ZVec select SIMD compiler flags for each target architecture.
+    # Without them, runtime dispatch can select kernels built as no-op stubs.
+    set(_zvec_auto_detect_arch ON)
 
-    # ZVec disables RaBitQ on Windows ARM64 but still supports ordinary HNSW.
-    string(TOLOWER "${CMAKE_SYSTEM_PROCESSOR}" _zvec_target_processor)
-    set(_zvec_rabitq_supported ON)
-    if(WIN32 AND _zvec_target_processor MATCHES "^(arm64|aarch64)$")
-        set(_zvec_rabitq_supported OFF)
-    endif()
+    # Temporarily disable RaBitQ; ordinary HNSW keeps architecture detection.
+    set(_zvec_rabitq_supported OFF)
     set(_zvec_rabitq_byproducts)
     if(_zvec_rabitq_supported)
         # RaBitQ 0.7 moved its kernels from headers into compiled libraries.
@@ -148,6 +140,7 @@ function(build_zvec_as_third_party)
         "-DBUILD_ZVEC_AILEGO_SHARED=OFF"
         "-DBUILD_PYTHON_BINDINGS=OFF"
         "-DBUILD_C_BINDINGS=OFF"
+        "-DZVEC_ENABLE_RABITQ=OFF"
         "-DAUTO_DETECT_ARCH=${_zvec_auto_detect_arch}"
         "-DBUILD_TOOLS=OFF")
     if(MSVC)

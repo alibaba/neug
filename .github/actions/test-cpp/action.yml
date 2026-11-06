@@ -156,7 +156,6 @@ runs:
     shell: bash
     env:
       EXTENSIONS: ${{ inputs.extensions }}
-      TEST_PLATFORM: ${{ inputs.platform }}
     run: |
       set -euo pipefail
       export MODERN_GRAPH_DATA_DIR=${GITHUB_WORKSPACE}/example_dataset/modern_graph
@@ -164,19 +163,11 @@ runs:
       export FLEX_DATA_DIR=${GITHUB_WORKSPACE}/example_dataset/modern_graph
       export TEST_PATH=${GITHUB_WORKSPACE}/tests
       cd ${GITHUB_WORKSPACE}/build
-      if [[ ";$EXTENSIONS;" == *";parquet;"* ]]; then
-        ctest --output-on-failure -R '^(parquet_extension_test|parquet_carquet_.*)$'
-      fi
-      # CMake excludes httpfs, pattern_matching, and fts C++ suites on Windows
-      # because those test sources use POSIX APIs; parquet tests are built there.
-      if [[ "$TEST_PLATFORM" != windows && ";$EXTENSIONS;" == *";httpfs;"* ]]; then
-        ctest --output-on-failure -R httpfs_extension_test -V
-      fi
-      if [[ "$TEST_PLATFORM" != windows && ";$EXTENSIONS;" == *";pattern_matching;"* ]]; then
-        ctest --output-on-failure -R pattern_matching_extension_test -V
-      fi
-      if [[ "$TEST_PLATFORM" != windows && ";$EXTENSIONS;" == *";fts;"* ]]; then
-        ctest --output-on-failure -R fts_extension_test -V
-      fi
+      IFS=';' read -r -a extensions <<< "$EXTENSIONS"
+      for extension in "${extensions[@]}"; do
+        if [[ -n "$extension" ]]; then
+          ctest --output-on-failure -L "^extension_${extension}$" -V
+        fi
+      done
       export FLEX_DATA_DIR=${GITHUB_WORKSPACE}/example_dataset/tinysnb
       ctest --output-on-failure -R test_extension -V
