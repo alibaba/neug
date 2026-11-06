@@ -6,6 +6,17 @@ index 2c5301f..0e88f02 100644
 -cmake_minimum_required(VERSION 3.26)
 +cmake_minimum_required(VERSION 3.22.1)
  cmake_policy(SET CMP0077 NEW)
+@@ -202,6 +202,10 @@
+   endif()
+ endif()
++option(ZVEC_ENABLE_RABITQ "Enable RaBitQ indexes" ON)
++if(NOT ZVEC_ENABLE_RABITQ)
++  set(RABITQ_SUPPORTED OFF)
++endif()
+ if(RABITQ_SUPPORTED)
+   add_definitions(-DRABITQ_SUPPORTED=1)
+ else()
+   add_definitions(-DRABITQ_SUPPORTED=0)
 diff --git a/cmake/bazel.cmake b/cmake/bazel.cmake
 --- a/cmake/bazel.cmake
 +++ b/cmake/bazel.cmake
