@@ -13,6 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import hashlib
 import json
 import math
 import os
@@ -39,6 +40,450 @@ pytestmark = pytest.mark.skipif(
 
 DIMENSION = 16
 NUM_VECTORS = 2000
+
+
+def _local_buffer_checkpoint(path, name):
+    checkpoint = path / "checkpoint"
+    current = (checkpoint / "CURRENT").read_text().strip()
+    manifest = json.loads(
+        (checkpoint / "manifests" / (current + ".manifest")).read_text()
+    )
+    descriptor = manifest["modules"]["index_" + name]
+    assert "hybrid_format_version" not in descriptor["extra"]
+    flat_object = descriptor["objects"]["flat_index_buffer"]
+    assert (checkpoint / "objects" / flat_object).is_file()
+    object_id = descriptor.get("objects", {}).get("index_buffer")
+    digest = (
+        hashlib.sha256((checkpoint / "objects" / object_id).read_bytes()).hexdigest()
+        if object_id
+        else None
+    )
+    return int(descriptor["extra"]["flat_index_offset"]), digest
+
+
+@pytest.mark.parametrize("metric", ["l2", "ip", "cosine"])
+@pytest.mark.parametrize("initial_count", [0, 6])
+def test_local_buffer_mixed_search_and_checkpoint(tmp_path, metric, initial_count):
+    """Writes stay out of HNSW while Flat remains exact, including after reopen."""
+    path = tmp_path / "local-buffer"
+    db, conn = _open_database(path, checkpoint_on_close=False)
+    rng = random.Random(481)
+    vectors = [[rng.uniform(-1, 1) for _ in range(4)] for _ in range(12)]
+
+    def create(index):
+        conn.execute(
+            f"CREATE (:Buffered {{id: {index}, group_id: {index % 2}, "
+            f"embedding: {_array_literal(vectors[index])}}});"
+        )
+
+    def check():
+        for predicate in ("", "WHERE n.group_id=0 ", "WHERE n.group_id=99 "):
+            distance = f"vector_distance_{metric}(n.embedding, $query)"
+            direction = "DESC" if metric == "ip" else "ASC"
+            body = f"MATCH (n:Buffered) {predicate}RETURN n.id, "
+            suffix = f" AS score ORDER BY score {direction} SKIP 1 LIMIT 3;"
+            params = {"query": vectors[10]}
+            indexed = conn.execute(
+                "PROFILE " + body + distance + suffix, parameters=params
+            )
+            actual = list(indexed)
+            assert "IndexScanOpr" in _profile_operator_names(indexed)
+            # Arithmetic around the distance prevents the ANN rewrite.
+            expected = list(
+                conn.execute(body + distance + " + 0.0" + suffix, parameters=params)
+            )
+            assert [row[0] for row in actual] == [row[0] for row in expected]
+            assert [row[1] for row in actual] == pytest.approx(
+                [row[1] for row in expected], abs=2e-5
+            )
+
+    try:
+        conn.execute(
+            "CREATE NODE TABLE Buffered(id INT64 PRIMARY KEY, group_id INT64, embedding FLOAT[4]);"
+        )
+        for i in range(initial_count):
+            create(i)
+        conn.execute(
+            "CREATE INDEX buffered_hnsw ON Buffered USING HNSW (embedding) "
+            f"WITH (metric='{metric}', cosine_normalize=true, m=8, ef_construction=40);"
+        )
+        conn.execute("CHECKPOINT;")
+        initial_offset, _ = _local_buffer_checkpoint(path, "buffered_hnsw")
+        assert initial_offset == initial_count
+        for i in range(initial_count, 8):
+            create(i)
+        conn.execute(
+            "MERGE (n:Buffered {id: 8}) SET n.group_id=0, "
+            f"n.embedding={_array_literal(vectors[8])};"
+        )
+        for i in (9, 10):
+            conn.execute(
+                f"MATCH (n:Buffered {{id: 0}}) SET n.embedding={_array_literal(vectors[i])};"
+            )
+        conn.execute("MATCH (n:Buffered) WHERE n.id=1 OR n.id=7 DELETE n;")
+        conn.begin_transaction()
+        create(11)
+        conn.rollback()
+        check()
+        conn.execute("CHECKPOINT;")
+        # Flushing HNSW can update timestamps without changing its indexed
+        # prefix. Verify the boundary and persisted graph presence, not bytes.
+        offset, graph_digest = _local_buffer_checkpoint(path, "buffered_hnsw")
+        assert offset == initial_count
+        assert (graph_digest is not None) == (initial_count > 0)
+    finally:
+        _close_database(db, conn)
+    db, conn = _open_database(path, checkpoint_on_close=False)
+    try:
+        check()
+        create(11)
+        check()
+    finally:
+        _close_database(db, conn)
+
+
+def test_local_buffer_copy_builds_existing_tail(tmp_path):
+    db, conn = _open_database(tmp_path / "copy-db", checkpoint_on_close=False)
+    try:
+        conn.execute(
+            "CREATE NODE TABLE Buffered(id INT64 PRIMARY KEY, embedding FLOAT[4]);"
+        )
+        conn.execute("CREATE INDEX buffered_hnsw ON Buffered USING HNSW (embedding);")
+        conn.execute("CREATE (:Buffered {id: 0, embedding: [0.0, 0.0, 0.0, 0.0]});")
+        csv = tmp_path / "tail.csv"
+        csv.write_text("id|embedding\n1|[1.0,0.0,0.0,0.0]\n2|[2.0,0.0,0.0,0.0]\n")
+        conn.execute(
+            f"COPY Buffered FROM (LOAD FROM {cypher_path(csv)} (delim='|') "
+            "RETURN id, CAST(embedding, 'FLOAT[4]') AS embedding);"
+        )
+        conn.execute("CHECKPOINT;")
+        assert _local_buffer_checkpoint(tmp_path / "copy-db", "buffered_hnsw")[0] == 3
+        rows = list(
+            conn.execute(
+                "MATCH (n:Buffered) RETURN n.id, "
+                "vector_distance_l2(n.embedding, [0.0,0.0,0.0,0.0]) "
+                "AS score ORDER BY score LIMIT 3;"
+            )
+        )
+        assert rows == [[0, 0.0], [1, 1.0], [2, 4.0]]
+    finally:
+        _close_database(db, conn)
+
+
+@pytest.mark.parametrize("delete_local_buffer", [False, True], ids=["append", "delete"])
+def test_local_buffer_copy_retry_after_transaction_failure(
+    tmp_path, capfd, delete_local_buffer
+):
+    path = tmp_path / "copy-retry"
+    db, conn = _open_database(path, checkpoint_on_close=False)
+
+    def copy_from(csv):
+        conn.execute(
+            f"COPY Buffered FROM (LOAD FROM {cypher_path(csv)} (delim='|') "
+            "RETURN id, CAST(embedding, 'FLOAT[4]') AS embedding);"
+        )
+
+    def check(expected_ids):
+        assert list(conn.execute("MATCH (n:Buffered) RETURN n.id ORDER BY n.id;")) == [
+            [i] for i in expected_ids
+        ]
+        result = conn.execute(
+            "PROFILE MATCH (n:Buffered) RETURN n.id, "
+            "vector_distance_l2(n.embedding, [0.0,0.0,0.0,0.0]) AS score "
+            "ORDER BY score LIMIT 10;"
+        )
+        assert list(result) == [[i, float(i * i)] for i in expected_ids]
+        assert "IndexScanOpr" in _profile_operator_names(result)
+        for i in expected_ids:
+            result = conn.execute(
+                "PROFILE MATCH (n:Buffered) RETURN n.id, "
+                f"vector_distance_l2(n.embedding, [{float(i)},0.0,0.0,0.0]) "
+                "AS score ORDER BY score LIMIT 1;"
+            )
+            assert list(result) == [[i, 0.0]]
+            assert "IndexScanOpr" in _profile_operator_names(result)
+
+    try:
+        conn.execute(
+            "CREATE NODE TABLE Buffered(id INT64 PRIMARY KEY, embedding FLOAT[4]);"
+        )
+        conn.execute("CREATE INDEX buffered_hnsw ON Buffered USING HNSW (embedding);")
+        for i in range(2):
+            conn.execute(
+                f"CREATE (:Buffered {{id: {i}, embedding: [{float(i)},0.0,0.0,0.0]}});"
+            )
+        conn.execute("CHECKPOINT;")
+        assert _local_buffer_checkpoint(path, "buffered_hnsw")[0] == 0
+        first = tmp_path / "first.csv"
+        first.write_text("id|embedding\n10|[10.0,0.0,0.0,0.0]\n")
+        second = tmp_path / "second.csv"
+        second.write_text("id|embedding\n20|[20.0,0.0,0.0,0.0]\n")
+
+        conn.begin_transaction()
+        if delete_local_buffer:
+            conn.execute("MATCH (n:Buffered {id: 0}) DELETE n;")
+            # Both scalar and index queries must respect the private deletion.
+            check([1])
+        copy_from(first)
+        check([1, 10] if delete_local_buffer else [0, 1, 10])
+        # COPY has appended the LocalBuffer to the shared HNSW. Fail commit
+        # afterwards so the transaction rolls back its rows and F, but not
+        # those physical HNSW additions. A malformed CSV would fail too early.
+        manifests = path / "checkpoint" / "manifests"
+        saved = path / "checkpoint" / "saved_manifests"
+        manifests.rename(saved)
+        try:
+            manifests.write_text("block checkpoint directory creation")
+            with pytest.raises(RuntimeError, match="failed to create"):
+                conn.commit()
+        finally:
+            manifests.unlink()
+            saved.rename(manifests)
+        with pytest.raises(RuntimeError, match="rollback-only"):
+            conn.commit()
+        conn.rollback()
+        check([0, 1])
+        assert _local_buffer_checkpoint(path, "buffered_hnsw")[0] == 0
+
+        capfd.readouterr()
+        conn.begin_transaction()
+        copy_from(second)
+        conn.commit()
+        captured = capfd.readouterr()
+        existing_ids = [1] if delete_local_buffer else [0, 1]
+        for i in existing_ids:
+            assert (
+                f"Skip existing HNSW index_id during bulk append: {i}" in captured.err
+            )
+        if delete_local_buffer:
+            # The aborted COPY skipped this ID. After rollback it must be
+            # appended for the first time, rather than treated as a duplicate.
+            assert (
+                "Skip existing HNSW index_id during bulk append: 0" not in captured.err
+            )
+        check([0, 1, 20])
+        assert _local_buffer_checkpoint(path, "buffered_hnsw")[0] > 0
+    finally:
+        _close_database(db, conn)
+
+    db, conn = _open_database(path, checkpoint_on_close=False)
+    try:
+        check([0, 1, 20])
+    finally:
+        _close_database(db, conn)
+
+
+@pytest.mark.parametrize(
+    "arguments,expected_names",
+    [
+        ("", ["a_hnsw", "b_hnsw"]),
+        ("'hnsw'", ["a_hnsw", "b_hnsw"]),
+        ("'hnsw', 'b_hnsw'", ["b_hnsw"]),
+        ("'hnsw', name := 'b_hnsw'", ["b_hnsw"]),
+        ("type := 'HNSW'", ["a_hnsw", "b_hnsw"]),
+        ("name := 'b_hnsw'", ["b_hnsw"]),
+        ("type := 'hnsw', name := 'b_hnsw'", ["b_hnsw"]),
+        ("name := 'b_hnsw', type := 'hnsw'", ["b_hnsw"]),
+        ("name := $name, type := $type", ["b_hnsw"]),
+        ("$type, $name", ["b_hnsw"]),
+    ],
+)
+def test_index_optimize_selection_and_checkpoint(tmp_path, arguments, expected_names):
+    path = tmp_path / "optimize"
+    db, conn = _open_database(path, checkpoint_on_close=False)
+    try:
+        conn.execute("CREATE NODE TABLE Item(id INT64 PRIMARY KEY, v FLOAT[4]);")
+        for name in ("a_hnsw", "b_hnsw"):
+            conn.execute(f"CREATE INDEX {name} ON Item USING HNSW (v);")
+        for i in range(3):
+            conn.execute(f"CREATE (:Item {{id: {i}, v: [{float(i)},0.0,0.0,0.0]}});")
+        conn.execute("MATCH (n:Item {id: 1}) DELETE n;")
+        conn.execute("MATCH (n:Item {id: 2}) SET n.v=[4.0,0.0,0.0,0.0];")
+        parameters = {"name": "b_hnsw", "type": "HNSW"} if "$" in arguments else None
+        for _ in range(2):
+            conn.begin_transaction(read_only=True)
+            stats = list(
+                conn.execute(
+                    f"CALL show_indexes({arguments}) RETURN type, name, buffered_count;",
+                    parameters=parameters,
+                )
+            )
+            conn.commit()
+            assert stats == [["hnsw", name, 4] for name in expected_names]
+        rows = list(
+            conn.execute(f"CALL optimize_indexes({arguments});", parameters=parameters)
+        )
+        assert [row[:4] for row in rows] == [
+            ["hnsw", name, 2, 2] for name in expected_names
+        ]
+        assert all(len(row) == 5 and row[4] >= 0 for row in rows)
+        stats = list(
+            conn.execute(
+                f"CALL show_indexes({arguments}) RETURN type, name, buffered_count;",
+                parameters=parameters,
+            )
+        )
+        assert stats == [["hnsw", name, 0] for name in expected_names]
+
+        repeated = list(
+            conn.execute(f"CALL optimize_indexes({arguments});", parameters=parameters)
+        )
+        assert [row[:4] for row in repeated] == [
+            ["hnsw", name, 0, 0] for name in expected_names
+        ]
+        conn.execute("CHECKPOINT;")
+        for name in ("a_hnsw", "b_hnsw"):
+            assert _local_buffer_checkpoint(path, name)[0] == (
+                4 if name in expected_names else 0
+            )
+    finally:
+        _close_database(db, conn)
+    db, conn = _open_database(path, checkpoint_on_close=False)
+    try:
+        result = conn.execute(
+            "PROFILE MATCH (n:Item) RETURN n.id, vector_distance_l2(n.v, [4.0,0.0,0.0,0.0]) "
+            "AS score ORDER BY score LIMIT 5;"
+        )
+        assert list(result) == [[2, 0.0], [0, 16.0]]
+        assert "IndexScanOpr" in _profile_operator_names(result)
+    finally:
+        _close_database(db, conn)
+
+
+def test_index_optimize_validation_and_deleted_tail(tmp_path):
+    path = tmp_path / "optimize-validation"
+    db, conn = _open_database(path, checkpoint_on_close=False)
+    try:
+        assert list(conn.execute("CALL optimize_indexes();")) == []
+        conn.execute("CREATE NODE TABLE Item(id INT64 PRIMARY KEY, v FLOAT[4]);")
+        conn.execute("CREATE INDEX item_hnsw ON Item USING HNSW (v);")
+        conn.execute("CREATE (:Item {id: 0, v: [0.0,0.0,0.0,0.0]});")
+        for arguments in (
+            "name := 'missing'",
+            "type := 'fts', name := 'item_hnsw'",
+            "typo := 'hnsw'",
+            "type := 'hnsw', type := 'hnsw'",
+            "'hnsw', type := 'hnsw'",
+            "type := 12",
+            "type := null",
+            "name := ''",
+            "'hnsw', 'item_hnsw', 'extra'",
+        ):
+            with pytest.raises(RuntimeError):
+                conn.execute(f"CALL optimize_indexes({arguments});")
+            if arguments in ("name := 'missing'", "type := 'fts', name := 'item_hnsw'"):
+                assert list(conn.execute(f"CALL show_indexes({arguments});")) == []
+            else:
+                with pytest.raises(RuntimeError):
+                    conn.execute(f"CALL show_indexes({arguments});")
+        assert list(conn.execute("CALL optimize_indexes(type := 'missing');")) == []
+        conn.begin_transaction(read_only=True)
+        with pytest.raises(RuntimeError):
+            conn.execute("CALL optimize_indexes();")
+        conn.rollback()
+        conn.execute("MATCH (n:Item) DELETE n;")
+        rows = list(conn.execute("CALL optimize_indexes();"))
+        assert rows[0][:4] == ["hnsw", "item_hnsw", 0, 1]
+        conn.execute("CHECKPOINT;")
+        assert _local_buffer_checkpoint(path, "item_hnsw")[0] == 1
+    finally:
+        _close_database(db, conn)
+
+
+def test_index_optimize_atomic_rollback_and_retry(tmp_path, capfd):
+    path = tmp_path / "optimize-retry"
+    db, conn = _open_database(path, checkpoint_on_close=False)
+    try:
+        conn.execute("CREATE NODE TABLE Item(id INT64 PRIMARY KEY, v FLOAT[4]);")
+        for name in ("a_hnsw", "b_hnsw"):
+            conn.execute(f"CREATE INDEX {name} ON Item USING HNSW (v);")
+        conn.execute("CREATE (:Item {id: 0, v: [1.0,0.0,0.0,0.0]});")
+        conn.begin_transaction()
+        rows = list(conn.execute("CALL optimize_indexes();"))
+        assert [row[:4] for row in rows] == [
+            ["hnsw", name, 1, 0] for name in ("a_hnsw", "b_hnsw")
+        ]
+        with pytest.raises(RuntimeError):
+            conn.execute("CALL optimize_indexes(name := 'missing');")
+        with pytest.raises(RuntimeError, match="rollback-only"):
+            conn.commit()
+        conn.rollback()
+        conn.execute("CHECKPOINT;")
+        for name in ("a_hnsw", "b_hnsw"):
+            assert _local_buffer_checkpoint(path, name)[0] == 0
+        capfd.readouterr()
+        rows = list(conn.execute("CALL optimize_indexes();"))
+        assert [row[:4] for row in rows] == [
+            ["hnsw", name, 0, 1] for name in ("a_hnsw", "b_hnsw")
+        ]
+        assert capfd.readouterr().err.count("Skip existing HNSW index_id") == 2
+        assert list(conn.execute("MATCH (n:Item) RETURN n.id;")) == [[0]]
+        conn.execute("CHECKPOINT;")
+        for name in ("a_hnsw", "b_hnsw"):
+            assert _local_buffer_checkpoint(path, name)[0] == 1
+    finally:
+        _close_database(db, conn)
+
+
+@pytest.mark.parametrize(
+    "offset",
+    [None, "", "-1", "abc", "1x", "4294967296", "999999999999999999999999", "4"],
+)
+def test_local_buffer_offset_metadata(tmp_path, offset):
+    path = tmp_path / "offset-metadata"
+    db, conn = _open_database(path, checkpoint_on_close=False)
+    try:
+        conn.execute(
+            "CREATE NODE TABLE Item(id INT64 PRIMARY KEY, embedding FLOAT[4]);"
+        )
+        for i in range(3):
+            conn.execute(
+                f"CREATE (:Item {{id: {i}, embedding: [{float(i)},0.0,0.0,0.0]}});"
+            )
+        conn.execute("CREATE INDEX item_hnsw ON Item USING HNSW (embedding);")
+        conn.execute("CHECKPOINT;")
+    finally:
+        _close_database(db, conn)
+    checkpoint = path / "checkpoint"
+    current = (checkpoint / "CURRENT").read_text().strip()
+    manifest_path = checkpoint / "manifests" / (current + ".manifest")
+    manifest = json.loads(manifest_path.read_text())
+    descriptor = manifest["modules"]["index_item_hnsw"]
+    if offset is None:
+        # Legacy checkpoint: neither an offset nor a persisted Flat registry.
+        del descriptor["extra"]["flat_index_offset"]
+        del descriptor["objects"]["flat_index_buffer"]
+    else:
+        descriptor["extra"]["flat_index_offset"] = offset
+    manifest_path.write_text(json.dumps(manifest))
+    if offset is not None:
+        reopened = None
+        try:
+            with pytest.raises(RuntimeError):
+                reopened = Database(str(path), mode="w", checkpoint_on_close=False)
+                connection = reopened.connect()
+                try:
+                    connection.execute("LOAD vector_search;")
+                finally:
+                    connection.close()
+        finally:
+            if reopened is not None:
+                reopened.close()
+        return
+    db, conn = _open_database(path, checkpoint_on_close=False)
+    try:
+        conn.execute("CREATE (:Item {id: 3, embedding: [3.0,0.0,0.0,0.0]});")
+        result = conn.execute(
+            "PROFILE MATCH (n:Item) RETURN n.id, "
+            "vector_distance_l2(n.embedding, [3.0,0.0,0.0,0.0]) AS score "
+            "ORDER BY score LIMIT 1;"
+        )
+        assert list(result) == [[3, 0.0]]
+        assert "IndexScanOpr" in _profile_operator_names(result)
+        conn.execute("CHECKPOINT;")
+        assert _local_buffer_checkpoint(path, "item_hnsw")[0] == 3
+    finally:
+        _close_database(db, conn)
 
 
 def _array_literal(values):
@@ -905,9 +1350,8 @@ def test_cosine_normalize_is_ignored_for_non_cosine_metrics(tmp_path, metric):
 
 
 def test_cosine_normalize_false_preserves_valid_unit_vectors(tmp_path):
-    db, conn = _open_database(
-        tmp_path / "cosine-normalize-disabled", checkpoint_on_close=False
-    )
+    path = tmp_path / "cosine-normalize-disabled"
+    db, conn = _open_database(path, checkpoint_on_close=False)
     try:
         conn.execute(
             "CREATE NODE TABLE UnitVectorItem("
@@ -926,6 +1370,103 @@ def test_cosine_normalize_false_preserves_valid_unit_vectors(tmp_path):
             conn.execute("MATCH (n:UnitVectorItem {id: 1}) RETURN n.embedding;")
         )[0][0]
         assert stored == pytest.approx([0.6, 0.8, 0.0, 0.0])
+        conn.execute("CHECKPOINT;")
+        assert _local_buffer_checkpoint(path, "unit_vector_hnsw")[0] == 1
+        conn.execute("CREATE (:UnitVectorItem {id: 3, embedding: [0.0,1.0,0.0,0.0]});")
+        conn.execute("CHECKPOINT;")
+        assert _local_buffer_checkpoint(path, "unit_vector_hnsw")[0] == 2
+        _close_database(db, conn)
+        db, conn = _open_database(path, checkpoint_on_close=False)
+        result = conn.execute(
+            "PROFILE MATCH (n:UnitVectorItem) RETURN n.id, "
+            "vector_distance_cosine(n.embedding, [0.0,7.0,0.0,0.0]) AS score "
+            "ORDER BY score LIMIT 2;"
+        )
+        rows = list(result)
+        assert [row[0] for row in rows] == [3, 1]
+        assert [row[1] for row in rows] == pytest.approx([0.0, 0.2], abs=1e-5)
+        assert "IndexScanOpr" in _profile_operator_names(result)
+    finally:
+        _close_database(db, conn)
+
+
+@pytest.mark.parametrize("checkpoint_mode", ["none", "manual", "bulk", "close"])
+@pytest.mark.parametrize("fail_statement", [False, True])
+def test_hnsw_abort_checkpoint_reuses_consistent_index_state(
+    tmp_path, checkpoint_mode, fail_statement
+):
+    """Clean tables and indexes must reuse the same committed checkpoint state."""
+    path = tmp_path / "abort-next-index-id"
+    db, conn = _open_database(path, checkpoint_on_close=checkpoint_mode == "close")
+    try:
+        conn.execute("CREATE NODE TABLE Other(id INT64 PRIMARY KEY);")
+        conn.execute("CREATE NODE TABLE Item(id INT64 PRIMARY KEY, v FLOAT[4]);")
+        conn.execute("CREATE (:Item {id: 0, v: [1.0,0.0,0.0,0.0]});")
+        # Disable LocalBuffer so the aborted write actually reaches HNSW.
+        conn.execute(
+            "CREATE INDEX item_hnsw ON Item USING HNSW(v) "
+            "WITH(metric='cosine', cosine_normalize=false);"
+        )
+        conn.execute("CHECKPOINT;")
+        original_index = _local_buffer_checkpoint(path, "item_hnsw")
+        conn.begin_transaction()
+        conn.execute("CREATE (:Item {id: 1, v: [0.0,1.0,0.0,0.0]});")
+        assert list(conn.execute("MATCH (n:Item) RETURN count(n);")) == [[2]]
+        # A separate failing statement aborts the transaction after ID 1 was
+        # successfully added to the shared graph. Rollback clears its state.
+        if fail_statement:
+            with pytest.raises(RuntimeError, match="already exists"):
+                conn.execute("CREATE (:Item {id: 0, v: [1.0,0.0,0.0,0.0]});")
+            with pytest.raises(RuntimeError, match="rollback-only"):
+                conn.commit()
+        conn.rollback()
+        assert list(conn.execute("MATCH (n:Item) RETURN n.id;")) == [[0]]
+
+        persisted_next_id = None
+        if checkpoint_mode != "none":
+            # Both clean modules reuse the committed state. The aborted
+            # physical node must not enter the new checkpoint.
+            if checkpoint_mode == "manual":
+                conn.execute("CHECKPOINT;")
+            elif checkpoint_mode == "bulk":
+                csv = tmp_path / "other.csv"
+                csv.write_text("id\n42\n")
+                conn.execute(f"COPY Other FROM {cypher_path(csv)};")
+            else:
+                _close_database(db, conn)
+                db, conn = _open_database(path, checkpoint_on_close=False)
+            checkpoint = path / "checkpoint"
+            current = (checkpoint / "CURRENT").read_text().strip()
+            manifest = json.loads(
+                (checkpoint / "manifests" / (current + ".manifest")).read_text()
+            )
+            assert _local_buffer_checkpoint(path, "item_hnsw") == original_index
+            persisted_next_id = int(
+                manifest["modules"]["vertex_Item_prop_0/offset_accessor"]["extra"][
+                    "next_index_id"
+                ]
+            )
+        try:
+            conn.execute("CREATE (:Item {id: 2, v: [0.0,0.0,1.0,0.0]});")
+        except RuntimeError as error:
+            pytest.fail(
+                "Append after abort failed: "
+                f"checkpoint={checkpoint_mode}, "
+                f"persisted next_index_id={persisted_next_id} (expected 1 for reused checkpoint). {error}"
+            )
+        if checkpoint_mode != "none":
+            assert persisted_next_id == 1
+        assert list(conn.execute("MATCH (n:Item) RETURN n.id ORDER BY n.id;")) == [
+            [0],
+            [2],
+        ]
+        result = conn.execute(
+            "PROFILE MATCH (n:Item) RETURN n.id, "
+            "vector_distance_cosine(n.v, [0.0,0.0,1.0,0.0]) AS score "
+            "ORDER BY score LIMIT 1;"
+        )
+        assert list(result) == [[2, 0.0]]
+        assert "IndexScanOpr" in _profile_operator_names(result)
     finally:
         _close_database(db, conn)
 
@@ -1137,3 +1678,269 @@ def test_auto_load_extension_restores_index_in_new_process(tmp_path):
         timeout=90,
     )
     assert result.returncode == 0, result.stdout + result.stderr
+
+
+@pytest.mark.parametrize("metric", ["l2", "ip", "cosine"])
+@pytest.mark.parametrize("layout", ["flat", "hnsw", "mixed"])
+def test_visible_bitmap_candidates_and_maintenance(tmp_path, metric, layout):
+    """Dense/sparse candidates survive slot replacement, abort and reopen."""
+    path = tmp_path / "bitmap-candidates"
+    db, conn = _open_database(path, checkpoint_on_close=False)
+    rng = random.Random(991)
+    vectors = [[rng.uniform(-1, 1) for _ in range(4)] for _ in range(201)]
+    direction = "DESC" if metric == "ip" else "ASC"
+
+    def insert(i):
+        conn.execute(
+            f"CREATE (:Item {{id:{i}, bucket:{i % 100}, "
+            f"v:{_array_literal(vectors[i])}}});"
+        )
+
+    def check():
+        # On each 100-ID branch these exercise below, at, and above 10%.
+        for predicate in (
+            "",
+            "WHERE n.bucket<9 ",
+            "WHERE n.bucket<10 ",
+            "WHERE n.bucket<11 ",
+            "WHERE n.bucket<0 ",
+        ):
+            body = f"MATCH (n:Item) {predicate}RETURN n.id, "
+            distance = f"vector_distance_{metric}(n.v, $q)"
+            suffix = f" AS score ORDER BY score {direction} LIMIT 20;"
+            params = {"q": vectors[200]}
+            result = conn.execute(
+                "PROFILE " + body + distance + suffix, parameters=params
+            )
+            actual = list(result)
+            assert "IndexScanOpr" in _profile_operator_names(result)
+            expected = list(
+                conn.execute(body + distance + " + 0.0" + suffix, parameters=params)
+            )
+            assert [r[0] for r in actual] == [r[0] for r in expected]
+            assert [r[1] for r in actual] == pytest.approx(
+                [r[1] for r in expected], abs=2e-5
+            )
+
+    try:
+        conn.execute(
+            "CREATE NODE TABLE Item(id INT64 PRIMARY KEY, bucket INT64, v FLOAT[4]);"
+        )
+        if layout != "flat":
+            for i in range(100):
+                insert(i)
+        conn.execute(
+            "CREATE INDEX item_hnsw ON Item USING HNSW(v) "
+            f"WITH(metric='{metric}',cosine_normalize=true,m=8,ef_construction=40);"
+        )
+        if layout == "flat":
+            for i in range(100):
+                insert(i)
+        elif layout == "mixed":
+            for i in range(100, 200):
+                insert(i)
+        check()
+        conn.execute(f"MATCH(n:Item {{id:0}}) SET n.v={_array_literal(vectors[200])};")
+        conn.execute("MATCH(n:Item) WHERE n.id=1 OR n.id=104 DELETE n;")
+        check()
+        conn.begin_transaction()
+        conn.execute("MATCH(n:Item {id:2}) DELETE n;")
+        conn.execute(f"MATCH(n:Item {{id:3}}) SET n.v={_array_literal(vectors[199])};")
+        check()
+        conn.execute("CALL optimize_indexes('hnsw', 'item_hnsw');")
+        check()
+        conn.rollback()
+        check()
+        # Physical HNSW additions survive abort; logical bitmaps must not.
+        conn.execute("CALL optimize_indexes('hnsw', 'item_hnsw');")
+        check()
+        conn.execute("MATCH(n:Item) WHERE n.id>=5 DELETE n;")
+        check()  # Sparse visibility alone also enables candidate brute force.
+        conn.execute("CHECKPOINT;")
+    finally:
+        _close_database(db, conn)
+    db, conn = _open_database(path, checkpoint_on_close=False)
+    try:
+        check()
+        insert(200)
+        check()
+    finally:
+        _close_database(db, conn)
+
+
+def test_incremental_bitmaps_shared_column_and_aborted_slots(tmp_path):
+    """Each index consumes shared deletion records independently across snapshots."""
+    path = tmp_path / "shared-column-bitmaps"
+    db, conn = _open_database(path, checkpoint_on_close=False)
+
+    def check():
+        for metric, order in (("l2", "ASC"), ("ip", "DESC")):
+            for predicate in ("", "WHERE n.id<3 "):
+                prefix = f"MATCH(n:Item) {predicate}RETURN n.id, "
+                distance = f"vector_distance_{metric}(n.v, [1.0,0.0,0.0,0.0])"
+                suffix = f" AS score ORDER BY score {order} LIMIT 10;"
+                result = conn.execute("PROFILE " + prefix + distance + suffix)
+                actual = list(result)
+                assert "IndexScanOpr" in _profile_operator_names(result)
+                expected = list(conn.execute(prefix + distance + " + 0.0" + suffix))
+                assert actual == expected
+
+    try:
+        conn.execute("CREATE NODE TABLE Item(id INT64 PRIMARY KEY, v FLOAT[4]);")
+        for metric in ("l2", "ip"):
+            conn.execute(
+                f"CREATE INDEX idx_{metric} ON Item USING HNSW(v) "
+                f"WITH(metric='{metric}',m=8,ef_construction=40);"
+            )
+        for i in range(30):
+            conn.execute(f"CREATE (:Item {{id:{i},v:[{float(i)},0.0,0.0,0.0]}});")
+        conn.execute("CALL optimize_indexes('hnsw');")
+        conn.begin_transaction()
+        conn.execute("MATCH(n:Item {id:0}) SET n.v=[100.0,0.0,0.0,0.0];")
+        conn.execute("CREATE (:Item {id:30,v:[101.0,0.0,0.0,0.0]});")
+        conn.execute("MATCH(n:Item {id:1}) DELETE n;")
+        check()
+        conn.execute("CALL optimize_indexes('hnsw');")
+        conn.rollback()
+        check()
+        conn.execute("MATCH(n:Item {id:0}) SET n.v=[102.0,0.0,0.0,0.0];")
+        conn.execute("MATCH(n:Item {id:1}) DELETE n;")
+        conn.execute("CREATE (:Item {id:31,v:[103.0,0.0,0.0,0.0]});")
+        check()
+        # Several invalidations in one statement must all reach both indexes.
+        conn.execute("MATCH(n:Item) WHERE n.id>=20 SET n.v=[200.0,0.0,0.0,0.0];")
+        conn.execute("MATCH(n:Item) WHERE n.id>=25 DELETE n;")
+        check()
+        conn.execute("CALL optimize_indexes('hnsw');")
+        check()
+        conn.execute("CHECKPOINT;")
+    finally:
+        _close_database(db, conn)
+    db, conn = _open_database(path, checkpoint_on_close=False)
+    try:
+        check()
+    finally:
+        _close_database(db, conn)
+
+
+@pytest.mark.parametrize("mixed", [False, True])
+def test_cosine_shared_normalized_query_with_zero_and_scaled_inputs(tmp_path, mixed):
+    db, conn = _open_database(tmp_path / "shared-query", checkpoint_on_close=False)
+    rng = random.Random(1151)
+    vectors = [[rng.uniform(-1, 1) for _ in range(16)] for _ in range(1101)]
+    try:
+        conn.execute(
+            "CREATE NODE TABLE SharedQuery(id INT64 PRIMARY KEY, embedding FLOAT[16]);"
+        )
+        for i, vector in enumerate(vectors):
+            if mixed and i == 1001:
+                conn.execute(
+                    "CREATE INDEX shared_query ON SharedQuery USING HNSW "
+                    "(embedding) WITH(metric='cosine');"
+                )
+            conn.execute(
+                "CREATE (:SharedQuery {id:$id, embedding:CAST($v,'FLOAT[16]')});",
+                parameters={"id": i, "v": vector},
+            )
+        if not mixed:
+            conn.execute(
+                "CREATE INDEX shared_query ON SharedQuery USING HNSW "
+                "(embedding) WITH(metric='cosine');"
+            )
+        for source in [0, 1050, None, 0]:
+            target = (
+                [value * 17.0 for value in vectors[source]]
+                if source is not None
+                else [0.0] * 16
+            )
+            result = conn.execute(
+                "PROFILE MATCH(n:SharedQuery) RETURN n.id, "
+                "vector_distance_cosine(n.embedding,$v) AS score "
+                "ORDER BY score LIMIT 10;",
+                parameters={"v": target},
+            )
+            rows = list(result)
+            assert "IndexScanOpr" in _profile_operator_names(result)
+            assert len(rows) == 10
+            if source is not None:
+                assert rows[0][0] == source
+            for identifier, score in rows:
+                vector = vectors[identifier]
+                expected = 1.0
+                if source is not None:
+                    expected -= sum(a * b for a, b in zip(vector, target)) / (
+                        math.sqrt(sum(a * a for a in vector))
+                        * math.sqrt(sum(b * b for b in target))
+                    )
+                assert score == pytest.approx(expected, abs=1e-5)
+    finally:
+        _close_database(db, conn)
+
+
+def test_show_indexes_buffered_count_transaction_and_reopen(tmp_path):
+    path = tmp_path / "optimize-stats"
+    db, conn = _open_database(path, checkpoint_on_close=False)
+
+    def pending():
+        return list(
+            conn.execute("CALL show_indexes('hnsw') RETURN type, name, buffered_count;")
+        )
+
+    try:
+        assert pending() == []
+        conn.execute("CREATE NODE TABLE Item(id INT64 PRIMARY KEY, v FLOAT[4]);")
+        conn.execute("CREATE INDEX item_hnsw ON Item USING HNSW(v);")
+        conn.execute("CREATE (:Item {id:0,v:[1.0,0.0,0.0,0.0]});")
+        conn.execute("CALL optimize_indexes('hnsw');")
+        assert pending() == [["hnsw", "item_hnsw", 0]]
+        row = list(conn.execute("CALL show_indexes('hnsw', 'item_hnsw');"))[0]
+        assert row[:4] == ["item_hnsw", "hnsw", "Item", "v"]
+        assert row[5:] == ["active", 0]
+        for removed in ("index_optimize", "show_index_optimize_stats"):
+            with pytest.raises(RuntimeError):
+                conn.execute(f"CALL {removed}();")
+        conn.begin_transaction()
+        conn.execute("MATCH(n:Item {id:0}) SET n.v=[2.0,0.0,0.0,0.0];")
+        conn.execute("CREATE (:Item {id:1,v:[3.0,0.0,0.0,0.0]});")
+        assert pending() == [["hnsw", "item_hnsw", 2]]
+        conn.execute("MATCH(n:Item {id:1}) DELETE n;")
+        assert pending() == [["hnsw", "item_hnsw", 2]]
+        conn.execute("CALL optimize_indexes('hnsw');")
+        assert pending() == [["hnsw", "item_hnsw", 0]]
+        conn.rollback()
+        assert pending() == [["hnsw", "item_hnsw", 0]]
+        conn.execute("CREATE (:Item {id:2,v:[4.0,0.0,0.0,0.0]});")
+        assert pending() == [["hnsw", "item_hnsw", 3]]
+        conn.execute("CHECKPOINT;")
+    finally:
+        _close_database(db, conn)
+    db, conn = _open_database(path, checkpoint_on_close=False)
+    try:
+        conn.begin_transaction(read_only=True)
+        assert pending() == [["hnsw", "item_hnsw", 3]]
+        conn.commit()
+    finally:
+        _close_database(db, conn)
+
+
+def test_local_buffer_checkpoint_binary_timestamp(tmp_path):
+    # 26 (0x1A) in the timestamp metadata must not be treated as Windows EOF.
+    path = tmp_path / "binary-timestamp"
+    db, conn = _open_database(path, checkpoint_on_close=False)
+    try:
+        conn.execute("CREATE NODE TABLE Item(id INT64 PRIMARY KEY, v FLOAT[4]);")
+        conn.execute("CREATE INDEX item_hnsw ON Item USING HNSW(v);")
+        for i in range(26):
+            conn.execute(
+                f"CREATE (:Item {{id:{i}, v:{_array_literal([float(i), 0.0, 0.0, 0.0])}}});"
+            )
+        conn.execute("CHECKPOINT;")
+        assert list(conn.execute("MATCH(n:Item) RETURN count(n);")) == [[26]]
+        _close_database(db, conn)
+        db, conn = _open_database(path, checkpoint_on_close=False)
+        assert list(conn.execute("MATCH(n:Item) RETURN count(n);")) == [[26]]
+        assert list(conn.execute("CALL show_indexes() RETURN buffered_count;")) == [
+            [26]
+        ]
+    finally:
+        _close_database(db, conn)

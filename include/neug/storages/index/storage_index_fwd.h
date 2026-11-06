@@ -16,12 +16,34 @@
 
 #pragma once
 
+#include <cstdint>
+#include <optional>
+#include <string>
 #include <variant>
 
 namespace neug {
 
 class StorageIndex;
 struct PendingIndex;
+struct ShowIndexStats;
+
+struct OptimizeIndexStats {
+  uint64_t indexed_count{0};
+  uint64_t skipped_count{0};
+  bool changed{false};
+};
+
+struct IndexOptions {
+  std::optional<std::string> type;
+  std::optional<std::string> index_name;
+};
+
+struct OptimizeIndexResult {
+  std::string type;
+  std::string index_name;
+  OptimizeIndexStats stats;
+  double duration_ms{0};
+};
 
 using CreatedIndex = std::variant<StorageIndex*, PendingIndex*>;
 

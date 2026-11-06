@@ -61,23 +61,117 @@ dropped.
 
 ## Inspect Indexes
 
-Use `SHOW_INDEXES()` to inspect indexes in the current database:
+Use the read-only `show_indexes` procedure to inspect index metadata, activation
+state, and buffered data counts across all index types:
 
 ```cypher
-CALL SHOW_INDEXES() RETURN *;
+// List all indexes.
+CALL show_indexes() RETURN *;
+
+// List all HNSW indexes.
+CALL show_indexes('hnsw') RETURN *;
+
+// Select an index by name.
+CALL show_indexes(name := 'entity_embedding_hnsw') RETURN *;
+
+// Select by both type and name.
+CALL show_indexes(type := 'hnsw', name := 'entity_embedding_hnsw') RETURN *;
 ```
 
-The result includes the index name, type, node label, property, options, and
-state. An index can have either of these states:
+Both arguments are optional strings:
 
-- `active`: its implementation is loaded and the index is available for query
-  planning and online maintenance.
-- `pending`: its metadata was restored, but the extension that implements the
-  index is not loaded. The index becomes active after the provider extension is
-  loaded.
+| Argument | Position | Meaning |
+| --- | --- | --- |
+| `type` | 1 | Index type, such as `'hnsw'` or `'fts'`; case-insensitive. |
+| `name` | 2 | Exact index name. |
 
-A pending index is not a background index build. It is a persisted index
-waiting for its implementation to become available.
+Named arguments use `:=`, not `=`. Arguments also support query parameters,
+for example `CALL show_indexes($type, $name) RETURN *;`. Omitting both arguments
+lists all indexes. Unmatched filters return no rows, and results are sorted by
+index name.
+
+Example output:
+
+| name | type | label | property | options | state | buffered_count |
+| --- | --- | --- | --- | --- | --- | ---: |
+| entity_embedding_hnsw | hnsw | Entity | embedding | `{"metric":"cosine"}` | active | 6000 |
+| entity_text_fts | fts | Entity | text | `{}` | active | 0 |
+
+| Column | Meaning |
+| --- | --- |
+| `name` | Index name. |
+| `type` | Index type. |
+| `label` | Node table containing the indexed property. |
+| `property` | Indexed property name; multiple properties are represented as a string such as `["title","body"]`. |
+| `options` | Index options as a JSON string, with option values represented as strings. |
+| `state` | `active` when the index implementation is loaded; `pending` when the index has not been activated because its provider extension is not loaded. |
+| `buffered_count` | Number of data slots buffered in the index's LocalBuffer. The exact counting rules depend on the index implementation. Returns 0 for active indexes without a LocalBuffer and `NULL` for pending indexes. |
+
+To inspect only the buffer size:
+
+```cypher
+CALL show_indexes() RETURN name, type, buffered_count;
+```
+
+## Optimize Indexes
+
+Use `optimize_indexes` to explicitly perform maintenance on selected indexes.
+Each index type implements its own maintenance logic, such as merging buffered
+data into its main index structure. The procedure is available to all index
+types.
+
+For example, HNSW merges LocalBuffer data into its graph. That data is already
+searchable before optimization, so applications do not need to change their
+queries.
+
+The procedure accepts the same optional string arguments, `type` and `name`,
+as `show_indexes`, with the same positional order and support for named and
+query parameters:
+
+```cypher
+// Optimize one HNSW index.
+CALL optimize_indexes(type := 'hnsw', name := 'entity_embedding_hnsw');
+
+// Equivalent positional arguments.
+CALL optimize_indexes('hnsw', 'entity_embedding_hnsw');
+
+// Select by name without specifying a type.
+CALL optimize_indexes(name := 'entity_embedding_hnsw');
+
+// Optimize all HNSW indexes.
+CALL optimize_indexes('hnsw');
+```
+
+Omitting both arguments selects all indexes. Each index uses its own maintenance
+implementation; an index with no maintenance work returns zero counts. A type with
+no matching indexes returns no rows. An explicitly specified unknown name or
+a name/type mismatch is an error. If any selected index is pending, the call
+fails before optimizing any index. Load its provider extension first, or select
+only active indexes.
+
+The call waits for maintenance to finish and returns one row per selected index,
+sorted by index name. Example output (counts and duration are illustrative):
+
+| type | index_name | indexed_count | skipped_count | duration_ms |
+| --- | --- | ---: | ---: | ---: |
+| hnsw | entity_embedding_hnsw | 5800 | 200 | 1250.0 |
+
+| Column | Meaning |
+| --- | --- |
+| `type` | Index type. |
+| `index_name` | Index name. |
+| `indexed_count` | Number of entries incorporated into the index by this call, as reported by its maintenance implementation. |
+| `skipped_count` | Number of entries skipped during maintenance. Reasons depend on the index implementation; HNSW skips deleted or replaced entries, allocation gaps, and entries already added during an earlier attempt. |
+| `duration_ms` | Time spent optimizing this index, in milliseconds. |
+
+Optimization uses a write transaction. All selected indexes publish their
+maintenance changes together; a failure aborts the operation rather than
+returning partial success. Inside an explicit write transaction, changes become
+committed when that transaction commits. Read-only transactions can inspect
+indexes but cannot optimize them.
+
+See [Local Buffer guidance](../extensions/vector_search.md#when-and-how-to-optimize)
+for advice on when to optimize HNSW indexes.
 
 ## Index-Accelerated Queries
 

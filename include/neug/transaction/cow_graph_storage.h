@@ -56,6 +56,8 @@ class CowGraphStorage : public StorageUpdateInterface,
   result<CreatedIndex> CreateIndex(std::unique_ptr<IndexMeta> meta) override;
   Status DropIndex(const std::string& name) override;
   result<size_t> ActivateIndexes() override;
+  result<std::vector<OptimizeIndexResult>> OptimizeIndexes(
+      const IndexOptions& options) override;
 
  private:
   void MarkVertexTableDirty(label_t label) override {

@@ -95,6 +95,9 @@ Status AddBatchVertexIndexData(
       }
       RETURN_IF_NOT_OK(index->Upsert(vid, values));
     }
+    auto optimized = index->Optimize();
+    if (!optimized)
+      return optimized.error();
   }
   return Status::OK();
 }

@@ -16,13 +16,14 @@
 #pragma once
 
 #include <memory>
+#include <optional>
+#include <roaring.hh>
 #include <string>
 #include <vector>
 
 #include <zvec/core/interface/index.h>
 #include <zvec/core/interface/index_param.h>
 #include <zvec/core/interface/vector_source.h>
-#include <roaring.hh>
 
 #include "neug/storages/checkpoint_file_manager.h"
 #include "neug/storages/container/i_container.h"
@@ -48,12 +49,31 @@ class HNSWVecSource final : public zvec::core::VectorSource {
  public:
   explicit HNSWVecSource(const VecColumn* column);
 
+  bool is_l2_normalized() const override;
+
   const void* get_vector(uint32_t node_id) const override;
   size_t GetVectorByteSize() const { return vector_byte_size_; }
 
  private:
   const VecColumn* column_;
   size_t vector_byte_size_;
+};
+
+class FlatVecSource final : public zvec::core::ContiguousVectorSource {
+ public:
+  FlatVecSource(const VecColumn* column, index_id_t index_id_count,
+                index_id_t begin = 0);
+
+  const void* get_vector(uint32_t node_id) const override;
+  zvec::core::ContiguousBatch get_contiguous_view() const override {
+    return view_;
+  }
+  size_t GetVectorByteSize() const { return vector_byte_size_; }
+
+ private:
+  zvec::core::ContiguousBatch view_;
+  size_t vector_byte_size_;
+  index_id_t index_id_count_;
 };
 
 class ZVecDumpContainer final : public IDataContainer {
@@ -90,7 +110,10 @@ class HNSWIndex final : public StorageIndex {
             const std::string& key) override;
   Status Rebind(const IndexBindContext& context) override;
   Status BulkBuild(const VertexSet& vertices) override;
+  result<OptimizeIndexStats> Optimize() override;
+  result<ShowIndexStats> Show() const override;
   Status Upsert(vid_t vid, const IndexValue& new_value) override;
+  Status Delete(vid_t vid) override;
   void Detach(Checkpoint& ckp, MemoryLevel level) override;
   std::unique_ptr<Module> Clone() const override;
   static std::string type_name() { return "hnsw_index"; }
@@ -102,10 +125,22 @@ class HNSWIndex final : public StorageIndex {
 
  private:
   void ParseOptions();
+  void InitializeVisibleIDs();
+  void ConsumeDeletedIDs();
   zvec::core_interface::DataType ResolveDataType() const;
 
   std::shared_ptr<zvec::core_interface::Index> zvec_index_;
-  std::unique_ptr<HNSWVecSource> vec_source_;
+  std::shared_ptr<zvec::core_interface::Index> flat_index_;
+  std::shared_ptr<CheckpointFileManager::RuntimeFileHandle> flat_runtime_file_;
+  std::string flat_runtime_path_;
+  const VecColumn* column_{nullptr};
+  std::optional<index_id_t> flat_index_offset_;
+  bool local_buffer_enabled_{true};
+  // Derived snapshot state, rebuilt on first bind rather than persisted.
+  roaring::Roaring hnsw_ids_;
+  roaring::Roaring flat_ids_;
+  // Next invalidation to consume from the bound column's snapshot-local log.
+  size_t deleted_cursor_{0};
   std::shared_ptr<CheckpointFileManager::RuntimeFileHandle> zvec_runtime_file_;
   std::string zvec_runtime_path_;
   int dimension_{0};

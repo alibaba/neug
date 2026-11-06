@@ -33,6 +33,11 @@
 
 namespace neug {
 
+result<std::vector<ShowIndexStats>> StorageReadInterface::ShowIndexes(
+    const IndexOptions& options) const {
+  return view_.ShowIndexes(options);
+}
+
 namespace {
 
 std::unique_ptr<ColumnBase> FromArrayColumn(const ArrayColumn& array,

@@ -61,6 +61,12 @@ class VectorNormalizer {
 //    the indexes to reuse the same offset as their primary key.
 class VecColumn : public ColumnBase {
  public:
+  struct VectorView {
+    const void* data;
+    size_t stride;
+    std::shared_ptr<const void> lease;
+  };
+  NEUG_API VectorView PinVectorView(size_t begin, size_t end) const;
   VecColumn();
 
   /**
@@ -114,8 +120,8 @@ class VecColumn : public ColumnBase {
   // Deterministically samples active vectors. This is an
   // optimization hint only and does not prove that every vector is normalized.
   bool SampleIsL2Normalized() const { return VectorNormalizer::Sample(*this); }
-  // Marks the column as L2-normalized when sampling succeeds. Otherwise,
-  // validates and normalizes all active vectors in one pass using
+  // Marks the column as L2-normalized after validating every active vector.
+  // Otherwise, validates and normalizes all active vectors using
   // a private replacement buffer.
   Status EnsureL2Normalized() { return VectorNormalizer::Ensure(*this); }
 

@@ -27,6 +27,7 @@
 #include "neug/storages/graph/edge_table.h"
 #include "neug/storages/graph/schema.h"
 #include "neug/storages/graph/vertex_table.h"
+#include "neug/storages/index/storage_index_fwd.h"
 #include "neug/utils/property/column.h"
 #include "neug/utils/result.h"
 
@@ -143,6 +144,8 @@ class NEUG_API GraphView {
   // Used by physical analysis to detect an index containing a property.
   result<std::vector<StorageIndex*>> GetIndexesContainingProperty(
       label_t label_id, const std::string& property_name) const;
+  result<std::vector<ShowIndexStats>> ShowIndexes(
+      const IndexOptions& options) const;
   result<std::vector<StorageIndex*>> GetAllIndexes() const;
   result<std::vector<const PendingIndex*>> GetAllPendingIndexes() const;
 

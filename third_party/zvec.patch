@@ -56,3 +56,185 @@ diff --git a/thirdparty/RaBitQ-Library/CMakeLists.txt b/thirdparty/RaBitQ-Librar
 +  endif()
    target_link_libraries(rabitqlib INTERFACE rabitqlib::fastscan)
  endif()
+diff --git a/src/core/interface/index.cc b/src/core/interface/index.cc
+index e80bce6..e7b7ddf 100644
+--- a/src/core/interface/index.cc
++++ b/src/core/interface/index.cc
+@@ -927,10 +927,11 @@ int Index::_dense_add(const VectorData &vector_data, const uint32_t doc_id,
+       LOG_ERROR("Failed to quantize vector with turbo quantizer");
+       return core::IndexError_Runtime;
+     }
+-    if (streamer_->add_with_id_impl(doc_id, new_vector->data(), new_meta,
+-                                    context) != 0) {
++    const int ret = streamer_->add_with_id_impl(
++        doc_id, new_vector->data(), new_meta, context);
++    if (ret != 0) {
+       LOG_ERROR("Failed to add vector");
+-      return core::IndexError_Runtime;
++      return ret == core::IndexError_Duplicate ? ret : core::IndexError_Runtime;
+     }
+     return 0;
+   }
+@@ -948,14 +949,14 @@ int Index::_dense_add(const VectorData &vector_data, const uint32_t doc_id,
+                                       context);
+     if (ret != 0) {
+       LOG_ERROR("Failed to add vector");
+-      return core::IndexError_Runtime;
++      return ret == core::IndexError_Duplicate ? ret : core::IndexError_Runtime;
+     }
+   } else {
+     int ret = streamer_->add_with_id_impl(doc_id, dense_vector.data,
+                                           input_vector_meta_, context);
+     if (ret != 0) {
+       LOG_ERROR("Failed to add vector");
+-      return core::IndexError_Runtime;
++      return ret == core::IndexError_Duplicate ? ret : core::IndexError_Runtime;
+     }
+   }
+   return 0;
+@@ -1034,6 +1035,24 @@ int Index::_prepare_dense_query(const VectorData &vector_data,
+   // Check if need to transform feature
+   *prepared_meta = input_vector_meta_;
+   if (turbo_quantizer_ != nullptr) {
++    if (vector_data.query_is_l2_normalized && param_.use_external_vector &&
++        param_.index_type == IndexType::kHNSW &&
++        param_.metric_type == MetricType::kCosine &&
++        param_.data_type == DataType::DT_FP32 &&
++        turbo_quantizer_->type() == zvec::turbo::QuantizeType::kFp32) {
++      // Preserve the FP32 cosine record layout, including its norm tail,
++      // without quantizing/normalizing an already normalized query again.
++      const size_t bytes = input_vector_meta_.dimension() * sizeof(float);
++      query_storage->assign(static_cast<const char *>(dense_vector.data), bytes);
++      const float norm = 1.0f;
++      query_storage->append(reinterpret_cast<const char *>(&norm), sizeof(norm));
++      prepared_meta->set_meta(core::IndexMeta::DT_FP32,
++                             input_vector_meta_.dimension(),
++                             static_cast<uint32_t>(turbo_quantizer_->type()),
++                             sizeof(norm));
++      *prepared_query = query_storage->data();
++      return 0;
++    }
+     if (turbo_quantizer_->quantize(dense_vector.data, input_vector_meta_,
+                                    query_storage, prepared_meta) != 0) {
+       LOG_ERROR("Failed to quantize query with turbo quantizer");
+diff --git a/src/core/interface/indexes/hnsw_index.cc b/src/core/interface/indexes/hnsw_index.cc
+index 3dd81f5..9d0457c 100644
+--- a/src/core/interface/indexes/hnsw_index.cc
++++ b/src/core/interface/indexes/hnsw_index.cc
+@@ -216,5 +216,10 @@ int HNSWIndex::create_and_init_streamer(const BaseIndexParam &param) {
+   } else {
+     proxima_index_params_.set(core::PARAM_HNSW_STREAMER_EFCONSTRUCTION,
+                               param_.ef_construction);
++    bool filter_same_key = false;
++    param_.params.get(core::PARAM_HNSW_STREAMER_FILTER_SAME_KEY,
++                      &filter_same_key);
++    proxima_index_params_.set(core::PARAM_HNSW_STREAMER_FILTER_SAME_KEY,
++                              filter_same_key);
+     proxima_index_params_.set(core::PARAM_HNSW_STREAMER_MAX_NEIGHBOR_COUNT,
+                               param_.m);
+diff --git a/src/core/algorithm/hnsw/hnsw_streamer.cc b/src/core/algorithm/hnsw/hnsw_streamer.cc
+index 5f62534..07d615d 100644
+--- a/src/core/algorithm/hnsw/hnsw_streamer.cc
++++ b/src/core/algorithm/hnsw/hnsw_streamer.cc
+@@ -238,6 +238,8 @@ int HnswStreamer::cleanup() {
+   metric_.reset();
+   quantizer_.reset();
+   add_distance_ = {};
++  normalized_external_distance_ = {};
++  normalized_external_batch_distance_ = {};
+   add_batch_distance_ = {};
+   search_distance_ = {};
+   search_batch_distance_ = {};
+@@ -383,6 +385,15 @@ int HnswStreamer::open(IndexStorage::Pointer stg) {
+
+   if (quantizer_) {
+     if (use_external_vector_) {
++      if (quantizer_->type() == zvec::turbo::QuantizeType::kFp32 &&
++          meta_.metric_name() == "Cosine") {
++        // FP32 cosine kernels consume only the original dimensions. Already
++        // normalized external rows need neither scratch copies nor norm tails.
++        BindTurboDistances<&TurboQuantizer::calc_distance_dp_dp,
++                           &TurboQuantizer::calc_distance_dp_dp_batch>(
++            quantizer_, normalized_external_distance_,
++            normalized_external_batch_distance_);
++      }
+       // External records and build queries are raw; search queries are encoded.
+       BindTurboDistances<&TurboQuantizer::calc_distance_input_input,
+                          &TurboQuantizer::calc_distance_input_input_batch>(
+@@ -703,15 +714,28 @@ void HnswStreamer::bind_add_dist_space(HnswContext *ctx) const {
+   // The quantizer path has no metric, and quantizers keep no extra values
+   const size_t extra_values_size =
+       add_metric ? add_metric->extra_values_size_per_vector() : 0;
+-  ctx->bind_dist_space(add_distance_, add_batch_distance_, provider_,
+-                       vector_size, extra_values_size);
++  const bool normalized = !provider_ && normalized_external_distance_ &&
++                          ctx->vector_source() &&
++                          ctx->vector_source()->is_l2_normalized();
++  ctx->bind_dist_space(
++      normalized ? normalized_external_distance_ : add_distance_,
++      normalized ? normalized_external_batch_distance_ : add_batch_distance_,
++      provider_, vector_size, extra_values_size);
+ }
+
+ void HnswStreamer::bind_search_dist_space(HnswContext *ctx) const {
+   const size_t extra_values_size =
+       metric_ ? metric_->extra_values_size_per_vector() : 0;
+-  ctx->bind_dist_space(search_distance_, search_batch_distance_, nullptr,
+-                       meta_.element_size(), extra_values_size);
++  // External FP32 cosine rows can already be normalized by their owner.
++  // The query is encoded once before search; compare these rows directly
++  // instead of copying and normalizing every visited candidate again.
++  const bool normalized = normalized_external_distance_ &&
++                          ctx->vector_source() &&
++                          ctx->vector_source()->is_l2_normalized();
++  ctx->bind_dist_space(
++      normalized ? normalized_external_distance_ : search_distance_,
++      normalized ? normalized_external_batch_distance_ : search_batch_distance_,
++      nullptr, meta_.element_size(), extra_values_size);
+ }
+
+ //! Add a vector with id into index
+diff --git a/src/core/algorithm/hnsw/hnsw_streamer.h b/src/core/algorithm/hnsw/hnsw_streamer.h
+index c78b7de..9159517 100644
+--- a/src/core/algorithm/hnsw/hnsw_streamer.h
++++ b/src/core/algorithm/hnsw/hnsw_streamer.h
+@@ -273,6 +273,8 @@ class HnswStreamer : public IndexStreamer {
+   IndexMetric::Pointer metric_{};
+
+   IndexMetric::MatrixDistance add_distance_{};
++  IndexMetric::MatrixDistance normalized_external_distance_{};
++  IndexMetric::MatrixBatchDistance normalized_external_batch_distance_{};
+   IndexMetric::MatrixDistance search_distance_{};
+
+   IndexMetric::MatrixBatchDistance add_batch_distance_{};
+diff --git a/src/include/zvec/core/interface/vector_source.h b/src/include/zvec/core/interface/vector_source.h
+index c0967bf..9f87e17 100644
+--- a/src/include/zvec/core/interface/vector_source.h
++++ b/src/include/zvec/core/interface/vector_source.h
+@@ -57,6 +57,11 @@ class ZVEC_CORE_API VectorSource {
+   VectorSource();
+   virtual ~VectorSource();
+
++  // Opt in only when FP32 rows and vectors supplied to add_with_source are
++  // already L2-normalized (zero vectors are allowed). Default raw input keeps
++  // the normal conversion path. This property must be stable per request.
++  virtual bool is_l2_normalized() const { return false; }
++
+   // Borrowed random-access pointers. Keep all get_vectors() results valid
+   // through consumption; fetch_vector results also borrow this memory.
+   // During HNSW queries, nullptr marks an unavailable record, which is logged
+diff --git a/src/include/zvec/core/interface/index.h b/src/include/zvec/core/interface/index.h
+index c695140..9dfe19e 100644
+--- a/src/include/zvec/core/interface/index.h
++++ b/src/include/zvec/core/interface/index.h
+@@ -71,6 +71,10 @@ struct SparseVector {
+ struct VectorData {
+   std::variant<DenseVector, SparseVector> vector;
+
++  // Query-only hint: dense FP32 input is already L2 normalized (or zero).
++  // It does not describe stored vectors or change add semantics.
++  bool query_is_l2_normalized = false;
++
+   // DenseVector dense_vector;
+   // SparseVector sparse_vector;
+ };

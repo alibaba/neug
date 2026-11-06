@@ -132,6 +132,21 @@ result<size_t> CowGraphStorage::ActivateIndexes() {
   return activated.value();
 }
 
+result<std::vector<OptimizeIndexResult>> CowGraphStorage::OptimizeIndexes(
+    const IndexOptions& options) {
+  auto results = graph_.mutable_index_manager().OptimizeIndexes(options);
+  if (!results)
+    return tl::unexpected(results.error());
+  std::vector<std::string> changed;
+  for (const auto& row : results.value()) {
+    if (row.stats.changed)
+      changed.push_back(row.index_name);
+  }
+  if (!changed.empty())
+    logical_redo_.LogOptimizeIndexes(changed);
+  return results;
+}
+
 // Iterates the `primary` adjacency list of `lid`, cross-references the
 // `secondary` list to find the corresponding offset, and returns
 // (nbr_vid, primary_offset, secondary_offset) for each visible edge.

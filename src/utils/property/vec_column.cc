@@ -289,6 +289,16 @@ void VecColumn::openInternal(Checkpoint& ckp,
   validateState();
 }
 
+VecColumn::VectorView VecColumn::PinVectorView(size_t begin, size_t end) const {
+  if (!buffer_ || begin > end || end > buffer_size()) {
+    THROW_INVALID_ARGUMENT_EXCEPTION("VecColumn vector view is out of bounds");
+  }
+  const auto stride =
+      array_size() * ElementSize(ArrayType::GetChildType(array_type_).id());
+  const auto* data = static_cast<const uint8_t*>(buffer_->GetData());
+  return {data ? data + begin * stride : nullptr, stride, buffer_};
+}
+
 void VecColumn::Dump(Checkpoint& ckp, CheckpointManifest& meta,
                      const std::string& key) {
   if (!buffer_) {
@@ -566,7 +576,20 @@ Status VectorNormalizer::Ensure(VecColumn& column) {
     return Status(StatusCode::ERR_INVALID_ARGUMENT,
                   "L2 normalization supports only FLOAT vectors");
   }
-  if (Sample(column)) {
+  // The representation is also used by External Flat to turn cosine into IP.
+  // Sampling cannot establish that invariant for every stored vector.
+  bool all_normalized = true;
+  const auto* existing = static_cast<const float*>(column.buffer_->GetData());
+  for (index_id_t id = 0; id < column.offset_accessor_->GetVisibleLimit();
+       ++id) {
+    if (column.offset_accessor_->GetVIDByIndexID(id) != INVALID_VID &&
+        !IsNormalized(existing + static_cast<size_t>(id) * column.array_size(),
+                      column.array_size())) {
+      all_normalized = false;
+      break;
+    }
+  }
+  if (all_normalized) {
     column.representation_ = VectorRepresentation::kL2Normalized;
     return Status::OK();
   }

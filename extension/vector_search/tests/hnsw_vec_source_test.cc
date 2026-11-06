@@ -80,6 +80,18 @@ class HNSWVecSourceTest : public ::testing::Test {
   std::unique_ptr<VecColumn> column_;
 };
 
+TEST_F(HNSWVecSourceTest, NormalizationOptInFollowsColumnRepresentation) {
+  column_->set_any(1, MakeVector(7), true);
+  HNSWVecSource source(column_.get());
+  EXPECT_FALSE(source.is_l2_normalized());
+  ASSERT_TRUE(column_->EnsureL2Normalized().ok());
+  EXPECT_TRUE(source.is_l2_normalized());
+  EXPECT_FLOAT_EQ(static_cast<const float*>(source.get_vector(1))[0], 1);
+  EXPECT_FLOAT_EQ(static_cast<const float*>(source.get_vector(0))[0], 0);
+  TrackingSource raw_source(column_.get());
+  EXPECT_FALSE(raw_source.is_l2_normalized());
+}
+
 TEST_F(HNSWVecSourceTest, ReadsNewIDWithinSnapshotCapacity) {
   auto snapshot_module = column_->Clone();
   auto* snapshot = static_cast<VecColumn*>(snapshot_module.get());
@@ -117,6 +129,47 @@ TEST_F(HNSWVecSourceTest, OldSnapshotSkipsIDsAfterResize) {
   ASSERT_NE(new_source.get_vector(capacity), nullptr);
   EXPECT_FLOAT_EQ(static_cast<const float*>(new_source.get_vector(capacity))[0],
                   static_cast<float>(capacity));
+}
+
+TEST_F(HNSWVecSourceTest, FlatSourcePinsOnlyRequestedRange) {
+  column_->set_any(1, MakeVector(7), true);
+  FlatVecSource source(column_.get(), 2, 1);
+  auto view = source.get_contiguous_view();
+  EXPECT_EQ(view.first_id, 1);
+  EXPECT_EQ(view.count, 1);
+  EXPECT_EQ(source.get_vector(0), nullptr);
+  EXPECT_EQ(source.get_vector(2), nullptr);
+  ASSERT_NE(source.get_vector(1), nullptr);
+  const auto capacity = column_->buffer_size();
+  for (uint32_t id = 2; id <= capacity; ++id)
+    column_->set_any(id, MakeVector(static_cast<float>(id)), true);
+  EXPECT_FLOAT_EQ(static_cast<const float*>(source.get_vector(1))[0], 7);
+}
+
+TEST_F(HNSWVecSourceTest, DuplicateErrorSurvivesCheckpointReopen) {
+  namespace zv = zvec::core_interface;
+  zv::HNSWIndexParam param(zv::MetricType::kL2sq, 2, 16, 100);
+  param.data_type = zv::DataType::DT_FP32;
+  param.use_external_vector = true;
+  param.params.set("proxima.hnsw.streamer.filter_same_key", true);
+  HNSWVecSource source(column_.get());
+  zv::VectorData vector{zv::DenseVector{source.get_vector(0)}};
+  auto index = zv::IndexFactory::CreateAndInitIndex(param);
+  ASSERT_NE(index, nullptr);
+  const auto path = (path_ / "duplicate-index").string();
+  ASSERT_EQ(index->open(path, {zv::StorageOptions::StorageType::kMMAP, true}),
+            0);
+  ASSERT_EQ(index->add_with_source(vector, 0, source), 0);
+  EXPECT_EQ(index->add_with_source(vector, 0, source),
+            zvec::core::IndexError_Duplicate);
+  ASSERT_EQ(index->flush(), 0);
+  ASSERT_EQ(index->close(), 0);
+  index = zv::IndexFactory::CreateAndInitIndex(param);
+  ASSERT_EQ(index->open(path, {zv::StorageOptions::StorageType::kMMAP, false}),
+            0);
+  EXPECT_EQ(index->add_with_source(vector, 0, source),
+            zvec::core::IndexError_Duplicate);
+  EXPECT_EQ(index->close(), 0);
 }
 
 void HNSWVecSourceTest::CheckSnapshotSearch(uint32_t capacity, uint32_t count) {
