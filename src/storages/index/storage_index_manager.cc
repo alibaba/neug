@@ -686,7 +686,14 @@ void StorageIndexManager::Dump(ModuleBroker& store, CheckpointManifest& meta) {
       continue;
 
     std::string key = GetKey(name);
-    store.SetModule(key, std::move(index));
+    // Match clean-table reuse: shared physical additions from an aborted
+    // transaction must not be published alongside an old accessor snapshot.
+    if (ckp_ && dirty_index_names_.count(name) == 0 &&
+        ckp_->manifest().HasModule(key)) {
+      meta.ReuseModuleClosureFrom(ckp_->manifest(), key);
+    } else {
+      store.SetModule(key, std::move(index));
+    }
   }
   indexes_.clear();
 }

@@ -1364,6 +1364,87 @@ def test_cosine_normalize_false_preserves_valid_unit_vectors(tmp_path):
         _close_database(db, conn)
 
 
+@pytest.mark.parametrize("checkpoint_mode", ["none", "manual", "bulk", "close"])
+@pytest.mark.parametrize("fail_statement", [False, True])
+def test_hnsw_abort_checkpoint_reuses_consistent_index_state(
+    tmp_path, checkpoint_mode, fail_statement
+):
+    """Clean tables and indexes must reuse the same committed checkpoint state."""
+    path = tmp_path / "abort-next-index-id"
+    db, conn = _open_database(path, checkpoint_on_close=checkpoint_mode == "close")
+    try:
+        conn.execute("CREATE NODE TABLE Other(id INT64 PRIMARY KEY);")
+        conn.execute("CREATE NODE TABLE Item(id INT64 PRIMARY KEY, v FLOAT[4]);")
+        conn.execute("CREATE (:Item {id: 0, v: [1.0,0.0,0.0,0.0]});")
+        # Disable LocalBuffer so the aborted write actually reaches HNSW.
+        conn.execute(
+            "CREATE INDEX item_hnsw ON Item USING HNSW(v) "
+            "WITH(metric='cosine', cosine_normalize=false);"
+        )
+        conn.execute("CHECKPOINT;")
+        original_index = _local_buffer_checkpoint(path, "item_hnsw")
+        conn.begin_transaction()
+        conn.execute("CREATE (:Item {id: 1, v: [0.0,1.0,0.0,0.0]});")
+        assert list(conn.execute("MATCH (n:Item) RETURN count(n);")) == [[2]]
+        # A separate failing statement aborts the transaction after ID 1 was
+        # successfully added to the shared graph. Rollback clears its state.
+        if fail_statement:
+            with pytest.raises(RuntimeError, match="already exists"):
+                conn.execute("CREATE (:Item {id: 0, v: [1.0,0.0,0.0,0.0]});")
+            with pytest.raises(RuntimeError, match="rollback-only"):
+                conn.commit()
+        conn.rollback()
+        assert list(conn.execute("MATCH (n:Item) RETURN n.id;")) == [[0]]
+
+        persisted_next_id = None
+        if checkpoint_mode != "none":
+            # Both clean modules reuse the committed state. The aborted
+            # physical node must not enter the new checkpoint.
+            if checkpoint_mode == "manual":
+                conn.execute("CHECKPOINT;")
+            elif checkpoint_mode == "bulk":
+                csv = tmp_path / "other.csv"
+                csv.write_text("id\n42\n")
+                conn.execute(f'COPY Other FROM "{csv}";')
+            else:
+                _close_database(db, conn)
+                db, conn = _open_database(path, checkpoint_on_close=False)
+            checkpoint = path / "checkpoint"
+            current = (checkpoint / "CURRENT").read_text().strip()
+            manifest = json.loads(
+                (checkpoint / "manifests" / (current + ".manifest")).read_text()
+            )
+            assert _local_buffer_checkpoint(path, "item_hnsw") == original_index
+            persisted_next_id = int(
+                manifest["modules"]["vertex_Item_prop_0/offset_accessor"]["extra"][
+                    "next_index_id"
+                ]
+            )
+        try:
+            conn.execute("CREATE (:Item {id: 2, v: [0.0,0.0,1.0,0.0]});")
+        except RuntimeError as error:
+            pytest.fail(
+                "Append after abort failed: "
+                f"checkpoint={checkpoint_mode}, "
+                f"persisted next_index_id={persisted_next_id} (expected 1 for reused checkpoint). {error}"
+            )
+        if checkpoint_mode != "none":
+            assert persisted_next_id == 1
+        assert list(conn.execute("MATCH (n:Item) RETURN n.id ORDER BY n.id;")) == [
+            [0],
+            [2],
+        ]
+        result = conn.execute(
+            "PROFILE MATCH (n:Item) RETURN n.id, "
+            "vector_distance_cosine(n.v, [0.0,0.0,1.0,0.0]) AS score "
+            "ORDER BY score LIMIT 1;"
+        )
+        assert list(result) == [[2, 0.0]]
+        assert "IndexScanOpr" in _profile_operator_names(result)
+    finally:
+        _close_database(db, conn)
+
+
 def test_cosine_normalize_rejects_property_used_by_raw_hnsw_index(tmp_path):
     """A normalized representation cannot replace data used by a raw index."""
     db, conn = _open_database(
