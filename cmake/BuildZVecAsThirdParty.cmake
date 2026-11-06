@@ -56,12 +56,6 @@ function(build_zvec_as_third_party)
         _neug_apply_patch("${ZVEC_SOURCE_DIR}" "${_zvec_patch}" "zvec.patch")
     endif()
 
-    # GCC 10 in the manylinux image lacks _mm_loadu_si32/_mm_storeu_si32.
-    _neug_apply_patch(
-        "${ZVEC_SOURCE_DIR}/thirdparty/RaBitQ-Library/RaBitQ-Library-0.7.0"
-        "${CMAKE_SOURCE_DIR}/third_party/rabitq.patch"
-        "RaBitQ GCC 10 compatibility patch")
-
     _neug_apply_zvec_patch(
         "${ZVEC_SOURCE_DIR}/thirdparty/antlr/antlr4"
         "${ZVEC_SOURCE_DIR}/thirdparty/antlr/antlr4.patch"
@@ -124,12 +118,8 @@ function(build_zvec_as_third_party)
     # Without them, runtime dispatch can select kernels built as no-op stubs.
     set(_zvec_auto_detect_arch ON)
 
-    # ZVec disables RaBitQ on Windows ARM64 but still supports ordinary HNSW.
-    string(TOLOWER "${CMAKE_SYSTEM_PROCESSOR}" _zvec_target_processor)
-    set(_zvec_rabitq_supported ON)
-    if(WIN32 AND _zvec_target_processor MATCHES "^(arm64|aarch64)$")
-        set(_zvec_rabitq_supported OFF)
-    endif()
+    # Temporarily disable RaBitQ; ordinary HNSW keeps architecture detection.
+    set(_zvec_rabitq_supported OFF)
     set(_zvec_rabitq_byproducts)
     if(_zvec_rabitq_supported)
         # RaBitQ 0.7 moved its kernels from headers into compiled libraries.
@@ -150,6 +140,7 @@ function(build_zvec_as_third_party)
         "-DBUILD_ZVEC_AILEGO_SHARED=OFF"
         "-DBUILD_PYTHON_BINDINGS=OFF"
         "-DBUILD_C_BINDINGS=OFF"
+        "-DZVEC_ENABLE_RABITQ=OFF"
         "-DAUTO_DETECT_ARCH=${_zvec_auto_detect_arch}"
         "-DBUILD_TOOLS=OFF")
     if(MSVC)
