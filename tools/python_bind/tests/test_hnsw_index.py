@@ -153,7 +153,8 @@ def test_local_buffer_copy_builds_existing_tail(tmp_path):
         csv = tmp_path / "tail.csv"
         csv.write_text("id|embedding\n1|[1.0,0.0,0.0,0.0]\n2|[2.0,0.0,0.0,0.0]\n")
         conn.execute(
-            f"COPY Buffered FROM (LOAD FROM {cypher_path(csv)} (delim='|') RETURN id, CAST(embedding, 'FLOAT[4]') AS embedding);"
+            f"COPY Buffered FROM (LOAD FROM {cypher_path(csv)} (delim='|') "
+            "RETURN id, CAST(embedding, 'FLOAT[4]') AS embedding);"
         )
         conn.execute("CHECKPOINT;")
         assert _local_buffer_checkpoint(tmp_path / "copy-db", "buffered_hnsw")[0] == 3
