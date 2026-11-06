@@ -37,6 +37,12 @@ struct IndexOptimizeOptions {
   std::optional<std::string> index_name;
 };
 
+struct IndexOptimizePendingStats {
+  std::string type;
+  std::string index_name;
+  uint64_t pending_count{0};
+};
+
 struct IndexOptimizeResult {
   std::string type;
   std::string index_name;

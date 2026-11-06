@@ -171,6 +171,12 @@ class NEUG_API StorageIndex : public Module {
    */
   virtual Status BulkBuild(const VertexSet& vertices) = 0;
 
+  // Read-only estimate of the range pending maintenance in this snapshot.
+  virtual result<IndexOptimizePendingStats> GetIndexOptimizePendingStats()
+      const {
+    return IndexOptimizePendingStats{meta_->type, meta_->name, 0};
+  }
+
   // Shared by explicit maintenance and COPY. The caller owns the transaction.
   virtual result<IndexOptimizeStats> Optimize() { return IndexOptimizeStats{}; }
 

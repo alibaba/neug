@@ -534,6 +534,19 @@ Status HNSWIndex::BulkBuild(const VertexSet& vertices) {
   return Status::OK();
 }
 
+result<IndexOptimizePendingStats> HNSWIndex::GetIndexOptimizePendingStats()
+    const {
+  if (!index_id_accessor_ || !flat_index_offset_) {
+    return tl::unexpected(Status::RuntimeError(
+        "HNSW must be bound before reading optimize statistics"));
+  }
+  const auto count =
+      local_buffer_enabled_
+          ? index_id_accessor_->GetVisibleLimit() - flat_index_offset_.value()
+          : 0;
+  return IndexOptimizePendingStats{meta_->type, meta_->name, count};
+}
+
 result<IndexOptimizeStats> HNSWIndex::Optimize() {
   IndexOptimizeStats stats;
   if (!local_buffer_enabled_)

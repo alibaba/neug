@@ -23,6 +23,7 @@ add_library(neug_function
         show_loaded_extensions_function.cpp
         show_indexes_function.cpp
         index_optimize_function.cpp
+        show_index_optimize_stats_function.cpp
         vector_arithmetic_functions.cpp
         vector_cast_functions.cpp
         vector_date_functions.cpp

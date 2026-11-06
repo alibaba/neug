@@ -111,6 +111,8 @@ class HNSWIndex final : public StorageIndex {
   Status Rebind(const IndexBindContext& context) override;
   Status BulkBuild(const VertexSet& vertices) override;
   result<IndexOptimizeStats> Optimize() override;
+  result<IndexOptimizePendingStats> GetIndexOptimizePendingStats()
+      const override;
   Status Upsert(vid_t vid, const IndexValue& new_value) override;
   Status Delete(vid_t vid) override;
   void Detach(Checkpoint& ckp, MemoryLevel level) override;

@@ -365,6 +365,11 @@ class NEUG_API StorageReadInterface : virtual public IStorageInterface {
     return view_.GetIndexByName(name);
   }
 
+  result<std::vector<IndexOptimizePendingStats>> GetIndexOptimizePendingStats(
+      const IndexOptimizeOptions& options) const {
+    return view_.GetIndexOptimizePendingStats(options);
+  }
+
   /** @brief Get all registered indexes. */
   result<std::vector<StorageIndex*>> GetAllIndexes() const {
     return view_.GetAllIndexes();

@@ -105,6 +105,58 @@ result<std::vector<IndexOptimizeResult>> StorageIndexManager::OptimizeIndexes(
   return results;
 }
 
+result<std::vector<IndexOptimizePendingStats>>
+StorageIndexManager::GetIndexOptimizePendingStats(
+    const IndexOptimizeOptions& options) const {
+  auto type = options.type;
+  if ((type && type->empty()) ||
+      (options.index_name && options.index_name->empty())) {
+    return tl::unexpected(
+        Status(StatusCode::ERR_INVALID_ARGUMENT,
+               "SHOW_INDEX_OPTIMIZE_STATS requires nonempty type/index_name"));
+  }
+  if (type)
+    common::StringUtils::toLower(*type);
+  auto matches = [&](const IndexMeta& meta) {
+    auto actual = meta.type;
+    common::StringUtils::toLower(actual);
+    return (!options.index_name || meta.name == *options.index_name) &&
+           (!type || actual == *type);
+  };
+  // Validate all targets before collecting their snapshot statistics.
+  if (options.index_name) {
+    auto target = GetIndexByName(*options.index_name);
+    if (!target)
+      return tl::unexpected(target.error());
+    if (!matches(target.value()->GetMeta()))
+      return tl::unexpected(
+          Status(StatusCode::ERR_INVALID_ARGUMENT,
+                 "SHOW_INDEX_OPTIMIZE_STATS index type does not match: " +
+                     *options.index_name));
+  }
+  for (const auto& [name, pending] : pending_indexes_) {
+    if (matches(pending.meta))
+      return tl::unexpected(PendingIndexError(name,
+                                              "inspect optimize statistics for",
+                                              pending.descriptor.module_type));
+  }
+  std::vector<StorageIndex*> targets;
+  for (const auto& [name, index] : indexes_) {
+    if (index && matches(index->GetMeta()))
+      targets.push_back(index.get());
+  }
+  std::sort(targets.begin(), targets.end(),
+            [](const auto* lhs, const auto* rhs) {
+              return lhs->GetMeta().name < rhs->GetMeta().name;
+            });
+  std::vector<IndexOptimizePendingStats> results;
+  for (const auto* index : targets) {
+    GS_AUTO(stats, index->GetIndexOptimizePendingStats());
+    results.push_back(std::move(stats));
+  }
+  return results;
+}
+
 neug::result<CreatedIndex> StorageIndexManager::CreateIndex(
     std::unique_ptr<IndexMeta> meta,
     std::unique_ptr<IndexIDAccessor> index_id_accessor,

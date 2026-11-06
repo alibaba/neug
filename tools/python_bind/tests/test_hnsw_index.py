@@ -297,6 +297,16 @@ def test_index_optimize_selection_and_checkpoint(tmp_path, arguments, expected_n
         conn.execute("MATCH (n:Item {id: 1}) DELETE n;")
         conn.execute("MATCH (n:Item {id: 2}) SET n.v=[4.0,0.0,0.0,0.0];")
         parameters = {"name": "b_hnsw", "type": "HNSW"} if "$" in arguments else None
+        for _ in range(2):
+            conn.begin_transaction(read_only=True)
+            stats = list(
+                conn.execute(
+                    f"CALL show_index_optimize_stats({arguments});",
+                    parameters=parameters,
+                )
+            )
+            conn.commit()
+            assert stats == [["hnsw", name, 4] for name in expected_names]
         rows = list(
             conn.execute(f"CALL index_optimize({arguments});", parameters=parameters)
         )
@@ -304,6 +314,13 @@ def test_index_optimize_selection_and_checkpoint(tmp_path, arguments, expected_n
             ["hnsw", name, 2, 2] for name in expected_names
         ]
         assert all(len(row) == 5 and row[4] >= 0 for row in rows)
+        stats = list(
+            conn.execute(
+                f"CALL show_index_optimize_stats({arguments});", parameters=parameters
+            )
+        )
+        assert stats == [["hnsw", name, 0] for name in expected_names]
+
         repeated = list(
             conn.execute(f"CALL index_optimize({arguments});", parameters=parameters)
         )
@@ -350,6 +367,8 @@ def test_index_optimize_validation_and_deleted_tail(tmp_path):
         ):
             with pytest.raises(RuntimeError):
                 conn.execute(f"CALL index_optimize({arguments});")
+            with pytest.raises(RuntimeError):
+                conn.execute(f"CALL show_index_optimize_stats({arguments});")
         assert list(conn.execute("CALL index_optimize(type := 'missing');")) == []
         conn.begin_transaction(read_only=True)
         with pytest.raises(RuntimeError):
@@ -1847,5 +1866,43 @@ def test_cosine_shared_normalized_query_with_zero_and_scaled_inputs(tmp_path, mi
                         * math.sqrt(sum(b * b for b in target))
                     )
                 assert score == pytest.approx(expected, abs=1e-5)
+    finally:
+        _close_database(db, conn)
+
+
+def test_show_index_optimize_stats_transaction_and_reopen(tmp_path):
+    path = tmp_path / "optimize-stats"
+    db, conn = _open_database(path, checkpoint_on_close=False)
+
+    def pending():
+        return list(conn.execute("CALL show_index_optimize_stats('hnsw');"))
+
+    try:
+        assert pending() == []
+        conn.execute("CREATE NODE TABLE Item(id INT64 PRIMARY KEY, v FLOAT[4]);")
+        conn.execute("CREATE INDEX item_hnsw ON Item USING HNSW(v);")
+        conn.execute("CREATE (:Item {id:0,v:[1.0,0.0,0.0,0.0]});")
+        conn.execute("CALL index_optimize('hnsw');")
+        assert pending() == [["hnsw", "item_hnsw", 0]]
+        conn.begin_transaction()
+        conn.execute("MATCH(n:Item {id:0}) SET n.v=[2.0,0.0,0.0,0.0];")
+        conn.execute("CREATE (:Item {id:1,v:[3.0,0.0,0.0,0.0]});")
+        assert pending() == [["hnsw", "item_hnsw", 2]]
+        conn.execute("MATCH(n:Item {id:1}) DELETE n;")
+        assert pending() == [["hnsw", "item_hnsw", 2]]
+        conn.execute("CALL index_optimize('hnsw');")
+        assert pending() == [["hnsw", "item_hnsw", 0]]
+        conn.rollback()
+        assert pending() == [["hnsw", "item_hnsw", 0]]
+        conn.execute("CREATE (:Item {id:2,v:[4.0,0.0,0.0,0.0]});")
+        assert pending() == [["hnsw", "item_hnsw", 3]]
+        conn.execute("CHECKPOINT;")
+    finally:
+        _close_database(db, conn)
+    db, conn = _open_database(path, checkpoint_on_close=False)
+    try:
+        conn.begin_transaction(read_only=True)
+        assert pending() == [["hnsw", "item_hnsw", 3]]
+        conn.commit()
     finally:
         _close_database(db, conn)
