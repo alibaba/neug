@@ -263,6 +263,7 @@ void HNSWIndex::Open(Checkpoint& ckp, const ModuleDescriptor& descriptor,
   ParseOptions();
   const auto offset = descriptor.get(kFlatOffset);
   flat_index_offset_.reset();
+  column_ = nullptr;
   if (offset) {
     if (offset->empty() ||
         offset->find_first_not_of("0123456789") != std::string::npos) {
@@ -417,6 +418,7 @@ Status HNSWIndex::Rebind(const IndexBindContext& context) {
   }
   index_id_accessor_ =
       std::make_unique<VecColumnBackedIndexIDAccessor>(*offset_accessor);
+  const bool initialize_visible_ids = column_ == nullptr;
   column_ = column;
   const auto limit = index_id_accessor_->GetVisibleLimit();
   local_buffer_enabled_ =
@@ -433,6 +435,41 @@ Status HNSWIndex::Rebind(const IndexBindContext& context) {
     return Status::RuntimeError(
         "HNSW LocalBuffer offset exceeds visible limit");
   }
+  if (initialize_visible_ids)
+    InitializeVisibleIDs();
+  return Status::OK();
+}
+
+void HNSWIndex::InitializeVisibleIDs() {
+  deleted_cursor_ = index_id_accessor_->GetDeletedIndexIDs().size();
+  hnsw_ids_ = roaring::Roaring();
+  flat_ids_ = roaring::Roaring();
+  // Reconstruct only actual mappings on first bind after Open. Never insert
+  // allocation gaps into either bitmap. Clones already own their snapshot IDs.
+  for (size_t vid = 0; vid < index_id_accessor_->size(); ++vid) {
+    const auto id = index_id_accessor_->GetIndexIDByVID(vid);
+    if (id != INVALID_INDEX_ID) {
+      (!local_buffer_enabled_ || id < flat_index_offset_.value() ? hnsw_ids_
+                                                                 : flat_ids_)
+          .add(id);
+    }
+  }
+}
+
+void HNSWIndex::ConsumeDeletedIDs() {
+  const auto& deleted_ids = index_id_accessor_->GetDeletedIndexIDs();
+  CHECK_LE(deleted_cursor_, deleted_ids.size());
+  while (deleted_cursor_ < deleted_ids.size()) {
+    const auto id = deleted_ids[deleted_cursor_];
+    hnsw_ids_.remove(id);
+    flat_ids_.remove(id);
+    ++deleted_cursor_;
+  }
+}
+
+Status HNSWIndex::Delete(vid_t vid) {
+  RETURN_IF_NOT_OK(StorageIndex::Delete(vid));
+  ConsumeDeletedIDs();
   return Status::OK();
 }
 
@@ -441,6 +478,8 @@ Status HNSWIndex::BulkBuild(const VertexSet& vertices) {
     return Status::RuntimeError(
         "HNSWIndex must be open and bound before bulk build");
   }
+  hnsw_ids_ = roaring::Roaring();
+  flat_ids_ = roaring::Roaring();
   // BulkBuild is the explicit full-prefix build path, separate from Upsert.
   HNSWVecSource source(column_);
   flat_hash_set<uint64_t> duplicate_statistics;
@@ -471,7 +510,9 @@ Status HNSWIndex::BulkBuild(const VertexSet& vertices) {
           " with error code " + std::to_string(ret) +
           ". See logs for details.");
     }
+    hnsw_ids_.add(index_id);
   }
+  deleted_cursor_ = index_id_accessor_->GetDeletedIndexIDs().size();
   flat_index_offset_ = index_id_accessor_->GetVisibleLimit();
   const auto duplicate_vector_count =
       indexed_vector_count - duplicate_statistics.size();
@@ -521,6 +562,8 @@ result<IndexOptimizeStats> HNSWIndex::Optimize() {
     ++stats.indexed_count;
   }
   flat_index_offset_ = limit;
+  hnsw_ids_ |= flat_ids_;
+  flat_ids_ = roaring::Roaring();
   stats.changed = true;
   return stats;
 }
@@ -551,6 +594,9 @@ std::unique_ptr<Module> HNSWIndex::Clone() const {
   cloned->column_ = column_;
   cloned->flat_index_offset_ = flat_index_offset_;
   cloned->local_buffer_enabled_ = local_buffer_enabled_;
+  cloned->hnsw_ids_ = hnsw_ids_;
+  cloned->flat_ids_ = flat_ids_;
+  cloned->deleted_cursor_ = deleted_cursor_;
   cloned->zvec_runtime_path_ = zvec_runtime_path_;
   cloned->zvec_runtime_file_ = zvec_runtime_file_;
   cloned->dimension_ = dimension_;
@@ -577,9 +623,12 @@ result<std::vector<SearchCandidate>> HNSWIndex::SearchImpl(
                             ? std::min(flat_index_offset_.value(), limit)
                             : limit;
   Value query_value = p->target_value;
-  // External Flat cosine uses IP and needs a normalized query. Share one
-  // converted buffer; HNSW-only searches leave normalization to ZVec.
-  if (cosine_flat && boundary < limit) {
+  // Normalize once for both external indexes. HNSW receives an explicit
+  // query hint; the Flat IP path consumes the same normalized buffer.
+  const bool normalized_query =
+      metric_ == zvec::core_interface::MetricType::kCosine &&
+      column_->is_l2_normalized();
+  if (normalized_query) {
     auto status =
         VectorNormalizer::ValueNormalize(p->target_value, query_value);
     if (!status.ok())
@@ -587,35 +636,40 @@ result<std::vector<SearchCandidate>> HNSWIndex::SearchImpl(
   }
   GS_AUTO(target, ConvertDenseValue(meta_->schema.columns[0].property_type,
                                     query_value, dimension_));
-  const bool has_deleted_ids =
-      !index_id_accessor_->GetDeletedIndexIDs().empty();
-  std::shared_ptr<roaring::Roaring> allowed;
+  roaring::Roaring scalar_hnsw_ids, scalar_flat_ids;
+  const auto* hnsw_ids = &hnsw_ids_;
+  const auto* flat_ids = &flat_ids_;
   if (p->use_scalar_filter) {
-    allowed = std::make_shared<roaring::Roaring>();
+    // Upstream storage has already established visibility. Partition once,
+    // without rechecking tombstones/ranges in each distance callback.
     for (auto vid : p->scalar_filter) {
       const auto id = index_id_accessor_->GetIndexIDByVID(vid);
-      if (id != INVALID_INDEX_ID)
-        allowed->add(id);
+      if (id == INVALID_INDEX_ID)
+        continue;
+      (id < boundary ? scalar_hnsw_ids : scalar_flat_ids).add(id);
     }
-    if (allowed->isEmpty())
-      return std::vector<SearchCandidate>{};
+    hnsw_ids = &scalar_hnsw_ids;
+    flat_ids = &scalar_flat_ids;
   }
-  // Accessors and payload belong to the pinned graph snapshot. Query-local
-  // source/filter objects must not be stored in the shared ZVec handles.
-  const auto* accessor = index_id_accessor_.get();
-  auto make_filter = [&](index_id_t begin, index_id_t end) {
-    auto filter = std::make_shared<zvec::core_interface::IndexFilter>();
-    filter->set([begin, end, accessor, allowed,
-                 use_allowlist = p->use_scalar_filter](uint64_t id) {
-      return id < begin || id >= end ||
-             accessor->GetVIDByIndexID(static_cast<index_id_t>(id)) ==
-                 INVALID_VID ||
-             (use_allowlist && !allowed->contains(static_cast<uint32_t>(id)));
-    });
-    return filter;
+  auto configure_candidates = [](auto& query_param, const roaring::Roaring& ids,
+                                 uint64_t document_count, bool needs_filter) {
+    // Compare without floating-point rounding; index IDs are uint32_t.
+    if (ids.cardinality() * uint64_t{10} < document_count) {
+      query_param.bf_pks = std::make_shared<std::vector<uint64_t>>();
+      query_param.bf_pks->reserve(ids.cardinality());
+      for (auto id : ids)
+        query_param.bf_pks->push_back(id);
+    } else if (needs_filter) {
+      query_param.filter =
+          std::make_shared<zvec::core_interface::IndexFilter>();
+      query_param.filter->set([ids_ptr = &ids](uint64_t id) {
+        return !ids_ptr->contains(static_cast<index_id_t>(id));
+      });
+    }
   };
   zvec::core_interface::VectorData query;
   query.vector = zvec::core_interface::DenseVector{target.data()};
+  query.query_is_l2_normalized = normalized_query;
   std::vector<SearchCandidate> candidates;
   auto append_results = [&](const zvec::core_interface::SearchResult& result,
                             bool convert_cosine) {
@@ -626,7 +680,7 @@ result<std::vector<SearchCandidate>> HNSWIndex::SearchImpl(
       candidates.push_back({static_cast<index_id_t>(doc.key()), score});
     }
   };
-  if (boundary != 0 && zvec_index_->get_doc_count() != 0) {
+  if (!hnsw_ids->isEmpty()) {
     HNSWVecSource source(column_);
     auto qp = std::make_shared<zvec::core_interface::HNSWQueryParam>();
     qp->topk = p->topk;
@@ -635,13 +689,10 @@ result<std::vector<SearchCandidate>> HNSWIndex::SearchImpl(
     qp->prefetch_lines = p->prefetch_lines;
     qp->fetch_vector = p->fetch_vector;
     qp->radius = p->radius;
-    // A graph may contain physical additions beyond this snapshot's F after
-    // an aborted bulk append, including after checkpoint/reopen.
-    const bool needs_filter = p->use_scalar_filter || has_deleted_ids ||
-                              zvec_index_->get_doc_count() != boundary;
-    if (needs_filter) {
-      qp->filter = make_filter(0, boundary);
-    }
+    // Shared physical graphs can contain IDs from newer/aborted snapshots.
+    const auto document_count = zvec_index_->get_doc_count();
+    configure_candidates(*qp, *hnsw_ids, document_count,
+                         hnsw_ids->cardinality() != document_count);
     zvec::core_interface::SearchResult result;
     const auto ret =
         zvec_index_->search_with_source(query, qp, source, &result);
@@ -651,19 +702,16 @@ result<std::vector<SearchCandidate>> HNSWIndex::SearchImpl(
     }
     append_results(result, false);
   }
-  if (boundary < limit) {
+  if (!flat_ids->isEmpty()) {
     FlatVecSource source(column_, limit, boundary);
     auto qp = std::make_shared<zvec::core_interface::FlatQueryParam>();
     qp->topk = p->topk;
     qp->fetch_vector = p->fetch_vector;
     qp->radius = cosine_flat ? 0 : p->radius;
-    // The contiguous source already limits enumeration to [boundary, limit).
-    // Without snapshot gaps or scalar predicates every enumerated ID is valid.
-    const bool needs_filter = p->use_scalar_filter || has_deleted_ids ||
-                              limit != index_id_accessor_->GetNextIndexID();
-    if (needs_filter) {
-      qp->filter = make_filter(boundary, limit);
-    }
+    // The source bounds enumeration, including when another snapshot appends.
+    const uint64_t document_count = uint64_t{limit} - boundary;
+    configure_candidates(*qp, *flat_ids, document_count,
+                         flat_ids->cardinality() != document_count);
     zvec::core_interface::SearchResult result;
     const auto ret =
         flat_index_->search_with_source(query, qp, source, &result);
@@ -694,6 +742,8 @@ Status HNSWIndex::AppendImpl(index_id_t index_id, const IndexValues& values) {
     return Status(StatusCode::ERR_INVALID_ARGUMENT,
                   "HNSW requires one non-null vector");
   }
+  // Both Upsert overloads reach AppendImpl after the column mapping changes.
+  ConsumeDeletedIDs();
   // VecColumn already validates and stores the value before index maintenance.
   // Register the actual slot without copying/normalizing the vector again.
   HNSWVecSource source(column_);
@@ -713,6 +763,7 @@ Status HNSWIndex::AppendImpl(index_id_t index_id, const IndexValues& values) {
     // that the column may already have allocated for a pending batch.
     flat_index_offset_ = std::max(flat_index_offset_.value(), index_id + 1);
   }
+  (local_buffer_enabled_ ? flat_ids_ : hnsw_ids_).add(index_id);
   return Status::OK();
 }
 

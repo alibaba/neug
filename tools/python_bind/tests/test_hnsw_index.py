@@ -1571,3 +1571,200 @@ def test_auto_load_extension_restores_index_in_new_process(tmp_path):
         timeout=90,
     )
     assert result.returncode == 0, result.stdout + result.stderr
+
+
+@pytest.mark.parametrize("metric", ["l2", "ip", "cosine"])
+@pytest.mark.parametrize("layout", ["flat", "hnsw", "mixed"])
+def test_visible_bitmap_candidates_and_maintenance(tmp_path, metric, layout):
+    """Dense/sparse candidates survive slot replacement, abort and reopen."""
+    path = tmp_path / "bitmap-candidates"
+    db, conn = _open_database(path, checkpoint_on_close=False)
+    rng = random.Random(991)
+    vectors = [[rng.uniform(-1, 1) for _ in range(4)] for _ in range(201)]
+    direction = "DESC" if metric == "ip" else "ASC"
+
+    def insert(i):
+        conn.execute(
+            f"CREATE (:Item {{id:{i}, bucket:{i % 100}, "
+            f"v:{_array_literal(vectors[i])}}});"
+        )
+
+    def check():
+        # On each 100-ID branch these exercise below, at, and above 10%.
+        for predicate in (
+            "",
+            "WHERE n.bucket<9 ",
+            "WHERE n.bucket<10 ",
+            "WHERE n.bucket<11 ",
+            "WHERE n.bucket<0 ",
+        ):
+            body = f"MATCH (n:Item) {predicate}RETURN n.id, "
+            distance = f"vector_distance_{metric}(n.v, $q)"
+            suffix = f" AS score ORDER BY score {direction} LIMIT 20;"
+            params = {"q": vectors[200]}
+            result = conn.execute(
+                "PROFILE " + body + distance + suffix, parameters=params
+            )
+            actual = list(result)
+            assert "IndexScanOpr" in _profile_operator_names(result)
+            expected = list(
+                conn.execute(body + distance + " + 0.0" + suffix, parameters=params)
+            )
+            assert [r[0] for r in actual] == [r[0] for r in expected]
+            assert [r[1] for r in actual] == pytest.approx(
+                [r[1] for r in expected], abs=2e-5
+            )
+
+    try:
+        conn.execute(
+            "CREATE NODE TABLE Item(id INT64 PRIMARY KEY, bucket INT64, v FLOAT[4]);"
+        )
+        if layout != "flat":
+            for i in range(100):
+                insert(i)
+        conn.execute(
+            "CREATE INDEX item_hnsw ON Item USING HNSW(v) "
+            f"WITH(metric='{metric}',cosine_normalize=true,m=8,ef_construction=40);"
+        )
+        if layout == "flat":
+            for i in range(100):
+                insert(i)
+        elif layout == "mixed":
+            for i in range(100, 200):
+                insert(i)
+        check()
+        conn.execute(f"MATCH(n:Item {{id:0}}) SET n.v={_array_literal(vectors[200])};")
+        conn.execute("MATCH(n:Item) WHERE n.id=1 OR n.id=104 DELETE n;")
+        check()
+        conn.begin_transaction()
+        conn.execute("MATCH(n:Item {id:2}) DELETE n;")
+        conn.execute(f"MATCH(n:Item {{id:3}}) SET n.v={_array_literal(vectors[199])};")
+        check()
+        conn.execute("CALL index_optimize('hnsw', 'item_hnsw');")
+        check()
+        conn.rollback()
+        check()
+        # Physical HNSW additions survive abort; logical bitmaps must not.
+        conn.execute("CALL index_optimize('hnsw', 'item_hnsw');")
+        check()
+        conn.execute("MATCH(n:Item) WHERE n.id>=5 DELETE n;")
+        check()  # Sparse visibility alone also enables candidate brute force.
+        conn.execute("CHECKPOINT;")
+    finally:
+        _close_database(db, conn)
+    db, conn = _open_database(path, checkpoint_on_close=False)
+    try:
+        check()
+        insert(200)
+        check()
+    finally:
+        _close_database(db, conn)
+
+
+def test_incremental_bitmaps_shared_column_and_aborted_slots(tmp_path):
+    """Each index consumes shared deletion records independently across snapshots."""
+    path = tmp_path / "shared-column-bitmaps"
+    db, conn = _open_database(path, checkpoint_on_close=False)
+
+    def check():
+        for metric, order in (("l2", "ASC"), ("ip", "DESC")):
+            for predicate in ("", "WHERE n.id<3 "):
+                prefix = f"MATCH(n:Item) {predicate}RETURN n.id, "
+                distance = f"vector_distance_{metric}(n.v, [1.0,0.0,0.0,0.0])"
+                suffix = f" AS score ORDER BY score {order} LIMIT 10;"
+                result = conn.execute("PROFILE " + prefix + distance + suffix)
+                actual = list(result)
+                assert "IndexScanOpr" in _profile_operator_names(result)
+                expected = list(conn.execute(prefix + distance + " + 0.0" + suffix))
+                assert actual == expected
+
+    try:
+        conn.execute("CREATE NODE TABLE Item(id INT64 PRIMARY KEY, v FLOAT[4]);")
+        for metric in ("l2", "ip"):
+            conn.execute(
+                f"CREATE INDEX idx_{metric} ON Item USING HNSW(v) "
+                f"WITH(metric='{metric}',m=8,ef_construction=40);"
+            )
+        for i in range(30):
+            conn.execute(f"CREATE (:Item {{id:{i},v:[{float(i)},0.0,0.0,0.0]}});")
+        conn.execute("CALL index_optimize('hnsw');")
+        conn.begin_transaction()
+        conn.execute("MATCH(n:Item {id:0}) SET n.v=[100.0,0.0,0.0,0.0];")
+        conn.execute("CREATE (:Item {id:30,v:[101.0,0.0,0.0,0.0]});")
+        conn.execute("MATCH(n:Item {id:1}) DELETE n;")
+        check()
+        conn.execute("CALL index_optimize('hnsw');")
+        conn.rollback()
+        check()
+        conn.execute("MATCH(n:Item {id:0}) SET n.v=[102.0,0.0,0.0,0.0];")
+        conn.execute("MATCH(n:Item {id:1}) DELETE n;")
+        conn.execute("CREATE (:Item {id:31,v:[103.0,0.0,0.0,0.0]});")
+        check()
+        # Several invalidations in one statement must all reach both indexes.
+        conn.execute("MATCH(n:Item) WHERE n.id>=20 SET n.v=[200.0,0.0,0.0,0.0];")
+        conn.execute("MATCH(n:Item) WHERE n.id>=25 DELETE n;")
+        check()
+        conn.execute("CALL index_optimize('hnsw');")
+        check()
+        conn.execute("CHECKPOINT;")
+    finally:
+        _close_database(db, conn)
+    db, conn = _open_database(path, checkpoint_on_close=False)
+    try:
+        check()
+    finally:
+        _close_database(db, conn)
+
+
+@pytest.mark.parametrize("mixed", [False, True])
+def test_cosine_shared_normalized_query_with_zero_and_scaled_inputs(tmp_path, mixed):
+    db, conn = _open_database(tmp_path / "shared-query", checkpoint_on_close=False)
+    rng = random.Random(1151)
+    vectors = [[rng.uniform(-1, 1) for _ in range(16)] for _ in range(1101)]
+    try:
+        conn.execute(
+            "CREATE NODE TABLE SharedQuery(id INT64 PRIMARY KEY, embedding FLOAT[16]);"
+        )
+        for i, vector in enumerate(vectors):
+            if mixed and i == 1001:
+                conn.execute(
+                    "CREATE INDEX shared_query ON SharedQuery USING HNSW "
+                    "(embedding) WITH(metric='cosine');"
+                )
+            conn.execute(
+                "CREATE (:SharedQuery {id:$id, embedding:CAST($v,'FLOAT[16]')});",
+                parameters={"id": i, "v": vector},
+            )
+        if not mixed:
+            conn.execute(
+                "CREATE INDEX shared_query ON SharedQuery USING HNSW "
+                "(embedding) WITH(metric='cosine');"
+            )
+        for source in [0, 1050, None, 0]:
+            target = (
+                [value * 17.0 for value in vectors[source]]
+                if source is not None
+                else [0.0] * 16
+            )
+            result = conn.execute(
+                "PROFILE MATCH(n:SharedQuery) RETURN n.id, "
+                "vector_distance_cosine(n.embedding,$v) AS score "
+                "ORDER BY score LIMIT 10;",
+                parameters={"v": target},
+            )
+            rows = list(result)
+            assert "IndexScanOpr" in _profile_operator_names(result)
+            assert len(rows) == 10
+            if source is not None:
+                assert rows[0][0] == source
+            for identifier, score in rows:
+                vector = vectors[identifier]
+                expected = 1.0
+                if source is not None:
+                    expected -= sum(a * b for a, b in zip(vector, target)) / (
+                        math.sqrt(sum(a * a for a in vector))
+                        * math.sqrt(sum(b * b for b in target))
+                    )
+                assert score == pytest.approx(expected, abs=1e-5)
+    finally:
+        _close_database(db, conn)

@@ -295,6 +295,10 @@ def test_hnsw_pending_final_vectors_cold_restart(
             "CREATE INDEX item_hnsw ON Item USING HNSW (embedding) "
             f"WITH (metric='{sys.argv[3]}', cosine_normalize=false);"
         )
+        conn.execute(
+            "CREATE INDEX item_ip ON Item USING HNSW (embedding) "
+            "WITH (metric='ip', cosine_normalize=false);"
+        )
         conn.execute("CHECKPOINT;")
         conn.close()
         endpoint = db.serve(int(sys.argv[2]), "localhost", False)
@@ -352,6 +356,14 @@ def test_hnsw_pending_final_vectors_cold_restart(
                 assert rows[0][0] == id, rows
                 assert sorted(row[0] for row in rows) == [0, 2, 3, 9], rows
         check()
+        # Both persisted pending indexes share the same recovered column log.
+        result = conn.execute(
+            "PROFILE MATCH (n:Item) RETURN n.id, "
+            "vector_distance_ip(n.embedding,[0.0,1.0,0.0,0.0]) AS score "
+            "ORDER BY score DESC LIMIT 10;"
+        )
+        assert "IndexScanOpr" in _profile_operator_names(result)
+        assert sorted(row[0] for row in result) == [0, 2, 3, 9]
         stats = list(conn.execute("CALL index_optimize('hnsw', 'item_hnsw');"))
         if metric == "l2":
             assert stats[0][2] == 2, stats
@@ -727,5 +739,59 @@ def test_hnsw_index_tp_ddl_recovery_after_reopen(tmp_path, unused_tcp_port):
     finally:
         if session is not None:
             session.close()
+        db.stop_serving()
+        db.close()
+
+
+def test_bitmap_sparse_candidates_keep_reader_snapshot(tmp_path, unused_tcp_port):
+    """Sparse scalar candidates remain stable across delete/update/optimize."""
+    db = Database(
+        str(tmp_path / "bitmap-snapshot"), mode="w", checkpoint_on_close=False
+    )
+    conn = db.connect()
+    try:
+        conn.execute("LOAD vector_search;")
+        conn.execute("CREATE NODE TABLE Item(id INT64 PRIMARY KEY, v FLOAT[4]);")
+        conn.begin_transaction()
+        for i in range(1100):
+            conn.execute(f"CREATE (:Item {{id:{i}, v:[{float(i)},0.0,0.0,0.0]}});")
+        conn.commit()
+        conn.execute("CREATE INDEX item_hnsw ON Item USING HNSW(v);")
+        conn.begin_transaction()
+        for i in range(1100, 2200):
+            conn.execute(f"CREATE (:Item {{id:{i}, v:[{float(i)},0.0,0.0,0.0]}});")
+        conn.commit()
+    finally:
+        conn.close()
+    endpoint = db.serve(unused_tcp_port, "localhost", False)
+    wait_for_server_ready(endpoint)
+    reader = Session.open(endpoint)
+    writer = Session.open(endpoint)
+    query = (
+        "MATCH(n:Item) WHERE n.id=1 OR n.id=1101 RETURN n.id, "
+        "vector_distance_l2(n.v, [0.0,0.0,0.0,0.0]) AS score "
+        "ORDER BY score LIMIT 5;"
+    )
+    old = [[1, 1.0], [1101, 1212201.0]]
+    try:
+        reader.begin_transaction(read_only=True)
+        assert list(reader.execute(query, access_mode="read")) == old
+        writer.begin_transaction()
+        writer.execute("MATCH(n:Item {id:1}) DELETE n;")
+        writer.execute("MATCH(n:Item {id:1101}) SET n.v=[0.0,0.0,0.0,0.0];")
+        writer.execute("CALL index_optimize('hnsw','item_hnsw');")
+        assert list(writer.execute(query)) == [[1101, 0.0]]
+        writer.rollback()
+        assert list(writer.execute(query, access_mode="read")) == old
+        assert list(reader.execute(query, access_mode="read")) == old
+        writer.execute("MATCH(n:Item {id:1}) DELETE n;")
+        writer.execute("MATCH(n:Item {id:1101}) SET n.v=[0.0,0.0,0.0,0.0];")
+        writer.execute("CALL index_optimize('hnsw','item_hnsw');")
+        assert list(reader.execute(query, access_mode="read")) == old
+        reader.rollback()
+        assert list(reader.execute(query, access_mode="read")) == [[1101, 0.0]]
+    finally:
+        reader.close()
+        writer.close()
         db.stop_serving()
         db.close()

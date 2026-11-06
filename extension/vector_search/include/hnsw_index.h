@@ -17,6 +17,7 @@
 
 #include <memory>
 #include <optional>
+#include <roaring.hh>
 #include <string>
 #include <vector>
 
@@ -111,6 +112,7 @@ class HNSWIndex final : public StorageIndex {
   Status BulkBuild(const VertexSet& vertices) override;
   result<IndexOptimizeStats> Optimize() override;
   Status Upsert(vid_t vid, const IndexValue& new_value) override;
+  Status Delete(vid_t vid) override;
   void Detach(Checkpoint& ckp, MemoryLevel level) override;
   std::unique_ptr<Module> Clone() const override;
   static std::string type_name() { return "hnsw_index"; }
@@ -122,6 +124,8 @@ class HNSWIndex final : public StorageIndex {
 
  private:
   void ParseOptions();
+  void InitializeVisibleIDs();
+  void ConsumeDeletedIDs();
   zvec::core_interface::DataType ResolveDataType() const;
 
   std::shared_ptr<zvec::core_interface::Index> zvec_index_;
@@ -131,6 +135,11 @@ class HNSWIndex final : public StorageIndex {
   const VecColumn* column_{nullptr};
   std::optional<index_id_t> flat_index_offset_;
   bool local_buffer_enabled_{true};
+  // Derived snapshot state, rebuilt on first bind rather than persisted.
+  roaring::Roaring hnsw_ids_;
+  roaring::Roaring flat_ids_;
+  // Next invalidation to consume from the bound column's snapshot-local log.
+  size_t deleted_cursor_{0};
   std::shared_ptr<CheckpointFileManager::RuntimeFileHandle> zvec_runtime_file_;
   std::string zvec_runtime_path_;
   int dimension_{0};
