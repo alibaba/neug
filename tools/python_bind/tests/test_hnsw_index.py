@@ -153,7 +153,7 @@ def test_local_buffer_copy_builds_existing_tail(tmp_path):
         csv = tmp_path / "tail.csv"
         csv.write_text("id|embedding\n1|[1.0,0.0,0.0,0.0]\n2|[2.0,0.0,0.0,0.0]\n")
         conn.execute(
-            f"COPY Buffered FROM (LOAD FROM \"{csv}\" (delim='|') RETURN id, CAST(embedding, 'FLOAT[4]') AS embedding);"
+            f"COPY Buffered FROM (LOAD FROM {cypher_path(csv)} (delim='|') RETURN id, CAST(embedding, 'FLOAT[4]') AS embedding);"
         )
         conn.execute("CHECKPOINT;")
         assert _local_buffer_checkpoint(tmp_path / "copy-db", "buffered_hnsw")[0] == 3
@@ -178,7 +178,7 @@ def test_local_buffer_copy_retry_after_transaction_failure(
 
     def copy_from(csv):
         conn.execute(
-            f"COPY Buffered FROM (LOAD FROM \"{csv}\" (delim='|') "
+            f"COPY Buffered FROM (LOAD FROM {cypher_path(csv)} (delim='|') "
             "RETURN id, CAST(embedding, 'FLOAT[4]') AS embedding);"
         )
 
@@ -1430,7 +1430,7 @@ def test_hnsw_abort_checkpoint_reuses_consistent_index_state(
             elif checkpoint_mode == "bulk":
                 csv = tmp_path / "other.csv"
                 csv.write_text("id\n42\n")
-                conn.execute(f'COPY Other FROM "{csv}";')
+                conn.execute(f"COPY Other FROM {cypher_path(csv)};")
             else:
                 _close_database(db, conn)
                 db, conn = _open_database(path, checkpoint_on_close=False)
@@ -1918,5 +1918,28 @@ def test_show_indexes_buffered_count_transaction_and_reopen(tmp_path):
         conn.begin_transaction(read_only=True)
         assert pending() == [["hnsw", "item_hnsw", 3]]
         conn.commit()
+    finally:
+        _close_database(db, conn)
+
+
+def test_local_buffer_checkpoint_binary_timestamp(tmp_path):
+    # 26 (0x1A) in the timestamp metadata must not be treated as Windows EOF.
+    path = tmp_path / "binary-timestamp"
+    db, conn = _open_database(path, checkpoint_on_close=False)
+    try:
+        conn.execute("CREATE NODE TABLE Item(id INT64 PRIMARY KEY, v FLOAT[4]);")
+        conn.execute("CREATE INDEX item_hnsw ON Item USING HNSW(v);")
+        for i in range(26):
+            conn.execute(
+                f"CREATE (:Item {{id:{i}, v:{_array_literal([float(i), 0.0, 0.0, 0.0])}}});"
+            )
+        conn.execute("CHECKPOINT;")
+        assert list(conn.execute("MATCH(n:Item) RETURN count(n);")) == [[26]]
+        _close_database(db, conn)
+        db, conn = _open_database(path, checkpoint_on_close=False)
+        assert list(conn.execute("MATCH(n:Item) RETURN count(n);")) == [[26]]
+        assert list(conn.execute("CALL show_indexes() RETURN buffered_count;")) == [
+            [26]
+        ]
     finally:
         _close_database(db, conn)

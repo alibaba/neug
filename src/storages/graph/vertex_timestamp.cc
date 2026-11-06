@@ -15,6 +15,7 @@
 
 #include "neug/storages/graph/vertex_timestamp.h"
 #include <filesystem>
+#include <memory>
 
 #include "neug/storages/checkpoint_manager.h"
 #include "neug/storages/checkpoint_manifest.h"
@@ -222,10 +223,14 @@ void VertexTimestamp::load_ts(const std::string& ts_filename) {
     return;
   }
 
-  FILE* file = fopen(ts_filename.c_str(), "r");
+  std::unique_ptr<FILE, decltype(&fclose)> file(
+      fopen(ts_filename.c_str(), "rb"), &fclose);
+  if (!file) {
+    THROW_INTERNAL_EXCEPTION("Failed to open ts file: " + ts_filename);
+  }
   size_t file_size = std::filesystem::file_size(ts_filename);
   std::vector<char> buffer(file_size);
-  auto ret = fread(buffer.data(), sizeof(char), file_size, file);
+  auto ret = fread(buffer.data(), sizeof(char), file_size, file.get());
   if (ret != file_size) {
     THROW_INTERNAL_EXCEPTION("Failed to read ts file: " + ts_filename);
   }
@@ -262,7 +267,6 @@ void VertexTimestamp::load_ts(const std::string& ts_filename) {
   }
 
   assert(arc.Empty());
-  fclose(file);
 }
 
 void VertexTimestamp::dump_ts(const std::string& ts_filename) {
