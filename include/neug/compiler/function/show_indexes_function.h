@@ -19,8 +19,6 @@
 
 namespace neug::function {
 
-struct ShowIndexesFuncInput : public CallFuncInputBase {};
-
 struct ShowIndexesFunction {
   static constexpr const char* name = "show_indexes";
 

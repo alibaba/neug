@@ -679,85 +679,16 @@ efficiently search the buffered vectors. Applications can keep using the same
 write and query statements; no manual optimization is required to make newly
 committed data searchable.
 
-### Write latency comparison
-
-The following measurements compare **v0.3.0** and **v0.3.1** on datasets of
-**10,000 and 26,000 vectors**, with **1,024 dimensions** and cosine HNSW settings
-**M=50**, **ef_construction=500**. Tests ran on an **Apple M2 Pro, 32 GB RAM,
-macOS 15.3.1**, using Python 3.9 and AP mode with four threads.
-
-- **Insert:** insert a new vector using `CREATE` into a dataset with an existing
-  HNSW index.
-- **MERGE:** match an existing record and update its vector using `MERGE`.
-
-The table reports median single-vector write latencies, including automatic commit.
-
-| Dataset size (vectors) | Operation | v0.3.0 (ms) | v0.3.1 (ms) | Speedup |
-| --- | --- | ---: | ---: | ---: |
-| 10,000 | Insert | 11.991 | 3.916 | 3.06× |
-| 10,000 | MERGE | 12.779 | 3.029 | 4.22× |
-| 26,000 | Insert | 87.887 | 4.041 | 21.75× |
-| 26,000 | MERGE | 87.199 | 4.059 | 21.48× |
-
-Insert and MERGE are faster because individual writes no longer wait for HNSW
-graph maintenance; new vectors enter the searchable Local Buffer instead.
-COPY FROM performance remains comparable to the previous version.
-
 ### When and how to optimize
 
-Use the read-only `show_index_optimize_stats` procedure to check how many
-buffered vectors are waiting for optimization:
+Use `show_indexes` to check `buffered_count`, and `optimize_indexes` to merge
+buffered vectors into HNSW. See [Inspect Indexes](../storage_index/index.md#inspect-indexes)
+and [Optimize Indexes](../storage_index/index.md#optimize-indexes) for arguments,
+examples, and output columns.
 
-```cypher
-CALL show_index_optimize_stats('hnsw', 'vec_hnsw_index');
-CALL show_index_optimize_stats(type := 'hnsw');
-```
-
-Both `type` and `index_name` are optional, as with `index_optimize`. Specifying
-only `type` shows all indexes of that type; specifying `index_name` selects one
-index.
-
-Example output:
-
-| type | index_name | pending_count |
-| --- | --- | ---: |
-| hnsw | vec_hnsw_index | 6000 |
-
-- `type`: the index type.
-- `index_name`: the index name.
-- `pending_count`: the number of buffered vectors awaiting maintenance,
-  including deleted or replaced vectors.
-
-NeuG does not automatically run `index_optimize` or trigger a background merge
+NeuG does not automatically run `optimize_indexes` or trigger a background merge
 when the buffer reaches a size threshold. Consider explicitly optimizing when
-`pending_count` reaches **5,000–10,000**, preferably after a burst of writes or
+`buffered_count` reaches **5,000–10,000**, preferably after a burst of writes or
 during a quieter period. This is a starting guideline: the best interval depends
 on vector dimensions and the balance between reads and writes. Buffered vectors
 remain searchable before optimization.
-
-Use `index_optimize` to add buffered vectors to HNSW:
-
-```cypher
-// Named arguments use :=, not =.
-CALL index_optimize(type := 'hnsw', index_name := 'vec_hnsw_index');
-
-// Equivalent positional arguments: type, index_name.
-CALL index_optimize('hnsw', 'vec_hnsw_index');
-
-// Optimize all HNSW indexes.
-CALL index_optimize(type := 'hnsw');
-```
-
-The call waits for optimization to finish and returns one row per selected
-index. Example output (counts and duration are illustrative):
-
-| type | index_name | indexed_count | skipped_count | duration_ms |
-| --- | --- | ---: | ---: | ---: |
-| hnsw | vec_hnsw_index | 5800 | 200 | 1250.0 |
-
-- `type`: the index type.
-- `index_name`: the index name.
-- `indexed_count`: the number of vectors added to HNSW by this call.
-- `skipped_count`: the number of entries skipped, such as deleted or replaced
-  vectors, or vectors already added during an earlier attempt.
-- `duration_ms`: the time spent optimizing this index, in milliseconds.

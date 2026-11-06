@@ -145,8 +145,6 @@ class NEUG_API GraphView {
   result<std::vector<StorageIndex*>> GetIndexesContainingProperty(
       label_t label_id, const std::string& property_name) const;
   result<std::vector<StorageIndex*>> GetAllIndexes() const;
-  result<std::vector<IndexOptimizePendingStats>> GetIndexOptimizePendingStats(
-      const IndexOptimizeOptions& options) const;
   result<std::vector<const PendingIndex*>> GetAllPendingIndexes() const;
 
   inline bool get_lid(label_t label, const Value& oid, vid_t& lid,

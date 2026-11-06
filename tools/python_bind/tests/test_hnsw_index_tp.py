@@ -216,14 +216,14 @@ def test_index_optimize_tp_snapshot_and_wal(
         assert list(reader.execute(query, access_mode="read")) == [[1, 1.0], [0, 4.0]]
         writer.execute("CREATE (:Item {id: 2, v: [2.0,0.0,0.0,0.0]});")
         with pytest.raises(Exception):
-            writer.execute("CALL index_optimize();", access_mode="read")
+            writer.execute("CALL optimize_indexes();", access_mode="read")
         rows = list(
             writer.execute(
-                "CALL index_optimize(type := $type);", parameters={"type": "hnsw"}
+                "CALL optimize_indexes(type := $type);", parameters={"type": "hnsw"}
             )
         )
         assert rows[0][:4] == ["hnsw", "item_hnsw", 3, 0]
-        assert list(writer.execute("CALL index_optimize();"))[0][2:4] == [0, 0]
+        assert list(writer.execute("CALL optimize_indexes();"))[0][2:4] == [0, 0]
         assert list(reader.execute(query, access_mode="read")) == [[1, 1.0], [0, 4.0]]
         reader.rollback()
         assert list(reader.execute(query, access_mode="read"))[0] == [2, 0.0]
@@ -255,7 +255,7 @@ def test_index_optimize_tp_snapshot_and_wal(
         )
         assert list(result) == [[2, 0.0], [1, 1.0], [0, 4.0]]
         assert "IndexScanOpr" in [op["operator_name"] for op in result.get_profile_metrics()["operators"]]
-        rows = list(conn.execute("CALL index_optimize();"))
+        rows = list(conn.execute("CALL optimize_indexes();"))
         # Available indexes replay maintenance; unavailable extensions retain
         # their existing pending activation behavior and can be optimized later.
         assert rows[0][2:4] == ([0, 0] if preload else [3, 0]), rows
@@ -339,6 +339,10 @@ def test_hnsw_pending_final_vectors_cold_restart(
 
         db = Database(sys.argv[1], mode="w", checkpoint_on_close=False)
         conn = db.connect()
+        assert list(conn.execute(
+            "CALL show_indexes(type := 'HNSW', name := 'item_hnsw') "
+            "RETURN name, state, buffered_count;"
+        )) == [["item_hnsw", "pending", None]]
         conn.execute("LOAD vector_search;")
         metric = sys.argv[2]
         def check():
@@ -364,7 +368,7 @@ def test_hnsw_pending_final_vectors_cold_restart(
         )
         assert "IndexScanOpr" in _profile_operator_names(result)
         assert sorted(row[0] for row in result) == [0, 2, 3, 9]
-        stats = list(conn.execute("CALL index_optimize('hnsw', 'item_hnsw');"))
+        stats = list(conn.execute("CALL optimize_indexes('hnsw', 'item_hnsw');"))
         if metric == "l2":
             assert stats[0][2] == 2, stats
         check()
@@ -397,7 +401,7 @@ def test_hnsw_pending_final_vectors_cold_restart(
         assert "IndexScanOpr" in _profile_operator_names(result)
         assert rows[0][0] == 3, rows
         assert sorted(row[0] for row in rows) == [0, 2, 3, 9], rows
-        assert list(conn.execute("CALL index_optimize('hnsw', 'item_hnsw');"))[0][2] == 0
+        assert list(conn.execute("CALL optimize_indexes('hnsw', 'item_hnsw');"))[0][2] == 0
         conn.close()
         db.close()
         """,
@@ -779,14 +783,14 @@ def test_bitmap_sparse_candidates_keep_reader_snapshot(tmp_path, unused_tcp_port
         writer.begin_transaction()
         writer.execute("MATCH(n:Item {id:1}) DELETE n;")
         writer.execute("MATCH(n:Item {id:1101}) SET n.v=[0.0,0.0,0.0,0.0];")
-        writer.execute("CALL index_optimize('hnsw','item_hnsw');")
+        writer.execute("CALL optimize_indexes('hnsw','item_hnsw');")
         assert list(writer.execute(query)) == [[1101, 0.0]]
         writer.rollback()
         assert list(writer.execute(query, access_mode="read")) == old
         assert list(reader.execute(query, access_mode="read")) == old
         writer.execute("MATCH(n:Item {id:1}) DELETE n;")
         writer.execute("MATCH(n:Item {id:1101}) SET n.v=[0.0,0.0,0.0,0.0];")
-        writer.execute("CALL index_optimize('hnsw','item_hnsw');")
+        writer.execute("CALL optimize_indexes('hnsw','item_hnsw');")
         assert list(reader.execute(query, access_mode="read")) == old
         reader.rollback()
         assert list(reader.execute(query, access_mode="read")) == [[1101, 0.0]]

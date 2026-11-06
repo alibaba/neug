@@ -233,12 +233,6 @@ result<std::vector<StorageIndex*>> GraphView::GetIndexesContainingProperty(
   return indexes;
 }
 
-result<std::vector<IndexOptimizePendingStats>>
-GraphView::GetIndexOptimizePendingStats(
-    const IndexOptimizeOptions& options) const {
-  return index_manager_->GetIndexOptimizePendingStats(options);
-}
-
 result<std::vector<StorageIndex*>> GraphView::GetAllIndexes() const {
   return index_manager_->GetAllIndexes();
 }

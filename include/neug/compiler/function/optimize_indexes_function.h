@@ -18,8 +18,8 @@
 #include "neug/compiler/function/neug_call_function.h"
 
 namespace neug::function {
-struct IndexOptimizeFunction {
-  static constexpr const char* name = "index_optimize";
+struct OptimizeIndexesFunction {
+  static constexpr const char* name = "optimize_indexes";
   static function_set getFunctionSet();
 };
 }  // namespace neug::function

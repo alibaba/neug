@@ -277,12 +277,12 @@ def test_local_buffer_copy_retry_after_transaction_failure(
         ("", ["a_hnsw", "b_hnsw"]),
         ("'hnsw'", ["a_hnsw", "b_hnsw"]),
         ("'hnsw', 'b_hnsw'", ["b_hnsw"]),
-        ("'hnsw', index_name := 'b_hnsw'", ["b_hnsw"]),
+        ("'hnsw', name := 'b_hnsw'", ["b_hnsw"]),
         ("type := 'HNSW'", ["a_hnsw", "b_hnsw"]),
-        ("index_name := 'b_hnsw'", ["b_hnsw"]),
-        ("type := 'hnsw', index_name := 'b_hnsw'", ["b_hnsw"]),
-        ("index_name := 'b_hnsw', type := 'hnsw'", ["b_hnsw"]),
-        ("index_name := $name, type := $type", ["b_hnsw"]),
+        ("name := 'b_hnsw'", ["b_hnsw"]),
+        ("type := 'hnsw', name := 'b_hnsw'", ["b_hnsw"]),
+        ("name := 'b_hnsw', type := 'hnsw'", ["b_hnsw"]),
+        ("name := $name, type := $type", ["b_hnsw"]),
         ("$type, $name", ["b_hnsw"]),
     ],
 )
@@ -302,14 +302,14 @@ def test_index_optimize_selection_and_checkpoint(tmp_path, arguments, expected_n
             conn.begin_transaction(read_only=True)
             stats = list(
                 conn.execute(
-                    f"CALL show_index_optimize_stats({arguments});",
+                    f"CALL show_indexes({arguments}) RETURN type, name, buffered_count;",
                     parameters=parameters,
                 )
             )
             conn.commit()
             assert stats == [["hnsw", name, 4] for name in expected_names]
         rows = list(
-            conn.execute(f"CALL index_optimize({arguments});", parameters=parameters)
+            conn.execute(f"CALL optimize_indexes({arguments});", parameters=parameters)
         )
         assert [row[:4] for row in rows] == [
             ["hnsw", name, 2, 2] for name in expected_names
@@ -317,13 +317,14 @@ def test_index_optimize_selection_and_checkpoint(tmp_path, arguments, expected_n
         assert all(len(row) == 5 and row[4] >= 0 for row in rows)
         stats = list(
             conn.execute(
-                f"CALL show_index_optimize_stats({arguments});", parameters=parameters
+                f"CALL show_indexes({arguments}) RETURN type, name, buffered_count;",
+                parameters=parameters,
             )
         )
         assert stats == [["hnsw", name, 0] for name in expected_names]
 
         repeated = list(
-            conn.execute(f"CALL index_optimize({arguments});", parameters=parameters)
+            conn.execute(f"CALL optimize_indexes({arguments});", parameters=parameters)
         )
         assert [row[:4] for row in repeated] == [
             ["hnsw", name, 0, 0] for name in expected_names
@@ -351,32 +352,35 @@ def test_index_optimize_validation_and_deleted_tail(tmp_path):
     path = tmp_path / "optimize-validation"
     db, conn = _open_database(path, checkpoint_on_close=False)
     try:
-        assert list(conn.execute("CALL index_optimize();")) == []
+        assert list(conn.execute("CALL optimize_indexes();")) == []
         conn.execute("CREATE NODE TABLE Item(id INT64 PRIMARY KEY, v FLOAT[4]);")
         conn.execute("CREATE INDEX item_hnsw ON Item USING HNSW (v);")
         conn.execute("CREATE (:Item {id: 0, v: [0.0,0.0,0.0,0.0]});")
         for arguments in (
-            "index_name := 'missing'",
-            "type := 'fts', index_name := 'item_hnsw'",
+            "name := 'missing'",
+            "type := 'fts', name := 'item_hnsw'",
             "typo := 'hnsw'",
             "type := 'hnsw', type := 'hnsw'",
             "'hnsw', type := 'hnsw'",
             "type := 12",
             "type := null",
-            "index_name := ''",
+            "name := ''",
             "'hnsw', 'item_hnsw', 'extra'",
         ):
             with pytest.raises(RuntimeError):
-                conn.execute(f"CALL index_optimize({arguments});")
-            with pytest.raises(RuntimeError):
-                conn.execute(f"CALL show_index_optimize_stats({arguments});")
-        assert list(conn.execute("CALL index_optimize(type := 'missing');")) == []
+                conn.execute(f"CALL optimize_indexes({arguments});")
+            if arguments in ("name := 'missing'", "type := 'fts', name := 'item_hnsw'"):
+                assert list(conn.execute(f"CALL show_indexes({arguments});")) == []
+            else:
+                with pytest.raises(RuntimeError):
+                    conn.execute(f"CALL show_indexes({arguments});")
+        assert list(conn.execute("CALL optimize_indexes(type := 'missing');")) == []
         conn.begin_transaction(read_only=True)
         with pytest.raises(RuntimeError):
-            conn.execute("CALL index_optimize();")
+            conn.execute("CALL optimize_indexes();")
         conn.rollback()
         conn.execute("MATCH (n:Item) DELETE n;")
-        rows = list(conn.execute("CALL index_optimize();"))
+        rows = list(conn.execute("CALL optimize_indexes();"))
         assert rows[0][:4] == ["hnsw", "item_hnsw", 0, 1]
         conn.execute("CHECKPOINT;")
         assert _local_buffer_checkpoint(path, "item_hnsw")[0] == 1
@@ -393,12 +397,12 @@ def test_index_optimize_atomic_rollback_and_retry(tmp_path, capfd):
             conn.execute(f"CREATE INDEX {name} ON Item USING HNSW (v);")
         conn.execute("CREATE (:Item {id: 0, v: [1.0,0.0,0.0,0.0]});")
         conn.begin_transaction()
-        rows = list(conn.execute("CALL index_optimize();"))
+        rows = list(conn.execute("CALL optimize_indexes();"))
         assert [row[:4] for row in rows] == [
             ["hnsw", name, 1, 0] for name in ("a_hnsw", "b_hnsw")
         ]
         with pytest.raises(RuntimeError):
-            conn.execute("CALL index_optimize(index_name := 'missing');")
+            conn.execute("CALL optimize_indexes(name := 'missing');")
         with pytest.raises(RuntimeError, match="rollback-only"):
             conn.commit()
         conn.rollback()
@@ -406,7 +410,7 @@ def test_index_optimize_atomic_rollback_and_retry(tmp_path, capfd):
         for name in ("a_hnsw", "b_hnsw"):
             assert _local_buffer_checkpoint(path, name)[0] == 0
         capfd.readouterr()
-        rows = list(conn.execute("CALL index_optimize();"))
+        rows = list(conn.execute("CALL optimize_indexes();"))
         assert [row[:4] for row in rows] == [
             ["hnsw", name, 0, 1] for name in ("a_hnsw", "b_hnsw")
         ]
@@ -1741,12 +1745,12 @@ def test_visible_bitmap_candidates_and_maintenance(tmp_path, metric, layout):
         conn.execute("MATCH(n:Item {id:2}) DELETE n;")
         conn.execute(f"MATCH(n:Item {{id:3}}) SET n.v={_array_literal(vectors[199])};")
         check()
-        conn.execute("CALL index_optimize('hnsw', 'item_hnsw');")
+        conn.execute("CALL optimize_indexes('hnsw', 'item_hnsw');")
         check()
         conn.rollback()
         check()
         # Physical HNSW additions survive abort; logical bitmaps must not.
-        conn.execute("CALL index_optimize('hnsw', 'item_hnsw');")
+        conn.execute("CALL optimize_indexes('hnsw', 'item_hnsw');")
         check()
         conn.execute("MATCH(n:Item) WHERE n.id>=5 DELETE n;")
         check()  # Sparse visibility alone also enables candidate brute force.
@@ -1788,13 +1792,13 @@ def test_incremental_bitmaps_shared_column_and_aborted_slots(tmp_path):
             )
         for i in range(30):
             conn.execute(f"CREATE (:Item {{id:{i},v:[{float(i)},0.0,0.0,0.0]}});")
-        conn.execute("CALL index_optimize('hnsw');")
+        conn.execute("CALL optimize_indexes('hnsw');")
         conn.begin_transaction()
         conn.execute("MATCH(n:Item {id:0}) SET n.v=[100.0,0.0,0.0,0.0];")
         conn.execute("CREATE (:Item {id:30,v:[101.0,0.0,0.0,0.0]});")
         conn.execute("MATCH(n:Item {id:1}) DELETE n;")
         check()
-        conn.execute("CALL index_optimize('hnsw');")
+        conn.execute("CALL optimize_indexes('hnsw');")
         conn.rollback()
         check()
         conn.execute("MATCH(n:Item {id:0}) SET n.v=[102.0,0.0,0.0,0.0];")
@@ -1805,7 +1809,7 @@ def test_incremental_bitmaps_shared_column_and_aborted_slots(tmp_path):
         conn.execute("MATCH(n:Item) WHERE n.id>=20 SET n.v=[200.0,0.0,0.0,0.0];")
         conn.execute("MATCH(n:Item) WHERE n.id>=25 DELETE n;")
         check()
-        conn.execute("CALL index_optimize('hnsw');")
+        conn.execute("CALL optimize_indexes('hnsw');")
         check()
         conn.execute("CHECKPOINT;")
     finally:
@@ -1871,27 +1875,35 @@ def test_cosine_shared_normalized_query_with_zero_and_scaled_inputs(tmp_path, mi
         _close_database(db, conn)
 
 
-def test_show_index_optimize_stats_transaction_and_reopen(tmp_path):
+def test_show_indexes_buffered_count_transaction_and_reopen(tmp_path):
     path = tmp_path / "optimize-stats"
     db, conn = _open_database(path, checkpoint_on_close=False)
 
     def pending():
-        return list(conn.execute("CALL show_index_optimize_stats('hnsw');"))
+        return list(
+            conn.execute("CALL show_indexes('hnsw') RETURN type, name, buffered_count;")
+        )
 
     try:
         assert pending() == []
         conn.execute("CREATE NODE TABLE Item(id INT64 PRIMARY KEY, v FLOAT[4]);")
         conn.execute("CREATE INDEX item_hnsw ON Item USING HNSW(v);")
         conn.execute("CREATE (:Item {id:0,v:[1.0,0.0,0.0,0.0]});")
-        conn.execute("CALL index_optimize('hnsw');")
+        conn.execute("CALL optimize_indexes('hnsw');")
         assert pending() == [["hnsw", "item_hnsw", 0]]
+        row = list(conn.execute("CALL show_indexes('hnsw', 'item_hnsw');"))[0]
+        assert row[:4] == ["item_hnsw", "hnsw", "Item", "v"]
+        assert row[5:] == ["active", 0]
+        for removed in ("index_optimize", "show_index_optimize_stats"):
+            with pytest.raises(RuntimeError):
+                conn.execute(f"CALL {removed}();")
         conn.begin_transaction()
         conn.execute("MATCH(n:Item {id:0}) SET n.v=[2.0,0.0,0.0,0.0];")
         conn.execute("CREATE (:Item {id:1,v:[3.0,0.0,0.0,0.0]});")
         assert pending() == [["hnsw", "item_hnsw", 2]]
         conn.execute("MATCH(n:Item {id:1}) DELETE n;")
         assert pending() == [["hnsw", "item_hnsw", 2]]
-        conn.execute("CALL index_optimize('hnsw');")
+        conn.execute("CALL optimize_indexes('hnsw');")
         assert pending() == [["hnsw", "item_hnsw", 0]]
         conn.rollback()
         assert pending() == [["hnsw", "item_hnsw", 0]]

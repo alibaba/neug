@@ -625,7 +625,7 @@ def test_fts_pattern_outputs_with_order_by_limit(fts_hybrid_database):
 
 def test_show_and_drop_fts_index(fts_database):
     assert list(fts_database.execute("CALL SHOW_INDEXES() RETURN *;")) == [
-        ["item_text_fts", "fts", "Item", "text", "{}", "active"]
+        ["item_text_fts", "fts", "Item", "text", "{}", "active", 0]
     ]
 
     fts_database.execute("DROP INDEX item_text_fts IF EXISTS;")
