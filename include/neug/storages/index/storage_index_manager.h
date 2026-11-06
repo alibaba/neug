@@ -78,8 +78,10 @@ class StorageIndexManager {
   };
 
   StorageIndexManager() = default;
-  result<std::vector<IndexOptimizeResult>> OptimizeIndexes(
-      const IndexOptimizeOptions& options);
+  result<std::vector<ShowIndexStats>> ShowIndexes(
+      const IndexOptions& options = {}) const;
+  result<std::vector<OptimizeIndexResult>> OptimizeIndexes(
+      const IndexOptions& options = {});
   ~StorageIndexManager() = default;
 
   /**

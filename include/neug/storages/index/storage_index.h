@@ -73,6 +73,14 @@ struct IndexMeta {
   static IndexMeta FromJsonString(const std::string& json_str);
 };
 
+enum class IndexState { kActive, kPending };
+
+struct ShowIndexStats {
+  IndexMeta meta;
+  IndexState state{IndexState::kActive};
+  std::optional<uint64_t> buffered_count;
+};
+
 // --- Query parameter types ---
 
 // Stores the index query parameters, i.e., target value, comparison type, etc.
@@ -171,11 +179,13 @@ class NEUG_API StorageIndex : public Module {
    */
   virtual Status BulkBuild(const VertexSet& vertices) = 0;
 
-  // Number of buffered slots awaiting index maintenance in this snapshot.
-  virtual uint64_t GetBufferedCount() const { return 0; }
+  // Read-only statistics for the current index snapshot.
+  virtual result<ShowIndexStats> Show() const {
+    return ShowIndexStats{GetMeta(), IndexState::kActive, 0};
+  }
 
   // Shared by explicit maintenance and COPY. The caller owns the transaction.
-  virtual result<IndexOptimizeStats> Optimize() { return IndexOptimizeStats{}; }
+  virtual result<OptimizeIndexStats> Optimize() { return OptimizeIndexStats{}; }
 
   /**
    * @brief Search the index and translate internal index ids to vertex ids.

@@ -366,6 +366,9 @@ class NEUG_API StorageReadInterface : virtual public IStorageInterface {
   }
 
   /** @brief Get all registered indexes. */
+  result<std::vector<ShowIndexStats>> ShowIndexes(
+      const IndexOptions& options) const;
+
   result<std::vector<StorageIndex*>> GetAllIndexes() const {
     return view_.GetAllIndexes();
   }
@@ -585,8 +588,8 @@ class StorageUpdateInterface : public StorageReadInterface,
   virtual Status AddGraphEntry(const std::string& name,
                                const ProjectedGraphEntry& entry) = 0;
   virtual Status DropGraphEntry(const std::string& name) = 0;
-  virtual result<std::vector<IndexOptimizeResult>> OptimizeIndexes(
-      const IndexOptimizeOptions& options) {
+  virtual result<std::vector<OptimizeIndexResult>> OptimizeIndexes(
+      const IndexOptions& options) {
     return tl::unexpected(Status(StatusCode::ERR_NOT_SUPPORTED,
                                  "Index optimization is not supported"));
   }

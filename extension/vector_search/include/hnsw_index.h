@@ -110,8 +110,8 @@ class HNSWIndex final : public StorageIndex {
             const std::string& key) override;
   Status Rebind(const IndexBindContext& context) override;
   Status BulkBuild(const VertexSet& vertices) override;
-  result<IndexOptimizeStats> Optimize() override;
-  uint64_t GetBufferedCount() const override;
+  result<OptimizeIndexStats> Optimize() override;
+  result<ShowIndexStats> Show() const override;
   Status Upsert(vid_t vid, const IndexValue& new_value) override;
   Status Delete(vid_t vid) override;
   void Detach(Checkpoint& ckp, MemoryLevel level) override;

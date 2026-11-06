@@ -459,7 +459,7 @@ void ReplayCowGraphWal(PropertyGraph& graph, uint32_t timestamp, char* data,
           LOG(WARNING) << "Skip optimize replay for pending index: " << name;
           continue;
         }
-        IndexOptimizeOptions options;
+        IndexOptions options;
         options.index_name = name;
         auto ret = manager.OptimizeIndexes(options);
         if (!ret)

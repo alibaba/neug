@@ -25,22 +25,23 @@ namespace neug {
 
 class StorageIndex;
 struct PendingIndex;
+struct ShowIndexStats;
 
-struct IndexOptimizeStats {
+struct OptimizeIndexStats {
   uint64_t indexed_count{0};
   uint64_t skipped_count{0};
   bool changed{false};
 };
 
-struct IndexOptimizeOptions {
+struct IndexOptions {
   std::optional<std::string> type;
   std::optional<std::string> index_name;
 };
 
-struct IndexOptimizeResult {
+struct OptimizeIndexResult {
   std::string type;
   std::string index_name;
-  IndexOptimizeStats stats;
+  OptimizeIndexStats stats;
   double duration_ms{0};
 };
 

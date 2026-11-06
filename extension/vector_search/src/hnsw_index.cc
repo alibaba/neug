@@ -534,14 +534,16 @@ Status HNSWIndex::BulkBuild(const VertexSet& vertices) {
   return Status::OK();
 }
 
-uint64_t HNSWIndex::GetBufferedCount() const {
-  return local_buffer_enabled_ ? index_id_accessor_->GetVisibleLimit() -
-                                     flat_index_offset_.value()
-                               : 0;
+result<ShowIndexStats> HNSWIndex::Show() const {
+  const auto buffered_count =
+      local_buffer_enabled_
+          ? index_id_accessor_->GetVisibleLimit() - flat_index_offset_.value()
+          : 0;
+  return ShowIndexStats{GetMeta(), IndexState::kActive, buffered_count};
 }
 
-result<IndexOptimizeStats> HNSWIndex::Optimize() {
-  IndexOptimizeStats stats;
+result<OptimizeIndexStats> HNSWIndex::Optimize() {
+  OptimizeIndexStats stats;
   if (!local_buffer_enabled_)
     return stats;
   const auto limit = index_id_accessor_->GetVisibleLimit();

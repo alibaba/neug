@@ -104,19 +104,8 @@ Example output:
 | `label` | Node table containing the indexed property. |
 | `property` | Indexed property name; multiple properties are represented as a string such as `["title","body"]`. |
 | `options` | Index options as a JSON string, with option values represented as strings. |
-| `state` | `active` when the index implementation is loaded; `pending` while waiting for its provider extension. |
-| `buffered_count` | Number of data slots buffered in the index's LocalBuffer, as reported by its implementation. Returns 0 for active indexes without a LocalBuffer and `NULL` for pending indexes. |
-
-`pending` describes an index that has not been activated because its provider
-extension is not loaded. `buffered` describes data held in an index's LocalBuffer
-that has not yet been merged into its main index structure. An active index can
-have buffered data; that does not make the index pending. Load the provider
-extension to activate a pending index, and use `optimize_indexes` to maintain
-buffered data in an active index.
-
-The exact counting rules depend on the index implementation. HNSW counts the
-entire buffered slot range, including deleted or replaced slots and allocation
-gaps.
+| `state` | `active` when the index implementation is loaded; `pending` when the index has not been activated because its provider extension is not loaded. |
+| `buffered_count` | Number of data slots buffered in the index's LocalBuffer. The exact counting rules depend on the index implementation. Returns 0 for active indexes without a LocalBuffer and `NULL` for pending indexes. |
 
 To inspect only the buffer size:
 
@@ -129,7 +118,7 @@ CALL show_indexes() RETURN name, type, buffered_count;
 Use `optimize_indexes` to explicitly perform maintenance on selected indexes.
 Each index type implements its own maintenance logic, such as merging buffered
 data into its main index structure. The procedure is available to all index
-types; implementations with no maintenance operation perform no work.
+types.
 
 For example, HNSW merges LocalBuffer data into its graph. That data is already
 searchable before optimization, so applications do not need to change their

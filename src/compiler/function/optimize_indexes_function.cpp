@@ -89,7 +89,7 @@ function_set OptimizeIndexesFunction::getFunctionSet() {
         THROW_INVALID_ARGUMENT_EXCEPTION(
             "OPTIMIZE_INDEXES requires a write transaction");
       const auto& bound = dynamic_cast<const OptimizeInput&>(input);
-      IndexOptimizeOptions options;
+      IndexOptions options;
       if (!bound.values[0].empty())
         options.type = bound.values[0];
       if (!bound.values[1].empty())

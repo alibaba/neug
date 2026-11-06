@@ -42,8 +42,44 @@ static Status PendingIndexError(const std::string& name,
           "first.");
 }
 
-result<std::vector<IndexOptimizeResult>> StorageIndexManager::OptimizeIndexes(
-    const IndexOptimizeOptions& options) {
+result<std::vector<ShowIndexStats>> StorageIndexManager::ShowIndexes(
+    const IndexOptions& options) const {
+  auto type = options.type;
+  if ((type && type->empty()) ||
+      (options.index_name && options.index_name->empty())) {
+    return tl::unexpected(Status(StatusCode::ERR_INVALID_ARGUMENT,
+                                 "SHOW_INDEXES requires nonempty type/name"));
+  }
+  if (type)
+    common::StringUtils::toLower(*type);
+  auto matches = [&](const IndexMeta& meta) {
+    auto actual = meta.type;
+    common::StringUtils::toLower(actual);
+    return (!type || actual == *type) &&
+           (!options.index_name || meta.name == *options.index_name);
+  };
+  std::vector<ShowIndexStats> rows;
+  rows.reserve(indexes_.size() + pending_indexes_.size());
+  for (const auto& [name, index] : indexes_) {
+    if (index && matches(index->GetMeta())) {
+      auto stats = index->Show();
+      if (!stats)
+        return tl::unexpected(stats.error());
+      rows.push_back(std::move(stats).value());
+    }
+  }
+  for (const auto& [name, pending] : pending_indexes_) {
+    if (matches(pending.meta))
+      rows.push_back({pending.meta, IndexState::kPending, std::nullopt});
+  }
+  std::sort(rows.begin(), rows.end(), [](const auto& lhs, const auto& rhs) {
+    return lhs.meta.name < rhs.meta.name;
+  });
+  return rows;
+}
+
+result<std::vector<OptimizeIndexResult>> StorageIndexManager::OptimizeIndexes(
+    const IndexOptions& options) {
   auto type = options.type;
   if ((type && type->empty()) ||
       (options.index_name && options.index_name->empty())) {
@@ -84,10 +120,10 @@ result<std::vector<IndexOptimizeResult>> StorageIndexManager::OptimizeIndexes(
             [](const auto* lhs, const auto* rhs) {
               return lhs->GetMeta().name < rhs->GetMeta().name;
             });
-  std::vector<IndexOptimizeResult> results;
+  std::vector<OptimizeIndexResult> results;
   for (auto* index : targets) {
     const auto start = std::chrono::steady_clock::now();
-    IndexOptimizeResult row;
+    OptimizeIndexResult row;
     row.type = index->GetMeta().type;
     row.index_name = index->GetMeta().name;
     auto optimized = index->Optimize();

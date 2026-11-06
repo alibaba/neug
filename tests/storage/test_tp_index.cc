@@ -80,8 +80,8 @@ class MaintenanceIndex : public ExampleIndex {
   bool optimized{false};
   std::shared_ptr<bool> physically_added = std::make_shared<bool>(false);
 
-  result<IndexOptimizeStats> Optimize() override {
-    IndexOptimizeStats stats;
+  result<OptimizeIndexStats> Optimize() override {
+    OptimizeIndexStats stats;
     if (meta_->name == fail_name)
       return tl::unexpected(Status::RuntimeError("injected optimize failure"));
     if (optimized)

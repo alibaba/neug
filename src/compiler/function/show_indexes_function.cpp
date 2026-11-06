@@ -60,12 +60,6 @@ struct ShowIndexesInput : CallFuncInputBase {
   }
 };
 
-struct ShowIndexRow {
-  IndexMeta meta;
-  std::string state;
-  std::optional<uint64_t> buffered_count;
-};
-
 std::string OptionsToJson(const IndexMeta& meta) {
   std::vector<std::pair<std::string, std::string>> options(meta.options.begin(),
                                                            meta.options.end());
@@ -127,41 +121,16 @@ function_set ShowIndexesFunction::getFunctionSet() {
             "SHOW_INDEXES requires a readable storage interface");
       }
 
-      auto indexesResult = readInterface->GetAllIndexes();
-      if (!indexesResult) {
-        THROW_RUNTIME_ERROR("SHOW_INDEXES failed: " +
-                            indexesResult.error().ToString());
-      }
-      auto indexes = std::move(indexesResult).value();
-      auto pendingResult = readInterface->GetAllPendingIndexes();
-      if (!pendingResult) {
-        THROW_RUNTIME_ERROR("SHOW_INDEXES failed: " +
-                            pendingResult.error().ToString());
-      }
-
       const auto& bound = dynamic_cast<const ShowIndexesInput&>(input);
-      auto type = bound.values[0];
-      common::StringUtils::toLower(type);
-      auto matches = [&](const IndexMeta& meta) {
-        auto actual = meta.type;
-        common::StringUtils::toLower(actual);
-        return (type.empty() || actual == type) &&
-               (bound.values[1].empty() || meta.name == bound.values[1]);
-      };
-      std::vector<ShowIndexRow> rows;
-      rows.reserve(indexes.size() + pendingResult->size());
-      for (const auto* index : indexes) {
-        if (matches(index->GetMeta()))
-          rows.push_back(
-              {index->GetMeta(), "active", index->GetBufferedCount()});
-      }
-      for (const auto* pending_index : pendingResult.value()) {
-        if (matches(pending_index->meta))
-          rows.push_back({pending_index->meta, "pending", std::nullopt});
-      }
-      std::sort(rows.begin(), rows.end(), [](const auto& lhs, const auto& rhs) {
-        return lhs.meta.name < rhs.meta.name;
-      });
+      IndexOptions options;
+      if (!bound.values[0].empty())
+        options.type = bound.values[0];
+      if (!bound.values[1].empty())
+        options.index_name = bound.values[1];
+      auto stats = readInterface->ShowIndexes(options);
+      if (!stats)
+        THROW_RUNTIME_ERROR("SHOW_INDEXES failed: " + stats.error().ToString());
+      const auto& rows = stats.value();
 
       ValueColumnBuilder<std::string> nameBuilder;
       ValueColumnBuilder<std::string> typeBuilder;
@@ -196,7 +165,8 @@ function_set ShowIndexesFunction::getFunctionSet() {
           propertyBuilder.push_back_opt(properties);
         }
         optionsBuilder.push_back_opt(OptionsToJson(meta));
-        stateBuilder.push_back_opt(state);
+        stateBuilder.push_back_opt(state == IndexState::kActive ? "active"
+                                                                : "pending");
         if (buffered_count)
           bufferedBuilder.push_back_opt(*buffered_count);
         else

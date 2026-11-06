@@ -132,8 +132,8 @@ result<size_t> CowGraphStorage::ActivateIndexes() {
   return activated.value();
 }
 
-result<std::vector<IndexOptimizeResult>> CowGraphStorage::OptimizeIndexes(
-    const IndexOptimizeOptions& options) {
+result<std::vector<OptimizeIndexResult>> CowGraphStorage::OptimizeIndexes(
+    const IndexOptions& options) {
   auto results = graph_.mutable_index_manager().OptimizeIndexes(options);
   if (!results)
     return tl::unexpected(results.error());
