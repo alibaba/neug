@@ -95,8 +95,7 @@ def resolve(platforms="all", python_versions="all"):
         ),
         cibw_build=" ".join("cp" + v.replace(".", "") + "-*" for v in versions),
         extensions=EXTENSIONS,
-        # Temporarily use the intact multi-arch tag until 2026.03.13-2 is repaired.
-        dev_image=f"{REGISTRY}/neug-dev:v0.1.3",
+        dev_image=f"{REGISTRY}/neug-dev:2026.03.13-2",
         verify_java="java" in selected,
         packaging_python="3.13",
         wheel_host_python="3.11",
