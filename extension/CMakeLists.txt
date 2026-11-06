@@ -169,15 +169,21 @@ function(add_extension_if_enabled extension)
         message(STATUS "Adding extension: ${extension}")
         if("${extension}" IN_LIST NEUG_BUILTIN_EXTENSIONS)
             add_subdirectory("${extension}")
+            set(_extension_binary_dir "${CMAKE_CURRENT_BINARY_DIR}/${extension}")
         elseif(DEFINED NEUG_EXTENSION_${extension}_SOURCE_DIR)
             add_subdirectory(
                 "${NEUG_EXTENSION_${extension}_SOURCE_DIR}"
                 "${CMAKE_BINARY_DIR}/external_extension/${extension}")
+            set(_extension_binary_dir "${CMAKE_BINARY_DIR}/external_extension/${extension}")
         else()
             message(FATAL_ERROR
                 "Extension '${extension}' is not built-in and was not registered "
                 "via neug_extension_load() in NEUG_EXTENSION_CONFIGS")
         endif()
+        # Directory labels cover all registered tests, including tests added in
+        # subdirectories, without maintaining a second list of test names in CI.
+        set_property(DIRECTORY "${_extension_binary_dir}" APPEND PROPERTY
+            LABELS "extension_${extension}")
     endif()
 endfunction()
 
