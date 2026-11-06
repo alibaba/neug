@@ -6,7 +6,7 @@
   </picture><br>
   <b>The one data index for your agentic applications</b><br><br>
   <a href="https://github.com/alibaba/neug/actions/workflows/Linux.yml"><img src="https://github.com/alibaba/neug/actions/workflows/Linux.yml/badge.svg" alt="NeuG Test (Linux)"></a>
-  <a href="https://github.com/alibaba/neug/actions/workflows/release-wheel.yml"><img src="https://github.com/alibaba/neug/actions/workflows/release-wheel.yml/badge.svg" alt="NeuG Wheel Packaging"></a>
+  <a href="https://github.com/alibaba/neug/actions/workflows/package.yml"><img src="https://github.com/alibaba/neug/actions/workflows/package.yml/badge.svg" alt="NeuG Wheel Packaging"></a>
   <a href="https://github.com/alibaba/neug/actions/workflows/docs.yml"><img src="https://github.com/alibaba/neug/actions/workflows/docs.yml/badge.svg" alt="NeuG Documentation"></a>
   <a href="https://codecov.io/gh/alibaba/neug"><img src="https://codecov.io/gh/alibaba/neug/branch/main/graph/badge.svg" alt="Coverage"></a>
   <a href="https://x.com/graphscope2021"><img src="https://img.shields.io/badge/Follow-NeuG-111111?logo=x&logoColor=white" alt="Follow NeuG"></a>
