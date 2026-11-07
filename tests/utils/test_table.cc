@@ -97,6 +97,8 @@ static CheckpointManifest DumpTableLegacy(Table& t, Checkpoint& ckp) {
   for (size_t i = 0; i < t.col_num(); ++i) {
     t.get_column_by_id(i)->Dump(ckp, meta, TablePropKey(i));
   }
+  // Chunked columns commit their chunk directory from object finalizers.
+  ckp.FinalizeObjectWriter(meta);
   return meta;
 }
 

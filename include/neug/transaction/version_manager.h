@@ -17,6 +17,7 @@
 #include <stdint.h>
 #include <atomic>
 #include <chrono>
+#include <limits>
 #include <optional>
 
 #include "neug/transaction/operation_gate.h"
@@ -175,6 +176,17 @@ class VersionManager : public IVersionManager {
  public:
   VersionManager();
   ~VersionManager() override = default;
+
+  // Ordinary write timestamps must never reach the reserved sentinel encodings
+  // (MAX_TIMESTAMP = UINT32_MAX-1, INVALID/DELETED_TIMESTAMP = UINT32_MAX).
+  // Reservations stop at kWriteTimestampWatermark, leaving a guard band that
+  // covers the in-flight reservation window (TimestampWindow::kWindowSize) plus
+  // admission contention, so timeline maintenance can reset the timeline before
+  // any ordinary timestamp collides with a reserved encoding.
+  static constexpr uint32_t kTimestampGuardBand =
+      static_cast<uint32_t>(TimestampWindow::kWindowSize) * 2;
+  static constexpr uint32_t kWriteTimestampWatermark =
+      std::numeric_limits<uint32_t>::max() - kTimestampGuardBand;
 
   void init_ts(PublishedReadView initial_read_view, int thread_num) override;
   bool try_set_runtime_wait_if_quiescent(

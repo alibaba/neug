@@ -168,6 +168,7 @@ class MvccInsertTransaction {
    *
    * @since v0.1.0
    */
+  bool RequiresCowRetry() const { return requires_cow_retry_; }
   bool Commit();
 
   void Abort();
@@ -177,9 +178,9 @@ class MvccInsertTransaction {
   /**
    * @brief Apply an insert-WAL byte stream via a writable GraphView.
    *
-   * Used both:
-   *  - by MvccInsertTransaction::Commit() — passing its writable view_; and
-   *  - by NeugDB recovery — over a GraphView rebuilt on the opened graph.
+   * Used by MvccInsertTransaction::Commit() with its writable view_. Recovery
+   * uses ReplayCowGraphWal instead so legacy records can reuse deleted VIDs
+   * without relaxing the live insert path's append-only requirement.
    *
    * Marks dirty bits through the view's borrowed DirtyTracker after successful
    * writes. Capacity is assumed to be sufficient (no auto-grow /
@@ -217,6 +218,7 @@ class MvccInsertTransaction {
   std::vector<vid_t> added_vertices_base_;
   std::vector<vid_t> vertex_nums_;
 
+  bool requires_cow_retry_ = false;
   SnapshotGuard guard_;
   GraphView* view_;
 
