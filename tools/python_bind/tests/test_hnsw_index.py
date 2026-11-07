@@ -1309,7 +1309,8 @@ def test_issue_931_cosine_ann_returns_distance_with_normalize(tmp_path):
         assert "IndexScanOpr" in _profile_operator_names(tight_result)
         assert [row[0] for row in rows_tight] == ["a", "b"]
         assert rows_tight[0][1] == pytest.approx(0.0, abs=1e-6)
-        assert all(0.0 <= row[1] <= 2.0 for row in rows_tight)
+        # FP32 cosine distances can round slightly outside the theoretical range.
+        assert all(-1e-6 <= row[1] <= 2.0 + 1e-6 for row in rows_tight), rows_tight
         assert [row[0] for row in rows_tight] == [row[0] for row in rows_without_limit]
         assert [row[1] for row in rows_tight] == pytest.approx(
             [row[1] for row in rows_without_limit], abs=1e-6
