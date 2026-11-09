@@ -44,12 +44,15 @@
 
 namespace neug {
 
-PropertyGraph::PropertyGraph()
+PropertyGraph::PropertyGraph(size_t max_thread_num)
     : ckp_(nullptr),
       vertex_label_total_count_(0),
       edge_label_total_count_(0),
       memory_level_(MemoryLevel::kInMemory) {
-  index_manager_ = std::make_unique<StorageIndexManager>();
+  if (max_thread_num == 0) {
+    THROW_INVALID_ARGUMENT_EXCEPTION("Index worker limit must be positive");
+  }
+  index_manager_ = std::make_unique<StorageIndexManager>(max_thread_num);
 }
 
 PropertyGraph::~PropertyGraph() { Clear(); }
@@ -919,7 +922,8 @@ void PropertyGraph::rebind_indexes() {
           vertex_tables_[index_meta.schema.label_id].GetPropertyColumnBase(
               index_column.property_name));
     }
-    auto status = index->Rebind(IndexBindContext{std::move(columns)});
+    auto status = index->Rebind(
+        IndexBindContext{std::move(columns), index_manager_->max_thread_num_});
     if (!status.ok()) {
       THROW_RUNTIME_ERROR("PropertyGraph: failed to bind index '" +
                           index_meta.name + "': " + status.error_message());
@@ -1687,7 +1691,8 @@ std::shared_ptr<PropertyGraph> PropertyGraph::Clone() const {
       }
       columns.push_back(column);
     }
-    auto status = index->Rebind(IndexBindContext{std::move(columns)});
+    auto status = index->Rebind(IndexBindContext{
+        std::move(columns), cow_clone->index_manager_->max_thread_num_});
     if (!status.ok()) {
       THROW_RUNTIME_ERROR("PropertyGraph::Clone: failed to bind index '" +
                           index_meta.name + "': " + status.error_message());

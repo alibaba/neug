@@ -134,6 +134,7 @@ class HNSWIndex final : public StorageIndex {
   std::shared_ptr<CheckpointFileManager::RuntimeFileHandle> flat_runtime_file_;
   std::string flat_runtime_path_;
   const VecColumn* column_{nullptr};
+  size_t build_workers_{1};
   std::optional<index_id_t> flat_index_offset_;
   bool local_buffer_enabled_{true};
   // Derived snapshot state, rebuilt on first bind rather than persisted.

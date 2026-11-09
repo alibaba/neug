@@ -549,7 +549,7 @@ timestamp_t NeugDB::openGraphAndIngestWals() {
                 << ckp->manifest_path();
     }
     LOG(INFO) << "Opening graph from checkpoint " << ckp->manifest_path();
-    auto graph = std::make_shared<PropertyGraph>();
+    auto graph = std::make_shared<PropertyGraph>(config_.max_thread_num);
     graph->Open(ckp, config_.memory_level);
 
     // Init allocators before ingesting wals

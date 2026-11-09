@@ -387,6 +387,10 @@ void HNSWIndex::Dump(Checkpoint& ckp, CheckpointManifest& manifest,
 }
 
 Status HNSWIndex::Rebind(const IndexBindContext& context) {
+  if (context.max_thread_num == 0) {
+    return Status(StatusCode::ERR_INVALID_ARGUMENT,
+                  "HNSWIndex worker limit must be positive");
+  }
   if (context.columns.size() != 1) {
     return Status(StatusCode::ERR_INVALID_ARGUMENT,
                   "HNSWIndex requires exactly one property column binding");
@@ -421,6 +425,7 @@ Status HNSWIndex::Rebind(const IndexBindContext& context) {
       std::make_unique<VecColumnBackedIndexIDAccessor>(*offset_accessor);
   const bool initialize_visible_ids = column_ == nullptr;
   column_ = column;
+  build_workers_ = context.max_thread_num;
   const auto limit = index_id_accessor_->GetVisibleLimit();
   local_buffer_enabled_ =
       metric_ != zvec::core_interface::MetricType::kCosine ||
@@ -484,8 +489,7 @@ Status HNSWIndex::BulkBuild(const VertexSet& vertices) {
     roaring::Roaring ids;
     size_t indexed_count = 0;
   };
-  const ParallelOptions options{
-      std::max(1u, std::thread::hardware_concurrency()), 64};
+  const ParallelOptions options{build_workers_, 64};
   std::vector<BuildWorkerState> states(options.max_workers);
   HNSWVecSource source(column_);
   const auto vector_byte_size = source.GetVectorByteSize();
@@ -576,8 +580,7 @@ result<OptimizeIndexStats> HNSWIndex::Optimize() {
     size_t indexed_count = 0;
     size_t skipped_count = 0;
   };
-  const ParallelOptions options{
-      std::max(1u, std::thread::hardware_concurrency()), 64};
+  const ParallelOptions options{build_workers_, 64};
   std::vector<OptimizeWorkerState> states(options.max_workers);
   HNSWVecSource source(column_);
   auto status = neug::parallel_for(
@@ -645,6 +648,7 @@ std::unique_ptr<Module> HNSWIndex::Clone() const {
   cloned->flat_runtime_file_ = flat_runtime_file_;
   cloned->flat_runtime_path_ = flat_runtime_path_;
   cloned->column_ = column_;
+  cloned->build_workers_ = build_workers_;
   cloned->flat_index_offset_ = flat_index_offset_;
   cloned->local_buffer_enabled_ = local_buffer_enabled_;
   cloned->hnsw_ids_ = hnsw_ids_;

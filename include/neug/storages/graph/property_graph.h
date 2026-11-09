@@ -103,14 +103,16 @@ class StorageIndexManager;
 class NEUG_API PropertyGraph {
  public:
   /**
-   * @brief Construct PropertyGraph with default settings.
+   * @brief Construct PropertyGraph with a runtime index worker limit.
    *
    * Implementation: Initializes vertex_label_total_count_=0,
-   * edge_label_total_count_=0, memory_level_=kInMemory
+   * edge_label_total_count_=0, memory_level_=kInMemory. The positive worker
+   * limit is preserved across Clone and checkpoint reopen, but is not
+   * persisted.
    *
    * @since v0.1.0
    */
-  PropertyGraph();
+  explicit PropertyGraph(size_t max_thread_num = 1);
 
   /**
    * @brief Destructor that reserves space and cleans up resources.

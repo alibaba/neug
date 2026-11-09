@@ -207,7 +207,7 @@ neug::result<CreatedIndex> StorageIndexManager::CreateIndex(
   index->Open(*ckp_, desc, memory_level_);
 
   RETURN_STATUS_ERROR_IF_NOT_OK(
-      index->Rebind(IndexBindContext{std::move(columns)}));
+      index->Rebind(IndexBindContext{std::move(columns), max_thread_num_}));
   RETURN_STATUS_ERROR_IF_NOT_OK(index->BulkBuild(vertex_set));
 
   auto* raw_ptr = index.get();
@@ -632,8 +632,8 @@ result<size_t> StorageIndexManager::ActivateIndexes(
       ModuleDescriptor desc;
       desc.module_type = pending.descriptor.module_type;
       index->Open(*ckp_, desc, memory_level_);
-      RETURN_IF_NOT_OK(
-          index->Rebind(IndexBindContext{std::move(bound_columns)}));
+      RETURN_IF_NOT_OK(index->Rebind(
+          IndexBindContext{std::move(bound_columns), max_thread_num_}));
       auto vertices_it = vertex_sets.find(meta.schema.label_id);
       if (vertices_it == vertex_sets.end()) {
         return Status::InternalError("Invalid vertex set for pending index: " +
@@ -649,8 +649,8 @@ result<size_t> StorageIndexManager::ActivateIndexes(
           dynamic_cast<const VecColumn*>(bound_columns.front());
       static_cast<Module*>(index.get())
           ->Open(*ckp_, ckp_->manifest(), pending.descriptor, memory_level_);
-      RETURN_IF_NOT_OK(
-          index->Rebind(IndexBindContext{std::move(bound_columns)}));
+      RETURN_IF_NOT_OK(index->Rebind(
+          IndexBindContext{std::move(bound_columns), max_thread_num_}));
       auto replayed =
           ReplayPendingMutations(*index, pending_mutations_, vector_column);
       if (!replayed) {
@@ -804,7 +804,7 @@ std::string StorageIndexManager::GetKey(const std::string& index_name) {
 }
 
 std::unique_ptr<StorageIndexManager> StorageIndexManager::Clone() const {
-  auto forked = std::make_unique<StorageIndexManager>();
+  auto forked = std::make_unique<StorageIndexManager>(max_thread_num_);
   forked->ckp_ = ckp_;
   forked->memory_level_ = memory_level_;
   for (const auto& [name, index] : indexes_) {
