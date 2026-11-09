@@ -16,7 +16,11 @@ import tempfile
 
 
 def gh(path, *fields):
-    args = ["gh", "api", path]
+    # gh api defaults to POST whenever -f/-F fields are present; the dry-run
+    # lookups below are GET requests whose fields are query parameters, so the
+    # method must be pinned explicitly or GitHub answers 404 and reuse never
+    # matches.
+    args = ["gh", "api", "--method", "GET", path]
     for key, value in fields:
         args += ["-f", f"{key}={value}"]
     return subprocess.run(args, capture_output=True, text=True)
