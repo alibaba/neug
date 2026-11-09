@@ -284,6 +284,13 @@ When creating an index:
 - Nodes inserted after index creation are automatically searchable through the
   index, including vectors in the Local Buffer described below.
 
+NeuG automatically uses multiple CPU cores to build HNSW indexes, reducing build
+time for larger datasets without additional configuration. By default, it uses
+the maximum number of CPU cores available on the current hardware. This also
+accelerates index updates during `COPY FROM` and when merging buffered vectors with
+`CALL optimize_indexes()`. Actual speedup depends on the dataset, index settings,
+and available CPU cores.
+
 ### Vector normalization
 
 HNSW cosine search requires stored vectors to have unit L2 norm.

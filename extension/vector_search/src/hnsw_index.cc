@@ -39,6 +39,7 @@
 #include "neug/storages/module/module_factory.h"
 #include "neug/utils/exception/exception.h"
 #include "neug/utils/io/file/file_utils.h"
+#include "neug/utils/parallel_utils.h"
 
 namespace neug::vector_search_ext {
 
@@ -478,42 +479,57 @@ Status HNSWIndex::BulkBuild(const VertexSet& vertices) {
     return Status::RuntimeError(
         "HNSWIndex must be open and bound before bulk build");
   }
-  hnsw_ids_ = roaring::Roaring();
-  flat_ids_ = roaring::Roaring();
-  // BulkBuild is the explicit full-prefix build path, separate from Upsert.
+  struct BuildWorkerState {
+    flat_hash_set<uint64_t> fingerprints;
+    roaring::Roaring ids;
+    size_t indexed_count = 0;
+  };
+  const ParallelOptions options{
+      std::max(1u, std::thread::hardware_concurrency()), 64};
+  std::vector<BuildWorkerState> states(options.max_workers);
   HNSWVecSource source(column_);
-  flat_hash_set<uint64_t> duplicate_statistics;
-  size_t indexed_vector_count = 0;
   const auto vector_byte_size = source.GetVectorByteSize();
-  for (auto vid : vertices) {
-    auto index_id = index_id_accessor_->GetIndexIDByVID(vid);
-    if (index_id == INVALID_INDEX_ID) {
-      continue;
-    }
-    const auto* vector_data = source.get_vector(index_id);
-    if (vector_data == nullptr) {
-      return Status::RuntimeError(
-          "HNSW bulk build requires an available vector for vertex " +
-          std::to_string(vid) + " (index ID=" + std::to_string(index_id) + ")");
-    }
-    const auto fingerprint =
-        static_cast<uint64_t>(std::hash<std::string_view>{}(std::string_view(
-            static_cast<const char*>(vector_data), vector_byte_size)));
-    ++indexed_vector_count;
-    duplicate_statistics.insert(fingerprint);
-    zvec::core_interface::VectorData vector;
-    vector.vector = zvec::core_interface::DenseVector{vector_data};
-    auto ret = zvec_index_->add_with_source(vector, index_id, source);
-    if (ret != 0) {
-      return Status::RuntimeError(
-          "ZVec internal bulk build failed for vertex " + std::to_string(vid) +
-          " with error code " + std::to_string(ret) +
-          ". See logs for details.");
-    }
-    hnsw_ids_.add(index_id);
+  auto status = neug::parallel_for(
+      0, vertices.size(), options, [&](size_t vid, size_t worker_id) -> Status {
+        if (!vertices.valid(vid))
+          return Status::OK();
+        const auto id = index_id_accessor_->GetIndexIDByVID(vid);
+        if (id == INVALID_INDEX_ID)
+          return Status::OK();
+        const auto* data = source.get_vector(id);
+        if (!data)
+          return Status::RuntimeError(
+              "HNSW bulk build requires an available vector for vertex " +
+              std::to_string(vid) + " (index ID=" + std::to_string(id) + ")");
+        zvec::core_interface::VectorData vector;
+        vector.vector = zvec::core_interface::DenseVector{data};
+        const auto ret = zvec_index_->add_with_source(vector, id, source);
+        if (ret != 0 && ret != zvec::core::IndexError_Duplicate)
+          return Status::RuntimeError(
+              "ZVec internal bulk build failed for vertex " +
+              std::to_string(vid) + " with error code " + std::to_string(ret) +
+              ". See logs for details.");
+        auto& state = states[worker_id];
+        state.fingerprints.insert(static_cast<uint64_t>(
+            std::hash<std::string_view>{}(std::string_view(
+                static_cast<const char*>(data), vector_byte_size))));
+        state.ids.add(id);
+        ++state.indexed_count;
+        return Status::OK();
+      });
+  if (!status.ok())
+    return status;
+  flat_hash_set<uint64_t> duplicate_statistics;
+  roaring::Roaring ids, empty;
+  size_t indexed_vector_count = 0;
+  for (auto& state : states) {
+    duplicate_statistics.insert(state.fingerprints.begin(),
+                                state.fingerprints.end());
+    ids |= state.ids;
+    indexed_vector_count += state.indexed_count;
   }
-  deleted_cursor_ = index_id_accessor_->GetDeletedIndexIDs().size();
-  flat_index_offset_ = index_id_accessor_->GetVisibleLimit();
+  const auto deleted_cursor = index_id_accessor_->GetDeletedIndexIDs().size();
+  const auto limit = index_id_accessor_->GetVisibleLimit();
   const auto duplicate_vector_count =
       indexed_vector_count - duplicate_statistics.size();
   const auto duplicate_percentage =
@@ -531,6 +547,12 @@ Status HNSWIndex::BulkBuild(const VertexSet& vertices) {
   } else {
     LOG(INFO) << message;
   }
+  // Physical inserts may survive a failed operation or transaction rollback.
+  // Publish snapshot-local visibility only after all workers succeed.
+  hnsw_ids_.swap(ids);
+  flat_ids_.swap(empty);
+  deleted_cursor_ = deleted_cursor;
+  flat_index_offset_ = limit;
   return Status::OK();
 }
 
@@ -547,27 +569,50 @@ result<OptimizeIndexStats> HNSWIndex::Optimize() {
   if (!local_buffer_enabled_)
     return stats;
   const auto limit = index_id_accessor_->GetVisibleLimit();
-  if (limit <= flat_index_offset_.value())
+  const auto begin = flat_index_offset_.value();
+  if (limit <= begin)
     return stats;
+  struct OptimizeWorkerState {
+    size_t indexed_count = 0;
+    size_t skipped_count = 0;
+  };
+  const ParallelOptions options{
+      std::max(1u, std::thread::hardware_concurrency()), 64};
+  std::vector<OptimizeWorkerState> states(options.max_workers);
   HNSWVecSource source(column_);
-  for (index_id_t id = flat_index_offset_.value(); id < limit; ++id) {
-    if (index_id_accessor_->GetVIDByIndexID(id) == INVALID_VID) {
-      ++stats.skipped_count;
-      continue;
-    }
-    zvec::core_interface::VectorData vector;
-    vector.vector = zvec::core_interface::DenseVector{source.get_vector(id)};
-    const auto ret = zvec_index_->add_with_source(vector, id, source);
-    if (ret == zvec::core::IndexError_Duplicate) {
-      LOG(WARNING) << "Skip existing HNSW index_id during bulk append: " << id;
-      ++stats.skipped_count;
-      continue;
-    }
-    if (ret != 0) {
-      return tl::unexpected(Status::RuntimeError("HNSW bulk append failed: " +
-                                                 std::to_string(ret)));
-    }
-    ++stats.indexed_count;
+  auto status = neug::parallel_for(
+      begin, limit, options, [&](size_t offset, size_t worker_id) -> Status {
+        const auto id = static_cast<index_id_t>(offset);
+        auto& state = states[worker_id];
+        if (index_id_accessor_->GetVIDByIndexID(id) == INVALID_VID) {
+          ++state.skipped_count;
+          return Status::OK();
+        }
+        const auto* data = source.get_vector(id);
+        if (!data)
+          return Status::RuntimeError(
+              "HNSW bulk append requires an available vector for index ID " +
+              std::to_string(id));
+        zvec::core_interface::VectorData vector;
+        vector.vector = zvec::core_interface::DenseVector{data};
+        const auto ret = zvec_index_->add_with_source(vector, id, source);
+        if (ret == zvec::core::IndexError_Duplicate) {
+          LOG(WARNING) << "Skip existing HNSW index_id during bulk append: "
+                       << id;
+          ++state.skipped_count;
+          return Status::OK();
+        }
+        if (ret != 0)
+          return Status::RuntimeError("HNSW bulk append failed: " +
+                                      std::to_string(ret));
+        ++state.indexed_count;
+        return Status::OK();
+      });
+  if (!status.ok())
+    return tl::unexpected(status);
+  for (const auto& state : states) {
+    stats.indexed_count += state.indexed_count;
+    stats.skipped_count += state.skipped_count;
   }
   flat_index_offset_ = limit;
   hnsw_ids_ |= flat_ids_;
