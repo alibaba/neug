@@ -460,6 +460,81 @@ def test_namespace_variable_length_paths_and_predicate_planning(tmp_path):
         assert namespace_recent_rows == explicit_recent_rows
 
 
+@pytest.mark.parametrize("direction", ["out", "in", "both"])
+@pytest.mark.parametrize("with_edge_predicate", [False, True])
+@pytest.mark.parametrize("use_namespace", [False, True])
+def test_issue_1207_recursive_node_predicate(
+    tmp_path, direction, with_edge_predicate, use_namespace
+):
+    """Reject paths through hidden nodes before they reach a visible endpoint."""
+    db = Database(str(tmp_path / "recursive_node_predicate"), mode="w")
+    conn = db.connect()
+    try:
+        conn.execute(
+            "CREATE NODE TABLE Doc(id INT64, workspace STRING, content STRING, "
+            "PRIMARY KEY(id))"
+        )
+        conn.execute("CREATE REL TABLE LINK(FROM Doc TO Doc, weight INT64)")
+        for doc_id in range(1, 6):
+            conn.execute(
+                "CREATE (:Doc {id: $id, workspace: $workspace, content: $content})",
+                parameters={
+                    "id": doc_id,
+                    "workspace": "finance" if doc_id == 4 else "payments",
+                    "content": "hidden content" if doc_id == 4 else "visible content",
+                },
+            )
+        edges = [(1, 2, 1), (2, 3, 1), (1, 4, 1), (4, 2, 1)]
+        if with_edge_predicate:
+            edges.extend([(1, 5, 0), (5, 2, 1)])
+        for src, dst, weight in edges:
+            if direction == "in":
+                src, dst = dst, src
+            conn.execute(
+                "MATCH (a:Doc {id: $src}), (b:Doc {id: $dst}) "
+                "CREATE (a)-[:LINK {weight: $weight}]->(b)",
+                parameters={"src": src, "dst": dst, "weight": weight},
+            )
+        edge_predicate = "r.weight > 0" if with_edge_predicate else ""
+        conn.execute(
+            "CALL project_graph('payments', "
+            "{'Doc': 'n.workspace = \"payments\"'}, "
+            "{'[Doc, LINK, Doc]': '" + edge_predicate + "'})"
+        )
+        recursive_filter = ""
+        if not use_namespace:
+            recursive_filter = "(r, v | WHERE v.workspace = $workspace"
+            if with_edge_predicate:
+                recursive_filter += " AND " + edge_predicate
+            recursive_filter += ")"
+        relationship = "[:LINK*2..2 {}]".format(recursive_filter)
+        hop = {"out": "-{}->", "in": "<-{}-", "both": "-{}-"}[direction].format(
+            relationship
+        )
+        query = (
+            ("USE NAMESPACE payments " if use_namespace else "")
+            + "MATCH p=(a:Doc {id: 1})"
+            + hop
+            + '(n:Doc) WHERE a.workspace = "payments" '
+            'AND n.workspace = "payments" AND n.id IN [2, 3] '
+        )
+        parameters = {} if use_namespace else {"workspace": "payments"}
+        assert list(
+            conn.execute(query + "RETURN n.id ORDER BY n.id", parameters=parameters)
+        ) == [[3]]
+        rows = list(
+            conn.execute(query + "RETURN n.id, p ORDER BY n.id", parameters=parameters)
+        )
+        assert [row[0] for row in rows] == [3]
+        nodes = rows[0][1]["nodes"]
+        assert [node["id"] for node in nodes] == [1, 2, 3]
+        assert all(node["workspace"] == "payments" for node in nodes)
+        assert all(node["content"] == "visible content" for node in nodes)
+    finally:
+        conn.close()
+        db.close()
+
+
 def test_issue_1093_namespace_variable_length_path_regression(tmp_path):
     """Reproduce #1093: a namespaced variable-length path must not crash."""
     db = Database(db_path=str(tmp_path / "issue_1093_db"), mode="w")
@@ -501,7 +576,7 @@ def test_issue_1093_namespace_variable_length_path_regression(tmp_path):
         profile = conn.execute("PROFILE " + query)
         assert sorted(row[0] for row in profile) == ["u0", "u1", "u2"]
         operators = _physical_operator_names(profile)
-        assert "PathExpandOpr" in operators
+        assert "PathExpandOprWithPred" in operators
         assert "GetVFromEdgesOpr" in operators
         assert "FilterOpr" not in operators
     finally:

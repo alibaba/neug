@@ -151,8 +151,9 @@ class PathExpand {
                   label_triplet.edge_label);
               auto oes = oview.get_edges(end.vid_);
               for (auto it = oes.begin(); it != oes.end(); ++it) {
-                if (pred(label_triplet, end.vid_, it.get_vertex(),
-                         it.get_data_ptr())) {
+                if (pred(end.label_, end.vid_, label_triplet.dst_label,
+                         it.get_vertex(), label_triplet.edge_label,
+                         Direction::kOut, it.get_data_ptr())) {
                   Path new_path = path.expand(
                       label_triplet.edge_label, label_triplet.dst_label,
                       it.get_vertex(), Direction::kOut, it.get_data_ptr());
@@ -199,8 +200,9 @@ class PathExpand {
                   label_triplet.edge_label);
               auto ies = iview.get_edges(end.vid_);
               for (auto it = ies.begin(); it != ies.end(); ++it) {
-                if (pred(label_triplet, it.get_vertex(), end.vid_,
-                         it.get_data_ptr())) {
+                if (pred(end.label_, end.vid_, label_triplet.src_label,
+                         it.get_vertex(), label_triplet.edge_label,
+                         Direction::kIn, it.get_data_ptr())) {
                   Path new_path = path.expand(
                       label_triplet.edge_label, label_triplet.src_label,
                       it.get_vertex(), Direction::kIn, it.get_data_ptr());
@@ -247,8 +249,9 @@ class PathExpand {
                   label_triplet.edge_label);
               auto oes = oview.get_edges(end.vid_);
               for (auto it = oes.begin(); it != oes.end(); ++it) {
-                if (pred(label_triplet, end.vid_, it.get_vertex(),
-                         it.get_data_ptr())) {
+                if (pred(end.label_, end.vid_, label_triplet.dst_label,
+                         it.get_vertex(), label_triplet.edge_label,
+                         Direction::kOut, it.get_data_ptr())) {
                   Path new_path = path.expand(
                       label_triplet.edge_label, label_triplet.dst_label,
                       it.get_vertex(), Direction::kOut, it.get_data_ptr());
@@ -263,8 +266,9 @@ class PathExpand {
                   label_triplet.edge_label);
               auto ies = iview.get_edges(end.vid_);
               for (auto it = ies.begin(); it != ies.end(); ++it) {
-                if (pred(label_triplet, it.get_vertex(), end.vid_,
-                         it.get_data_ptr())) {
+                if (pred(end.label_, end.vid_, label_triplet.src_label,
+                         it.get_vertex(), label_triplet.edge_label,
+                         Direction::kIn, it.get_data_ptr())) {
                   Path new_path = path.expand(
                       label_triplet.edge_label, label_triplet.src_label,
                       it.get_vertex(), Direction::kIn, it.get_data_ptr());
