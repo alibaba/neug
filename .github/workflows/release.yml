@@ -225,43 +225,13 @@ jobs:
     # Phase 2: Publish
     # ========================================
 
-    - name: Upload Extensions using Original OSS Helper
+    - name: Publish Extensions to OSS
       shell: bash
       run: |
-        python3 - <<'PYCODE'
-        import importlib.util
-        import json
-        import os
-        from pathlib import Path
-        spec = importlib.util.spec_from_file_location('extensions', 'scripts/publish_extensions_from_wheel.py')
-        module = importlib.util.module_from_spec(spec)
-        spec.loader.exec_module(module)
-        root = Path('extension_packages')
-        tag = os.environ['RELEASE_TAG']
-        # Reuse the ci-plan platform -> oss_platform mapping and publish per
-        # platform, instead of parsing OSS platform strings out of directory names.
-        published = []
-        for entry in json.loads(os.environ['CI_MATRIX']):
-            platform = entry['platform']
-            oss_platform = entry['oss_platform']
-            # A platform may have both default and cxx11abi artifact directories.
-            variants = {'default': {}, 'cxx11abi': {}}
-            for artifact_dir in sorted(root.glob(f'extension-packages-{platform}-*')):
-                for path in sorted(artifact_dir.glob('*.neug_extension')):
-                    extension = path.name.removeprefix('lib').removesuffix('.neug_extension')
-                    abi = 'cxx11abi' if extension.endswith('-cxx11abi') else 'default'
-                    extension = extension.removesuffix('-cxx11abi')
-                    # Both ABIs use the logical extension name as the OSS directory.
-                    # Their filenames differ, so publishing one must not replace the other.
-                    variants[abi][extension] = (path, path.with_name(path.name + '.sha256'))
-            if not any(variants.values()):
-                raise RuntimeError(f"No extension artifacts for platform {platform}")
-            for files in variants.values():
-                if files:
-                    module.upload_artifacts(files, tag, oss_platform)
-            published.append(platform)
-        print(f"Published extensions for platforms: {published}")
-        PYCODE
+        python3 scripts/publish_extensions_from_wheel.py \
+          --from-artifacts extension_packages \
+          --matrix "$CI_MATRIX" \
+          --version "$RELEASE_TAG"
       env:
         OSS_ACCESS_KEY_ID: ${{ secrets.OSS_ACCESS_KEY_ID }}
         OSS_ACCESS_KEY_SECRET: ${{ secrets.OSS_ACCESS_KEY_SECRET }}
