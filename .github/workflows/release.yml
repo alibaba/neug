@@ -176,18 +176,21 @@ jobs:
         npm publish dist/npm/neug-ai-neug-*.tgz --access public
 
   publish_extension:
-    name: Publish Extension / ${{ matrix.platform }}
+    name: Publish Extension
     needs: [ci-plan, resolve-reuse, package]
     if: >-
       !cancelled() && needs.ci-plan.result == 'success' &&
       github.repository == 'alibaba/neug' &&
       github.event_name == 'release' && github.event.action == 'published' &&
       (needs.package.result == 'success' || needs.package.result == 'skipped')
-    runs-on: ubuntu-22.04
-    strategy:
-      fail-fast: false
-      matrix:
-        include: ${{ fromJSON(needs.ci-plan.outputs.plan).matrix }}
+    # OSS upload is only authorized from dev0 (self-hosted Linux x64): the same
+    # AccessKey used from any other origin (e.g. hosted ubuntu-22.04) is rejected
+    # by OSS as InvalidAccessKeyId(disabled), which is why all five v0.3.1 legs
+    # failed with 403. Every platform's extensions are already preserved as
+    # artifacts and uploading is just put_object (platform-independent), so this
+    # collapses to a single job on dev0 that downloads all platform artifacts and
+    # publishes them together instead of splitting one job per platform.
+    runs-on: [self-hosted, daily, linux, x64]
     permissions:
       contents: read
       actions: read
@@ -197,14 +200,20 @@ jobs:
     # ========================================
 
     - uses: actions/checkout@v4
+    # Match linux_wheel: use the glibc-compatible host Python. Alibaba Cloud
+    # runners have glibc <2.33 and cannot execute the packaging_python (3.13)
+    # binary; wheel_host_python (3.11) is what dev0 already runs successfully.
     - uses: actions/setup-python@v5
       with:
-        python-version: ${{ fromJSON(needs.ci-plan.outputs.plan).packaging_python }}
+        python-version: ${{ fromJSON(needs.ci-plan.outputs.plan).wheel_host_python }}
+    # merge-multiple must stay false: lib<ext>.neug_extension has the same name
+    # across platforms, so merging into one directory would overwrite each other.
+    # With false, each artifact lands in its own subdirectory named after it.
     - uses: actions/download-artifact@v4
       with:
-        pattern: extension-packages-${{ matrix.platform }}-*
+        pattern: extension-packages-*
         path: extension_packages
-        merge-multiple: true
+        merge-multiple: false
         github-token: ${{ secrets.GITHUB_TOKEN }}
         run-id: ${{ needs.resolve-reuse.outputs.reuse_run_id || github.run_id }}
 
@@ -221,32 +230,44 @@ jobs:
       run: |
         python3 - <<'PYCODE'
         import importlib.util
+        import json
         import os
         from pathlib import Path
         spec = importlib.util.spec_from_file_location('extensions', 'scripts/publish_extensions_from_wheel.py')
         module = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(module)
-        folder = Path('extension_packages')
-        # Both ABIs use the logical extension name as the OSS directory.
-        # Their filenames differ, so publishing one must not replace the other.
-        variants = {'default': {}, 'cxx11abi': {}}
-        for path in folder.glob('*.neug_extension'):
-            extension = path.name.removeprefix('lib').removesuffix('.neug_extension')
-            abi = 'cxx11abi' if extension.endswith('-cxx11abi') else 'default'
-            extension = extension.removesuffix('-cxx11abi')
-            variants[abi][extension] = (path, path.with_name(path.name + '.sha256'))
-        if not any(variants.values()):
-            raise RuntimeError(f"No extension artifacts for {os.environ['OSS_PLATFORM']}")
-        for files in variants.values():
-            if files:
-                module.upload_artifacts(files, os.environ['RELEASE_TAG'], os.environ['OSS_PLATFORM'])
+        root = Path('extension_packages')
+        tag = os.environ['RELEASE_TAG']
+        # Reuse the ci-plan platform -> oss_platform mapping and publish per
+        # platform, instead of parsing OSS platform strings out of directory names.
+        published = []
+        for entry in json.loads(os.environ['CI_MATRIX']):
+            platform = entry['platform']
+            oss_platform = entry['oss_platform']
+            # A platform may have both default and cxx11abi artifact directories.
+            variants = {'default': {}, 'cxx11abi': {}}
+            for artifact_dir in sorted(root.glob(f'extension-packages-{platform}-*')):
+                for path in sorted(artifact_dir.glob('*.neug_extension')):
+                    extension = path.name.removeprefix('lib').removesuffix('.neug_extension')
+                    abi = 'cxx11abi' if extension.endswith('-cxx11abi') else 'default'
+                    extension = extension.removesuffix('-cxx11abi')
+                    # Both ABIs use the logical extension name as the OSS directory.
+                    # Their filenames differ, so publishing one must not replace the other.
+                    variants[abi][extension] = (path, path.with_name(path.name + '.sha256'))
+            if not any(variants.values()):
+                raise RuntimeError(f"No extension artifacts for platform {platform}")
+            for files in variants.values():
+                if files:
+                    module.upload_artifacts(files, tag, oss_platform)
+            published.append(platform)
+        print(f"Published extensions for platforms: {published}")
         PYCODE
       env:
         OSS_ACCESS_KEY_ID: ${{ secrets.OSS_ACCESS_KEY_ID }}
         OSS_ACCESS_KEY_SECRET: ${{ secrets.OSS_ACCESS_KEY_SECRET }}
         OSS_ENDPOINT: ${{ secrets.OSS_ENDPOINT }}
         OSS_BUCKET_NAME: ${{ secrets.OSS_BUCKET_NAME }}
-        OSS_PLATFORM: ${{ matrix.oss_platform }}
+        CI_MATRIX: ${{ toJSON(fromJSON(needs.ci-plan.outputs.plan).matrix) }}
         RELEASE_TAG: ${{ github.event.release.tag_name }}
 
   publish_java:
