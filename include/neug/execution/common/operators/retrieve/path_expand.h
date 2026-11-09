@@ -14,6 +14,8 @@
  */
 #pragma once
 
+#include <algorithm>
+
 #include "neug/execution/common/context_chunk.h"
 #include "neug/execution/common/operators/retrieve/path_expand_impl.h"
 #include "neug/execution/common/params_map.h"
@@ -110,10 +112,10 @@ class PathExpand {
   static neug::result<ContextChunk> edge_expand_p_with_pred(
       const StorageReadInterface& graph, ContextChunk&& chunk,
       const PathExpandParams& params, const PRED_T& pred) {
-    if (params.opt != PathOpt::kArbitrary) {
-      LOG(ERROR) << "only support arbitrary path expand with predicate";
-      RETURN_UNSUPPORTED_ERROR(
-          "only support arbitrary path expand with predicate");
+    if (params.opt != PathOpt::kArbitrary && params.opt != PathOpt::kTrail &&
+        params.opt != PathOpt::kSimple) {
+      LOG(ERROR) << "unsupported path expand option with predicate";
+      RETURN_UNSUPPORTED_ERROR("unsupported path expand option with predicate");
     }
     sel_vec_t shuffle_offset;
     auto& input_vertex_list =
@@ -133,6 +135,37 @@ class PathExpand {
 
     PathColumnBuilder builder;
 
+    // Predicate-bearing TRAIL and ACYCLIC paths use the same expansion loop,
+    // but must retain their edge/node uniqueness constraints at every hop.
+    auto can_expand = [&](const Path& path, const LabelTriplet& triplet,
+                          vid_t neighbor, Direction direction,
+                          const void* data) {
+      auto end = path.end_node();
+      auto neighbor_label =
+          direction == Direction::kOut ? triplet.dst_label : triplet.src_label;
+      if (!pred(end.label_, end.vid_, neighbor_label, neighbor,
+                triplet.edge_label, direction, data)) {
+        return false;
+      }
+      if (params.opt == PathOpt::kSimple) {
+        auto nodes = path.nodes();
+        return std::find(nodes.begin(), nodes.end(),
+                         VertexRecord{neighbor_label, neighbor}) == nodes.end();
+      }
+      if (params.opt == PathOpt::kTrail) {
+        auto src = direction == Direction::kOut ? end.vid_ : neighbor;
+        auto dst = direction == Direction::kOut ? neighbor : end.vid_;
+        for (const auto& edge : path.relationships()) {
+          // Compare stored edge orientation, so traversing an edge backwards
+          // in an undirected pattern cannot reuse the same relationship.
+          if (edge.label == triplet && edge.src == src && edge.dst == dst) {
+            return false;
+          }
+        }
+      }
+      return true;
+    };
+
     if (dir == Direction::kOut) {
       foreach_vertex(input_vertex_list,
                      [&](size_t index, label_t label, vid_t v) {
@@ -151,9 +184,8 @@ class PathExpand {
                   label_triplet.edge_label);
               auto oes = oview.get_edges(end.vid_);
               for (auto it = oes.begin(); it != oes.end(); ++it) {
-                if (pred(end.label_, end.vid_, label_triplet.dst_label,
-                         it.get_vertex(), label_triplet.edge_label,
-                         Direction::kOut, it.get_data_ptr())) {
+                if (can_expand(path, label_triplet, it.get_vertex(),
+                               Direction::kOut, it.get_data_ptr())) {
                   Path new_path = path.expand(
                       label_triplet.edge_label, label_triplet.dst_label,
                       it.get_vertex(), Direction::kOut, it.get_data_ptr());
@@ -200,9 +232,8 @@ class PathExpand {
                   label_triplet.edge_label);
               auto ies = iview.get_edges(end.vid_);
               for (auto it = ies.begin(); it != ies.end(); ++it) {
-                if (pred(end.label_, end.vid_, label_triplet.src_label,
-                         it.get_vertex(), label_triplet.edge_label,
-                         Direction::kIn, it.get_data_ptr())) {
+                if (can_expand(path, label_triplet, it.get_vertex(),
+                               Direction::kIn, it.get_data_ptr())) {
                   Path new_path = path.expand(
                       label_triplet.edge_label, label_triplet.src_label,
                       it.get_vertex(), Direction::kIn, it.get_data_ptr());
@@ -249,9 +280,8 @@ class PathExpand {
                   label_triplet.edge_label);
               auto oes = oview.get_edges(end.vid_);
               for (auto it = oes.begin(); it != oes.end(); ++it) {
-                if (pred(end.label_, end.vid_, label_triplet.dst_label,
-                         it.get_vertex(), label_triplet.edge_label,
-                         Direction::kOut, it.get_data_ptr())) {
+                if (can_expand(path, label_triplet, it.get_vertex(),
+                               Direction::kOut, it.get_data_ptr())) {
                   Path new_path = path.expand(
                       label_triplet.edge_label, label_triplet.dst_label,
                       it.get_vertex(), Direction::kOut, it.get_data_ptr());
@@ -266,9 +296,8 @@ class PathExpand {
                   label_triplet.edge_label);
               auto ies = iview.get_edges(end.vid_);
               for (auto it = ies.begin(); it != ies.end(); ++it) {
-                if (pred(end.label_, end.vid_, label_triplet.src_label,
-                         it.get_vertex(), label_triplet.edge_label,
-                         Direction::kIn, it.get_data_ptr())) {
+                if (can_expand(path, label_triplet, it.get_vertex(),
+                               Direction::kIn, it.get_data_ptr())) {
                   Path new_path = path.expand(
                       label_triplet.edge_label, label_triplet.src_label,
                       it.get_vertex(), Direction::kIn, it.get_data_ptr());
