@@ -133,6 +133,25 @@ jobs:
       with:
         submodules: recursive
         fetch-depth: 0
+
+    - name: Prepare Python on Self-Hosted ARM64 Runner
+      if: runner.os == 'Linux' && runner.environment == 'self-hosted' && runner.arch == 'ARM64'
+      shell: bash
+      env:
+        HOST_PYTHON_VERSION: ${{ fromJSON(needs.initialize.outputs.plan).wheel_host_python }}
+      run: |
+        set -euo pipefail
+        # Alibaba Cloud Linux has no matching setup-python download. Register
+        # its system Python as a fresh venv after shared tool-cache cleanup.
+        system_python="/usr/bin/python$HOST_PYTHON_VERSION"
+        version=$("$system_python" -c 'import platform; print(platform.python_version())')
+        cache="$RUNNER_TOOL_CACHE/Python/$version/arm64"
+        mkdir -p "$(dirname "$cache")"
+        rm -f "$cache.complete"
+        "$system_python" -m venv --clear "$cache"
+        "$cache/bin/python" -c 'import ssl, pip; print(ssl.OPENSSL_VERSION); print("pip", pip.__version__)'
+        touch "$cache.complete"
+
     - uses: actions/setup-python@v5
       with:
         # Drive cibuildwheel with a glibc-compatible host Python; the self-hosted
