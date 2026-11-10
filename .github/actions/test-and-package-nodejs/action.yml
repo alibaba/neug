@@ -188,7 +188,8 @@ runs:
       JS
 
   - name: Upload Linux Node.js Extension Packages
-    if: runner.os == 'Linux' && inputs.package == 'true' && inputs.upload_artifacts == 'true' && inputs.extensions != ''
+    # always(): preserve cxx11abi extensions even if Validate npm Package fails.
+    if: always() && runner.os == 'Linux' && inputs.package == 'true' && inputs.upload_artifacts == 'true' && inputs.extensions != ''
     uses: actions/upload-artifact@v4
     with:
       name: extension-packages-${{ inputs.artifact_platform }}-cxx11abi-${{ github.event.release.tag_name || 'package' }}
