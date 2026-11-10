@@ -17,44 +17,9 @@
 
 #include "neug/common/types/i_context_column.h"
 #include "neug/execution/common/context.h"
-#include "neug/execution/common/operators/retrieve/path_expand.h"
 
 namespace neug {
 namespace execution {
-class BindedPathIsTrailExpr : public RecordExprBase {
- public:
-  BindedPathIsTrailExpr(const StorageReadInterface& graph,
-                        std::unique_ptr<BindedExprBase>&& path_expr)
-      : graph_(graph), path_expr_(std::move(path_expr)) {}
-  const DataType& type() const override { return DataType::BOOLEAN; }
-  Value eval_record(const DataChunk& chunk, size_t idx) const override {
-    auto value = path_expr_->Cast<RecordExprBase>().eval_record(chunk, idx);
-    if (value.IsNull()) {
-      return Value(DataType::BOOLEAN);
-    }
-    auto edges = PathValue::Get(value).relationships();
-    for (size_t i = 0; i < edges.size(); ++i) {
-      for (size_t j = 0; j < i; ++j) {
-        if (PathExpand::same_relationship(graph_, edges[i], edges[j])) {
-          return Value::BOOLEAN(false);
-        }
-      }
-    }
-    return Value::BOOLEAN(true);
-  }
-
- private:
-  const StorageReadInterface& graph_;
-  std::unique_ptr<BindedExprBase> path_expr_;
-};
-
-std::unique_ptr<BindedExprBase> PathIsTrailExpr::bind(
-    const IStorageInterface* storage, const ParamsMap& params) const {
-  return std::make_unique<BindedPathIsTrailExpr>(
-      dynamic_cast<const StorageReadInterface&>(*storage),
-      path_expr_->bind(storage, params));
-}
-
 class BindedPathNodesExpr : public RecordExprBase {
  public:
   BindedPathNodesExpr(std::unique_ptr<BindedExprBase>&& path_expr)

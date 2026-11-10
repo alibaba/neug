@@ -18,18 +18,6 @@
 
 namespace neug {
 namespace execution {
-class PathIsTrailExpr : public ExprBase {
- public:
-  explicit PathIsTrailExpr(std::unique_ptr<ExprBase>&& path_expr)
-      : path_expr_(std::move(path_expr)) {}
-  const DataType& type() const override { return DataType::BOOLEAN; }
-  std::unique_ptr<BindedExprBase> bind(const IStorageInterface* storage,
-                                       const ParamsMap& params) const override;
-
- private:
-  std::unique_ptr<ExprBase> path_expr_;
-};
-
 class PathNodesExpr : public ExprBase {
  public:
   PathNodesExpr(std::unique_ptr<ExprBase>&& path_expr)

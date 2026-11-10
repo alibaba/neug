@@ -34,5 +34,23 @@ struct NeugScalarFunction : public ScalarFunction {
     return std::make_unique<NeugScalarFunction>(*this);
   }
 };
+
+// Keep NeugScalarFunction's layout and callback unchanged for extensions that
+// only consume argument values. Context-aware functions opt in to this subtype.
+struct NeugContextScalarFunction : public NeugScalarFunction {
+  execution::neug_context_func_exec_t neugContextExecFunc;
+
+  NeugContextScalarFunction(std::string name,
+                            std::vector<common::DataTypeId> parameterTypeIDs,
+                            common::DataTypeId returnTypeID,
+                            execution::neug_context_func_exec_t contextExecFunc)
+      : NeugScalarFunction(std::move(name), std::move(parameterTypeIDs),
+                           returnTypeID, nullptr),
+        neugContextExecFunc(contextExecFunc) {}
+
+  std::unique_ptr<ScalarFunction> copy() const override {
+    return std::make_unique<NeugContextScalarFunction>(*this);
+  }
+};
 }  // namespace function
 }  // namespace neug

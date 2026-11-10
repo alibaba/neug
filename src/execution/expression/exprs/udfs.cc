@@ -23,8 +23,13 @@ class BindedScalarFunctionExpr : public VertexExprBase,
  public:
   BindedScalarFunctionExpr(
       neug_func_exec_t fn, const DataType& ret_type,
-      std::vector<std::unique_ptr<BindedExprBase>>&& children)
-      : func_(fn), ret_type_(ret_type), children_(std::move(children)) {}
+      std::vector<std::unique_ptr<BindedExprBase>>&& children,
+      neug_context_func_exec_t context_fn, const IStorageInterface* storage)
+      : func_(fn),
+        context_func_(context_fn),
+        storage_(storage),
+        ret_type_(ret_type),
+        children_(std::move(children)) {}
   const DataType& type() const override { return ret_type_; }
 
   Value eval_record(const DataChunk& chunk, size_t idx) const override {
@@ -33,7 +38,7 @@ class BindedScalarFunctionExpr : public VertexExprBase,
     for (auto& ch : children_) {
       params.emplace_back(ch->Cast<RecordExprBase>().eval_record(chunk, idx));
     }
-    return func_(params);
+    return invoke(params);
   }
 
   Value eval_vertex(label_t label, vid_t v) const override {
@@ -42,7 +47,7 @@ class BindedScalarFunctionExpr : public VertexExprBase,
     for (auto& ch : children_) {
       params.emplace_back(ch->Cast<VertexExprBase>().eval_vertex(label, v));
     }
-    return func_(params);
+    return invoke(params);
   }
 
   Value eval_edge(const LabelTriplet& label, vid_t src, vid_t dst,
@@ -53,11 +58,16 @@ class BindedScalarFunctionExpr : public VertexExprBase,
       params.emplace_back(
           ch->Cast<EdgeExprBase>().eval_edge(label, src, dst, data_ptr));
     }
-    return func_(params);
+    return invoke(params);
   }
 
  private:
+  Value invoke(const std::vector<Value>& args) const {
+    return context_func_ ? context_func_(args, storage_) : func_(args);
+  }
   neug_func_exec_t func_;
+  neug_context_func_exec_t context_func_;
+  const IStorageInterface* storage_;
   DataType ret_type_;
   std::vector<std::unique_ptr<BindedExprBase>> children_;
 };
@@ -74,8 +84,8 @@ std::unique_ptr<BindedExprBase> ScalarFunctionExpr::bind(
     }
     bound_children.push_back(std::move(bound_child));
   }
-  return std::make_unique<BindedScalarFunctionExpr>(func_, ret_type_,
-                                                    std::move(bound_children));
+  return std::make_unique<BindedScalarFunctionExpr>(
+      func_, ret_type_, std::move(bound_children), context_func_, storage);
 }
 }  // namespace execution
 }  // namespace neug

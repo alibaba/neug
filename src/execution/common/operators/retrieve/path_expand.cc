@@ -23,9 +23,8 @@ namespace neug {
 
 namespace execution {
 
-bool PathExpand::same_relationship(const StorageReadInterface& graph,
-                                   const EdgeRecord& left,
-                                   const EdgeRecord& right) {
+bool same_relationship(const StorageReadInterface& graph,
+                       const EdgeRecord& left, const EdgeRecord& right) {
   if (!(left == right)) {
     return false;
   }

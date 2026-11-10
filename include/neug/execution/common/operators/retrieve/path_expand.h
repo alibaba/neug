@@ -19,6 +19,7 @@
 #include "neug/execution/common/context_chunk.h"
 #include "neug/execution/common/operators/retrieve/path_expand_impl.h"
 #include "neug/execution/common/params_map.h"
+#include "neug/execution/common/relationship.h"
 #include "neug/execution/expression/special_predicates.h"
 #include "neug/execution/utils/params.h"
 #include "neug/utils/result.h"
@@ -29,11 +30,6 @@ namespace execution {
 
 class PathExpand {
  public:
-  // Compare snapshot-local CSR relationship identity, including parallel edges.
-  static bool same_relationship(const StorageReadInterface& graph,
-                                const EdgeRecord& left,
-                                const EdgeRecord& right);
-
   // PathExpand(expandOpt == Vertex && alias == -1 && resultOpt == END_V) +
   // GetV(opt == END)
   static neug::result<ContextChunk> edge_expand_v(
@@ -119,6 +115,8 @@ class PathExpand {
       const PathExpandParams& params, const PRED_T& pred) {
     auto& vertices =
         *std::dynamic_pointer_cast<IVertexColumn>(chunk.get(params.start_tag));
+    using Predecessor =
+        std::tuple<VertexRecord, label_t, Direction, const void*>;
     std::vector<std::vector<std::pair<LabelTriplet, Direction>>> adjacency(
         graph.schema().vertex_label_frontier());
     for (const auto& triplet : params.labels) {
@@ -129,53 +127,80 @@ class PathExpand {
         adjacency[triplet.dst_label].emplace_back(triplet, Direction::kIn);
       }
     }
+    const bool all = params.opt == PathOpt::kAllShortest;
     PathColumnBuilder builder;
     sel_vec_t offsets;
     foreach_vertex(vertices, [&](size_t index, label_t label, vid_t vertex) {
-      vector_t<Path> frontier{Path(label, vertex)};
-      flat_hash_set<VertexRecord> visited;
-      visited.emplace(label, vertex);
-      for (int depth = 0; depth < params.hop_upper && !frontier.empty();
+      const VertexRecord root{label, vertex};
+      flat_hash_map<VertexRecord, int> distances;
+      flat_hash_map<VertexRecord, std::vector<Predecessor>> predecessors;
+      distances.emplace(root, 0);
+      vector_t<VertexRecord> frontier{root};
+      for (int depth = 0; depth + 1 < params.hop_upper && !frontier.empty();
            ++depth) {
-        vector_t<Path> next;
-        for (const auto& path : frontier) {
-          if (depth >= params.hop_lower) {
-            builder.push_back_opt(Path(path));
-            offsets.push_back(index);
-          }
-          if (depth + 1 >= params.hop_upper) {
-            continue;
-          }
-          const auto end = path.end_node();
-          for (const auto& [triplet, direction] : adjacency[end.label_]) {
-            auto neighbor_label = direction == Direction::kOut
-                                      ? triplet.dst_label
-                                      : triplet.src_label;
+        vector_t<VertexRecord> next;
+        for (const auto& node : frontier) {
+          for (const auto& [triplet, direction] : adjacency[node.label_]) {
+            const auto neighbor_label = direction == Direction::kOut
+                                            ? triplet.dst_label
+                                            : triplet.src_label;
             auto view =
                 direction == Direction::kOut
                     ? graph.GetGenericOutgoingGraphView(
-                          end.label_, neighbor_label, triplet.edge_label)
+                          node.label_, neighbor_label, triplet.edge_label)
                     : graph.GetGenericIncomingGraphView(
-                          end.label_, neighbor_label, triplet.edge_label);
-            auto edges = view.get_edges(end.vid_);
+                          node.label_, neighbor_label, triplet.edge_label);
+            auto edges = view.get_edges(node.vid_);
             for (auto it = edges.begin(); it != edges.end(); ++it) {
-              VertexRecord neighbor{neighbor_label, it.get_vertex()};
-              // Rejected hops must not mark a vertex visited: another in-scope
-              // edge/path may still reach it. Endpoint filtering is performed
-              // separately by the following GetV operator.
-              if (!pred(end.label_, end.vid_, neighbor_label, it.get_vertex(),
+              const VertexRecord neighbor{neighbor_label, it.get_vertex()};
+              // Reject a hop before recording reachability. Endpoint predicates
+              // remain in the following GetV and do not prune intermediate
+              // nodes.
+              if (!pred(node.label_, node.vid_, neighbor_label, neighbor.vid_,
                         triplet.edge_label, direction, it.get_data_ptr())) {
                 continue;
               }
-              if (visited.emplace(neighbor).second) {
-                next.push_back(path.expand(triplet.edge_label, neighbor_label,
-                                           it.get_vertex(), direction,
-                                           it.get_data_ptr()));
+              auto [distance, inserted] =
+                  distances.emplace(neighbor, depth + 1);
+              if (inserted) {
+                next.push_back(neighbor);
+              }
+              if (inserted || (all && distance->second == depth + 1)) {
+                // Keep each relationship, including parallel edges, in the DAG.
+                predecessors[neighbor].emplace_back(
+                    node, triplet.edge_label, direction, it.get_data_ptr());
               }
             }
           }
         }
         frontier.swap(next);
+      }
+      std::vector<VertexRecord> nodes;
+      std::vector<std::tuple<label_t, Direction, const void*>> edges;
+      std::function<void(const VertexRecord&)> emit =
+          [&](const VertexRecord& node) {
+            nodes.push_back(node);
+            if (node == root) {
+              auto ordered_nodes = nodes;
+              auto ordered_edges = edges;
+              std::reverse(ordered_nodes.begin(), ordered_nodes.end());
+              std::reverse(ordered_edges.begin(), ordered_edges.end());
+              builder.push_back_opt(Path(ordered_edges, ordered_nodes));
+              offsets.push_back(index);
+            } else {
+              for (const auto& [previous, edge_label, direction, data] :
+                   predecessors.at(node)) {
+                edges.emplace_back(edge_label, direction, data);
+                emit(previous);
+                edges.pop_back();
+              }
+            }
+            nodes.pop_back();
+          };
+      for (const auto& [node, distance] : distances) {
+        if (distance >= params.hop_lower && distance < params.hop_upper) {
+          emit(node);
+        }
       }
     });
     chunk.set_with_reshuffle(params.alias, builder.finish(), offsets);
@@ -186,7 +211,8 @@ class PathExpand {
   static neug::result<ContextChunk> edge_expand_p_with_pred(
       const StorageReadInterface& graph, ContextChunk&& chunk,
       const PathExpandParams& params, const PRED_T& pred) {
-    if (params.opt == PathOpt::kAnyShortest) {
+    if (params.opt == PathOpt::kAnyShortest ||
+        params.opt == PathOpt::kAllShortest) {
       return shortest_path_with_hop_predicate(graph, std::move(chunk), params,
                                               pred);
     }
@@ -406,10 +432,14 @@ class PathExpand {
     RETURN_UNSUPPORTED_ERROR("not support path expand options");
   }
 
+  using HopPredicate = std::function<bool(label_t, vid_t, label_t, vid_t,
+                                          label_t, Direction, const void*)>;
+
   template <typename FUNC_T>
   static neug::result<ContextChunk> any_weighted_shortest_path(
       const StorageReadInterface& graph, ContextChunk&& chunk,
-      const PathExpandParams& params, const FUNC_T& weight_func) {
+      const PathExpandParams& params, const FUNC_T& weight_func,
+      const HopPredicate& pred = {}) {
     auto col = chunk.get(params.start_tag);
     auto& input_vertex_list = *std::dynamic_pointer_cast<IVertexColumn>(col);
     PathColumnBuilder path_builder;
@@ -458,6 +488,11 @@ class PathExpand {
             for (auto it = oes.begin(); it != oes.end(); ++it) {
               vid_t nbr = it.get_vertex();
               VertexRecord nbr_vr(label_triplet.dst_label, nbr);
+              if (pred && !pred(label, cur, nbr_vr.label_, nbr,
+                                label_triplet.edge_label, Direction::kOut,
+                                it.get_data_ptr())) {
+                continue;
+              }
               double weight =
                   weight_func(label_triplet, cur, nbr, it.get_data_ptr());
               if (dist.count(nbr_vr) == 0 ||
@@ -466,7 +501,7 @@ class PathExpand {
                                             label_triplet.dst_label, nbr,
                                             Direction::kOut, it.get_data_ptr());
                 new_path.set_weight(path.get_weight() + weight);
-                dist[nbr_vr] = new_path.get_weight() + weight;
+                dist[nbr_vr] = new_path.get_weight();
 
                 pq.push(new_path);
               }
@@ -482,15 +517,20 @@ class PathExpand {
             for (auto it = ies.begin(); it != ies.end(); ++it) {
               vid_t nbr = it.get_vertex();
               VertexRecord nbr_vr(label_triplet.src_label, nbr);
+              if (pred && !pred(label, cur, nbr_vr.label_, nbr,
+                                label_triplet.edge_label, Direction::kIn,
+                                it.get_data_ptr())) {
+                continue;
+              }
               double weight =
-                  weight_func(label_triplet, cur, nbr, it.get_data_ptr());
+                  weight_func(label_triplet, nbr, cur, it.get_data_ptr());
               if (dist.count(nbr_vr) == 0 ||
                   dist[nbr_vr] > path.get_weight() + weight) {
                 auto new_path = path.expand(label_triplet.edge_label,
                                             label_triplet.src_label, nbr,
-                                            Direction::kOut, it.get_data_ptr());
+                                            Direction::kIn, it.get_data_ptr());
                 new_path.set_weight(path.get_weight() + weight);
-                dist[nbr_vr] = new_path.get_weight() + weight;
+                dist[nbr_vr] = new_path.get_weight();
 
                 pq.push(new_path);
               }

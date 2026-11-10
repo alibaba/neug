@@ -569,7 +569,8 @@ neug::result<OpBuildResultT> SPOprBuilder::Build(
   ContextMeta ret_meta = ctx_meta;
   const auto& recursive_path = plan.plan(op_idx).opr().path();
   if (has_hop_predicate(recursive_path) &&
-      recursive_path.path_opt() == physical::PathExpand::ANY_SHORTEST) {
+      (recursive_path.path_opt() == physical::PathExpand::ANY_SHORTEST ||
+       recursive_path.path_opt() == physical::PathExpand::ALL_SHORTEST)) {
     return std::make_pair(nullptr, ContextMeta());
   }
   if (is_shortest_path(plan, op_idx)) {
@@ -834,8 +835,13 @@ class PathExpandOprWithPred : public IOperator {
 class AnyWeightedShortestPathOpr : public IOperator {
  public:
   AnyWeightedShortestPathOpr(PathExpandParams pep,
-                             std::unique_ptr<ExprBase>&& weight)
-      : pep_(pep), weight_(std::move(weight)) {}
+                             std::unique_ptr<ExprBase>&& weight,
+                             std::unique_ptr<ExprBase>&& edge_pred,
+                             std::unique_ptr<ExprBase>&& vertex_pred)
+      : pep_(pep),
+        weight_(std::move(weight)),
+        edge_pred_(std::move(edge_pred)),
+        vertex_pred_(std::move(vertex_pred)) {}
 
   std::string get_operator_name() const override {
     return "WeightedShortestPathOpr";
@@ -847,6 +853,9 @@ class AnyWeightedShortestPathOpr : public IOperator {
       neug::execution::OprTimer* timer) override {
     const auto& graph =
         dynamic_cast<const StorageReadInterface&>(graph_interface);
+    EdgeAndNbrPredicate predicate(
+        vertex_pred_ ? vertex_pred_->bind(&graph, params) : nullptr,
+        edge_pred_ ? edge_pred_->bind(&graph, params) : nullptr);
     auto expr = weight_->bind(&graph, params);
     auto weight_func = [&expr](const LabelTriplet& label, vid_t src, vid_t dst,
                                const void* data_ptr) {
@@ -856,14 +865,22 @@ class AnyWeightedShortestPathOpr : public IOperator {
     };
     return ctx.apply_chunks(
         [&](ContextChunk&& chunk) -> neug::result<ContextChunk> {
-          return PathExpand::any_weighted_shortest_path(graph, std::move(chunk),
-                                                        pep_, weight_func);
+          return PathExpand::any_weighted_shortest_path(
+              graph, std::move(chunk), pep_, weight_func,
+              [&predicate](label_t label, vid_t vertex, label_t neighbor_label,
+                           vid_t neighbor, label_t edge_label,
+                           Direction direction, const void* data) {
+                return predicate(label, vertex, neighbor_label, neighbor,
+                                 edge_label, direction, data);
+              });
         });
   }
 
  private:
   PathExpandParams pep_;
   std::unique_ptr<ExprBase> weight_;
+  std::unique_ptr<ExprBase> edge_pred_;
+  std::unique_ptr<ExprBase> vertex_pred_;
 };
 
 neug::result<OpBuildResultT> PathExpandOprBuilder::Build(
@@ -903,30 +920,23 @@ neug::result<OpBuildResultT> PathExpandOprBuilder::Build(
   pep.start_tag = start_tag;
   pep.labels = parse_label_triplets(plan.plan(op_idx).meta_data(0));
   pep.opt = parse_path_opt(opr.path_opt());
+  auto edge_pred =
+      query_params.has_predicate()
+          ? parse_expression(query_params.predicate(), ctx_meta, VarType::kEdge)
+          : nullptr;
+  auto vertex_pred = vertex_params.has_predicate()
+                         ? parse_expression(vertex_params.predicate(), ctx_meta,
+                                            VarType::kVertex)
+                         : nullptr;
   if (pep.opt == PathOpt::kAnyWeightedShortest) {
     auto prop = parse_expression(opr.extra_info().weight_expr(), ctx_meta,
                                  VarType::kEdge);
-
-    if (query_params.has_predicate() || vertex_params.has_predicate()) {
-      LOG(ERROR) << "Currently only support weighted shortest path without "
-                    "predicate";
-      return std::make_pair(nullptr, ContextMeta());
-    } else {
-      return std::make_pair(
-          std::make_unique<AnyWeightedShortestPathOpr>(pep, std::move(prop)),
-          ret_meta);
-    }
+    return std::make_pair(
+        std::make_unique<AnyWeightedShortestPathOpr>(
+            pep, std::move(prop), std::move(edge_pred), std::move(vertex_pred)),
+        ret_meta);
   }
-
-  if (query_params.has_predicate() || vertex_params.has_predicate()) {
-    auto edge_pred = query_params.has_predicate()
-                         ? parse_expression(query_params.predicate(), ctx_meta,
-                                            VarType::kEdge)
-                         : nullptr;
-    auto vertex_pred = vertex_params.has_predicate()
-                           ? parse_expression(vertex_params.predicate(),
-                                              ctx_meta, VarType::kVertex)
-                           : nullptr;
+  if (edge_pred || vertex_pred) {
     return std::make_pair(
         std::make_unique<PathExpandOprWithPred>(pep, std::move(edge_pred),
                                                 std::move(vertex_pred)),
