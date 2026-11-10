@@ -20,6 +20,8 @@
  * Zhou Xiaoli in 2025 to support Neug-specific features.
  */
 
+#include <algorithm>
+
 #include "neug/compiler/binder/expression/expression_util.h"
 #include "neug/compiler/common/types/types.h"
 #include "neug/compiler/common/vector/value_vector.h"
@@ -99,6 +101,20 @@ void ListCreationFunction::execFunc(
 
 static std::unique_ptr<FunctionBindData> bindFunc(
     const ScalarBindFuncInput& input) {
+  // Numeric elements share an element type, rather than becoming STRUCT fields.
+  // paramTypes makes the binder insert real casts before vector data is copied.
+  const auto types = binder::ExpressionUtil::getDataTypes(input.arguments);
+  DataType numericType;
+  if (!types.empty() &&
+      std::all_of(types.begin(), types.end(),
+                  [](const DataType& type) {
+                    return LogicalTypeUtils::isNumerical(type);
+                  }) &&
+      LogicalTypeUtils::tryGetMaxLogicalType(types, numericType)) {
+    return std::make_unique<FunctionBindData>(
+        std::vector<DataType>(types.size(), numericType.copy()),
+        DataType::Array(numericType.copy(), types.size()));
+  }
   DataType combinedType(DataTypeId::kUnknown);
   // check if all arguments have the same type, if not, set to ANY.
   auto& args = input.arguments;
