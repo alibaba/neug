@@ -103,6 +103,7 @@ runs:
       python -m pytest -sv tests/test_dml.py
       python -m pytest -sv tests/test_query.py
       python -m pytest -sv tests/test_path.py
+      python -m pytest -sv tests/test_namespace.py
       python -m pytest -sv tests/test_persistence.py
       python -m pytest -sv tests/test_call_string_literal.py
       python -m pytest -sv tests/test_dataset.py

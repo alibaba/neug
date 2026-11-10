@@ -210,7 +210,11 @@ static std::unique_ptr<ExprBase> build_expr(
 
       auto* scalarFunc = dynamic_cast<function::NeugScalarFunction*>(func);
       fn = scalarFunc->neugExecFunc;
-      if (!fn) {
+      auto* contextFunc =
+          dynamic_cast<function::NeugContextScalarFunction*>(scalarFunc);
+      auto context_fn =
+          contextFunc ? contextFunc->neugContextExecFunc : nullptr;
+      if (!fn && !context_fn) {
         THROW_RUNTIME_ERROR(
             "ScalarFunction neugExecFunc is null for signature: " + signature);
       }
@@ -225,8 +229,8 @@ static std::unique_ptr<ExprBase> build_expr(
         children.emplace_back(
             parse_expression(op.parameters(i), ctx_meta, var_type));
       }
-      return std::make_unique<ScalarFunctionExpr>(fn, signature, ret_type,
-                                                  std::move(children));
+      return std::make_unique<ScalarFunctionExpr>(
+          fn, signature, ret_type, std::move(children), context_fn);
     }
 
     case ::common::ExprOpr::kUdfFunc: {

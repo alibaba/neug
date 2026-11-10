@@ -27,6 +27,8 @@
 #include <set>
 
 #include "neug/common/types/value.h"
+#include "neug/storages/csr/csr_view_utils.h"
+#include "neug/storages/graph/graph_interface.h"
 
 using namespace neug::binder;
 using namespace neug::common;
@@ -52,15 +54,22 @@ static const neug::Path& getPath(const std::vector<neug::Value>& args,
   return neug::PathValue::Get(args[0]);
 }
 
-static neug::Value isTrail(const std::vector<neug::Value>& args) {
+static neug::Value isTrail(const std::vector<neug::Value>& args,
+                           const IStorageInterface* storage) {
   if (args.size() == 1 && args[0].IsNull()) {
     return neug::Value(neug::DataType::BOOLEAN);
   }
   const auto& path = getPath(args, IsTrailFunction::name);
-  std::set<neug::EdgeRecord> relationships;
-  for (const auto& relationship : path.relationships()) {
-    if (!relationships.emplace(relationship).second) {
-      return neug::Value::BOOLEAN(false);
+  const auto* graph = dynamic_cast<const StorageReadInterface*>(storage);
+  if (!graph) {
+    THROW_RUNTIME_ERROR("IS_TRAIL requires graph storage");
+  }
+  const auto relationships = path.relationships();
+  for (size_t i = 0; i < relationships.size(); ++i) {
+    for (size_t j = 0; j < i; ++j) {
+      if (neug::same_relationship(*graph, relationships[i], relationships[j])) {
+        return neug::Value::BOOLEAN(false);
+      }
     }
   }
   return neug::Value::BOOLEAN(true);
@@ -82,7 +91,7 @@ static neug::Value isACyclic(const std::vector<neug::Value>& args) {
 
 function_set IsTrailFunction::getFunctionSet() {
   function_set functionSet;
-  auto function = std::make_unique<NeugScalarFunction>(
+  auto function = std::make_unique<NeugContextScalarFunction>(
       name, std::vector<DataTypeId>{DataTypeId::kPath}, DataTypeId::kBoolean,
       isTrail);
   function->bindFunc = bindFunc;

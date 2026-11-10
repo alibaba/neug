@@ -243,7 +243,9 @@ runs:
       VERSION: ${{ github.event.release.tag_name }}
 
   - name: Upload Extension-Packages
-    if: inputs.extensions != '' && inputs.upload_artifacts == 'true'
+    # always(): keep the extracted extensions even if a prior step fails, so the
+    # artifact survives for manual recovery instead of being discarded with the runner.
+    if: always() && inputs.extensions != '' && inputs.upload_artifacts == 'true'
     uses: actions/upload-artifact@v4
     with:
       name: extension-packages-${{ inputs.artifact_platform == 'macos-arm64' && 'osx-arm64' || inputs.artifact_platform }}-${{ steps.packages.outputs.version }}

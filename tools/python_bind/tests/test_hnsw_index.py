@@ -42,6 +42,93 @@ DIMENSION = 16
 NUM_VECTORS = 2000
 
 
+@pytest.mark.parametrize("concurrency", [None, 0, 1, 4, 2147483647])
+def test_index_concurrency_option_survives_reopen(tmp_path, concurrency):
+    path = tmp_path / "concurrency-db"
+    db = Database(str(path), mode="w", max_thread_num=1, checkpoint_on_close=False)
+    conn = db.connect()
+    option = "" if concurrency is None else f" WITH (concurrency={concurrency})"
+    csv = tmp_path / "vectors.csv"
+    csv.write_text("id|v\n" + "".join(f"{i}|[{float(i)},0.0]\n" for i in range(128)))
+    try:
+        conn.execute("LOAD vector_search;")
+        conn.execute("CREATE NODE TABLE Item(id INT64 PRIMARY KEY, v FLOAT[2]);")
+        conn.execute(
+            f"COPY Item FROM (LOAD FROM {cypher_path(csv)} (delim='|') "
+            "RETURN id, CAST(v, 'FLOAT[2]') AS v);"
+        )
+        conn.execute(f"CREATE INDEX item_hnsw ON Item USING HNSW (v){option};")
+        # COPY into an existing index exercises the same configured Optimize path.
+        csv.write_text(
+            "id|v\n" + "".join(f"{i}|[{float(i)},0.0]\n" for i in range(128, 256))
+        )
+        conn.execute(
+            f"COPY Item FROM (LOAD FROM {cypher_path(csv)} (delim='|') "
+            "RETURN id, CAST(v, 'FLOAT[2]') AS v);"
+        )
+        conn.execute("CHECKPOINT;")
+    finally:
+        _close_database(db, conn)
+
+    checkpoint = path / "checkpoint"
+    current = (checkpoint / "CURRENT").read_text().strip()
+    manifest = json.loads(
+        (checkpoint / "manifests" / f"{current}.manifest").read_text()
+    )
+    meta = json.loads(manifest["modules"]["index_item_hnsw"]["extra"]["index_meta"])
+    if concurrency is None:
+        assert "concurrency" not in meta["options"]
+    else:
+        assert meta["options"]["concurrency"] == str(concurrency)
+
+    db = Database(str(path), mode="w", max_thread_num=2, checkpoint_on_close=False)
+    conn = db.connect()
+    try:
+        conn.execute("LOAD vector_search;")
+        for i in range(256, 320):
+            conn.execute(f"CREATE (:Item {{id:{i}, v:[{float(i)},0.0]}});")
+        rows = list(conn.execute("CALL optimize_indexes();"))
+        assert rows[0][2:4] == [64, 0]
+        assert list(conn.execute("CALL show_indexes() RETURN buffered_count;")) == [[0]]
+        assert list(conn.execute("MATCH (n:Item) RETURN n.id ORDER BY n.id;")) == [
+            [i] for i in range(320)
+        ]
+        for i in (0, 127, 128, 255, 319):
+            result = conn.execute(
+                "PROFILE MATCH (n:Item) RETURN n.id, "
+                "vector_distance_l2(n.v,$v) AS score ORDER BY score LIMIT 1;",
+                parameters={"v": [float(i), 0.0]},
+            )
+            assert list(result) == [[i, 0.0]]
+            assert "IndexScanOpr" in _profile_operator_names(result)
+    finally:
+        _close_database(db, conn)
+
+
+@pytest.mark.parametrize(
+    "value", ["'-1'", "1.5", "'2workers'", "'invalid'", "2147483648"]
+)
+def test_index_concurrency_rejects_invalid_values(tmp_path, value):
+    db, conn = _open_database(tmp_path / "invalid-concurrency")
+    try:
+        conn.execute("CREATE NODE TABLE Item(id INT64 PRIMARY KEY, v FLOAT[2]);")
+        with pytest.raises(
+            RuntimeError,
+            match=(
+                r"concurrency.*must be a non-negative integer; "
+                r"0 uses the maximum number of CPU cores on the hardware platform\. "
+                r"Large values are capped by the hardware CPU core count and the "
+                r"number of task chunks\."
+            ),
+        ):
+            conn.execute(
+                "CREATE INDEX item_hnsw ON Item USING HNSW (v) "
+                f"WITH (concurrency={value});"
+            )
+    finally:
+        _close_database(db, conn)
+
+
 def _local_buffer_checkpoint(path, name):
     checkpoint = path / "checkpoint"
     current = (checkpoint / "CURRENT").read_text().strip()

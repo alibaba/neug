@@ -23,8 +23,10 @@ class ScalarFunctionExpr : public ExprBase {
  public:
   ScalarFunctionExpr(neug_func_exec_t fn, std::string signature,
                      const DataType& ret_type,
-                     std::vector<std::unique_ptr<ExprBase>>&& children)
+                     std::vector<std::unique_ptr<ExprBase>>&& children,
+                     neug_context_func_exec_t context_fn = nullptr)
       : func_(fn),
+        context_func_(context_fn),
         signature_(std::move(signature)),
         ret_type_(ret_type),
         children_(std::move(children)) {}
@@ -36,6 +38,7 @@ class ScalarFunctionExpr : public ExprBase {
 
  private:
   neug_func_exec_t func_;
+  neug_context_func_exec_t context_func_;
   std::string signature_;
   DataType ret_type_;
   std::vector<std::unique_ptr<ExprBase>> children_;
