@@ -267,6 +267,20 @@ MATCH (p:Person {name: 'marko'})-[k:KNOWS* SHORTEST 1..2]->(f:Person {name: 'jos
 RETURN k;
 ```
 
+Use `ALL SHORTEST` to return every path with the minimum number of edges,
+including paths that differ only in which parallel relationship they traverse:
+
+```cypher
+MATCH p = (a:Person {name: 'marko'})-[:KNOWS* ALL SHORTEST 1..4]->(b:Person)
+RETURN p;
+```
+
+`SHORTEST`, `ALL SHORTEST`, and `WSHORTEST` apply recursive node and relationship
+predicates before visiting each neighbor. This includes predicates injected by a
+Namespace: shortest paths are selected within the filtered graph. Conditions on
+the final endpoint are evaluated separately and do not restrict intermediate
+nodes. These rules also apply when the path is named using `p =`.
+
 ## Match Named Path
 
 A path pattern can be named using `p =`. The named path must be one connected, linear path. It may contain only a single node, a single-edge expand, a repeated expand, or multiple consecutive expands.

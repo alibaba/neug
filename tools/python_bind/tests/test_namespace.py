@@ -602,8 +602,9 @@ def test_namespace_recursive_path_uniqueness(
 @pytest.mark.parametrize("direction", ["out", "in", "both"])
 @pytest.mark.parametrize("use_namespace", [False, True])
 @pytest.mark.parametrize("with_edge_predicate", [False, True])
+@pytest.mark.parametrize("mode", ["SHORTEST", "ALL SHORTEST"])
 def test_namespace_shortest_hop_filters_and_path_functions(
-    tmp_path, direction, use_namespace, with_edge_predicate
+    tmp_path, direction, use_namespace, with_edge_predicate, mode
 ):
     """The shortest in-scope path may be longer than the base-graph shortest."""
     db = Database(str(tmp_path / "shortest_scope"), mode="w")
@@ -645,7 +646,7 @@ def test_namespace_shortest_hop_filters_and_path_functions(
                 recursive_filter += " AND " + edge_predicate
             recursive_filter += ")"
         hop = {"out": "-{}->", "in": "<-{}-", "both": "-{}-"}[direction].format(
-            "[p:LINK* SHORTEST 1..4 {}]".format(recursive_filter)
+            "[p:LINK* {} 1..4 {}]".format(mode, recursive_filter)
         )
         prefix = "USE NAMESPACE payments " if use_namespace else ""
         match = prefix + "MATCH (a:Doc)" + hop + "(n:Doc) WHERE a.id = 1 AND n.id = 2 "
@@ -853,7 +854,8 @@ def test_namespace_path_functions_optional_and_edge_endpoints(tmp_path, path_kin
 
 
 @pytest.mark.parametrize("direction", ["out", "in", "both"])
-def test_namespace_shortest_edge_only_filter(tmp_path, direction):
+@pytest.mark.parametrize("mode", ["SHORTEST", "ALL SHORTEST", "WSHORTEST(weight)"])
+def test_namespace_shortest_edge_only_filter(tmp_path, direction, mode):
     db = Database(str(tmp_path / "edge_only"), mode="w")
     c = db.connect()
     try:
@@ -872,7 +874,7 @@ def test_namespace_shortest_edge_only_filter(tmp_path, direction):
             "CALL project_graph('edges', ['Doc'], {'[Doc, LINK, Doc]': 'r.weight > 0'})"
         )
         hop = {"out": "-{}->", "in": "<-{}-", "both": "-{}-"}[direction].format(
-            "[p:LINK* SHORTEST 1..3]"
+            "[p:LINK* " + mode + " 1..3]"
         )
         query = (
             "USE NAMESPACE edges MATCH (:Doc {id: 1})"
@@ -885,7 +887,7 @@ def test_namespace_shortest_edge_only_filter(tmp_path, direction):
         db.close()
 
 
-def test_namespace_all_shortest_unsupported_is_query_error(tmp_path):
+def test_namespace_all_shortest_composite_endpoints(tmp_path):
     # Run in a child so a regression to CHECK/FATAL is reported as a test failure.
     script = """
 from neug import Database
@@ -900,25 +902,17 @@ c.execute("CALL project_graph('payments', {'Doc': 'n.workspace = \\\"payments\\\
 for prefix in ["USE NAMESPACE payments ", ""]:
     query = (prefix + "MATCH (a:Doc)-[p:LINK* ALL SHORTEST 1..4]-(n:Doc) "
              "WHERE a.id = 1 AND n.id = 2 AND n.workspace = 'payments' RETURN n.id, p")
-    try:
-        c.execute(query)
-    except RuntimeError as error:
-        assert "ALL SHORTEST" in str(error), str(error)
-    else:
-        raise AssertionError("Expected a regular unsupported-query error")
+    assert list(c.execute(query))[0][0] == 2
     assert list(c.execute("RETURN 42")) == [[42]]
 for predicate in ["n.score = 20", "LABEL(n) = 'Doc'"]:
-    try:
-        c.execute("MATCH (a:Doc)-[p:LINK* ALL SHORTEST 1..4]-(n:Doc) WHERE a.id = 1 AND " + predicate + " RETURN n.id, p")
-    except RuntimeError as error:
-        assert "ALL SHORTEST" in str(error), str(error)
-    else:
-        raise AssertionError("Non-primary-key endpoints are unsupported")
+    query = "MATCH (a:Doc)-[p:LINK* ALL SHORTEST 1..4]-(n:Doc) WHERE a.id = 1 AND "
+    rows = list(c.execute(query + predicate + " RETURN n.id, p"))
+    assert len(rows) == 1 and rows[0][0] == 2
     assert list(c.execute("RETURN 42")) == [[42]]
 assert list(c.execute("MATCH (a:Doc)-[p:LINK* ALL SHORTEST 1..4]-(n:Doc) WHERE a.id = 1 AND n.id = 2 RETURN n.id")) == [[2]]
 c.close()
 db.close()
-print("all-shortest-query-error-ok")
+print("all-shortest-composite-endpoints-ok")
 """
     result = subprocess.run(
         [sys.executable, "-c", script, str(tmp_path / "all_shortest")],
@@ -928,7 +922,7 @@ print("all-shortest-query-error-ok")
         timeout=60,
     )
     assert result.returncode == 0, result.stdout + result.stderr
-    assert "all-shortest-query-error-ok" in result.stdout
+    assert "all-shortest-composite-endpoints-ok" in result.stdout
 
 
 def test_issue_1093_namespace_variable_length_path_regression(tmp_path):
@@ -1294,6 +1288,135 @@ def test_projected_graph_persists_after_reopen(tmp_path):
     finally:
         reopened_conn.close()
         reopened.close()
+
+
+@pytest.mark.parametrize("direction", ["out", "in", "both"])
+@pytest.mark.parametrize("filter_kind", ["none", "namespace", "explicit", "node_only"])
+@pytest.mark.parametrize("mode", ["SHORTEST", "ALL SHORTEST", "WSHORTEST(weight)"])
+def test_named_shortest_predicates_equal_paths_and_weights(
+    tmp_path, direction, filter_kind, mode
+):
+    db = Database(str(tmp_path / "shortest_modes"), mode="w")
+    c = db.connect()
+    try:
+        c.execute("CREATE NODE TABLE Doc(id INT64 PRIMARY KEY, workspace STRING)")
+        c.execute(
+            "CREATE REL TABLE LINK(FROM Doc TO Doc, weight DOUBLE, allowed BOOLEAN)"
+        )
+        for node in [1, 2, 3, 4, 5, 6, 7, 8]:
+            c.execute(
+                "CREATE (:Doc {id: $id, workspace: $workspace})",
+                parameters={
+                    "id": node,
+                    "workspace": "finance" if node == 4 else "payments",
+                },
+            )
+        # Two parallel edges and two equal-hop routes. The longer route is
+        # cheapest by weight; excluded node/edge shortcuts must never win.
+        edges = [
+            (1, 3, 5.0, True),
+            (1, 3, 5.0, True),
+            (3, 2, 5.0, True),
+            (1, 5, 6.0, True),
+            (5, 2, 6.0, True),
+            (1, 6, 1.0, True),
+            (6, 7, 1.0, True),
+            (7, 2, 1.0, True),
+        ]
+        if filter_kind != "none":
+            edges += [(1, 4, 0.0, True), (4, 2, 0.0, True)]
+        if filter_kind in ["namespace", "explicit"]:
+            edges += [(1, 2, 0.0, False)]
+        for src, dst, weight, allowed in edges:
+            if direction == "in":
+                src, dst = dst, src
+            c.execute(
+                "MATCH (a:Doc {id: $src}), (b:Doc {id: $dst}) "
+                "CREATE (a)-[:LINK {weight: $weight, allowed: $allowed}]->(b)",
+                parameters={
+                    "src": src,
+                    "dst": dst,
+                    "weight": weight,
+                    "allowed": allowed,
+                },
+            )
+        c.execute(
+            """CALL project_graph('payments', {'Doc': 'n.workspace = "payments"'},
+                 {'[Doc, LINK, Doc]': 'r.allowed = true'})"""
+        )
+        if filter_kind == "node_only":
+            c.execute(
+                """CALL project_graph('nodes_only', {'Doc': 'n.workspace = "payments"'},
+                     ['[Doc, LINK, Doc]'])"""
+            )
+        prefix = (
+            "USE NAMESPACE payments "
+            if filter_kind in ["namespace", "node_only"]
+            else ""
+        )
+        if filter_kind == "node_only":
+            prefix = "USE NAMESPACE nodes_only "
+        recursive = (
+            "(r, v | WHERE v.workspace = $workspace AND r.allowed = $allowed)"
+            if filter_kind == "explicit"
+            else ""
+        )
+        parameters = {"workspace": "payments", "allowed": True} if recursive else {}
+        hop = {"out": "-{}->", "in": "<-{}-", "both": "-{}-"}[direction].format(
+            "[:LINK* " + mode + " " + recursive + "]"
+        )
+        match = (
+            prefix
+            + "MATCH p = (a:Doc {id: 1})"
+            + hop
+            + "(n:Doc) WHERE n.id = 2 AND n.workspace = 'payments' "
+        )
+        projection = (
+            "RETURN p, LENGTH(p), NODES(p), RELS(p), "
+            "PROPERTIES(NODES(p), 'id'), PROPERTIES(RELS(p), 'weight'), "
+            "IS_TRAIL(p), IS_ACYCLIC(p)"
+        )
+        if mode.startswith("WSHORTEST"):
+            projection += ", COST(p)"
+        rows = list(c.execute(match + projection, parameters=parameters))
+        assert len(rows) == (3 if mode == "ALL SHORTEST" else 1)
+        ids = []
+        for row in rows:
+            path, length, nodes, rels, node_ids, weights, trail, acyclic = row[:8]
+            assert path["nodes"] == nodes and path["rels"] == rels
+            assert path["length"] == length == len(rels) == len(nodes) - 1
+            assert trail and acyclic
+            assert all(n["workspace"] == "payments" for n in nodes)
+            assert all(r["allowed"] for r in rels)
+            ids.append(node_ids)
+            if mode.startswith("WSHORTEST"):
+                assert node_ids == [1, 6, 7, 2]
+                assert weights == [1.0, 1.0, 1.0]
+                assert row[8] == sum(weights) == 3.0
+            else:
+                assert node_ids in [[1, 3, 2], [1, 5, 2]]
+        if mode == "ALL SHORTEST":
+            assert sorted(ids) == [[1, 3, 2], [1, 3, 2], [1, 5, 2]]
+        # A valid start with an unreachable endpoint must not emit a path.
+        assert (
+            list(
+                c.execute(
+                    (match + "RETURN p").replace("n.id = 2", "n.id = 8"),
+                    parameters=parameters,
+                )
+            )
+            == []
+        )
+        # Property-only projection follows the same path selection.
+        property_rows = list(
+            c.execute(
+                match + "RETURN PROPERTIES(NODES(p), 'id')", parameters=parameters
+            )
+        )
+        assert sorted(r[0] for r in property_rows) == sorted(ids)
+    finally:
+        c.close()
+        db.close()
 
 
 def test_tp_projected_graph_wal_survives_reopen_without_checkpoint(
