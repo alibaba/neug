@@ -14,7 +14,7 @@ mvn clean install -DskipTests
 <dependency>
     <groupId>com.alibaba.neug</groupId>
     <artifactId>neug-java-driver</artifactId>
-    <version>0.3.0-SNAPSHOT</version>
+    <version>0.3.1-SNAPSHOT</version>
 </dependency>
 ```
 
