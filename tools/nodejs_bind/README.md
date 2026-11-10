@@ -71,11 +71,11 @@ Create a self-contained, distributable npm package tarball (`.tgz`). This will:
    - `neug_node_bind.node` — the native addon
    - `libneug.so` / `libneug.dylib` — core shared library
 3. Collect the third-party libraries actually selected at link time:
-   - macOS uses `delocate-path` to copy them into `.dylibs/` and rewrite their
+   - macOS uses `delocate-path` to copy them into `neug/.dylibs/` and rewrite their
      install names.
    - Linux uses `ldd` to resolve the dependency closure, copies non-system
-     libraries into `.libs/`, and uses `patchelf` to set package-relative
-     `$ORIGIN` RPATHs.
+     libraries into `neug.libs/`, matching the wheel dependency directory, and
+     uses `patchelf` to set package-relative `$ORIGIN` RPATHs.
 4. Print the bundled native dependencies for inspection.
 5. Run `npm pack` to produce `neug-<version>.tgz`
 
@@ -86,7 +86,7 @@ For local source builds, use `NEUG_NATIVE_ARCH=ON make dev`.
 The resulting tarball can be installed without a C++ build environment:
 
 ```bash
-npm install ./neug-0.3.0.tgz
+npm install ./neug-0.3.1.tgz
 ```
 
  
@@ -96,6 +96,43 @@ npm install ./neug-0.3.0.tgz
 make clean
 ```
 
+
+## Electron smoke test
+
+Windows addons use a delay-load hook to resolve Node-API symbols from the
+running host executable. For an Electron-targeted build, set CMake's
+`NODE_IMPORT_LIB` to Electron's `node.lib` as described in the
+[Electron native module guidance](https://www.electronjs.org/docs/latest/tutorial/using-native-node-modules#a-note-about-win_delay_load_hook).
+
+Run the standalone smoke test from `tools/nodejs_bind` after building the
+binding or installing a packaged build. Install Electron separately, then pass
+its executable path (on Windows, `electron.exe`):
+
+```powershell
+node tests/test_electron.js C:\electron\electron.exe
+```
+
+To test an installed npm package instead of the local build, pass its package
+directory as the second argument:
+
+```powershell
+node tests/test_electron.js C:\electron\electron.exe C:\smoke\node_modules\@neug-ai\windows-x86_64
+```
+
+The script starts Electron with `ELECTRON_RUN_AS_NODE=1`, loads NeuG, and queries
+an in-memory database. It checks the query result, successful process exit, and
+a completion marker, with a 60-second timeout. It runs without a GUI and does
+not test worker loading (#1168). The default test suite discovers this test and
+skips it unless `NEUG_ELECTRON_PATH` is set:
+
+```powershell
+$env:NEUG_ELECTRON_PATH = 'C:\electron\electron.exe'
+npm test
+```
+
+Windows nightly jobs install Electron 40.0.0 and set `NEUG_ELECTRON_PATH` for
+this test on both x86-64 and ARM64. Other callers of `Windows.yml` can enable
+it with the `test_electron` workflow input.
 
 ## API Example
 
@@ -138,6 +175,45 @@ for (const row of result) {
 conn.close();
 db.close();
 ```
+
+## Sharing a database with Worker threads
+
+Use `db.share()` and `Database.attach(handle)` to share an open database between
+Worker threads in the same process. Each Worker creates its own connection.
+
+```js
+// main.cjs
+const { Worker } = require('node:worker_threads');
+const { Database } = require('neug');
+
+const db = new Database({ databasePath: '', mode: 'r' });
+const worker = new Worker(require.resolve('./worker.cjs'), {
+  workerData: { handle: db.share() },
+});
+worker.on('message', (value) => console.log(value));
+worker.on('exit', () => db.close());
+```
+
+```js
+// worker.cjs
+const { parentPort, workerData } = require('node:worker_threads');
+const { Database } = require('neug');
+
+const db = Database.attach(workerData.handle);
+const conn = db.connect();
+try {
+  const result = conn.execute('RETURN 1 AS value;');
+  parentPort.postMessage(result.getNext()[0]);
+  result.close();
+} finally {
+  conn.close();
+  db.close();
+}
+```
+
+Closing an attached Database releases only its own connections. Close the
+original database after all Workers finish; shared handles then become invalid.
+Read-only databases allow multiple connections; read-write databases allow one.
 
 ## Explicit Transactions
 

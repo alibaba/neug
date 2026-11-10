@@ -16,6 +16,9 @@
 #include "neug/storages/index/storage_index_manager.h"
 
 #include <glog/logging.h>
+#include <algorithm>
+#include <chrono>
+#include <map>
 
 #include "neug/compiler/common/string_utils.h"
 #include "neug/storages/graph/schema.h"
@@ -37,6 +40,106 @@ static Status PendingIndexError(const std::string& name,
           "' before module type '" + module_type +
           "' is loaded. Load the extension that registers this module type "
           "first.");
+}
+
+result<std::vector<ShowIndexStats>> StorageIndexManager::ShowIndexes(
+    const IndexOptions& options) const {
+  auto type = options.type;
+  if ((type && type->empty()) ||
+      (options.index_name && options.index_name->empty())) {
+    return tl::unexpected(Status(StatusCode::ERR_INVALID_ARGUMENT,
+                                 "SHOW_INDEXES requires nonempty type/name"));
+  }
+  if (type)
+    common::StringUtils::toLower(*type);
+  auto matches = [&](const IndexMeta& meta) {
+    auto actual = meta.type;
+    common::StringUtils::toLower(actual);
+    return (!type || actual == *type) &&
+           (!options.index_name || meta.name == *options.index_name);
+  };
+  std::vector<ShowIndexStats> rows;
+  rows.reserve(indexes_.size() + pending_indexes_.size());
+  for (const auto& [name, index] : indexes_) {
+    if (index && matches(index->GetMeta())) {
+      auto stats = index->Show();
+      if (!stats)
+        return tl::unexpected(stats.error());
+      rows.push_back(std::move(stats).value());
+    }
+  }
+  for (const auto& [name, pending] : pending_indexes_) {
+    if (matches(pending.meta))
+      rows.push_back({pending.meta, IndexState::kPending, std::nullopt});
+  }
+  std::sort(rows.begin(), rows.end(), [](const auto& lhs, const auto& rhs) {
+    return lhs.meta.name < rhs.meta.name;
+  });
+  return rows;
+}
+
+result<std::vector<OptimizeIndexResult>> StorageIndexManager::OptimizeIndexes(
+    const IndexOptions& options) {
+  auto type = options.type;
+  if ((type && type->empty()) ||
+      (options.index_name && options.index_name->empty())) {
+    return tl::unexpected(
+        Status(StatusCode::ERR_INVALID_ARGUMENT,
+               "OPTIMIZE_INDEXES requires nonempty type/name"));
+  }
+  if (type)
+    common::StringUtils::toLower(*type);
+  auto matches = [&](const IndexMeta& meta) {
+    auto actual = meta.type;
+    common::StringUtils::toLower(actual);
+    return (!options.index_name || meta.name == *options.index_name) &&
+           (!type || actual == *type);
+  };
+  // Validate all targets before changing any index.
+  if (options.index_name) {
+    auto target = GetIndexByName(*options.index_name);
+    if (!target)
+      return tl::unexpected(target.error());
+    if (!matches(target.value()->GetMeta()))
+      return tl::unexpected(
+          Status(StatusCode::ERR_INVALID_ARGUMENT,
+                 "OPTIMIZE_INDEXES index type does not match: " +
+                     *options.index_name));
+  }
+  for (const auto& [name, pending] : pending_indexes_) {
+    if (matches(pending.meta))
+      return tl::unexpected(
+          PendingIndexError(name, "optimize", pending.descriptor.module_type));
+  }
+  std::vector<StorageIndex*> targets;
+  for (const auto& [name, index] : indexes_) {
+    if (index && matches(index->GetMeta()))
+      targets.push_back(index.get());
+  }
+  std::sort(targets.begin(), targets.end(),
+            [](const auto* lhs, const auto* rhs) {
+              return lhs->GetMeta().name < rhs->GetMeta().name;
+            });
+  std::vector<OptimizeIndexResult> results;
+  for (auto* index : targets) {
+    const auto start = std::chrono::steady_clock::now();
+    OptimizeIndexResult row;
+    row.type = index->GetMeta().type;
+    row.index_name = index->GetMeta().name;
+    auto optimized = index->Optimize();
+    if (!optimized)
+      return tl::unexpected(Status::RuntimeError(
+          "OPTIMIZE_INDEXES failed for '" + row.index_name +
+          "': " + optimized.error().ToString()));
+    row.stats = optimized.value();
+    row.duration_ms = std::chrono::duration<double, std::milli>(
+                          std::chrono::steady_clock::now() - start)
+                          .count();
+    if (row.stats.changed)
+      dirty_index_names_.insert(row.index_name);
+    results.push_back(std::move(row));
+  }
+  return results;
 }
 
 neug::result<CreatedIndex> StorageIndexManager::CreateIndex(
@@ -327,9 +430,46 @@ static result<bool> ReplayPendingMutations(
     StorageIndex& index,
     const std::vector<
         std::shared_ptr<const StorageIndexManager::PendingIndexMutation>>&
-        mutations) {
+        mutations,
+    const VecColumn* vector_column) {
   bool replayed = false;
   const auto& meta = index.GetMeta();
+  if (IsHNSWIndex(meta)) {
+    if (!vector_column || meta.schema.columns.size() != 1) {
+      return Status::InternalError("Invalid VecColumn for pending HNSW index");
+    }
+    // WAL has already restored the column and its final VID-to-slot mapping.
+    // Historical upserts would repeatedly append the same final slot.
+    // Keep the final deletion state too: vertex deletion during WAL replay
+    // does not remove the slot from a pending index's column accessor.
+    std::map<vid_t, bool> affected;
+    for (const auto& mutation : mutations) {
+      if (mutation->label_id != meta.schema.label_id)
+        continue;
+      const bool deleted =
+          mutation->type ==
+          StorageIndexManager::PendingIndexMutation::Type::kDelete;
+      if (deleted ||
+          std::any_of(mutation->properties.begin(), mutation->properties.end(),
+                      [&](const auto& property) {
+                        return meta.schema.ContainsProperty(property.first);
+                      })) {
+        affected[mutation->vid] = deleted;
+      }
+    }
+    for (const auto& [vid, deleted] : affected) {
+      if (deleted) {
+        RETURN_IF_NOT_OK(index.Delete(vid));
+        continue;
+      }
+      if (vector_column->get_offset_accessor()->GetIndexIDByVID(vid) ==
+          INVALID_INDEX_ID)
+        continue;
+      RETURN_IF_NOT_OK(
+          index.Upsert(vid, IndexValue{0, vector_column->get_any(vid)}));
+    }
+    return !affected.empty();
+  }
   for (const auto& mutation_ptr : mutations) {
     const auto& mutation = *mutation_ptr;
     if (mutation.label_id != meta.schema.label_id) {
@@ -505,11 +645,14 @@ result<size_t> StorageIndexManager::ActivateIndexes(
       // would apply the same insert/update/delete twice.
       dirty = true;
     } else {
+      const auto* vector_column =
+          dynamic_cast<const VecColumn*>(bound_columns.front());
       static_cast<Module*>(index.get())
           ->Open(*ckp_, ckp_->manifest(), pending.descriptor, memory_level_);
       RETURN_IF_NOT_OK(
           index->Rebind(IndexBindContext{std::move(bound_columns)}));
-      auto replayed = ReplayPendingMutations(*index, pending_mutations_);
+      auto replayed =
+          ReplayPendingMutations(*index, pending_mutations_, vector_column);
       if (!replayed) {
         return replayed.error();
       }
@@ -580,7 +723,14 @@ void StorageIndexManager::Dump(ModuleBroker& store, CheckpointManifest& meta) {
       continue;
 
     std::string key = GetKey(name);
-    store.SetModule(key, std::move(index));
+    // Match clean-table reuse: shared physical additions from an aborted
+    // transaction must not be published alongside an old accessor snapshot.
+    if (ckp_ && dirty_index_names_.count(name) == 0 &&
+        ckp_->manifest().HasModule(key)) {
+      meta.ReuseModuleClosureFrom(ckp_->manifest(), key);
+    } else {
+      store.SetModule(key, std::move(index));
+    }
   }
   indexes_.clear();
 }

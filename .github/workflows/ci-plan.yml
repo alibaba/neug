@@ -1,0 +1,35 @@
+name: CI Plan
+
+on:
+  workflow_call:
+    inputs:
+      platforms:
+        type: string
+        default: all
+      python_versions:
+        type: string
+        default: all
+      plan:
+        type: string
+        default: ''
+    outputs:
+      plan:
+        value: ${{ jobs.select.outputs.plan }}
+
+permissions:
+  contents: read
+
+jobs:
+  select:
+    runs-on: ${{ github.repository == 'alibaba/neug' && fromJSON('["self-hosted"]') || 'ubuntu-22.04' }}
+    outputs:
+      plan: ${{ steps.plan.outputs.plan }}
+    steps:
+    - uses: actions/checkout@v4
+    - name: Resolve CI Plan
+      id: plan
+      env:
+        PLATFORMS: ${{ inputs.platforms }}
+        PYTHON_VERSIONS: ${{ inputs.python_versions }}
+        CI_PLAN: ${{ inputs.plan }}
+      run: python3 scripts/ci_plan.py --platforms "$PLATFORMS" --python-versions "$PYTHON_VERSIONS" --plan "$CI_PLAN"

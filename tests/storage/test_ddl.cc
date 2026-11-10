@@ -199,7 +199,9 @@ TEST(StorageDDLTest, CreateAndAlterTables) {
     throw std::runtime_error(
         "MODERN_GRAPH_DATA_DIR environment variable is not set");
   }
-  std::string flex_data_dir = flex_data_dir_ptr;
+  // Cypher string literals need '/' separators, including on Windows.
+  std::string flex_data_dir =
+      std::filesystem::path(flex_data_dir_ptr).generic_string();
   auto conn = db.Connect();
   EXPECT_TRUE(
       conn->Query("CREATE NODE TABLE person(id INT64, name STRING, age "

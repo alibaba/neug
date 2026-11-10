@@ -1,0 +1,155 @@
+name: nightly-test
+
+on:
+  workflow_dispatch:
+    inputs:
+      linux_x86_64:
+        description: Linux x86-64
+        type: boolean
+        default: true
+      linux_arm64:
+        description: Linux ARM64
+        type: boolean
+        default: true
+      macos_arm64:
+        description: macOS ARM64
+        type: boolean
+        default: true
+      windows_x86_64:
+        description: Windows x86-64
+        type: boolean
+        default: true
+      windows_arm64:
+        description: Windows ARM64
+        type: boolean
+        default: true
+  schedule:
+    # Run at 22:00 CST Tuesday through Sunday; Monday is covered by package.yml.
+    - cron: 0 14 * * 0,2-6
+
+permissions:
+  contents: read
+  pull-requests: read
+
+concurrency:
+  group: ci-nightly-test
+  cancel-in-progress: false
+
+jobs:
+  ci-plan:
+    uses: ./.github/workflows/ci-plan.yml
+    with:
+      platforms: ${{ github.event_name == 'schedule' && 'all' || format('{0}{1}{2}{3}{4}', inputs.linux_x86_64 && 'linux-x86_64,java,' || '', inputs.linux_arm64 && 'linux-arm64,' || '', inputs.macos_arm64 && 'osx-arm64,' || '', inputs.windows_x86_64 && 'windows-x86_64,' || '', inputs.windows_arm64 && 'windows-arm64,' || '') }}
+      python_versions: '3.13'
+
+  lite:
+    if: github.event_name == 'schedule'
+    uses: ./.github/workflows/Lite.yml
+
+  linux_x86_64:
+    needs: ci-plan
+    if: github.event_name == 'schedule' || inputs.linux_x86_64
+    uses: ./.github/workflows/Linux.yml
+    with:
+      architectures: '["x86_64"]'
+      extensions: ${{ fromJSON(needs.ci-plan.outputs.plan).extensions }}
+      packages: '["wheel","npm","java"]'
+      python_versions: ${{ fromJSON(needs.ci-plan.outputs.plan).python_spec }}
+      coverage: true
+    secrets: inherit
+
+  linux_arm64:
+    needs: ci-plan
+    if: github.event_name == 'schedule' || inputs.linux_arm64
+    uses: ./.github/workflows/Linux.yml
+    with:
+      architectures: '["arm64"]'
+      extensions: ${{ fromJSON(needs.ci-plan.outputs.plan).extensions }}
+      packages: '["wheel","npm"]'
+      python_versions: ${{ fromJSON(needs.ci-plan.outputs.plan).python_spec }}
+    secrets: inherit
+
+  macos:
+    needs: ci-plan
+    if: github.event_name == 'schedule' || inputs.macos_arm64
+    uses: ./.github/workflows/OSX.yml
+    with:
+      extensions: ${{ fromJSON(needs.ci-plan.outputs.plan).extensions }}
+      packages: '["wheel","npm"]'
+      python_versions: ${{ fromJSON(needs.ci-plan.outputs.plan).python_spec }}
+    secrets: inherit
+
+  windows:
+    needs: ci-plan
+    if: github.event_name == 'schedule' || inputs.windows_x86_64 || inputs.windows_arm64
+    uses: ./.github/workflows/Windows.yml
+    with:
+      architectures: ${{ toJSON(fromJSON(needs.ci-plan.outputs.plan).windows_architectures) }}
+      extensions: ${{ fromJSON(needs.ci-plan.outputs.plan).extensions }}
+      python_versions: ${{ fromJSON(needs.ci-plan.outputs.plan).python_spec }}
+      upload_artifacts: true
+      test_electron: true
+    secrets: inherit
+
+  report:
+    if: always()
+    needs:
+      - ci-plan
+      - lite
+      - linux_x86_64
+      - linux_arm64
+      - macos
+      - windows
+    runs-on: ubuntu-22.04
+    steps:
+
+    - name: Summarize Results
+      shell: bash
+      env:
+        RESULTS: ${{ toJSON(needs) }}
+      run: |
+        set -euo pipefail
+        printf '## CI result\n```json\n%s\n```\n' "$RESULTS" >> "$GITHUB_STEP_SUMMARY"
+
+    - name: Send DingTalk notification
+      if: always() && github.repository == 'alibaba/neug'
+      env:
+        DINGTALK_TOKEN: ${{ secrets.DINGTALK_TOKEN }}
+      run: |
+        if [ -z "$DINGTALK_TOKEN" ]; then
+          echo "DINGTALK_TOKEN not set, skipping notification."
+          exit 0
+        fi
+        WEBHOOK_URL="https://oapi.dingtalk.com/robot/send?access_token=${DINGTALK_TOKEN}"
+        STATUS_PLAN="${{ needs.ci-plan.result }}"
+        STATUS_LITE="${{ needs.lite.result }}"
+        STATUS_LINUX_X86="${{ needs.linux_x86_64.result }}"
+        STATUS_LINUX_ARM="${{ needs.linux_arm64.result }}"
+        STATUS_MACOS="${{ needs.macos.result }}"
+        STATUS_WINDOWS="${{ needs.windows.result }}"
+        # A nightly run passes unless a stage actually failed or was cancelled;
+        # on workflow_dispatch the unselected platform jobs (and `lite`, which
+        # only runs on schedule) are legitimately skipped, not failures.
+        STATUSES=" $STATUS_PLAN $STATUS_LITE $STATUS_LINUX_X86 $STATUS_LINUX_ARM $STATUS_MACOS $STATUS_WINDOWS "
+        if [[ "$STATUSES" == *" failure "* || "$STATUSES" == *" cancelled "* ]]; then
+          TITLE="[Nightly Report] NeuG CI Failed"
+        else
+          TITLE="[Nightly Report] NeuG CI Passed"
+        fi
+        RESP=$(curl -s -X POST "$WEBHOOK_URL" \
+          -H 'Content-Type: application/json' \
+          -d "{
+            \"msgtype\": \"markdown\",
+            \"markdown\": {
+              \"title\": \"$TITLE\",
+              \"text\": \"## $TITLE\\n\\n- **ci-plan**: ${STATUS_PLAN}\\n- **lite**: ${STATUS_LITE}\\n- **linux_x86_64**: ${STATUS_LINUX_X86}\\n- **linux_arm64**: ${STATUS_LINUX_ARM}\\n- **macos**: ${STATUS_MACOS}\\n- **windows**: ${STATUS_WINDOWS}\\n- **Repo**: ${{ github.repository }}\\n- **Branch**: ${{ github.ref_name }}\\n- **Commit**: ${{ github.sha }}\\n- [View Run](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})\"
+            }
+          }")
+        echo "DingTalk response: $RESP"
+        # DingTalk signals rejection (keyword filter 310000, rate limit 130101,
+        # invalid token, ...) via HTTP 200 + errcode != 0, which curl --fail
+        # cannot catch. Surface it as a warning so the silent-drop failure mode
+        # this PR fixes stays visible, without failing the report job.
+        if ! echo "$RESP" | grep -q '"errcode":0'; then
+          echo "::warning::DingTalk rejected the notification: $RESP"
+        fi

@@ -1,0 +1,397 @@
+name: Release
+
+on:
+  release:
+    types:
+      - published
+
+permissions:
+  contents: read
+  actions: read
+  pull-requests: read
+  id-token: write
+
+concurrency:
+  group: ci-release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  ci-plan:
+    uses: ./.github/workflows/ci-plan.yml
+
+  # Locate a prior successful dry-run of package.yml on this exact commit so the
+  # release can publish already-built-and-verified artifacts instead of
+  # rebuilding identical code. Best-effort: any doubt falls back to a full
+  # rebuild in the package job below.
+  resolve-reuse:
+    name: Resolve Reusable Dry-Run
+    needs: ci-plan
+    runs-on: ubuntu-22.04
+    # Best-effort lookup: never let a resolve failure (e.g. a checkout error)
+    # block the release. On any failure reuse_run_id stays empty and the
+    # package job below rebuilds from source.
+    continue-on-error: true
+    permissions:
+      contents: read
+      actions: read
+    outputs:
+      reuse_run_id: ${{ steps.resolve.outputs.reuse_run_id }}
+    steps:
+    - uses: actions/checkout@v4
+    - name: Find Reusable Package Run
+      id: resolve
+      env:
+        GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        PLAN: ${{ needs.ci-plan.outputs.plan }}
+      run: python3 scripts/resolve_reuse.py || echo "::warning::dry-run lookup failed; rebuilding"
+
+  package:
+    name: Build and Verify Release Packages
+    needs: [ci-plan, resolve-reuse]
+    if: needs.resolve-reuse.outputs.reuse_run_id == ''
+    uses: ./.github/workflows/package.yml
+    with:
+      plan: ${{ needs.ci-plan.outputs.plan }}
+    secrets: inherit
+
+  publish_wheel:
+    name: Publish Wheel
+    needs: [ci-plan, resolve-reuse, package]
+    if: >-
+      !cancelled() && needs.ci-plan.result == 'success' &&
+      github.repository == 'alibaba/neug' &&
+      github.event_name == 'release' && github.event.action == 'published' &&
+      (needs.package.result == 'success' || needs.package.result == 'skipped')
+    runs-on: ubuntu-22.04
+    permissions:
+      contents: read
+      actions: read
+    steps:
+    # ========================================
+    # Phase 1: Prepare
+    # ========================================
+
+    - uses: actions/checkout@v4
+    - uses: actions/setup-python@v5
+      with:
+        python-version: ${{ fromJSON(needs.ci-plan.outputs.plan).packaging_python }}
+    - uses: actions/download-artifact@v4
+      with:
+        pattern: wheels-*${{ needs.resolve-reuse.outputs.reuse_run_id || github.run_id }}
+        path: downloaded
+        merge-multiple: true
+        github-token: ${{ secrets.GITHUB_TOKEN }}
+        run-id: ${{ needs.resolve-reuse.outputs.reuse_run_id || github.run_id }}
+
+    # ========================================
+    # Phase 2: Publish
+    # ========================================
+
+    - name: Check Wheel Metadata
+      shell: bash
+      run: |-
+        python3 -m pip install twine
+        python3 -m twine check downloaded/*.whl
+
+    - name: Publish Verified Wheels
+      shell: bash
+      run: python3 -m twine upload downloaded/*.whl
+      env:
+        TWINE_USERNAME: __token__
+        TWINE_PASSWORD: ${{ secrets.PYPI_PASSWORD }}
+
+  publish_npm:
+    name: Publish npm
+    needs: [ci-plan, resolve-reuse, package]
+    if: >-
+      !cancelled() && needs.ci-plan.result == 'success' &&
+      github.repository == 'alibaba/neug' &&
+      github.event_name == 'release' && github.event.action == 'published' &&
+      (needs.package.result == 'success' || needs.package.result == 'skipped')
+    runs-on: ubuntu-22.04
+    permissions:
+      contents: read
+      actions: read
+      id-token: write
+    steps:
+    # ========================================
+    # Phase 1: Prepare
+    # ========================================
+
+
+    - name: Checkout
+      uses: actions/checkout@v4
+
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '20'
+        registry-url: https://registry.npmjs.org
+
+    - name: Download npm Tarballs
+      uses: actions/download-artifact@v4
+      with:
+        pattern: nodejs-*-${{ needs.resolve-reuse.outputs.reuse_run_id || github.run_id }}
+        path: dist/npm
+        merge-multiple: true
+        github-token: ${{ secrets.GITHUB_TOKEN }}
+        run-id: ${{ needs.resolve-reuse.outputs.reuse_run_id || github.run_id }}
+
+    - name: List npm Tarballs
+      shell: bash
+      run: |
+        find dist/npm -maxdepth 2 -name '*.tgz' -print | sort
+
+    # ========================================
+    # Phase 2: Publish
+    # ========================================
+
+    - name: Publish npm Packages
+      shell: bash
+      env:
+        CI_PLAN: ${{ needs.ci-plan.outputs.plan }}
+        NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        RELEASE_TAG: ${{ github.event_name == 'release' && github.event.release.tag_name || github.ref_name }}
+      run: |
+        set -euo pipefail
+
+        VERSION="${RELEASE_TAG#v}"
+        optional_dependencies=()
+        while IFS= read -r platform; do
+          tarballs=(dist/npm/neug-ai-${platform}-*.tgz)
+          if [ "${#tarballs[@]}" -ne 1 ] || [ ! -f "${tarballs[0]}" ]; then
+            echo "::error::Expected one npm tarball for $platform"
+            exit 1
+          fi
+          python3 tools/nodejs_bind/scripts/validate_npm_version.py \
+            "${tarballs[0]}" "@neug-ai/$platform" "$VERSION"
+          optional_dependencies+=(--optional-dependency "@neug-ai/$platform")
+        done < <(printf '%s' "$CI_PLAN" | jq -r '.platforms[]')
+        python3 tools/nodejs_bind/scripts/validate_npm_version.py \
+          dist/npm/neug-ai-neug-*.tgz '@neug-ai/neug' "$VERSION" "${optional_dependencies[@]}"
+        # Upload exactly the tarballs produced and verified by package.
+        while IFS= read -r platform; do
+          npm publish dist/npm/neug-ai-${platform}-*.tgz --access public
+        done < <(printf '%s' "$CI_PLAN" | jq -r '.platforms[]')
+        npm publish dist/npm/neug-ai-neug-*.tgz --access public
+
+  publish_extension:
+    name: Publish Extension
+    needs: [ci-plan, resolve-reuse, package]
+    if: >-
+      !cancelled() && needs.ci-plan.result == 'success' &&
+      github.repository == 'alibaba/neug' &&
+      github.event_name == 'release' && github.event.action == 'published' &&
+      (needs.package.result == 'success' || needs.package.result == 'skipped')
+    # OSS upload is only authorized from dev0 (self-hosted Linux x64): the same
+    # AccessKey used from any other origin (e.g. hosted ubuntu-22.04) is rejected
+    # by OSS as InvalidAccessKeyId(disabled), which is why all five v0.3.1 legs
+    # failed with 403. Every platform's extensions are already preserved as
+    # artifacts and uploading is just put_object (platform-independent), so this
+    # collapses to a single job on dev0 that downloads all platform artifacts and
+    # publishes them together instead of splitting one job per platform.
+    runs-on: [self-hosted, daily, linux, x64]
+    permissions:
+      contents: read
+      actions: read
+    steps:
+    # ========================================
+    # Phase 1: Prepare
+    # ========================================
+
+    - uses: actions/checkout@v4
+    # Match linux_wheel: use the glibc-compatible host Python. Alibaba Cloud
+    # runners have glibc <2.33 and cannot execute the packaging_python (3.13)
+    # binary; wheel_host_python (3.11) is what dev0 already runs successfully.
+    - uses: actions/setup-python@v5
+      with:
+        python-version: ${{ fromJSON(needs.ci-plan.outputs.plan).wheel_host_python }}
+    # merge-multiple must stay false: lib<ext>.neug_extension has the same name
+    # across platforms, so merging into one directory would overwrite each other.
+    # With false, each artifact lands in its own subdirectory named after it.
+    - uses: actions/download-artifact@v4
+      with:
+        pattern: extension-packages-*
+        path: extension_packages
+        merge-multiple: false
+        github-token: ${{ secrets.GITHUB_TOKEN }}
+        run-id: ${{ needs.resolve-reuse.outputs.reuse_run_id || github.run_id }}
+
+    - name: Install OSS Client
+      shell: bash
+      run: python3 -m pip install oss2
+
+    # ========================================
+    # Phase 2: Publish
+    # ========================================
+
+    - name: Publish Extensions to OSS
+      shell: bash
+      run: |
+        python3 scripts/publish_extensions_from_wheel.py \
+          --from-artifacts extension_packages \
+          --matrix "$CI_MATRIX" \
+          --version "$RELEASE_TAG"
+      env:
+        OSS_ACCESS_KEY_ID: ${{ secrets.OSS_ACCESS_KEY_ID }}
+        OSS_ACCESS_KEY_SECRET: ${{ secrets.OSS_ACCESS_KEY_SECRET }}
+        OSS_ENDPOINT: ${{ secrets.OSS_ENDPOINT }}
+        OSS_BUCKET_NAME: ${{ secrets.OSS_BUCKET_NAME }}
+        CI_MATRIX: ${{ toJSON(fromJSON(needs.ci-plan.outputs.plan).matrix) }}
+        RELEASE_TAG: ${{ github.event.release.tag_name }}
+
+  publish_java:
+    name: Publish Java
+    needs: [ci-plan, resolve-reuse, package]
+    if: >-
+      !cancelled() && needs.ci-plan.result == 'success' &&
+      github.repository == 'alibaba/neug' &&
+      github.event_name == 'release' && github.event.action == 'published' &&
+      (needs.package.result == 'success' || needs.package.result == 'skipped')
+    runs-on: ubuntu-22.04
+    permissions:
+      contents: read
+      actions: read
+    steps:
+    # ========================================
+    # Phase 1: Prepare
+    # ========================================
+
+
+    - uses: actions/download-artifact@v4
+      with:
+        name: java-publication-${{ needs.resolve-reuse.outputs.reuse_run_id || github.run_id }}
+        path: publication
+        github-token: ${{ secrets.GITHUB_TOKEN }}
+        run-id: ${{ needs.resolve-reuse.outputs.reuse_run_id || github.run_id }}
+
+    - name: Publish Prepared Central Bundle
+      shell: bash
+      env:
+        MAVEN_CENTRAL_USERNAME: ${{ secrets.MAVEN_CENTRAL_USERNAME }}
+        MAVEN_CENTRAL_PASSWORD: ${{ secrets.MAVEN_CENTRAL_PASSWORD }}
+      run: |
+        set -euo pipefail
+        python3 - <<'PY'
+        import hashlib
+        import zipfile
+        from pathlib import Path
+        bundle = Path('publication/central-bundle.zip')
+        expected = bundle.with_suffix('.zip.sha256').read_text().strip()
+        if hashlib.sha256(bundle.read_bytes()).hexdigest() != expected:
+            raise RuntimeError('Publication bundle SHA256 mismatch')
+        # Central rejects unsigned deployments. A reused dry-run bundle must
+        # carry a GPG signature (.asc) for every published .jar and .pom; fail
+        # here rather than uploading a bundle Central will refuse.
+        entries = zipfile.ZipFile(bundle).namelist()
+        present = set(entries)
+        unsigned = [
+            e for e in entries
+            if e.endswith(('.jar', '.pom')) and e + '.asc' not in present
+        ]
+        if unsigned:
+            raise RuntimeError(
+                'Publication bundle missing GPG signatures: ' + ', '.join(unsigned)
+            )
+        PY
+        token=$(printf '%s:%s' "$MAVEN_CENTRAL_USERNAME" "$MAVEN_CENTRAL_PASSWORD" | base64 | tr -d '\n')
+        echo "::add-mask::$token"
+        deployment=$(curl --fail-with-body --silent --show-error \
+          --header "Authorization: Bearer $token" \
+          --form 'bundle=@publication/central-bundle.zip;type=application/octet-stream' \
+          'https://central.sonatype.com/api/v1/publisher/upload?publishingType=AUTOMATIC')
+        for attempt in $(seq 1 120); do
+          status=$(curl --fail-with-body --silent --show-error --request POST \
+            --header "Authorization: Bearer $token" \
+            "https://central.sonatype.com/api/v1/publisher/status?id=$deployment")
+          state=$(printf '%s' "$status" | jq -r .deploymentState)
+          echo "Central deployment $deployment: $state"
+          if [ "$state" = PUBLISHED ]; then exit 0; fi
+          if [ "$state" = FAILED ]; then printf '%s\n' "$status"; exit 1; fi
+          sleep 15
+        done
+        echo '::error::Timed out waiting for Maven Central publication'
+        exit 1
+
+  verify_published:
+    needs: [ci-plan, package, publish_wheel, publish_npm, publish_extension, publish_java]
+    if: >-
+      !cancelled() &&
+      (needs.package.result == 'success' || needs.package.result == 'skipped') &&
+      needs.publish_wheel.result == 'success' &&
+      needs.publish_npm.result == 'success' &&
+      needs.publish_extension.result == 'success' &&
+      needs.publish_java.result == 'success'
+    uses: ./.github/workflows/verify-published.yml
+    with:
+      version: ${{ github.event.release.tag_name }}
+      plan: ${{ needs.ci-plan.outputs.plan }}
+
+  report:
+    if: always()
+    needs:
+      - ci-plan
+      - resolve-reuse
+      - package
+      - publish_wheel
+      - publish_npm
+      - publish_extension
+      - publish_java
+      - verify_published
+    runs-on: ubuntu-22.04
+    steps:
+
+    - name: Summarize Results
+      shell: bash
+      env:
+        RESULTS: ${{ toJSON(needs) }}
+      run: |
+        set -euo pipefail
+        printf '## CI result\n```json\n%s\n```\n' "$RESULTS" >> "$GITHUB_STEP_SUMMARY"
+
+    - name: Send DingTalk notification
+      if: always() && github.repository == 'alibaba/neug'
+      env:
+        DINGTALK_TOKEN: ${{ secrets.DINGTALK_TOKEN }}
+      run: |
+        if [ -z "$DINGTALK_TOKEN" ]; then
+          echo "DINGTALK_TOKEN not set, skipping notification."
+          exit 0
+        fi
+        WEBHOOK_URL="https://oapi.dingtalk.com/robot/send?access_token=${DINGTALK_TOKEN}"
+        TAG="${{ github.event.release.tag_name }}"
+        STATUS_PLAN="${{ needs.ci-plan.result }}"
+        STATUS_PACKAGE="${{ needs.package.result }}"
+        STATUS_WHEEL="${{ needs.publish_wheel.result }}"
+        STATUS_NPM="${{ needs.publish_npm.result }}"
+        STATUS_EXTENSION="${{ needs.publish_extension.result }}"
+        STATUS_JAVA="${{ needs.publish_java.result }}"
+        STATUS_VERIFY="${{ needs.verify_published.result }}"
+        # A release passes unless a stage actually failed or was cancelled; a
+        # legitimately skipped stage (e.g. package when reusing dry-run
+        # artifacts) must not be reported as a failure. ci-plan is included so
+        # that a plan failure cascading every downstream stage to skipped is
+        # still surfaced as Failed instead of a bogus Passed.
+        STATUSES=" $STATUS_PLAN $STATUS_PACKAGE $STATUS_WHEEL $STATUS_NPM $STATUS_EXTENSION $STATUS_JAVA $STATUS_VERIFY "
+        if [[ "$STATUSES" == *" failure "* || "$STATUSES" == *" cancelled "* ]]; then
+          TITLE="[Release Report] NeuG $TAG Failed"
+        else
+          TITLE="[Release Report] NeuG $TAG Passed"
+        fi
+        RESP=$(curl -s -X POST "$WEBHOOK_URL" \
+          -H 'Content-Type: application/json' \
+          -d "{
+            \"msgtype\": \"markdown\",
+            \"markdown\": {
+              \"title\": \"$TITLE\",
+              \"text\": \"## $TITLE\\n\\n- **ci-plan**: ${STATUS_PLAN}\\n- **package**: ${STATUS_PACKAGE}\\n- **publish_wheel**: ${STATUS_WHEEL}\\n- **publish_npm**: ${STATUS_NPM}\\n- **publish_extension**: ${STATUS_EXTENSION}\\n- **publish_java**: ${STATUS_JAVA}\\n- **verify_published**: ${STATUS_VERIFY}\\n- **Repo**: ${{ github.repository }}\\n- **Branch**: ${{ github.ref_name }}\\n- **Commit**: ${{ github.sha }}\\n- [View Run](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})\"
+            }
+          }")
+        echo "DingTalk response: $RESP"
+        # DingTalk signals rejection (keyword filter 310000, rate limit 130101,
+        # invalid token, ...) via HTTP 200 + errcode != 0, which curl --fail
+        # cannot catch. Surface it as a warning so the silent-drop failure mode
+        # this PR fixes stays visible, without failing the release report job.
+        if ! echo "$RESP" | grep -q '"errcode":0'; then
+          echo "::warning::DingTalk rejected the notification: $RESP"
+        fi

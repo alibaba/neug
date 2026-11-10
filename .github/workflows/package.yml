@@ -1,0 +1,510 @@
+name: package
+
+on:
+  schedule:
+    - cron: 0 14 * * 1
+  workflow_dispatch:
+    inputs:
+      platforms:
+        description: Platforms to package.
+        type: choice
+        default: all
+        options:
+          - all
+          - linux-x86_64
+          - linux-arm64
+          - osx-arm64
+          - windows-x86_64
+          - windows-arm64
+          - java
+      python_versions:
+        description: Python version for wheel packaging.
+        type: choice
+        default: all
+        options:
+          - 'all'
+          - '3.8'
+          - '3.9'
+          - '3.10'
+          - '3.11'
+          - '3.12'
+          - '3.13'
+          - '3.14'
+  workflow_call:
+    inputs:
+      plan:
+        type: string
+        default: ''
+      platforms:
+        description: Platforms to package.
+        type: string
+        default: all
+      python_versions:
+        description: Python version for wheel packaging.
+        type: string
+        default: all
+    outputs:
+      plan:
+        value: ${{ jobs.initialize.outputs.plan }}
+
+permissions:
+  contents: read
+  actions: read
+  pull-requests: read
+
+concurrency:
+  group: ci-package-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  # Release/dry-run gate: fail before any build/publish if the version strings
+  # across the managed files disagree with NEUG_VERSION (i.e. a partial bump).
+  # package.yml is the shared entry for BOTH the dry-run (workflow_dispatch)
+  # and the release (called by release.yml), so this runs in exactly those
+  # flows and never on a regular PR. Cheap (~15s); initialize waits on it so
+  # the expensive builds are skipped when versions are inconsistent.
+  version-check:
+    name: Version Consistency
+    runs-on: ubuntu-22.04
+    steps:
+    - uses: actions/checkout@v4
+    - uses: actions/setup-python@v5
+      with:
+        python-version: '3.10'
+    - name: Check version strings are consistent
+      run: python3 scripts/bump_version.py --check
+
+  initialize:
+    needs: version-check
+    uses: ./.github/workflows/ci-plan.yml
+    with:
+      platforms: ${{ inputs.platforms || 'all' }}
+      python_versions: ${{ inputs.python_versions || 'all' }}
+      plan: ${{ inputs.plan || '' }}
+
+  # ========================================
+  # Record the resolved plan as a run-level artifact. Wheel artifact names carry
+  # no Python version, so a dry-run dispatched with a narrowed python_versions
+  # still produces every platform's wheel and looks "complete" by name alone.
+  # The release workflow downloads this manifest to confirm a reused dry-run
+  # built the same Python coverage before it skips the rebuild.
+  # ========================================
+  record-reuse-manifest:
+    needs: initialize
+    runs-on: ubuntu-22.04
+    steps:
+    - name: Write Reuse Manifest
+      env:
+        PLAN: ${{ needs.initialize.outputs.plan }}
+      run: |
+        set -euo pipefail
+        mkdir -p reuse-manifest
+        printf '%s' "$PLAN" > reuse-manifest/plan.json
+    - uses: actions/upload-artifact@v4
+      with:
+        name: reuse-manifest-${{ github.run_id }}
+        path: reuse-manifest/plan.json
+        if-no-files-found: error
+        retention-days: 7
+
+  # ========================================
+  # For Linux - Wheel, build standardized wheels with cibuildwheel in dedicated
+  # manylinux2014 images (neug-manylinux:2026.03.13-2-<arch>).
+  # ========================================
+  linux_wheel:
+    needs: initialize
+    if: fromJSON(needs.initialize.outputs.plan).linux[0] != null
+    name: Linux Wheel / ${{ matrix.arch }}
+    strategy:
+      fail-fast: true
+      matrix:
+        include: ${{ fromJSON(needs.initialize.outputs.plan).linux }}
+    permissions:
+      contents: read
+    runs-on: ${{ matrix.build_runner }}
+    env:
+      EXTENSIONS: ${{ fromJSON(needs.initialize.outputs.plan).extensions }}
+    steps:
+    # ========================================
+    # Phase 1: Prepare
+    # ========================================
+
+    - uses: actions/checkout@v4
+      with:
+        submodules: recursive
+        fetch-depth: 0
+
+    - name: Prepare Python on Self-Hosted ARM64 Runner
+      if: runner.os == 'Linux' && runner.environment == 'self-hosted' && runner.arch == 'ARM64'
+      shell: bash
+      env:
+        HOST_PYTHON_VERSION: ${{ fromJSON(needs.initialize.outputs.plan).wheel_host_python }}
+      run: |
+        set -euo pipefail
+        # Alibaba Cloud Linux has no matching setup-python download. Register
+        # its system Python as a fresh venv after shared tool-cache cleanup.
+        system_python="/usr/bin/python$HOST_PYTHON_VERSION"
+        version=$("$system_python" -c 'import platform; print(platform.python_version())')
+        cache="$RUNNER_TOOL_CACHE/Python/$version/arm64"
+        mkdir -p "$(dirname "$cache")"
+        rm -f "$cache.complete"
+        "$system_python" -m venv --clear "$cache"
+        "$cache/bin/python" -c 'import ssl, pip; print(ssl.OPENSSL_VERSION); print("pip", pip.__version__)'
+        touch "$cache.complete"
+
+    - uses: actions/setup-python@v5
+      with:
+        # Drive cibuildwheel with a glibc-compatible host Python; the self-hosted
+        # arm64 runner (glibc <2.33) cannot execute the 3.13 binary. Wheel
+        # coverage comes from CIBW_BUILD, not this interpreter. See
+        # wheel_host_python in scripts/ci_plan.py.
+        python-version: ${{ fromJSON(needs.initialize.outputs.plan).wheel_host_python }}
+
+    - name: Install cibuildwheel
+      run: python3 -m pip install cibuildwheel==3.4.0 wheel
+
+    # ========================================
+    # Phase 2: Build and Validate
+    # ========================================
+
+    - name: Build and Repair Wheels in manylinux
+      env:
+        CI_INSTALL_EXTENSIONS: ${{ env.EXTENSIONS }}
+        CIBW_BUILD: ${{ fromJSON(needs.initialize.outputs.plan).cibw_build }}
+        CIBW_ARCHS_LINUX: ${{ matrix.cibw_arch }}
+        CIBW_MANYLINUX_X86_64_IMAGE: ${{ matrix.wheel_image }}
+        CIBW_MANYLINUX_AARCH64_IMAGE: ${{ matrix.wheel_image }}
+        CIBW_TEST_COMMAND: >-
+          python -c 'import neug; db=neug.Database(); c=db.connect(); print(c.execute("RETURN 1"))'
+          && neug-cli --help && neug-cli --version
+        BUILD_TYPE: RELEASE
+        PYBIND11_FINDPYTHON: 'OFF'
+        NEUG_COMMIT_SHA: ${{ github.sha }}
+      run: |
+        set -euo pipefail
+        export CMAKE_BUILD_PARALLEL_LEVEL=$(nproc)
+        python3 -m cibuildwheel ./tools/python_bind --output-dir complete_wheelhouse
+
+    # ========================================
+    # Phase 3: Package and Upload
+    # ========================================
+
+    - name: Create Core Wheels
+      run: |
+        set -euo pipefail
+        mkdir -p core_wheelhouse
+        for wheel in complete_wheelhouse/*.whl; do
+          unpack_dir=$(mktemp -d "$RUNNER_TEMP/core-wheel.XXXXXX")
+          python3 -m wheel unpack "$wheel" -d "$unpack_dir"
+          for package in "$unpack_dir"/*; do
+            rm -rf "$package/extension"
+            for metadata in "$package"/*.dist-info/top_level.txt; do
+              if [ -f "$metadata" ]; then
+                sed '/^extension$/d' "$metadata" > "$metadata.tmp"
+                mv "$metadata.tmp" "$metadata"
+              fi
+            done
+            python3 -m wheel pack "$package" -d core_wheelhouse
+          done
+        done
+
+    - name: Upload Wheels
+      uses: actions/upload-artifact@v4
+      with:
+        name: ${{ github.event_name == 'schedule' && format('cibw-wheels-linux-{0}-{1}', matrix.arch, github.sha) || format('wheels-linux-{0}-{1}', matrix.arch, github.run_id) }}
+        path: core_wheelhouse/*.whl
+        if-no-files-found: error
+        retention-days: 7
+
+    - name: Extract Extension Packages
+      id: packages
+      shell: bash
+      run: |
+        set -euo pipefail
+        wheel=$(find complete_wheelhouse -maxdepth 1 -name '*.whl' -print -quit)
+        version="${VERSION:-$(cat NEUG_VERSION)}"
+        echo "version=$version" >> "$GITHUB_OUTPUT"
+        python3 scripts/publish_extensions_from_wheel.py \
+          --wheel "$wheel" --extensions "$EXTENSIONS" \
+          --version "$version" --platform "$OSS_PLATFORM" \
+          --output-dir extension_packages --skip-upload
+      env:
+        EXTENSIONS: ${{ env.EXTENSIONS }}
+        OSS_PLATFORM: linux_${{ matrix.arch }}
+        VERSION: ${{ github.event.release.tag_name }}
+
+    - name: Upload Extension-Packages
+      # Preserve built extensions even if an earlier step (e.g. Upload Wheels)
+      # fails, so a failed run can be recovered without a full rebuild.
+      if: always()
+      uses: actions/upload-artifact@v4
+      with:
+        name: extension-packages-linux-${{ matrix.arch }}-${{ steps.packages.outputs.version }}
+        path: |
+          extension_packages/*.neug_extension
+          extension_packages/*.sha256
+        if-no-files-found: error
+        retention-days: 7
+
+  # ========================================
+  # For Linux - NPM, manually build packages in dedicated manylinux_2_28 images
+  # (neug-manylinux:2026.03.13-2-<arch>-node).
+  # ========================================
+  linux-npm:
+    needs: initialize
+    env:
+      EXTENSIONS: ${{ fromJSON(needs.initialize.outputs.plan).extensions }}
+    if: fromJSON(needs.initialize.outputs.plan).linux[0] != null
+    name: Linux NPM / ${{ matrix.arch }}
+    strategy:
+      fail-fast: true
+      matrix:
+        include: ${{ fromJSON(needs.initialize.outputs.plan).linux }}
+    permissions:
+      contents: read
+    container:
+      image: ${{ matrix.node_image }}
+    runs-on: ${{ matrix.build_runner }}
+    steps:
+    # ========================================
+    # Phase 1: Prepare & Build
+    # ========================================
+
+    - uses: actions/checkout@v4
+      with:
+        submodules: recursive
+    - uses: actions/setup-node@v4
+      with:
+        node-version: '20'
+
+    - name: Select Packaging Python
+      shell: bash
+      env:
+        PACKAGING_PYTHON: ${{ fromJSON(needs.initialize.outputs.plan).packaging_python }}
+      run: |
+        set -euo pipefail
+        abi="cp${PACKAGING_PYTHON/./}"
+        python_dir="/opt/python/$abi-$abi/bin"
+        test -x "$python_dir/python"
+        echo "$python_dir" >> "$GITHUB_PATH"
+
+    - name: Compile and Stage Node.js Binding
+      shell: bash
+      run: |
+        set -euo pipefail
+        cp /root/.neug_env /home/neug/.neug_env
+        # Legacy dependency environment files may reference unset path variables.
+        set +u
+        source /home/neug/.neug_env
+        set -u
+        cd tools/nodejs_bind
+        make build BUILD_EXTENSIONS="$EXTENSIONS" BUILD_TYPE=Release JOBS="$(nproc)" EXTRA_CMAKE_FLAGS="-DCMAKE_PREFIX_PATH=/opt/neug/ -DOPENSSL_ROOT_DIR=/opt/neug -DNEUG_PACKAGE_BUILD=ON"
+
+    # ========================================
+    # Phase 2: Prepare Test Data
+    # ========================================
+
+    - name: Prepare Test Data
+      uses: ./.github/actions/prepare-data
+
+    # ========================================
+    # Phase 3: Node.js Tests and Packaging
+    # ========================================
+
+    - name: Test, Package, and Upload Node.js
+      env:
+        FLEX_DATA_DIR: ${{ github.workspace }}/example_dataset/modern_graph
+      uses: ./.github/actions/test-and-package-nodejs
+      with:
+        package: 'true'
+        extensions: ${{ env.EXTENSIONS }}
+        artifact_platform: linux-${{ matrix.arch }}
+        upload_artifacts: 'true'
+
+    - name: Restore Workspace and npm Cache Ownership
+      if: always()
+      shell: bash
+      run: |
+        chown -R neug:neug "$GITHUB_WORKSPACE"
+        if [ -d "$HOME/.npm" ]; then
+          chown -R neug:neug "$HOME/.npm"
+        fi
+
+  # ========================================
+  # For MacOS, package directly in the development environment through OSX.yml.
+  # ========================================
+  macos:
+    needs: initialize
+    if: contains(fromJSON(needs.initialize.outputs.plan).platforms, 'osx-arm64')
+    uses: ./.github/workflows/OSX.yml
+    with:
+      packages: '["wheel","npm"]'
+      python_versions: ${{ fromJSON(needs.initialize.outputs.plan).python_spec }}
+      extensions: ${{ fromJSON(needs.initialize.outputs.plan).extensions }}
+      upload_artifacts: true
+    secrets: inherit
+
+  # ========================================
+  # For Windows, package directly in the development environment through Windows.yml.
+  # ========================================
+  windows:
+    needs: initialize
+    if: fromJSON(needs.initialize.outputs.plan).windows_architectures[0] != null
+    uses: ./.github/workflows/Windows.yml
+    with:
+      architectures: ${{ toJSON(fromJSON(needs.initialize.outputs.plan).windows_architectures) }}
+      python_versions: ${{ fromJSON(needs.initialize.outputs.plan).python_spec }}
+      extensions: ${{ fromJSON(needs.initialize.outputs.plan).extensions }}
+      upload_artifacts: true
+    secrets: inherit
+
+  # ========================================
+  # Run Java SDK client unit tests and package the JAR on Ubuntu 22.04 with JDK 17 and Maven 3.9.6.
+  # ========================================
+  java:
+    needs: initialize
+    if: fromJSON(needs.initialize.outputs.plan).verify_java
+    runs-on: ubuntu-22.04
+    steps:
+    - uses: actions/checkout@v4
+    - uses: s4u/setup-maven-action@v1.19.0
+      with:
+        java-version: '17'
+        maven-version: 3.9.6
+
+    - name: Import Release Signing Key
+      # Sign on any upstream run, not just release: a dry-run must produce a
+      # signed bundle so the release workflow can safely reuse it.
+      if: github.repository == 'alibaba/neug'
+      uses: actions/setup-java@v4
+      with:
+        java-version: '17'
+        distribution: temurin
+        gpg-private-key: ${{ secrets.GPG_PRIVATE_KEY }}
+        gpg-passphrase: GPG_PASSPHRASE
+
+    - name: Build and Upload Java Package
+      uses: ./.github/actions/test-and-package-java
+      env:
+        GPG_PASSPHRASE: ${{ secrets.GPG_PASSPHRASE }}
+      with:
+        sign: ${{ github.repository == 'alibaba/neug' && 'true' || 'false' }}
+        package: 'true'
+        upload_artifacts: 'true'
+
+  npm-main:
+    needs: initialize
+    if: fromJSON(needs.initialize.outputs.plan).platforms[0] != null
+    runs-on: ubuntu-22.04
+    steps:
+    - uses: actions/checkout@v4
+    - uses: actions/setup-node@v4
+      with:
+        node-version: '20'
+    - name: Package npm Entry Point
+      env:
+        CI_PLAN: ${{ needs.initialize.outputs.plan }}
+      run: |
+        mkdir -p dist/npm-main
+        cp tools/nodejs_bind/assets/package.json tools/nodejs_bind/assets/index.js dist/npm-main/
+        node <<'JS'
+        const fs = require('fs');
+        const filename = 'dist/npm-main/package.json';
+        const pkg = JSON.parse(fs.readFileSync(filename));
+        const plan = JSON.parse(process.env.CI_PLAN);
+        pkg.optionalDependencies = Object.fromEntries(plan.platforms.map(platform => ['@neug-ai/' + platform, pkg.version]));
+        fs.writeFileSync(filename, JSON.stringify(pkg, null, 2) + '\n');
+        JS
+        npm pack ./dist/npm-main --pack-destination dist
+    - uses: actions/upload-artifact@v4
+      with:
+        name: nodejs-main-${{ github.run_id }}
+        path: dist/*.tgz
+        if-no-files-found: error
+        retention-days: 7
+
+  # ========================================
+  # Download the uploaded artifacts in independent environments and run package smoke tests.
+  # ========================================
+  verify:
+    if: ${{ !cancelled() && needs.initialize.result == 'success' && (needs.linux_wheel.result == 'success' || needs.linux_wheel.result == 'skipped') && (needs.linux-npm.result == 'success' || needs.linux-npm.result == 'skipped') && (needs.macos.result == 'success' || needs.macos.result == 'skipped') && (needs.windows.result == 'success' || needs.windows.result == 'skipped') && (needs.java.result == 'success' || needs.java.result == 'skipped') }}
+    needs: [initialize, linux_wheel, linux-npm, macos, windows, java]
+    uses: ./.github/workflows/verify-artifacts.yml
+    with:
+      plan: ${{ needs.initialize.outputs.plan }}
+    secrets: inherit
+
+  # ========================================
+  # Check build and verification results, summarize them, and send the configured notification.
+  # ========================================
+  complete:
+    if: always()
+    needs: [version-check, initialize, linux_wheel, linux-npm, macos, windows, java, npm-main, verify]
+    runs-on: ubuntu-22.04
+    steps:
+
+    - name: Require Successful Builds and Artifact Tests
+      env:
+        RESULTS: ${{ toJSON(needs) }}
+      run: |
+        python3 - <<'PYCODE'
+        import json, os
+        results = json.loads(os.environ['RESULTS'])
+        with open(os.environ['GITHUB_STEP_SUMMARY'], 'a') as summary:
+            summary.write('## Package result\n```json\n' + json.dumps(results, indent=2) + '\n```\n')
+        assert results['initialize']['result'] == 'success', results
+        assert results['verify']['result'] == 'success', results
+        assert all(job['result'] in ('success', 'skipped') for job in results.values()), results
+        PYCODE
+
+    - name: Send DingTalk notification
+      # Only notify for standalone package runs (the Monday dry-run schedule and
+      # manual dispatches). When package.yml is reused by release.yml the event
+      # is `release`, and release.yml already sends one consolidated
+      # [Release Report]; notifying here too would double-post to the group.
+      if: >-
+        always() && github.repository == 'alibaba/neug' &&
+        (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch')
+      env:
+        DINGTALK_TOKEN: ${{ secrets.DINGTALK_TOKEN }}
+      run: |
+        if [ -z "$DINGTALK_TOKEN" ]; then
+          echo "DINGTALK_TOKEN not set, skipping notification."
+          exit 0
+        fi
+        WEBHOOK_URL="https://oapi.dingtalk.com/robot/send?access_token=${DINGTALK_TOKEN}"
+        STATUS_VERSION_CHECK="${{ needs.version-check.result }}"
+        STATUS_INITIALIZE="${{ needs.initialize.result }}"
+        STATUS_LINUX_WHEEL="${{ needs.linux_wheel.result }}"
+        STATUS_LINUX_NPM="${{ needs.linux-npm.result }}"
+        STATUS_MACOS="${{ needs.macos.result }}"
+        STATUS_WINDOWS="${{ needs.windows.result }}"
+        STATUS_JAVA="${{ needs.java.result }}"
+        STATUS_NPM_MAIN="${{ needs.npm-main.result }}"
+        STATUS_VERIFY="${{ needs.verify.result }}"
+        # A package run passes unless a stage actually failed or was cancelled;
+        # a legitimately skipped stage (a platform not selected by the plan)
+        # must not be reported as a failure.
+        STATUSES=" $STATUS_VERSION_CHECK $STATUS_INITIALIZE $STATUS_LINUX_WHEEL $STATUS_LINUX_NPM $STATUS_MACOS $STATUS_WINDOWS $STATUS_JAVA $STATUS_NPM_MAIN $STATUS_VERIFY "
+        if [[ "$STATUSES" == *" failure "* || "$STATUSES" == *" cancelled "* ]]; then
+          TITLE="[Package Report] NeuG CI Failed"
+        else
+          TITLE="[Package Report] NeuG CI Passed"
+        fi
+        RESP=$(curl -s -X POST "$WEBHOOK_URL" \
+          -H 'Content-Type: application/json' \
+          -d "{
+            \"msgtype\": \"markdown\",
+            \"markdown\": {
+              \"title\": \"$TITLE\",
+              \"text\": \"## $TITLE\\n\\n- **version-check**: ${STATUS_VERSION_CHECK}\\n- **initialize**: ${STATUS_INITIALIZE}\\n- **linux_wheel**: ${STATUS_LINUX_WHEEL}\\n- **linux-npm**: ${STATUS_LINUX_NPM}\\n- **macos**: ${STATUS_MACOS}\\n- **windows**: ${STATUS_WINDOWS}\\n- **java**: ${STATUS_JAVA}\\n- **npm-main**: ${STATUS_NPM_MAIN}\\n- **verify**: ${STATUS_VERIFY}\\n- **Repo**: ${{ github.repository }}\\n- **Branch**: ${{ github.ref_name }}\\n- **Commit**: ${{ github.sha }}\\n- [View Run](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})\"
+            }
+          }")
+        echo "DingTalk response: $RESP"
+        # DingTalk signals rejection (keyword filter 310000, rate limit 130101,
+        # invalid token, ...) via HTTP 200 + errcode != 0, which curl --fail
+        # cannot catch. Surface it as a warning so the silent-drop failure mode
+        # stays visible, without failing the package complete job.
+        if ! echo "$RESP" | grep -q '"errcode":0'; then
+          echo "::warning::DingTalk rejected the notification: $RESP"
+        fi

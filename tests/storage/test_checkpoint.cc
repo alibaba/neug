@@ -176,13 +176,17 @@ uint64_t ConvertCurrentCheckpointToLegacy(const std::string& db_dir) {
 
   const auto manifest_path =
       new_root / "manifests" / (std::to_string(id) + ".manifest");
-  std::ifstream input(manifest_path);
-  if (!input.is_open()) {
-    throw std::runtime_error("failed to open current manifest");
-  }
-  rapidjson::IStreamWrapper input_wrapper(input);
   rapidjson::Document doc;
-  doc.ParseStream(input_wrapper);
+  {
+    // Release the manifest handle before remove_all(new_root): Windows cannot
+    // delete the checkpoint directory while this file is still open.
+    std::ifstream input(manifest_path);
+    if (!input.is_open()) {
+      throw std::runtime_error("failed to open current manifest");
+    }
+    rapidjson::IStreamWrapper input_wrapper(input);
+    doc.ParseStream(input_wrapper);
+  }
   if (doc.HasParseError() || !doc.IsObject() || !doc.HasMember("modules")) {
     throw std::runtime_error("invalid current manifest");
   }

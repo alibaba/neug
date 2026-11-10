@@ -291,10 +291,12 @@ class GPhysicalAnalyzer {
         flag.load_from = true;
       } else {
         auto& call = op.constCast<planner::LogicalTableFunctionCall>();
-        // Read-only CALL/GDS procedures can run on the read path; mutating
-        // ones keep the procedure_call flag so TP rejects access_mode=read.
+        // Transactional writes may join explicit write transactions. Other
+        // mutating procedures retain the existing procedure restrictions.
         if (call.getTableFunc().isReadOnly) {
           flag.read = true;
+        } else if (call.getTableFunc().transactionalWrite) {
+          flag.update = true;
         } else {
           flag.procedure_call = true;
         }

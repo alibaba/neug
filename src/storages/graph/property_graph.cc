@@ -30,6 +30,7 @@
 #include "neug/storages/checkpoint_manifest.h"
 #include "neug/storages/graph/cow_detach_state.h"
 #include "neug/storages/graph/schema.h"
+#include "neug/storages/index/index_utils.h"
 #include "neug/storages/index/storage_index_manager.h"
 #include "neug/storages/module/module_broker.h"
 #include "neug/utils/exception/exception.h"
@@ -37,6 +38,7 @@
 #include "neug/utils/io/file/file_utils.h"
 #include "neug/utils/property/column.h"
 #include "neug/utils/property/types.h"
+#include "neug/utils/property/vec_column.h"
 #include "neug/utils/result.h"
 #include "neug/utils/yaml_utils.h"
 
@@ -858,6 +860,29 @@ void PropertyGraph::Open(std::shared_ptr<Checkpoint> ckp,
   }
 
   index_manager_->Open(ckp, store, memory_level_);
+  // Capture legacy HNSW boundaries before WAL changes the vector columns.
+  // Pending modules are not rebound until their extension is loaded, when the
+  // visible limit may already include vectors absent from the persisted HNSW.
+  for (auto& [name, pending] : index_manager_->pending_indexes_) {
+    if (!IsHNSWIndex(pending.meta) ||
+        pending.descriptor.get("flat_index_offset"))
+      continue;
+    const auto& index_schema = pending.meta.schema;
+    if (index_schema.label_id >= vertex_tables_.size() ||
+        !schema_.is_vertex_label_valid(index_schema.label_id) ||
+        index_schema.columns.size() != 1) {
+      THROW_RUNTIME_ERROR("Invalid pending HNSW schema: " + name);
+    }
+    const auto* column = dynamic_cast<const VecColumn*>(
+        vertex_tables_[index_schema.label_id].GetPropertyColumnBase(
+            index_schema.columns[0].property_name));
+    if (!column || !column->get_offset_accessor()) {
+      THROW_RUNTIME_ERROR("Invalid pending HNSW vector column: " + name);
+    }
+    pending.descriptor.set(
+        "flat_index_offset",
+        std::to_string(column->get_offset_accessor()->GetVisibleLimit()));
+  }
   // A nonzero base timestamp identifies a graph image that preserved MVCC
   // state. Keep that fact across process restarts so the next full checkpoint
   // compacts every inherited table and the schema before resetting timestamps.

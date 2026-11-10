@@ -39,7 +39,7 @@ void DefaultIndexIDAccessor::Open(Checkpoint& ckp,
   deleted_index_ids_->clear();
   for (index_id_t index_id = 0; index_id < visible_limit_; ++index_id) {
     if (index_id_to_vid_->find(index_id) == index_id_to_vid_->end()) {
-      deleted_index_ids_->insert(index_id);
+      deleted_index_ids_->push_back(index_id);
     }
   }
 }
@@ -72,7 +72,7 @@ index_id_t DefaultIndexIDAccessor::UpsertVID(vid_t vid) {
   auto old_index_id = GetIndexIDByVID(vid);
   if (old_index_id != INVALID_INDEX_ID) {
     index_id_to_vid_->erase(old_index_id);
-    deleted_index_ids_->insert(old_index_id);
+    deleted_index_ids_->push_back(old_index_id);
   }
 
   if (vid >= size()) {
@@ -83,7 +83,7 @@ index_id_t DefaultIndexIDAccessor::UpsertVID(vid_t vid) {
   // boundary. Preserve those IDs as inaccessible gaps before advancing the
   // accessible range to [0, new_index_id + 1).
   for (auto index_id = visible_limit_; index_id < new_index_id; ++index_id) {
-    deleted_index_ids_->insert(index_id);
+    deleted_index_ids_->push_back(index_id);
   }
   visible_limit_ = new_index_id + 1;
   static_cast<index_id_t*>(vid_to_index_id_->GetData())[vid] = new_index_id;
@@ -97,7 +97,7 @@ Status DefaultIndexIDAccessor::DeleteVID(vid_t vid) {
     return Status::OK();
   }
   index_id_to_vid_->erase(index_id);
-  deleted_index_ids_->insert(index_id);
+  deleted_index_ids_->push_back(index_id);
   static_cast<index_id_t*>(vid_to_index_id_->GetData())[vid] = INVALID_INDEX_ID;
   return Status::OK();
 }
@@ -122,7 +122,7 @@ void DefaultIndexIDAccessor::Detach(Checkpoint& ckp, MemoryLevel level) {
   }
   if (deleted_index_ids_) {
     deleted_index_ids_ =
-        std::make_shared<std::set<index_id_t>>(*deleted_index_ids_);
+        std::make_shared<std::vector<index_id_t>>(*deleted_index_ids_);
   }
 }
 
@@ -168,8 +168,8 @@ index_id_t VecColumnBackedIndexIDAccessor::GetVisibleLimit() const {
   return offset_accessor_.GetVisibleLimit();
 }
 
-const std::set<index_id_t>& VecColumnBackedIndexIDAccessor::GetDeletedIndexIDs()
-    const {
+const std::vector<index_id_t>&
+VecColumnBackedIndexIDAccessor::GetDeletedIndexIDs() const {
   return offset_accessor_.GetDeletedIndexIDs();
 }
 

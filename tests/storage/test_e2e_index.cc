@@ -84,7 +84,7 @@ TEST(E2EIndexReopenSubprocess, ActivatesPendingIndexAfterLoad) {
   auto show_before_load = connection->Query("CALL SHOW_INDEXES() RETURN *;");
   ASSERT_TRUE(show_before_load) << show_before_load.error().ToString();
   ASSERT_EQ(show_before_load->response().row_count(), 1);
-  ASSERT_EQ(show_before_load->response().arrays_size(), 6);
+  ASSERT_EQ(show_before_load->response().arrays_size(), 7);
   EXPECT_EQ(show_before_load->response().arrays(5).string_array().values(0),
             "pending");
 
@@ -405,17 +405,20 @@ class E2EIndexTest : public ::testing::Test {
   static void AssertNoIndexes(const QueryResult& result) {
     const auto& response = result.response();
     EXPECT_EQ(response.row_count(), 0);
-    ASSERT_EQ(response.arrays_size(), 6);
-    for (const auto& array : response.arrays()) {
+    ASSERT_EQ(response.arrays_size(), 7);
+    for (int i = 0; i < 6; ++i) {
+      const auto& array = response.arrays(i);
       ASSERT_TRUE(array.has_string_array());
       EXPECT_EQ(array.string_array().values_size(), 0);
     }
+    ASSERT_TRUE(response.arrays(6).has_uint64_array());
+    EXPECT_EQ(response.arrays(6).uint64_array().values_size(), 0);
   }
 
   static void AssertExpectedIndex(const QueryResult& result) {
     const auto& response = result.response();
     ASSERT_EQ(response.row_count(), 1);
-    ASSERT_EQ(response.arrays_size(), 6);
+    ASSERT_EQ(response.arrays_size(), 7);
     EXPECT_EQ(response.arrays(0).string_array().values(0),
               "entity_embedding_hnsw");
     EXPECT_EQ(response.arrays(1).string_array().values(0), "hnsw");
@@ -425,6 +428,8 @@ class E2EIndexTest : public ::testing::Test {
         response.arrays(4).string_array().values(0),
         R"({"description":"escapedtvalue","ef_construction":"200","m":"16","metric":"ip"})");
     EXPECT_EQ(response.arrays(5).string_array().values(0), "active");
+    ASSERT_TRUE(response.arrays(6).has_uint64_array());
+    EXPECT_EQ(response.arrays(6).uint64_array().values(0), 0);
   }
 
   std::string workDir_;

@@ -31,8 +31,6 @@
 
 namespace neug {
 
-Napi::FunctionReference NodeQueryRequest::constructor;
-
 rapidjson::Document napi_value_to_rapidjson_document(
     const Napi::Value& val, rapidjson::Document::AllocatorType& allocator) {
   rapidjson::Document doc(&allocator);
@@ -108,8 +106,6 @@ Napi::Object NodeQueryRequest::Init(Napi::Env env, Napi::Object exports) {
       {
           StaticMethod("serializeRequest", &NodeQueryRequest::SerializeRequest),
       });
-  constructor = Napi::Persistent(func);
-  constructor.SuppressDestruct();
   exports.Set("NodeQueryRequest", func);
   return exports;
 }

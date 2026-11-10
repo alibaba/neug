@@ -68,6 +68,7 @@ class WalBuilder {
   void LogCreateIndex(const IndexMeta& meta);
   void LogDropIndex(const std::string& name);
   void LogActivateIndexes();
+  void LogOptimizeIndexes(const std::vector<std::string>& names);
   void LogAddGraphEntry(const std::string& name,
                         const ProjectedGraphEntry& entry);
   void LogDropGraphEntry(const std::string& name);

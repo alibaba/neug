@@ -21,6 +21,7 @@ import shutil
 import time
 
 import pytest
+from conftest import cypher_path
 
 from neug import Database
 
@@ -85,7 +86,7 @@ class TestCopyTemp:
 
     def test_copy_temp_node_basic(self):
         self.conn.execute(
-            f'COPY TEMP TempPeople FROM "{self.people_csv}" (header = true)'
+            f"COPY TEMP TempPeople FROM {cypher_path(self.people_csv)} (header = true)"
         )
         rows = list(
             self.conn.execute("MATCH (n:TempPeople) RETURN n.id, n.name ORDER BY n.id;")
@@ -94,13 +95,13 @@ class TestCopyTemp:
 
     def test_copy_temp_node_default_pk(self):
         self.conn.execute(
-            f'COPY TEMP TempDefault FROM "{self.people_csv}" (header = true)'
+            f"COPY TEMP TempDefault FROM {cypher_path(self.people_csv)} (header = true)"
         )
         assert len(list(self.conn.execute("MATCH (n:TempDefault) RETURN n.id;"))) == 4
 
     def test_copy_temp_node_where(self):
         self.conn.execute(
-            f'COPY TEMP TempFiltered FROM (LOAD FROM "{self.people_csv}" '
+            f"COPY TEMP TempFiltered FROM (LOAD FROM {cypher_path(self.people_csv)} "
             f"(header = true) WHERE age > 25 RETURN *)"
         )
         rows = list(
@@ -110,7 +111,7 @@ class TestCopyTemp:
 
     def test_copy_temp_node_return(self):
         self.conn.execute(
-            f'COPY TEMP TempSlim FROM (LOAD FROM "{self.people_csv}" '
+            f"COPY TEMP TempSlim FROM (LOAD FROM {cypher_path(self.people_csv)} "
             f"(header = true) RETURN id, name)"
         )
         assert len(list(self.conn.execute("MATCH (n:TempSlim) RETURN n.id;"))) == 4
@@ -119,7 +120,7 @@ class TestCopyTemp:
 
     def test_copy_temp_node_where_return(self):
         self.conn.execute(
-            f'COPY TEMP TempWR FROM (LOAD FROM "{self.people_csv}" '
+            f"COPY TEMP TempWR FROM (LOAD FROM {cypher_path(self.people_csv)} "
             f"(header = true) WHERE age >= 25 RETURN id, name)"
         )
         rows = list(self.conn.execute("MATCH (n:TempWR) RETURN n.name ORDER BY n.id;"))
@@ -132,10 +133,10 @@ class TestCopyTemp:
     def test_copy_temp_rel_basic(self):
         """edges.csv: src_id|dst_id|weight - first two cols are keys."""
         self.conn.execute(
-            f'COPY TEMP TempPerson FROM "{self.people_csv}" (header = true)'
+            f"COPY TEMP TempPerson FROM {cypher_path(self.people_csv)} (header = true)"
         )
         self.conn.execute(
-            f'COPY TEMP TempKnows FROM "{self.edges_csv}" '
+            f"COPY TEMP TempKnows FROM {cypher_path(self.edges_csv)} "
             f"(header = true, from = 'TempPerson', to = 'TempPerson')"
         )
         rows = list(
@@ -149,7 +150,7 @@ class TestCopyTemp:
         """REL with persistent vertices, first two cols are keys."""
         self._load_persistent_person_table()
         self.conn.execute(
-            f'COPY TEMP TempKnowsP FROM "{self.edges_csv}" '
+            f"COPY TEMP TempKnowsP FROM {cypher_path(self.edges_csv)} "
             f"(header = true, from = 'Person', to = 'Person')"
         )
         assert (
@@ -162,7 +163,7 @@ class TestCopyTemp:
         from/to are COPY TEMP options (graph semantics), not LOAD FROM options."""
         self._load_persistent_person_table()
         self.conn.execute(
-            f'COPY TEMP TempShuf FROM (LOAD FROM "{self.edges_shuffled_csv}" '
+            f"COPY TEMP TempShuf FROM (LOAD FROM {cypher_path(self.edges_shuffled_csv)} "
             f"(header = true) "
             f"RETURN src_id, dst_id, weight) "
             f"(from = 'Person', to = 'Person')"
@@ -179,7 +180,7 @@ class TestCopyTemp:
         from/to are COPY TEMP options, not LOAD FROM options."""
         self._load_persistent_person_table()
         self.conn.execute(
-            f'COPY TEMP TempNoProps FROM (LOAD FROM "{self.edges_csv}" '
+            f"COPY TEMP TempNoProps FROM (LOAD FROM {cypher_path(self.edges_csv)} "
             f"(header = true) "
             f"RETURN src_id, dst_id) "
             f"(from = 'Person', to = 'Person')"
@@ -193,7 +194,9 @@ class TestCopyTemp:
 
     def test_copy_temp_rel_missing_from_to(self):
         """COPY TEMP without from/to creates a NODE table, not REL."""
-        self.conn.execute(f'COPY TEMP TempEdge FROM "{self.edges_csv}" (header = true)')
+        self.conn.execute(
+            f"COPY TEMP TempEdge FROM {cypher_path(self.edges_csv)} (header = true)"
+        )
         rows = list(
             self.conn.execute("MATCH (n:TempEdge) RETURN n.src_id ORDER BY n.src_id;")
         )
@@ -204,7 +207,9 @@ class TestCopyTemp:
     # ------------------------------------------------------------------
 
     def test_copy_temp_cleanup(self):
-        self.conn.execute(f'COPY TEMP TempE FROM "{self.people_csv}" (header = true)')
+        self.conn.execute(
+            f"COPY TEMP TempE FROM {cypher_path(self.people_csv)} (header = true)"
+        )
         assert list(self.conn.execute("MATCH (n:TempE) RETURN count(n);"))[0][0] == 4
         self.conn.close()
         conn2 = self.db.connect()
@@ -216,16 +221,18 @@ class TestCopyTemp:
 
     def test_duplicate_label_same_connection(self):
         """COPY TEMP same label twice must fail."""
-        self.conn.execute(f'COPY TEMP TempDup FROM "{self.people_csv}" (header = true)')
+        self.conn.execute(
+            f"COPY TEMP TempDup FROM {cypher_path(self.people_csv)} (header = true)"
+        )
         with pytest.raises(Exception):
             self.conn.execute(
-                f'COPY TEMP TempDup FROM "{self.people_csv}" (header = true)'
+                f"COPY TEMP TempDup FROM {cypher_path(self.people_csv)} (header = true)"
             )
 
     def test_reload_same_label_after_close(self):
         """After close() cleanup, reloading same label succeeds."""
         self.conn.execute(
-            f'COPY TEMP TempReuse FROM "{self.people_csv}" (header = true)'
+            f"COPY TEMP TempReuse FROM {cypher_path(self.people_csv)} (header = true)"
         )
         assert (
             list(self.conn.execute("MATCH (n:TempReuse) RETURN count(n);"))[0][0] == 4
@@ -234,7 +241,7 @@ class TestCopyTemp:
         conn2 = self.db.connect()
         try:
             conn2.execute(
-                f'COPY TEMP TempReuse FROM "{self.people_csv}" (header = true)'
+                f"COPY TEMP TempReuse FROM {cypher_path(self.people_csv)} (header = true)"
             )
             assert (
                 list(conn2.execute("MATCH (n:TempReuse) RETURN count(n);"))[0][0] == 4
@@ -245,7 +252,7 @@ class TestCopyTemp:
     def test_temp_not_persisted_after_db_reopen(self):
         """Temp labels not in checkpoint; absent after DB reopen."""
         self.conn.execute(
-            f'COPY TEMP TempGhost FROM "{self.people_csv}" (header = true)'
+            f"COPY TEMP TempGhost FROM {cypher_path(self.people_csv)} (header = true)"
         )
         assert (
             list(self.conn.execute("MATCH (n:TempGhost) RETURN count(n);"))[0][0] == 4
@@ -268,7 +275,7 @@ class TestCopyTemp:
         self.conn.execute("CREATE NODE TABLE Persistent(id INT64, PRIMARY KEY(id));")
         self.conn.execute("CREATE (p:Persistent {id: 1});")
         self.conn.execute(
-            f'COPY TEMP TempGone FROM "{self.people_csv}" (header = true)'
+            f"COPY TEMP TempGone FROM {cypher_path(self.people_csv)} (header = true)"
         )
         self.conn.close()
         conn2 = self.db.connect()
@@ -289,7 +296,7 @@ class TestCopyTemp:
         """MATCH spanning persistent vertices + temporary edges."""
         self._load_persistent_person_table()
         self.conn.execute(
-            f'COPY TEMP TempLink FROM "{self.edges_csv}" '
+            f"COPY TEMP TempLink FROM {cypher_path(self.edges_csv)} "
             f"(header = true, from = 'Person', to = 'Person')"
         )
         rows = list(
@@ -306,7 +313,9 @@ class TestCopyTemp:
         extra_csv = _write_csv(
             self.csv_dir, "extra.csv", "id|nickname\n1|Ally\n2|Bobby\n5|Eve\n"
         )
-        self.conn.execute(f'COPY TEMP TempExtra FROM "{extra_csv}" (header = true)')
+        self.conn.execute(
+            f"COPY TEMP TempExtra FROM {cypher_path(extra_csv)} (header = true)"
+        )
         rows = list(
             self.conn.execute(
                 "MATCH (p:Person), (t:TempExtra) WHERE p.id = t.id "
@@ -319,9 +328,11 @@ class TestCopyTemp:
     def test_temp_src_persistent_dst(self):
         """REL from temp vertex to persistent vertex."""
         self._load_persistent_person_table()
-        self.conn.execute(f'COPY TEMP TempSrc FROM "{self.people_csv}" (header = true)')
         self.conn.execute(
-            f'COPY TEMP TempMixed FROM "{self.edges_csv}" '
+            f"COPY TEMP TempSrc FROM {cypher_path(self.people_csv)} (header = true)"
+        )
+        self.conn.execute(
+            f"COPY TEMP TempMixed FROM {cypher_path(self.edges_csv)} "
             f"(header = true, from = 'TempSrc', to = 'Person')"
         )
         rows = list(
@@ -338,7 +349,9 @@ class TestCopyTemp:
     def test_empty_csv(self):
         """Header-only CSV creates an empty temp table."""
         empty_csv = _write_csv(self.csv_dir, "empty.csv", "id|name|age\n")
-        self.conn.execute(f'COPY TEMP TempEmpty FROM "{empty_csv}" (header = true)')
+        self.conn.execute(
+            f"COPY TEMP TempEmpty FROM {cypher_path(empty_csv)} (header = true)"
+        )
         assert (
             list(self.conn.execute("MATCH (n:TempEmpty) RETURN count(n);"))[0][0] == 0
         )
@@ -346,7 +359,7 @@ class TestCopyTemp:
     def test_where_filters_all_rows(self):
         """WHERE matching nothing creates empty table."""
         self.conn.execute(
-            f'COPY TEMP TempNone FROM (LOAD FROM "{self.people_csv}" '
+            f"COPY TEMP TempNone FROM (LOAD FROM {cypher_path(self.people_csv)} "
             f"(header = true) WHERE age > 1000 RETURN *)"
         )
         assert list(self.conn.execute("MATCH (n:TempNone) RETURN count(n);"))[0][0] == 0
@@ -354,7 +367,7 @@ class TestCopyTemp:
     def test_property_type_inference(self):
         """CSV types inferred correctly (age is INT64)."""
         self.conn.execute(
-            f'COPY TEMP TempTyped FROM "{self.people_csv}" (header = true)'
+            f"COPY TEMP TempTyped FROM {cypher_path(self.people_csv)} (header = true)"
         )
         rows = list(
             self.conn.execute("MATCH (n:TempTyped) RETURN n.age + 1 ORDER BY n.id;")
@@ -364,7 +377,7 @@ class TestCopyTemp:
     def test_multiple_queries_on_same_temp(self):
         """Multiple queries on same temp table all work."""
         self.conn.execute(
-            f'COPY TEMP TempStable FROM "{self.people_csv}" (header = true)'
+            f"COPY TEMP TempStable FROM {cypher_path(self.people_csv)} (header = true)"
         )
         assert (
             list(self.conn.execute("MATCH (n:TempStable) RETURN count(n);"))[0][0] == 4
@@ -382,7 +395,9 @@ class TestCopyTemp:
 
     def test_aggregation_on_temp(self):
         """SUM, MIN, MAX on temp table."""
-        self.conn.execute(f'COPY TEMP TempAgg FROM "{self.people_csv}" (header = true)')
+        self.conn.execute(
+            f"COPY TEMP TempAgg FROM {cypher_path(self.people_csv)} (header = true)"
+        )
         rows = list(
             self.conn.execute(
                 "MATCH (n:TempAgg) RETURN sum(n.age), min(n.age), max(n.age);"
@@ -393,7 +408,7 @@ class TestCopyTemp:
     def test_where_string_comparison(self):
         """WHERE with string equality."""
         self.conn.execute(
-            f'COPY TEMP TempAlice FROM (LOAD FROM "{self.people_csv}" '
+            f"COPY TEMP TempAlice FROM (LOAD FROM {cypher_path(self.people_csv)} "
             f"(header = true) WHERE name = 'Alice' RETURN *)"
         )
         rows = list(self.conn.execute("MATCH (n:TempAlice) RETURN n.id, n.name;"))
@@ -402,7 +417,7 @@ class TestCopyTemp:
     def test_where_or_expression(self):
         """WHERE with OR."""
         self.conn.execute(
-            f'COPY TEMP TempOr FROM (LOAD FROM "{self.people_csv}" '
+            f"COPY TEMP TempOr FROM (LOAD FROM {cypher_path(self.people_csv)} "
             f"(header = true) WHERE age < 22 OR age > 32 RETURN *)"
         )
         rows = list(self.conn.execute("MATCH (n:TempOr) RETURN n.id ORDER BY n.id;"))
@@ -411,7 +426,7 @@ class TestCopyTemp:
     def test_where_arithmetic(self):
         """WHERE with arithmetic expression."""
         self.conn.execute(
-            f'COPY TEMP TempArith FROM (LOAD FROM "{self.people_csv}" '
+            f"COPY TEMP TempArith FROM (LOAD FROM {cypher_path(self.people_csv)} "
             f"(header = true) WHERE age * 2 > 60 RETURN *)"
         )
         rows = list(self.conn.execute("MATCH (n:TempArith) RETURN n.id;"))
@@ -421,7 +436,7 @@ class TestCopyTemp:
         """REL referencing non-existent vertex label must fail."""
         with pytest.raises(Exception):
             self.conn.execute(
-                f'COPY TEMP TempBadEdge FROM "{self.edges_csv}" '
+                f"COPY TEMP TempBadEdge FROM {cypher_path(self.edges_csv)} "
                 f"(header = true, from = 'Nope', to = 'Nope')"
             )
 
@@ -430,7 +445,7 @@ class TestCopyTemp:
         self.conn.execute("CREATE NODE TABLE Conflict(id INT64, PRIMARY KEY(id));")
         with pytest.raises(Exception):
             self.conn.execute(
-                f'COPY TEMP Conflict FROM "{self.people_csv}" (header = true)'
+                f"COPY TEMP Conflict FROM {cypher_path(self.people_csv)} (header = true)"
             )
 
     def test_dangling_reference_silent_skip(self):
@@ -438,9 +453,11 @@ class TestCopyTemp:
         dangling_csv = _write_csv(
             self.csv_dir, "dangling.csv", "src_id|dst_id|weight\n1|2|0.5\n99|3|1.0\n"
         )
-        self.conn.execute(f'COPY TEMP TempPD FROM "{self.people_csv}" (header = true)')
         self.conn.execute(
-            f'COPY TEMP TempDangling FROM "{dangling_csv}" '
+            f"COPY TEMP TempPD FROM {cypher_path(self.people_csv)} (header = true)"
+        )
+        self.conn.execute(
+            f"COPY TEMP TempDangling FROM {cypher_path(dangling_csv)} "
             f"(header = true, from = 'TempPD', to = 'TempPD')"
         )
         rows = list(
@@ -452,9 +469,11 @@ class TestCopyTemp:
 
     def test_rel_with_where(self):
         """REL COPY TEMP with WHERE filter via subquery."""
-        self.conn.execute(f'COPY TEMP TempPW FROM "{self.people_csv}" (header = true)')
         self.conn.execute(
-            f'COPY TEMP TempFilteredEdge FROM (LOAD FROM "{self.edges_csv}" '
+            f"COPY TEMP TempPW FROM {cypher_path(self.people_csv)} (header = true)"
+        )
+        self.conn.execute(
+            f"COPY TEMP TempFilteredEdge FROM (LOAD FROM {cypher_path(self.edges_csv)} "
             f"(header = true) WHERE weight > 0.6 RETURN *) "
             f"(from = 'TempPW', to = 'TempPW')"
         )
@@ -467,9 +486,11 @@ class TestCopyTemp:
 
     def test_rel_where_and_return(self):
         """REL with WHERE + RETURN via subquery."""
-        self.conn.execute(f'COPY TEMP TempPWR FROM "{self.people_csv}" (header = true)')
         self.conn.execute(
-            f'COPY TEMP TempWREdge FROM (LOAD FROM "{self.edges_csv}" '
+            f"COPY TEMP TempPWR FROM {cypher_path(self.people_csv)} (header = true)"
+        )
+        self.conn.execute(
+            f"COPY TEMP TempWREdge FROM (LOAD FROM {cypher_path(self.edges_csv)} "
             f"(header = true) WHERE weight >= 0.8 RETURN src_id, dst_id, weight) "
             f"(from = 'TempPWR', to = 'TempPWR')"
         )
@@ -487,7 +508,7 @@ class TestCopyTemp:
     def test_drop_temp_node(self):
         """DROP TABLE removes temp node table."""
         self.conn.execute(
-            f'COPY TEMP TempDrop FROM "{self.people_csv}" (header = true)'
+            f"COPY TEMP TempDrop FROM {cypher_path(self.people_csv)} (header = true)"
         )
         assert list(self.conn.execute("MATCH (n:TempDrop) RETURN count(n);"))[0][0] == 4
         self.conn.execute("DROP TABLE TempDrop;")
@@ -497,10 +518,10 @@ class TestCopyTemp:
     def test_drop_temp_edge(self):
         """DROP edge table; node table remains."""
         self.conn.execute(
-            f'COPY TEMP TempNodeK FROM "{self.people_csv}" (header = true)'
+            f"COPY TEMP TempNodeK FROM {cypher_path(self.people_csv)} (header = true)"
         )
         self.conn.execute(
-            f'COPY TEMP TempEdgeK FROM "{self.edges_csv}" '
+            f"COPY TEMP TempEdgeK FROM {cypher_path(self.edges_csv)} "
             f"(header = true, from = 'TempNodeK', to = 'TempNodeK')"
         )
         self.conn.execute("DROP TABLE TempEdgeK;")
@@ -513,11 +534,11 @@ class TestCopyTemp:
     def test_drop_then_recreate(self):
         """After DROP, same label can be reused."""
         self.conn.execute(
-            f'COPY TEMP TempRecycle FROM "{self.people_csv}" (header = true)'
+            f"COPY TEMP TempRecycle FROM {cypher_path(self.people_csv)} (header = true)"
         )
         self.conn.execute("DROP TABLE TempRecycle;")
         self.conn.execute(
-            f'COPY TEMP TempRecycle FROM "{self.people_csv}" (header = true)'
+            f"COPY TEMP TempRecycle FROM {cypher_path(self.people_csv)} (header = true)"
         )
         assert (
             list(self.conn.execute("MATCH (n:TempRecycle) RETURN count(n);"))[0][0] == 4
@@ -559,7 +580,7 @@ class TestCopyTempJsonl:
 
     def test_node_from_jsonl(self):
         self.conn.execute(
-            f"COPY TEMP TempJP FROM \"{self.jsonl_path}\" (primary_key = 'ID')"
+            f"COPY TEMP TempJP FROM {cypher_path(self.jsonl_path)} (primary_key = 'ID')"
         )
         rows = list(
             self.conn.execute("MATCH (n:TempJP) RETURN n.fName ORDER BY n.fName;")
@@ -568,7 +589,7 @@ class TestCopyTempJsonl:
 
     def test_node_from_jsonl_with_where(self):
         self.conn.execute(
-            f'COPY TEMP TempJOld FROM (LOAD FROM "{self.jsonl_path}" '
+            f"COPY TEMP TempJOld FROM (LOAD FROM {cypher_path(self.jsonl_path)} "
             f"(primary_key = 'ID') WHERE age >= 35 RETURN *)"
         )
         rows = list(
@@ -582,7 +603,7 @@ class TestCopyTempJsonl:
 
     def test_node_from_jsonl_with_return(self):
         self.conn.execute(
-            f'COPY TEMP TempJSlim FROM (LOAD FROM "{self.jsonl_path}" '
+            f"COPY TEMP TempJSlim FROM (LOAD FROM {cypher_path(self.jsonl_path)} "
             f"(primary_key = 'ID') RETURN ID, fName, age)"
         )
         rows = list(
@@ -614,7 +635,7 @@ class TestCopyTempJson:
 
     def test_node_from_json(self):
         self.conn.execute(
-            f"COPY TEMP TempJArr FROM \"{self.json_path}\" (primary_key = 'ID')"
+            f"COPY TEMP TempJArr FROM {cypher_path(self.json_path)} (primary_key = 'ID')"
         )
         rows = list(
             self.conn.execute("MATCH (n:TempJArr) RETURN n.fName ORDER BY n.fName;")
@@ -623,7 +644,7 @@ class TestCopyTempJson:
 
     def test_node_from_json_with_where(self):
         self.conn.execute(
-            f'COPY TEMP TempJArrOld FROM (LOAD FROM "{self.json_path}" '
+            f"COPY TEMP TempJArrOld FROM (LOAD FROM {cypher_path(self.json_path)} "
             f"(primary_key = 'ID') WHERE age >= 35 RETURN *)"
         )
         rows = list(
@@ -671,7 +692,7 @@ class TestCopyTempParquet:
 
     def test_node_from_parquet(self):
         self.conn.execute(
-            f"COPY TEMP TempPq FROM \"{self.parquet_path}\" (primary_key = 'ID')"
+            f"COPY TEMP TempPq FROM {cypher_path(self.parquet_path)} (primary_key = 'ID')"
         )
         rows = list(
             self.conn.execute("MATCH (n:TempPq) RETURN n.fName ORDER BY n.fName;")
@@ -680,7 +701,7 @@ class TestCopyTempParquet:
 
     def test_node_from_parquet_with_where(self):
         self.conn.execute(
-            f'COPY TEMP TempPqOld FROM (LOAD FROM "{self.parquet_path}" '
+            f"COPY TEMP TempPqOld FROM (LOAD FROM {cypher_path(self.parquet_path)} "
             f"(primary_key = 'ID') WHERE age >= 40 RETURN *)"
         )
         rows = list(
@@ -694,10 +715,10 @@ class TestCopyTempParquet:
         if not os.path.exists(meets_path):
             pytest.skip("eMeets.parquet not found")
         self.conn.execute(
-            f"COPY TEMP PqPerson FROM \"{self.parquet_path}\" (primary_key = 'ID')"
+            f"COPY TEMP PqPerson FROM {cypher_path(self.parquet_path)} (primary_key = 'ID')"
         )
         self.conn.execute(
-            f'COPY TEMP PqMeets FROM "{meets_path}" '
+            f"COPY TEMP PqMeets FROM {cypher_path(meets_path)} "
             f"(from = 'PqPerson', to = 'PqPerson')"
         )
         rows = list(
@@ -800,13 +821,14 @@ class TestCopyTempReadOnlyRejection:
     def test_copy_temp_node_rejected(self):
         with pytest.raises(Exception, match="read-only mode"):
             self.conn.execute(
-                f'COPY TEMP TempFail FROM "{self.people_csv}" ' f"(header = true)"
+                f"COPY TEMP TempFail FROM {cypher_path(self.people_csv)} "
+                f"(header = true)"
             )
 
     def test_copy_temp_rel_rejected(self):
         with pytest.raises(Exception, match="read-only mode"):
             self.conn.execute(
-                f'COPY TEMP TempEdgeFail FROM "{self.people_csv}" '
+                f"COPY TEMP TempEdgeFail FROM {cypher_path(self.people_csv)} "
                 f"(header = true, from = 'Person', to = 'Person')"
             )
 
@@ -833,7 +855,7 @@ def test_copy_temp_rejected_in_session(tmp_path):
         session = Session(uri, timeout="10s")
         with pytest.raises(Exception, match="not supported for TP service"):
             session.execute(
-                f'COPY TEMP TempFail FROM "{people_csv}" ' f"(header = true)"
+                f"COPY TEMP TempFail FROM {cypher_path(people_csv)} " f"(header = true)"
             )
     finally:
         db.stop_serving()
@@ -856,7 +878,9 @@ class TestFromToValidation:
         with open(self.csv, "w") as f:
             f.write("id|name|age\n1|Alice|30\n2|Bob|25\n")
         # Create a node table first so from/to refs could be valid
-        self.conn.execute(f'COPY TEMP TempUser FROM "{self.csv}" (header=true)')
+        self.conn.execute(
+            f"COPY TEMP TempUser FROM {cypher_path(self.csv)} (header=true)"
+        )
         yield
         self.conn.close()
         self.db.close()
@@ -865,12 +889,13 @@ class TestFromToValidation:
     def test_only_from_raises(self):
         with pytest.raises(Exception, match="Both.*from.*to"):
             self.conn.execute(
-                f'COPY TEMP TempEdge FROM "{self.csv}" '
+                f"COPY TEMP TempEdge FROM {cypher_path(self.csv)} "
                 f"(header=true, from='TempUser')"
             )
 
     def test_only_to_raises(self):
         with pytest.raises(Exception, match="Both.*from.*to"):
             self.conn.execute(
-                f'COPY TEMP TempEdge FROM "{self.csv}" ' f"(header=true, to='TempUser')"
+                f"COPY TEMP TempEdge FROM {cypher_path(self.csv)} "
+                f"(header=true, to='TempUser')"
             )

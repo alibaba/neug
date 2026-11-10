@@ -1599,7 +1599,7 @@ def test_complex_example(tmp_path):
     service_endpoint = db.serve(host="localhost", port=10010, blocking=False)
     print(f"Serving database at {service_endpoint}")
 
-    session = Session("http://localhost:10010/")
+    session = Session("http://localhost:10010")
 
     session.execute(
         """

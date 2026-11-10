@@ -74,6 +74,36 @@ class CapturingWalWriter : public IWalWriter {
   std::vector<std::vector<char>> records;
 };
 
+class MaintenanceIndex : public ExampleIndex {
+ public:
+  inline static std::string fail_name;
+  bool optimized{false};
+  std::shared_ptr<bool> physically_added = std::make_shared<bool>(false);
+
+  result<OptimizeIndexStats> Optimize() override {
+    OptimizeIndexStats stats;
+    if (meta_->name == fail_name)
+      return tl::unexpected(Status::RuntimeError("injected optimize failure"));
+    if (optimized)
+      return stats;
+    if (*physically_added)
+      ++stats.skipped_count;
+    else
+      ++stats.indexed_count;
+    *physically_added = true;
+    optimized = stats.changed = true;
+    return stats;
+  }
+
+ protected:
+  std::unique_ptr<ExampleIndex> CreateClone() const override {
+    auto clone = std::make_unique<MaintenanceIndex>();
+    clone->optimized = optimized;
+    clone->physically_added = physically_added;
+    return clone;
+  }
+};
+
 class StubPlanner : public IGraphPlanner {
  public:
   std::string type() const override { return "stub"; }
@@ -94,6 +124,9 @@ class TPIndexTest : public ::testing::Test {
         kExampleIndexType, [] { return std::make_unique<ExampleIndex>(); });
     ModuleFactory::instance().Register(
         kVecIndexType, [] { return std::make_unique<VecIndex>(); });
+    ModuleFactory::instance().Register("maintenance_index", [] {
+      return std::make_unique<MaintenanceIndex>();
+    });
   }
 
   void SetUp() override {
@@ -105,6 +138,7 @@ class TPIndexTest : public ::testing::Test {
   }
 
   void TearDown() override {
+    MaintenanceIndex::fail_name.clear();
     snapshot_store_.reset();
     ap_.reset();
     workspace_.reset();
@@ -391,6 +425,81 @@ class TPIndexTest : public ::testing::Test {
   VersionManager version_manager_;
   CapturingWalWriter wal_writer_;
 };
+
+TEST_F(TPIndexTest, OptimizeIndexesAtomicFailureRetryAndWalReplay) {
+  CreatePersonTableAP();
+  for (const auto& name : {"a", "b"}) {
+    auto meta = PersonAgeIndexMeta(*ap_, name);
+    meta->type = "maintenance";
+    ASSERT_TRUE(ap_->CreateIndex(std::move(meta)));
+  }
+  StartSnapshotStore();
+  auto replay_graph = snapshot_store_->CurrentSnapshot().Clone();
+  SnapshotGuard before(*snapshot_store_);
+  const auto planning = before.get().planning_generation();
+  auto is_optimized = [](const PropertyGraph& graph, const std::string& name) {
+    auto index = graph.index_manager().GetIndexByName(name);
+    return dynamic_cast<MaintenanceIndex*>(index.value())->optimized;
+  };
+  MaintenanceIndex::fail_name = "b";
+  {
+    auto txn = NewSnapshotCowWriteTransaction();
+    auto storage = txn.OpenStorage();
+    auto result = storage.OptimizeIndexes({});
+    ASSERT_FALSE(result);
+    EXPECT_NE(result.error().ToString().find("b"), std::string::npos);
+    txn.Abort();
+  }
+  EXPECT_TRUE(wal_writer_.records.empty());
+  EXPECT_FALSE(is_optimized(before.get().graph(), "a"));
+  EXPECT_FALSE(is_optimized(before.get().graph(), "b"));
+  MaintenanceIndex::fail_name.clear();
+  // Even after every index finishes, WAL failure must publish none of them.
+  wal_writer_.failure = CapturingWalWriter::Failure::kPreWrite;
+  {
+    auto txn = NewSnapshotCowWriteTransaction();
+    auto storage = txn.OpenStorage();
+    ASSERT_TRUE(storage.OptimizeIndexes({}));
+    EXPECT_FALSE(txn.Commit());
+  }
+  wal_writer_.failure = CapturingWalWriter::Failure::kNone;
+  {
+    auto txn = NewSnapshotCowWriteTransaction();
+    auto storage = txn.OpenStorage();
+    auto results = storage.OptimizeIndexes({});
+    ASSERT_TRUE(results);
+    ASSERT_EQ(results->size(), 2);
+    for (const auto& row : *results) {
+      EXPECT_EQ(row.stats.indexed_count, 0);
+      EXPECT_EQ(row.stats.skipped_count, 1);
+    }
+    Commit(txn);
+  }
+  SnapshotGuard after(*snapshot_store_);
+  EXPECT_EQ(after.get().planning_generation(), planning);
+  for (const auto& name : {"a", "b"}) {
+    EXPECT_FALSE(is_optimized(before.get().graph(), name));
+    EXPECT_TRUE(is_optimized(after.get().graph(), name));
+  }
+  ASSERT_EQ(wal_writer_.records.size(), 1);
+  const auto& wal = wal_writer_.records.back();
+  const auto* header = reinterpret_cast<const WalHeader*>(wal.data());
+  ReplayCowGraphWal(*replay_graph, header->timestamp,
+                    const_cast<char*>(wal.data() + sizeof(WalHeader)),
+                    header->length, allocator_);
+  EXPECT_TRUE(is_optimized(*replay_graph, "a"));
+  EXPECT_TRUE(is_optimized(*replay_graph, "b"));
+  {
+    auto txn = NewSnapshotCowWriteTransaction();
+    auto storage = txn.OpenStorage();
+    auto results = storage.OptimizeIndexes({});
+    ASSERT_TRUE(results);
+    for (const auto& row : *results)
+      EXPECT_FALSE(row.stats.changed);
+    Commit(txn);
+  }
+  EXPECT_EQ(wal_writer_.records.size(), 1);
+}
 
 TEST_F(TPIndexTest, CreateIndexEmptyGraphAndDuplicateName) {
   CreatePersonTableTP();

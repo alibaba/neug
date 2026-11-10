@@ -14,6 +14,7 @@
  */
 
 #include <gtest/gtest.h>
+#include <filesystem>
 #include <iostream>
 #include <string>
 #include "neug/main/neug_db.h"
@@ -51,7 +52,9 @@ TEST(StorageDDLTest, ExportTest) {
     throw std::runtime_error(
         "COMPREHENSIVE_GRAPH_DATA_DIR environment variable is not set");
   }
-  std::string flex_data_dir = flex_data_dir_ptr;
+  // Cypher string literals need '/' separators, including on Windows.
+  std::string flex_data_dir =
+      std::filesystem::path(flex_data_dir_ptr).generic_string();
   LOG(INFO) << "Flex data dir: " << flex_data_dir;
   auto conn = db.Connect();
   EXPECT_TRUE(

@@ -233,6 +233,11 @@ result<std::vector<StorageIndex*>> GraphView::GetIndexesContainingProperty(
   return indexes;
 }
 
+result<std::vector<ShowIndexStats>> GraphView::ShowIndexes(
+    const IndexOptions& options) const {
+  return index_manager_->ShowIndexes(options);
+}
+
 result<std::vector<StorageIndex*>> GraphView::GetAllIndexes() const {
   return index_manager_->GetAllIndexes();
 }

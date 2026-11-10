@@ -44,8 +44,12 @@ std::unique_ptr<BoundStatement> Binder::bindStandaloneCallFunction(
   NEUG_ASSERT(entry);
   auto boundTableFunction =
       bindTableFunc(funcName, funcExpr, {} /* yieldVariables */);
-  return std::make_unique<BoundStandaloneCallFunction>(
+  auto columns = boundTableFunction.bindData->columns;
+  auto bound = std::make_unique<BoundStandaloneCallFunction>(
       std::move(boundTableFunction));
+  for (const auto& column : columns)
+    bound->getStatementResultUnsafe()->addColumn(column->toString(), column);
+  return bound;
 }
 
 }  // namespace binder

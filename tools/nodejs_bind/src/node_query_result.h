@@ -49,8 +49,6 @@ class NodeQueryResult : public Napi::ObjectWrap<NodeQueryResult> {
   QueryResult& query_result() { return query_result_; }
 
  private:
-  static Napi::FunctionReference constructor;
-
   Napi::Value HasNext(const Napi::CallbackInfo& info);
   Napi::Value GetNext(const Napi::CallbackInfo& info);
   Napi::Value GetAt(const Napi::CallbackInfo& info);

@@ -1,0 +1,397 @@
+name: Python Tests
+
+description: Run Python core tests and tests for the compiled extensions.
+
+inputs:
+  platform:
+    description: Test platform selected by the caller (linux, macos, windows)
+    required: true
+  coverage:
+    description: Enable Python coverage collection and reporting
+    default: 'false'
+  extensions:
+    description: Semicolon-separated compiled extension names
+    default: ''
+
+runs:
+  using: composite
+  steps:
+
+  - name: Set Environments
+    shell: bash
+    run: |
+      pytest_options="${{ inputs.coverage == 'true' && '--cov=neug --cov-report=term --cov-append --cov-config=.coveragerc' || '' }}"
+      if [[ "$RUNNER_OS" != Windows ]]; then
+        pytest_options="$pytest_options --exitfirst"
+      fi
+      # Temporary thread dumps to investigate hangs in macOS CI.
+      if [[ "$RUNNER_OS" == macOS ]]; then
+        pytest_options="$pytest_options -o faulthandler_timeout=120"
+      fi
+      echo "PYTEST_ADDOPTS=$pytest_options" >> "$GITHUB_ENV"
+
+  - name: Run Python Test
+    id: run-python-test
+    continue-on-error: ${{ inputs.platform == 'windows' }}
+    shell: bash
+    working-directory: tools/python_bind
+    env:
+      FLEX_DATA_DIR: ${{ github.workspace }}/example_dataset/modern_graph
+    run: |
+      # Run all files on Windows, then preserve any failure in this step.
+      if [[ "$RUNNER_OS" == Windows ]]; then
+        set +e
+        test_failed=0
+        trap 'test_failed=1' ERR
+        trap 'exit "$test_failed"' EXIT
+      fi
+      python -m pytest -sv tests/test_batch_loading.py
+      python -m pytest -sv tests/test_cypher_path.py
+      python -m pytest -sv tests/test_alter_property.py
+      python -m pytest -sv tests/test_ddl.py
+      python -m pytest -sv tests/test_query.py
+      # Temporarily skip TP service tests on Windows: concurrent updates to
+      # the same vertex time out.
+      if [[ "$RUNNER_OS" != Windows ]]; then
+        python -m pytest -sv tests/test_tp_service.py
+      fi
+      python -m pytest -sv tests/test_load.py
+      python -m pytest -sv tests/test_load_array.py
+      python -m pytest -sv tests/test_export.py
+      python -m pytest -sv tests/test_copy_temp.py
+
+  # Windows currently skips this test because bulk_loader is disabled and
+  # cannot prepare the LSQB database; this is not a limitation of LSQB queries.
+  - name: Run LSQB Test
+    if: inputs.platform != 'windows'
+    shell: bash
+    working-directory: tools/python_bind
+    env:
+      LSQB_DATA_DIR: /tmp/lsqb
+    run: |
+      python -m pytest -sv tests/test_lsqb.py
+
+  - name: Run DB Init Test
+    id: run-db-init-test
+    continue-on-error: ${{ inputs.platform == 'windows' }}
+    shell: bash
+    working-directory: tools/python_bind
+    run: |
+      python -m pytest -sv tests/test_db_init.py
+
+  - name: Run DB Connection Test
+    id: run-db-connection-test
+    continue-on-error: ${{ inputs.platform == 'windows' }}
+    shell: bash
+    working-directory: tools/python_bind
+    run: |
+      python -m pytest -sv tests/test_db_connection.py
+
+  - name: Run Query Test
+    id: run-query-test
+    continue-on-error: ${{ inputs.platform == 'windows' }}
+    shell: bash
+    working-directory: tools/python_bind
+    run: |
+      if [[ "$RUNNER_OS" == Windows ]]; then
+        set +e
+        test_failed=0
+        trap 'test_failed=1' ERR
+        trap 'exit "$test_failed"' EXIT
+      fi
+      python -m pytest -sv tests/test_schema.py
+      python -m pytest -sv tests/test_dml.py
+      python -m pytest -sv tests/test_query.py
+      python -m pytest -sv tests/test_path.py
+      python -m pytest -sv tests/test_persistence.py
+      python -m pytest -sv tests/test_call_string_literal.py
+      python -m pytest -sv tests/test_dataset.py
+      python -m pytest -sv tests/test_merge.py
+
+  - name: Run TinySNB Tutorial Test
+    id: run-tinysnb-tutorial-test
+    continue-on-error: ${{ inputs.platform == 'windows' }}
+    shell: bash
+    working-directory: tools/python_bind
+    run: |
+      python -m pytest -sv tests/test_tinysnb_tutorial.py
+
+  - name: Run Transaction Test
+    id: run-transaction-test
+    continue-on-error: ${{ inputs.platform == 'windows' }}
+    shell: bash
+    working-directory: tools/python_bind
+    run: |
+      python -m pytest -sv tests/test_db_transaction.py
+
+  - name: Run Import/Export Test
+    id: run-import-export-test
+    continue-on-error: ${{ inputs.platform == 'windows' }}
+    shell: bash
+    working-directory: tools/python_bind
+    run: |
+      python -m pytest -sv tests/test_db_import_export.py
+
+  - name: Run Data I/O Documentation Test
+    id: run-data-i-o-documentation-test
+    continue-on-error: ${{ inputs.platform == 'windows' }}
+    shell: bash
+    working-directory: tools/python_bind
+    env:
+      FLEX_DATA_DIR: ${{ github.workspace }}/example_dataset/modern_graph
+    run: |
+      python -m pytest -sv tests/test_data_io_docs.py
+
+  - name: Run LOAD from Sniffer Tests (CSV and JSON)
+    id: run-load-from-sniffer-tests-csv-and-json
+    continue-on-error: ${{ inputs.platform == 'windows' }}
+    shell: bash
+    working-directory: tools/python_bind
+    run: |
+      python -m pytest -sv tests/test_sniffer.py -k "csv or json"
+
+  - name: Run Complex Query Test
+    id: run-complex-query-test
+    continue-on-error: ${{ inputs.platform == 'windows' }}
+    shell: bash
+    working-directory: tools/python_bind
+    run: |
+      python -m pytest -sv tests/test_db_cases.py
+
+  - name: Run List/Array Test
+    id: run-list-array-test
+    continue-on-error: ${{ inputs.platform == 'windows' }}
+    shell: bash
+    working-directory: tools/python_bind
+    run: |
+      if [[ "$RUNNER_OS" == Windows ]]; then
+        set +e
+        test_failed=0
+        trap 'test_failed=1' ERR
+        trap 'exit "$test_failed"' EXIT
+      fi
+      python -m pytest -sv tests/test_db_list.py
+      python -m pytest -sv tests/test_db_array.py
+
+  - name: Run Concurrency Test
+    id: run-concurrency-test
+    continue-on-error: ${{ inputs.platform == 'windows' }}
+    shell: bash
+    working-directory: tools/python_bind
+    run: |
+      python -m pytest -sv tests/test_db_concurrent.py
+
+  - name: Run Transaction Concurrent Test
+    id: run-transaction-concurrent-test
+    continue-on-error: ${{ inputs.platform == 'windows' }}
+    shell: bash
+    working-directory: tools/python_bind
+    run: |
+      python -m pytest -sv tests/transaction/elle_tester_insert.py
+
+  - name: Install PyArrow
+    id: install-pyarrow
+    # PyArrow 24 has no Windows ARM64 wheel; source builds need an Arrow C++ SDK.
+    if: runner.os != 'Windows' || runner.arch != 'ARM64'
+    continue-on-error: ${{ inputs.platform == 'windows' }}
+    shell: bash
+    working-directory: tools/python_bind
+    env:
+      # Do not pass NeuG's CMake configuration to PyArrow's source build.
+      CMAKE_ARGS: ''
+    run: python -m pip install pyarrow==24.0.0
+
+  - name: Run PyArrow Related Test
+    id: run-pyarrow-related-test
+    # This entire module requires PyArrow, unavailable on Windows ARM64 above.
+    if: runner.os != 'Windows' || runner.arch != 'ARM64'
+    continue-on-error: ${{ inputs.platform == 'windows' }}
+    shell: bash
+    working-directory: tools/python_bind
+    run: |
+      python -m pytest -sv tests/test_to_arrow.py
+
+  - name: Test CLI Tool
+    id: test-cli-tool
+    continue-on-error: ${{ inputs.platform == 'windows' }}
+    shell: bash
+    working-directory: tools/python_bind
+    run: |
+      if [[ "$RUNNER_OS" == Windows ]]; then
+        set +e
+        test_failed=0
+        trap 'test_failed=1' ERR
+        trap 'exit "$test_failed"' EXIT
+      fi
+      python -m pytest -sv tests/test_ngcli_commands.py
+      python -m pytest -sv tests/test_ngcli_basics.py
+
+  - name: Install Extension Test Dependencies
+    id: install-extension-test-dependencies
+    continue-on-error: ${{ inputs.platform == 'windows' }}
+    if: inputs.extensions != ''
+    shell: bash
+    working-directory: tools/python_bind
+    run: |
+      if [[ "$RUNNER_OS" == Windows ]]; then
+        set +e
+        test_failed=0
+        trap 'test_failed=1' ERR
+        trap 'exit "$test_failed"' EXIT
+      fi
+      python -m pip install -r requirements.txt
+      python -m pip install -r "${PYTHON_DEV_REQUIREMENTS:-requirements_dev.txt}"
+
+  - name: Run Parquet Python Test
+    id: run-parquet-python-test
+    continue-on-error: ${{ inputs.platform == 'windows' }}
+    if: contains(format(';{0};', inputs.extensions), ';parquet;')
+    shell: bash
+    working-directory: tools/python_bind
+    env:
+      PARQUET_IO_FILTER: ${{ contains(format(';{0};', inputs.extensions), ';httpfs;') && 'parquet or httpfs' || 'parquet and not httpfs' }}
+      NEUG_RUN_EXTENSION_TESTS: 'true'
+      FLEX_DATA_DIR: ${{ github.workspace }}/example_dataset/modern_graph
+    run: |
+      if [[ "$RUNNER_OS" == Windows ]]; then
+        set +e
+        test_failed=0
+        trap 'test_failed=1' ERR
+        trap 'exit "$test_failed"' EXIT
+      fi
+      python -m pytest -sv tests/test_parquet_backend_contract.py
+      load_filter="$PARQUET_IO_FILTER"
+      if [[ "$RUNNER_OS" == Windows && "$RUNNER_ARCH" == ARM64 ]]; then
+        # Only these two cases import PyArrow directly; keep native Parquet tests.
+        load_filter="($load_filter) and not test_copy_from_parquet_edge_non_standard_columns and not test_copy_from_parquet_edge_without_from_to_options"
+      fi
+      python -m pytest -sv tests/test_load.py -k "$load_filter"
+      python -m pytest -sv tests/test_load_array.py -k "parquet"
+      python -m pytest -sv tests/test_export.py -k "${{ env.PARQUET_IO_FILTER }}"
+      python -m pytest -sv tests/test_db_import_export.py -k "copy_from_parquet"
+      python -m pytest -sv tests/test_sniffer.py -k "parquet"
+      python -m pytest -sv tests/test_copy_temp.py -k "${{ env.PARQUET_IO_FILTER }}"
+      # The interop module requires PyArrow; skipping the whole module exits 5.
+      if [[ "$RUNNER_OS" != Windows || "$RUNNER_ARCH" != ARM64 ]]; then
+        python -m pytest -sv tests/test_parquet_export_interop.py
+      fi
+
+  # When parquet is selected, its data I/O tests also cover httpfs.
+  - name: Run HTTPFS Python Test
+    id: run-httpfs-python-test
+    continue-on-error: ${{ inputs.platform == 'windows' }}
+    if: ${{ contains(format(';{0};', inputs.extensions), ';httpfs;') && !contains(format(';{0};', inputs.extensions), ';parquet;') }}
+    shell: bash
+    working-directory: tools/python_bind
+    env:
+      NEUG_RUN_EXTENSION_TESTS: 'true'
+      FLEX_DATA_DIR: ${{ github.workspace }}/example_dataset/modern_graph
+    run: |
+      python -m pytest -sv tests/test_load.py -k "test_httpfs_appears_in_show_loaded_extensions"
+
+  - name: Run GDS Temporary Graph Test
+    id: run-gds-temporary-graph-test
+    continue-on-error: ${{ inputs.platform == 'windows' }}
+    if: contains(format(';{0};', inputs.extensions), ';gds;')
+    shell: bash
+    working-directory: tools/python_bind
+    env:
+      NEUG_RUN_EXTENSION_TESTS: 'true'
+      FLEX_DATA_DIR: ${{ github.workspace }}/example_dataset/modern_graph
+    run: |
+      python -m pytest -sv tests/test_gds_temp_graph.py
+
+  # Linux builds test_out_of_tree with its selected extensions.
+  - name: Run Extension Call Parameters Test
+    id: run-extension-call-parameters-test
+    continue-on-error: ${{ inputs.platform == 'windows' }}
+    if: (inputs.platform == 'linux' && inputs.extensions != '') || contains(format(';{0};', inputs.extensions), ';test_out_of_tree;')
+    shell: bash
+    working-directory: tools/python_bind
+    env:
+      NEUG_RUN_EXTENSION_TESTS: 'true'
+      FLEX_DATA_DIR: ${{ github.workspace }}/example_dataset/modern_graph
+    run: |
+      python -m pytest -sv tests/test_call_params.py
+
+  - name: Run Vector Search Python Test
+    if: contains(format(';{0};', inputs.extensions), ';vector_search;')
+    shell: bash
+    working-directory: tools/python_bind
+    env:
+      VECTOR_SEARCH_FILTER: ${{ !contains(format(';{0};', inputs.extensions), ';parquet;') && 'not parquet' || '' }}
+      NEUG_RUN_EXTENSION_TESTS: 'true'
+      FLEX_DATA_DIR: ${{ github.workspace }}/example_dataset/modern_graph
+    run: |
+      python -m pytest -sv tests/test_hnsw_index.py -k "${{ env.VECTOR_SEARCH_FILTER }}"
+      python -m pytest -sv tests/test_hnsw_index_tp.py -k "${{ env.VECTOR_SEARCH_FILTER }}"
+
+  - name: Run FTS Python Test
+    id: run-fts-python-test
+    continue-on-error: ${{ inputs.platform == 'windows' }}
+    if: contains(format(';{0};', inputs.extensions), ';fts;')
+    shell: bash
+    working-directory: tools/python_bind
+    env:
+      NEUG_RUN_EXTENSION_TESTS: 'true'
+      FLEX_DATA_DIR: ${{ github.workspace }}/example_dataset/modern_graph
+    run: |
+      if [[ "$RUNNER_OS" == Windows ]]; then
+        set +e
+        test_failed=0
+        trap 'test_failed=1' ERR
+        trap 'exit "$test_failed"' EXIT
+      fi
+      python -m pytest -sv tests/test_fts_index.py
+      python -m pytest -sv tests/test_fts_index_tp.py
+
+  - name: Run GDS Tests
+    id: run-gds-tests
+    continue-on-error: ${{ inputs.platform == 'windows' }}
+    if: contains(format(';{0};', inputs.extensions), ';gds;')
+    shell: bash
+    working-directory: tools/python_bind
+    run: |
+      if [[ "$RUNNER_OS" == Windows ]]; then
+        set +e
+        test_failed=0
+        trap 'test_failed=1' ERR
+        trap 'exit "$test_failed"' EXIT
+      fi
+      python -m pytest -sv tests/test_gds.py
+      python -m pytest -sv tests/test_gds_path.py
+      python -m pytest -sv tests/test_gds_concurrency.py
+      python -m pytest -sv tests/test_gds_yield.py
+
+  - name: Run LDBC Graphalytics Conformance Tests
+    id: run-ldbc-graphalytics-conformance-tests
+    continue-on-error: ${{ inputs.platform == 'windows' }}
+    if: contains(format(';{0};', inputs.extensions), ';gds;')
+    shell: bash
+    working-directory: tools/python_bind
+    run: |
+      python -m pytest -sv tests/test_graphalytics.py
+
+  - name: Clear Pytest Options
+    if: always()
+    shell: bash
+    run: |
+      echo "PYTEST_ADDOPTS=" >> "$GITHUB_ENV"
+
+  - name: Check test results
+    if: always() && inputs.platform == 'windows'
+    shell: bash
+    env:
+      TEST_RESULTS: ${{ toJSON(steps) }}
+    run: |
+      python - <<'PYTHON'
+      import json
+      import os
+
+      failed = [
+          name for name, result in json.loads(os.environ["TEST_RESULTS"]).items()
+          if result["outcome"] == "failure"
+      ]
+      if failed:
+          raise SystemExit("Failed Python test steps: " + ", ".join(failed))
+      PYTHON

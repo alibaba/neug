@@ -137,6 +137,11 @@ void WalBuilder::LogActivateIndexes() {
   schema_changed_ = true;
 }
 
+void WalBuilder::LogOptimizeIndexes(const std::vector<std::string>& names) {
+  OptimizeIndexesRedo::Serialize(arc_, names);
+  ++op_num_;
+}
+
 void WalBuilder::LogDropGraphEntry(const std::string& name) {
   DropGraphEntryRedo::Serialize(arc_, name);
   ++op_num_;

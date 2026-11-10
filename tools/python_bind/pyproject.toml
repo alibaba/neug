@@ -14,7 +14,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "neug"
 requires-python = ">=3.8"
-version = "0.3.0"
+version = "0.3.1"
 description = "GraphScope NeuG for python"
 authors = [{name="GraphScope Team", email="graphscope@alibaba-inc.com"}]
 readme = "README.md"
@@ -66,12 +66,17 @@ build = "cp38-* cp39-* cp310-* cp311-* cp312-* cp313-* cp314-*"
 enable = ["cpython-prerelease"]
 skip = ["*-musllinux_*", "*i686*"]
 environment-pass = ["BUILD_TYPE", "CMAKE_BUILD_PARALLEL_LEVEL", "CMAKE_PREFIX_PATH", "MACOSX_DEPLOYMENT_TARGET", "PYBIND11_FINDPYTHON", "CI_INSTALL_EXTENSIONS", "NEUG_COMMIT_SHA"]
-manylinux-x86_64-image = "neug-registry.cn-hongkong.cr.aliyuncs.com/neug/neug-manylinux:v0.3.0-x86_64"
-manylinux-aarch64-image = "neug-registry.cn-hongkong.cr.aliyuncs.com/neug/neug-manylinux:v0.3.0-arm64"
+manylinux-x86_64-image = "neug-registry.cn-hongkong.cr.aliyuncs.com/neug/neug-manylinux:2026.03.13-2-x86_64"
+manylinux-aarch64-image = "neug-registry.cn-hongkong.cr.aliyuncs.com/neug/neug-manylinux:2026.03.13-2-arm64"
 
 [tool.cibuildwheel.linux]
 before-all = ["git submodule update --init --recursive"]
-before-build = [". /root/.neug_env"]
+before-build = [
+    ". /root/.neug_env",
+    # Keep the native core build, but remove the prior Python ABI's binding
+    # so setup.py does not copy it into the next version's wheel.
+    "rm -f '{project}/build/tools/python_bind'/neug_py_bind*.so",
+]
 environment = {CMAKE_PREFIX_PATH="/opt/neug/", OPENSSL_ROOT_DIR="/opt/neug", LIBRARY_PATH="/opt/neug/lib:/opt/neug/lib64", LD_LIBRARY_PATH="/opt/neug/lib:/opt/neug/lib64:$LD_LIBRARY_PATH",  DYLD_LIBRARY_PATH="/opt/neug/lib:/opt/neug/lib64:$DYLD_LIBRARY_PATH", PYBIND11_FINDPYTHON="OFF"}
 
 [tool.cibuildwheel.macos]

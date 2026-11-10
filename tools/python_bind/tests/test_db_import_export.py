@@ -23,6 +23,7 @@ from datetime import datetime
 from pathlib import Path
 
 import pytest
+from conftest import cypher_path
 
 from neug.database import Database
 from neug.proto.error_pb2 import ERR_BAD_ENCODING
@@ -64,7 +65,7 @@ def test_import_default(tmp_path):
     print(f"Creating CSV file at {csv_path}")
     with open(csv_path, "w") as f:
         f.write("id|name\n1|Alice\n2|Bob\n")
-    conn.execute(f'COPY person FROM "{Path(csv_path).as_posix()}";')
+    conn.execute(f"COPY person FROM {cypher_path(csv_path)};")
     res1 = conn.execute("MATCH (n:person) RETURN n;")
     assert len(res1) == 2
     conn.close()
@@ -81,7 +82,7 @@ def test_import_config(tmp_path):
     with open(csv_path, "w") as f:
         f.write("1,Alice\n2,Bob\n3,Charlie\n")
     conn.execute(
-        f'COPY person FROM "{Path(csv_path).as_posix()}" (HEADER FALSE, DELIMITER=",");'
+        f'COPY person FROM {cypher_path(csv_path)} (HEADER FALSE, DELIMITER=",");'
     )
     res = conn.execute("MATCH (n:person) RETURN n;")
     assert len(res) == 3
@@ -100,7 +101,7 @@ def test_double_quote(tmp_path):
     with open(csv_path, "w") as f:
         f.write('"1","["Alice"]"\n"2","["Bob"]"\n"3","["Charlie"]"\n')
     conn.execute(
-        f'COPY person FROM "{Path(csv_path).as_posix()}" (HEADER FALSE, DELIMITER=",", DOUBLE_QUOTE=true);'
+        f'COPY person FROM {cypher_path(csv_path)} (HEADER FALSE, DELIMITER=",", DOUBLE_QUOTE=true);'
     )
     res = conn.execute("MATCH (n:person) RETURN n;")
     assert len(res) == 3
@@ -122,7 +123,7 @@ def test_import_bad_csv(tmp_path):
         f.write(b"id\n1\n\xff\n2\n")
 
     with pytest.raises(Exception) as excinfo:
-        conn.execute(f'COPY person FROM "{Path(csv_path).as_posix()}";')
+        conn.execute(f"COPY person FROM {cypher_path(csv_path)};")
     assert str(ERR_IO_ERROR) in str(excinfo.value) or str(ERR_TYPE_CONVERSION) in str(
         excinfo.value
     )
@@ -140,7 +141,7 @@ def test_import_null(tmp_path):
     csv_path = tmp_path / "null.csv"
     with open(csv_path, "w") as f:
         f.write("id|name\n1|NULL\n2|NaN\n")
-    conn.execute(f'COPY person FROM "{Path(csv_path).as_posix()}";')
+    conn.execute(f"COPY person FROM {cypher_path(csv_path)};")
     res = conn.execute("MATCH (n:person) RETURN n")
     assert len(res) == 2
     conn.close()
@@ -157,7 +158,7 @@ def test_import_type_conversion1(tmp_path):
     csv_path = tmp_path / "type.csv"
     with open(csv_path, "w") as f:
         f.write("id|name\n1|111\n2|222\n")
-    conn.execute(f'COPY person FROM "{Path(csv_path).as_posix()}"')
+    conn.execute(f"COPY person FROM {cypher_path(csv_path)}")
     conn.close()
     db.close()
 
@@ -172,7 +173,7 @@ def test_import_type_conversion2(tmp_path):
     with open(csv_path2, "w") as f:
         f.write("id|age\n1|30\n2|40\n")
     # This should raise an error due to type conversion failure
-    conn.execute(f'COPY person2 FROM "{Path(csv_path2).as_posix()}";')
+    conn.execute(f"COPY person2 FROM {cypher_path(csv_path2)};")
     conn.close()
     db.close()
 
@@ -188,12 +189,150 @@ def test_import_type_conversion_overflow(tmp_path):
         f.write("id\n12345678901234567890\n")  # INT64 overflow
     # This should raise an error due to type conversion failure
     with pytest.raises(Exception) as excinfo:
-        conn.execute(f'COPY person FROM "{Path(csv_path).as_posix()}";')
+        conn.execute(f"COPY person FROM {cypher_path(csv_path)};")
     assert str(ERR_IO_ERROR) in str(excinfo.value) or str(ERR_TYPE_CONVERSION) in str(
         excinfo.value
     )
     conn.close()
     db.close()
+
+
+# DB-005-04b
+# Regression test for issue #1125: COPY FROM (LOAD FROM ...) must not silently
+# write garbage when a source column's type differs from the target column type.
+def test_copy_from_subquery_type_mismatch_raises(tmp_path):
+    db_dir = tmp_path / "copy_subquery_type_mismatch"
+    db_dir.mkdir()
+    db = Database(db_path=str(db_dir), mode="w")
+    conn = db.connect()
+    conn.execute(
+        "CREATE NODE TABLE bad_typed(id INT64 PRIMARY KEY, name INT64, price DOUBLE);"
+    )
+    csv_path = tmp_path / "item.csv"
+    with open(csv_path, "w") as f:
+        f.write("id|name|price\n1|apple|1.5\n2|banana|2.5\n")
+    # `name` is STRING in the source but INT64 in the target: no implicit cast
+    # exists, so COPY must reject it at bind time (ERR_TYPE_CONVERSION naming the
+    # column and both types) rather than reinterpret the raw bytes.
+    with pytest.raises(Exception) as excinfo:
+        conn.execute(
+            f'COPY bad_typed FROM (LOAD FROM "{Path(csv_path).as_posix()}" '
+            '(delim="|", header=true) RETURN id, name, price);'
+        )
+    assert str(ERR_TYPE_CONVERSION) in str(excinfo.value)
+    conn.close()
+    db.close()
+
+
+# DB-005-04c
+# Companion to #1125: a *compatible* source/target type mismatch must be cast to
+# the target type (previously the raw source buffer was reinterpreted, corrupting
+# the stored value).
+def test_copy_from_subquery_compatible_cast(tmp_path):
+    db_dir = tmp_path / "copy_subquery_compatible_cast"
+    db_dir.mkdir()
+    db = Database(db_path=str(db_dir), mode="w")
+    conn = db.connect()
+    conn.execute("CREATE NODE TABLE good_typed(id INT64 PRIMARY KEY, count DOUBLE);")
+    csv_path = tmp_path / "count.csv"
+    with open(csv_path, "w") as f:
+        f.write("id|count\n1|100\n2|250\n")
+    # `count` is sniffed as INT64 by LOAD FROM but the target column is DOUBLE.
+    conn.execute(
+        f'COPY good_typed FROM (LOAD FROM "{Path(csv_path).as_posix()}" '
+        '(delim="|", header=true) RETURN id, count);'
+    )
+    rows = [
+        list(r)
+        for r in conn.execute(
+            "MATCH (n:good_typed) RETURN n.id, n.count ORDER BY n.id;"
+        )
+    ]
+    assert rows == [[1, 100.0], [2, 250.0]]
+    conn.close()
+    db.close()
+
+
+# DB-005-04d
+# Regression test for issue #1125 on the *relationship* COPY path: an edge
+# property whose source type is incompatible with the target column type must be
+# rejected at bind time, exactly like the node path. The rel path also carries
+# src/dst key columns (positions 0 and 1), so this guards the positional cast
+# wiring in bindCopyRelFrom against the key columns.
+def test_copy_rel_from_subquery_type_mismatch_raises(tmp_path):
+    db_dir = tmp_path / "copy_rel_subquery_type_mismatch"
+    db_dir.mkdir()
+    db = Database(db_path=str(db_dir), mode="w")
+    conn = db.connect()
+    try:
+        conn.execute("CREATE NODE TABLE person(id INT64, PRIMARY KEY(id));")
+        person_csv = tmp_path / "person.csv"
+        with open(person_csv, "w") as f:
+            f.write("id\n1\n2\n")
+        conn.execute(f'COPY person FROM "{person_csv.as_posix()}" (header=true);')
+        # Target edge property `note` is INT64.
+        conn.execute("CREATE REL TABLE knows(FROM person TO person, note INT64);")
+        edge_csv = tmp_path / "knows.csv"
+        with open(edge_csv, "w") as f:
+            # `note` is STRING in the source but INT64 in the target.
+            f.write("src|dst|note\n1|2|hello\n")
+        # No implicit cast exists STRING -> INT64, so COPY must reject it at bind
+        # time (ERR_TYPE_CONVERSION naming the column and both types) rather than
+        # reinterpret the raw bytes.
+        with pytest.raises(Exception) as excinfo:
+            conn.execute(
+                f'COPY knows FROM (LOAD FROM "{edge_csv.as_posix()}" '
+                '(delim="|", header=true) RETURN src, dst, note) '
+                '(from="person", to="person");'
+            )
+        assert str(ERR_TYPE_CONVERSION) in str(excinfo.value)
+    finally:
+        conn.close()
+        db.close()
+
+
+# DB-005-04e
+# Companion to #1125 on the *relationship* COPY path: a *compatible* edge
+# property type mismatch (source INT64 -> target DOUBLE) must be cast to the
+# target type and stored correctly. Unlike the node path, the rel projection
+# must keep the src/dst key columns (positions 0 and 1) aligned with the
+# property columns, so this pins the whole chain end to end: projection
+# materialization -> positional mapping -> BatchInsertEdge.
+def test_copy_rel_from_subquery_compatible_cast(tmp_path):
+    db_dir = tmp_path / "copy_rel_subquery_compatible_cast"
+    db_dir.mkdir()
+    db = Database(db_path=str(db_dir), mode="w")
+    conn = db.connect()
+    try:
+        conn.execute("CREATE NODE TABLE person(id INT64, PRIMARY KEY(id));")
+        person_csv = tmp_path / "person.csv"
+        with open(person_csv, "w") as f:
+            f.write("id\n1\n2\n")
+        conn.execute(f'COPY person FROM "{person_csv.as_posix()}" (header=true);')
+        # Target edge property `weight` is DOUBLE.
+        conn.execute("CREATE REL TABLE knows(FROM person TO person, weight DOUBLE);")
+        edge_csv = tmp_path / "knows.csv"
+        with open(edge_csv, "w") as f:
+            # `weight` is sniffed as INT64 by LOAD FROM but the target is DOUBLE,
+            # while the src/dst key columns already match INT64: the projection
+            # must pass the keys through by reference and cast only `weight`.
+            f.write("src|dst|weight\n1|2|100\n2|1|250\n")
+        conn.execute(
+            f'COPY knows FROM (LOAD FROM "{edge_csv.as_posix()}" '
+            '(delim="|", header=true) RETURN src, dst, weight) '
+            '(from="person", to="person");'
+        )
+        rows = [
+            list(r)
+            for r in conn.execute(
+                "MATCH (a:person)-[k:knows]->(b:person) "
+                "RETURN a.id, b.id, k.weight ORDER BY a.id, b.id;"
+            )
+        ]
+        assert rows == [[1, 2, 100.0], [2, 1, 250.0]]
+    finally:
+        conn.close()
+        db.close()
 
 
 def test_import_string_pk(tmp_path):
@@ -205,7 +344,7 @@ def test_import_string_pk(tmp_path):
     csv_path = tmp_path / "type.csv"
     with open(csv_path, "w") as f:
         f.write("id\nAlice\n")
-    conn.execute(f'COPY person FROM "{Path(csv_path).as_posix()}"')
+    conn.execute(f"COPY person FROM {cypher_path(csv_path)}")
 
 
 def test_import_int32_pk(tmp_path):
@@ -218,7 +357,7 @@ def test_import_int32_pk(tmp_path):
     csv_path = tmp_path / "person.csv"
     with open(csv_path, "w") as f:
         f.write("id|name\n1|Alice\n2|Bob\n")
-    conn.execute(f'COPY person FROM "{Path(csv_path).as_posix()}";')
+    conn.execute(f"COPY person FROM {cypher_path(csv_path)};")
     res = conn.execute("MATCH (n:person) RETURN n;")
     assert len(res) == 2
     conn.close()
@@ -235,7 +374,7 @@ def test_import_uint32_pk(tmp_path):
     csv_path = tmp_path / "person.csv"
     with open(csv_path, "w") as f:
         f.write("id|name\n1|Alice\n2|Bob\n")
-    conn.execute(f'COPY person FROM "{Path(csv_path).as_posix()}";')
+    conn.execute(f"COPY person FROM {cypher_path(csv_path)};")
     res = conn.execute("MATCH (n:person) RETURN n;")
     assert len(res) == 2
     conn.close()
@@ -252,7 +391,7 @@ def test_import_uint64_pk(tmp_path):
     csv_path = tmp_path / "person.csv"
     with open(csv_path, "w") as f:
         f.write("id|name\n1|Alice\n2|Bob\n")
-    conn.execute(f'COPY person FROM "{Path(csv_path).as_posix()}";')
+    conn.execute(f"COPY person FROM {cypher_path(csv_path)};")
     res = conn.execute("MATCH (n:person) RETURN n;")
     assert len(res) == 2
     conn.close()
@@ -270,7 +409,7 @@ def test_export_config(tmp_path):
     out_path = tmp_path / "out.csv"
     # delimiter, header, quotechar, encoding
     conn.execute(
-        f'COPY (MATCH (p:person) RETURN *) TO "{out_path}" (DELIMITER=",", HEADER=TRUE)'
+        f'COPY (MATCH (p:person) RETURN *) TO {cypher_path(out_path)} (DELIMITER=",", HEADER=TRUE)'
     )
     assert out_path.exists()
     conn.close()
@@ -295,7 +434,8 @@ def test_import_file_not_found(tmp_path):
 
 # DB-005-08
 @pytest.mark.skipif(
-    getattr(os, "geteuid", lambda: -1)() == 0, reason="Root can bypass file permissions"
+    os.name == "nt" or getattr(os, "geteuid", lambda: -1)() == 0,
+    reason="Windows permissions differ from Unix; root can bypass file permissions",
 )
 def test_export_no_permission(tmp_path):
     db_dir = tmp_path / "export_no_permission"
@@ -309,7 +449,9 @@ def test_export_no_permission(tmp_path):
     out_path = out_dir / "out.csv"
     try:
         with pytest.raises(Exception) as excinfo:
-            conn.execute(f'COPY (MATCH (v:person) RETURN v) to "{out_path}";')
+            conn.execute(
+                f"COPY (MATCH (v:person) RETURN v) to {cypher_path(out_path)};"
+            )
             print(str(excinfo.value))
         assert str(ERR_PERMISSION) in str(excinfo.value)
     finally:
@@ -329,7 +471,7 @@ def test_import_schema_mismatch(tmp_path):
     with open(csv_path, "w") as f:
         f.write("id|name\n1|Alice\n")
     with pytest.raises(Exception) as excinfo:
-        conn.execute(f'COPY person FROM "{Path(csv_path).as_posix()}";')
+        conn.execute(f"COPY person FROM {cypher_path(csv_path)};")
     assert str(ERR_SCHEMA_MISMATCH) in str(excinfo.value)
     conn.close()
     db.close()
@@ -346,7 +488,7 @@ def test_import_bad_encoding(tmp_path):
     with open(csv_path, "wb") as f:
         f.write(b"id\n1\n\xff\n")
     with pytest.raises(Exception) as excinfo:
-        conn.execute(f'COPY person FROM "{Path(csv_path).as_posix()}";')
+        conn.execute(f"COPY person FROM {cypher_path(csv_path)};")
     assert str(ERR_IO_ERROR) in str(excinfo.value) or str(ERR_TYPE_CONVERSION) in str(
         excinfo.value
     )
@@ -392,8 +534,8 @@ def test_copy_load_from_to_csv(tmp_path):
     # Use COPY (LOAD FROM ...) TO to export data to another CSV
     output_csv = tmp_path / "output.csv"
     conn.execute(
-        f'COPY (LOAD FROM "{Path(input_csv).as_posix()}" RETURN id, name, age) '
-        f'TO "{output_csv}" (HEADER=TRUE, DELIMITER=",");'
+        f"COPY (LOAD FROM {cypher_path(input_csv)} RETURN id, name, age) "
+        f'TO {cypher_path(output_csv)} (HEADER=TRUE, DELIMITER=",");'
     )
 
     # Verify output file exists and contains expected data
@@ -422,8 +564,8 @@ def test_copy_load_from_to_with_filter(tmp_path):
 
     output_csv = tmp_path / "adults.csv"
     conn.execute(
-        f'COPY (LOAD FROM "{Path(input_csv).as_posix()}" WHERE age >= 18 RETURN id, name, age) '
-        f'TO "{output_csv}" (HEADER=TRUE);'
+        f"COPY (LOAD FROM {cypher_path(input_csv)} WHERE age >= 18 RETURN id, name, age) "
+        f"TO {cypher_path(output_csv)} (HEADER=TRUE);"
     )
 
     assert output_csv.exists()
@@ -453,8 +595,8 @@ def test_copy_load_from_to_with_column_reorder(tmp_path):
 
     output_csv = tmp_path / "reordered.csv"
     conn.execute(
-        f'COPY (LOAD FROM "{Path(input_csv).as_posix()}" RETURN id, name, score) '
-        f'TO "{output_csv}" (HEADER=TRUE, DELIMITER="|");'
+        f"COPY (LOAD FROM {cypher_path(input_csv)} RETURN id, name, score) "
+        f'TO {cypher_path(output_csv)} (HEADER=TRUE, DELIMITER="|");'
     )
 
     assert output_csv.exists()
@@ -488,7 +630,7 @@ def test_copy_from_no_schema_node_basic(tmp_path):
     with open(csv_path, "w") as f:
         f.write("id|name\n1|Alice\n2|Bob\n3|Charlie\n")
 
-    conn.execute(f'COPY ns_person FROM "{Path(csv_path).as_posix()}";')
+    conn.execute(f"COPY ns_person FROM {cypher_path(csv_path)};")
 
     res = conn.execute("MATCH (n:ns_person) RETURN n.id, n.name ORDER BY n.id;")
     rows = list(res)
@@ -517,7 +659,7 @@ def test_copy_from_no_schema_node_subquery(tmp_path):
         f.write("name|user_id\nAlice|1\nBob|2\nCharlie|3\n")
 
     conn.execute(
-        f'COPY ns_user FROM (LOAD FROM "{Path(csv_path).as_posix()}" RETURN user_id, name);'
+        f"COPY ns_user FROM (LOAD FROM {cypher_path(csv_path)} RETURN user_id, name);"
     )
 
     res = conn.execute("MATCH (u:ns_user) RETURN u.user_id, u.name ORDER BY u.user_id;")
@@ -543,7 +685,7 @@ def test_copy_from_projection_fallback_matches_load_from(tmp_path):
             for i in range(1, 51):
                 f.write(f"{i}|name{i}|{i * 10}|tag{i % 5}\n")
 
-        load_from = f'LOAD FROM "{Path(csv_path).as_posix()}" (header=true, delim="|")'
+        load_from = f'LOAD FROM {cypher_path(csv_path)} (header=true, delim="|")'
         projection = "RETURN a, d, b"  # reordered + subset (drops column c)
 
         # Reference: standalone LOAD FROM runs the non-fused full_read path.
@@ -586,7 +728,7 @@ def test_copy_from_edge_projection_fallback_matches_load_from(tmp_path):
             for i in range(1, 11):
                 f.write(f"{i}\n")
         conn.execute("CREATE NODE TABLE person(id INT64, PRIMARY KEY(id));")
-        conn.execute(f'COPY person FROM "{Path(person_csv).as_posix()}" (header=true);')
+        conn.execute(f"COPY person FROM {cypher_path(person_csv)} (header=true);")
 
         edge_csv = tmp_path / "edges.csv"
         with open(edge_csv, "w") as f:
@@ -594,7 +736,7 @@ def test_copy_from_edge_projection_fallback_matches_load_from(tmp_path):
             for i in range(1, 10):
                 f.write(f"{i}|{i + 1}|{i * 100}|n{i}\n")
 
-        load_from = f'LOAD FROM "{Path(edge_csv).as_posix()}" (header=true, delim="|")'
+        load_from = f'LOAD FROM {cypher_path(edge_csv)} (header=true, delim="|")'
         projection = "RETURN src, dst, note, weight"  # properties reordered
 
         # Reference: standalone LOAD FROM runs the non-fused full_read path.
@@ -641,14 +783,14 @@ def test_copy_from_no_schema_edge_from_file(tmp_path):
     with open(person_csv, "w") as f:
         f.write("id|name\n1|Alice\n2|Bob\n3|Charlie\n")
     conn.execute("CREATE NODE TABLE person(id INT64, name STRING, PRIMARY KEY(id));")
-    conn.execute(f'COPY person FROM "{Path(person_csv).as_posix()}";')
+    conn.execute(f"COPY person FROM {cypher_path(person_csv)};")
 
     edge_csv = tmp_path / "knows.csv"
     with open(edge_csv, "w") as f:
         f.write("from|to|weight\n1|2|0.5\n2|3|0.8\n")
 
     conn.execute(
-        f'COPY ns_knows FROM "{Path(edge_csv).as_posix()}" (from="person", to="person");'
+        f'COPY ns_knows FROM {cypher_path(edge_csv)} (from="person", to="person");'
     )
 
     res = conn.execute(
@@ -678,7 +820,7 @@ def test_copy_from_no_schema_edge_subquery(tmp_path):
     with open(person_csv, "w") as f:
         f.write("id|name\n1|Alice\n2|Bob\n3|Charlie\n")
     conn.execute("CREATE NODE TABLE person(id INT64, name STRING, PRIMARY KEY(id));")
-    conn.execute(f'COPY person FROM "{Path(person_csv).as_posix()}";')
+    conn.execute(f"COPY person FROM {cypher_path(person_csv)};")
 
     edge_csv = tmp_path / "follows.csv"
     with open(edge_csv, "w") as f:
@@ -686,7 +828,7 @@ def test_copy_from_no_schema_edge_subquery(tmp_path):
         f.write("since|dst|src\n2020|2|1\n2021|3|2\n")
 
     conn.execute(
-        f'COPY ns_follows FROM (LOAD FROM "{Path(edge_csv).as_posix()}" RETURN src, dst, since) '
+        f"COPY ns_follows FROM (LOAD FROM {cypher_path(edge_csv)} RETURN src, dst, since) "
         f'(from="person", to="person");'
     )
 
@@ -712,12 +854,12 @@ def test_copy_from_no_schema_vertex_then_edge_no_ddl(tmp_path):
 
     v_csv = tmp_path / "ns_vertices.csv"
     v_csv.write_text("id|name\n1|Alice\n2|Bob\n3|Charlie\n", encoding="utf-8")
-    conn.execute(f'COPY ns5_person FROM "{Path(v_csv).as_posix()}";')
+    conn.execute(f"COPY ns5_person FROM {cypher_path(v_csv)};")
 
     e_csv = tmp_path / "ns_edges.csv"
     e_csv.write_text("from|to|weight\n1|2|0.5\n2|3|0.8\n", encoding="utf-8")
     conn.execute(
-        f'COPY ns5_knows FROM "{Path(e_csv).as_posix()}" (from="ns5_person", to="ns5_person");'
+        f'COPY ns5_knows FROM {cypher_path(e_csv)} (from="ns5_person", to="ns5_person");'
     )
 
     vrows = list(conn.execute("MATCH (n:ns5_person) RETURN n.id ORDER BY n.id;"))
@@ -746,7 +888,7 @@ def test_copy_from_no_schema_header_false_f_column_names(tmp_path):
     v_csv = tmp_path / "vnh.csv"
     v_csv.write_text("1|Alice\n2|Bob\n3|Charlie\n", encoding="utf-8")
     conn.execute(
-        f'COPY ns_fvert FROM "{Path(v_csv).as_posix()}" (HEADER FALSE, DELIMITER="|");'
+        f'COPY ns_fvert FROM {cypher_path(v_csv)} (HEADER FALSE, DELIMITER="|");'
     )
 
     vrows = list(conn.execute("MATCH (n:ns_fvert) RETURN n.f0, n.f1 ORDER BY n.f0;"))
@@ -755,7 +897,7 @@ def test_copy_from_no_schema_header_false_f_column_names(tmp_path):
     e_csv = tmp_path / "enh.csv"
     e_csv.write_text("1|2|0.5\n2|3|0.8\n", encoding="utf-8")
     conn.execute(
-        f'COPY ns_fedge FROM "{Path(e_csv).as_posix()}" '
+        f"COPY ns_fedge FROM {cypher_path(e_csv)} "
         f'(from="ns_fvert", to="ns_fvert", HEADER FALSE, DELIMITER="|");'
     )
 
@@ -787,7 +929,7 @@ def test_copy_from_no_schema_multiple_types(tmp_path):
         f.write("2|Gadget|19.50\n")
         f.write("3|Doohickey|4.25\n")
 
-    conn.execute(f'COPY ns_product FROM "{Path(csv_path).as_posix()}";')
+    conn.execute(f"COPY ns_product FROM {cypher_path(csv_path)};")
 
     res = conn.execute(
         "MATCH (p:ns_product) RETURN p.product_id, p.product_name, p.price "
@@ -816,7 +958,7 @@ def test_copy_from_no_schema_pk_is_first_column(tmp_path):
     with open(csv_path, "w") as f:
         f.write("item_id|description\n10|Pen\n20|Pencil\n30|Eraser\n")
 
-    conn.execute(f'COPY ns_item FROM "{Path(csv_path).as_posix()}";')
+    conn.execute(f"COPY ns_item FROM {cypher_path(csv_path)};")
 
     res = conn.execute("MATCH (i:ns_item) RETURN i.item_id ORDER BY i.item_id;")
     rows = list(res)
@@ -849,7 +991,7 @@ def test_copy_from_no_schema_node_wide_row(tmp_path):
         "\n".join([lines[0], lines[2], lines[3]]) + "\n", encoding="utf-8"
     )
 
-    conn.execute(f'COPY ns_comp FROM "{Path(csv_path).as_posix()}";')
+    conn.execute(f"COPY ns_comp FROM {cypher_path(csv_path)};")
 
     assert len(list(conn.execute("MATCH (n:ns_comp) RETURN n.id ORDER BY n.id;"))) == 2
 
@@ -907,7 +1049,7 @@ def test_copy_from_no_schema_node_string_pk(tmp_path):
         f.write("ABC-001|10\n")
         f.write("XYZ-9|20\n")
 
-    conn.execute(f'COPY ns_sku FROM "{Path(csv_path).as_posix()}";')
+    conn.execute(f"COPY ns_sku FROM {cypher_path(csv_path)};")
 
     res = conn.execute("MATCH (s:ns_sku) RETURN s.sku, s.qty ORDER BY s.sku;")
     rows = list(res)
@@ -931,7 +1073,7 @@ def test_copy_from_no_schema_node_duplicate_pk_first_row_wins(tmp_path):
     with open(csv_path, "w", encoding="utf-8") as f:
         f.write("id|name\n1|First\n1|Second\n")
 
-    conn.execute(f'COPY ns_dup_pk FROM "{Path(csv_path).as_posix()}";')
+    conn.execute(f"COPY ns_dup_pk FROM {cypher_path(csv_path)};")
 
     res = conn.execute("MATCH (n:ns_dup_pk) RETURN n.id, n.name;")
     rows = list(res)
@@ -953,7 +1095,7 @@ def test_copy_from_no_schema_node_reopen_database(tmp_path):
 
     db = Database(db_path=str(db_dir), mode="w")
     conn = db.connect()
-    conn.execute(f'COPY ns_persist FROM "{Path(csv_path).as_posix()}";')
+    conn.execute(f"COPY ns_persist FROM {cypher_path(csv_path)};")
     conn.close()
     db.close()
 
@@ -981,8 +1123,8 @@ def test_copy_from_no_schema_node_second_copy_appends(tmp_path):
     a.write_text("id|v\n1|a\n", encoding="utf-8")
     b.write_text("id|v\n2|b\n", encoding="utf-8")
 
-    conn.execute(f'COPY ns_twice FROM "{Path(a).as_posix()}";')
-    conn.execute(f'COPY ns_twice FROM "{Path(b).as_posix()}";')
+    conn.execute(f"COPY ns_twice FROM {cypher_path(a)};")
+    conn.execute(f"COPY ns_twice FROM {cypher_path(b)};")
 
     rows = list(conn.execute("MATCH (n:ns_twice) RETURN n.id, n.v ORDER BY n.id;"))
     assert len(rows) == 2
@@ -1005,7 +1147,7 @@ def test_copy_from_no_schema_node_subquery_where_filter(tmp_path):
         f.write("id|name|tag\n1|A|x\n2|B|y\n3|C|z\n")
 
     conn.execute(
-        f'COPY ns_filt FROM (LOAD FROM "{Path(csv_path).as_posix()}" WHERE id > 1 RETURN id, name);'
+        f"COPY ns_filt FROM (LOAD FROM {cypher_path(csv_path)} WHERE id > 1 RETURN id, name);"
     )
 
     rows = list(conn.execute("MATCH (n:ns_filt) RETURN n.id ORDER BY n.id;"))
@@ -1034,7 +1176,7 @@ def test_copy_from_load_from_where_with_batch_read(tmp_path):
 
     conn.execute(
         f"COPY person_batch FROM ("
-        f'LOAD FROM "{Path(csv_path).as_posix()}" (header=true, delimiter=",", batch_read=true) '
+        f'LOAD FROM {cypher_path(csv_path)} (header=true, delimiter=",", batch_read=true) '
         f"WHERE age > 20 "
         f"RETURN id, name, age);"
     )
@@ -1059,7 +1201,7 @@ def test_copy_from_no_schema_node_header_only_csv(tmp_path):
     csv_path = tmp_path / "empty_body.csv"
     csv_path.write_text("id|name\n", encoding="utf-8")
 
-    conn.execute(f'COPY ns_empty FROM "{Path(csv_path).as_posix()}";')
+    conn.execute(f"COPY ns_empty FROM {cypher_path(csv_path)};")
 
     rows = list(conn.execute("MATCH (n:ns_empty) RETURN n.id;"))
     assert len(rows) == 0
@@ -1081,7 +1223,7 @@ def test_copy_from_no_schema_node_unicode_string(tmp_path):
         f.write("1|你好\n")
         f.write("2|English\n")
 
-    conn.execute(f'COPY ns_uni FROM "{Path(csv_path).as_posix()}";')
+    conn.execute(f"COPY ns_uni FROM {cypher_path(csv_path)};")
 
     rows = list(conn.execute("MATCH (u:ns_uni) RETURN u.id, u.label ORDER BY u.id;"))
     assert len(rows) == 2
@@ -1117,7 +1259,7 @@ def test_copy_from_json_node_no_schema(tmp_path):
     with open(json_path, "w") as f:
         json.dump(data, f)
 
-    conn.execute(f'COPY ns_employee FROM "{Path(json_path).as_posix()}";')
+    conn.execute(f"COPY ns_employee FROM {cypher_path(json_path)};")
 
     res = conn.execute(
         "MATCH (e:ns_employee) RETURN e.emp_id, e.name, e.salary ORDER BY e.emp_id;"
@@ -1149,7 +1291,7 @@ def test_copy_from_jsonl_node_no_schema(tmp_path):
         for rec in records:
             f.write(json.dumps(rec) + "\n")
 
-    conn.execute(f'COPY ns_item FROM "{Path(jsonl_path).as_posix()}";')
+    conn.execute(f"COPY ns_item FROM {cypher_path(jsonl_path)};")
 
     res = conn.execute(
         "MATCH (i:ns_item) RETURN i.item_id, i.description, i.price ORDER BY i.item_id;"
@@ -1182,7 +1324,7 @@ def test_copy_from_json_with_subquery(tmp_path):
         json.dump(data, f)
 
     conn.execute(
-        f'COPY person FROM (LOAD FROM "{Path(json_path).as_posix()}" RETURN user_id AS id, name, age);'
+        f"COPY person FROM (LOAD FROM {cypher_path(json_path)} RETURN user_id AS id, name, age);"
     )
 
     res = conn.execute("MATCH (n:person) RETURN n.id, n.name, n.age ORDER BY n.id;")
@@ -1208,7 +1350,7 @@ def test_copy_from_parquet_node_no_schema(tmp_path):
     conn = db.connect()
     conn.execute("LOAD PARQUET")
 
-    conn.execute(f'COPY ns_person FROM "{Path(parquet_path).as_posix()}";')
+    conn.execute(f"COPY ns_person FROM {cypher_path(parquet_path)};")
 
     res = conn.execute("MATCH (n:ns_person) RETURN n.ID, n.fName, n.age ORDER BY n.ID;")
     rows = list(res)
@@ -1236,11 +1378,11 @@ def test_copy_from_parquet_edge_no_schema(tmp_path):
     conn.execute("LOAD PARQUET")
 
     # Import person nodes first (auto-detect)
-    conn.execute(f'COPY ns_person FROM "{Path(person_parquet).as_posix()}";')
+    conn.execute(f"COPY ns_person FROM {cypher_path(person_parquet)};")
 
     # Import meets edges (auto-detect, need from/to)
     conn.execute(
-        f'COPY ns_meets FROM "{Path(meets_parquet).as_posix()}" (from="ns_person", to="ns_person");'
+        f'COPY ns_meets FROM {cypher_path(meets_parquet)} (from="ns_person", to="ns_person");'
     )
 
     res = conn.execute(

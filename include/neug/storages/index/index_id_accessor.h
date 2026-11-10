@@ -18,8 +18,8 @@
 #include <atomic>
 #include <cstdint>
 #include <memory>
-#include <set>
 #include <unordered_map>
+#include <vector>
 
 #include "neug/config.h"
 #include "neug/storages/container/i_container.h"
@@ -43,7 +43,10 @@ class IndexIDAccessor : public Module {
   // Accessible index IDs are in [0, GetVisibleLimit()), excluding IDs in
   // GetDeletedIndexIDs().
   virtual index_id_t GetVisibleLimit() const = 0;
-  virtual const std::set<index_id_t>& GetDeletedIndexIDs() const = 0;
+  // Append-only invalidation log within a snapshot, in event order rather
+  // than ID order. Consumers may retain an offset; do not erase or reorder
+  // entries after Open. Clone/Detach preserve the log prefix for each snapshot.
+  virtual const std::vector<index_id_t>& GetDeletedIndexIDs() const = 0;
   virtual index_id_t UpsertVID(vid_t vid) = 0;
   virtual Status DeleteVID(vid_t vid) = 0;
 
@@ -74,7 +77,7 @@ class NEUG_API DefaultIndexIDAccessor final : public IndexIDAccessor {
     return next_index_id_->load(std::memory_order_relaxed);
   }
   index_id_t GetVisibleLimit() const override { return visible_limit_; }
-  const std::set<index_id_t>& GetDeletedIndexIDs() const override {
+  const std::vector<index_id_t>& GetDeletedIndexIDs() const override {
     return *deleted_index_ids_;
   }
   index_id_t GetIndexIDByVID(vid_t vid) const override;
@@ -111,8 +114,8 @@ class NEUG_API DefaultIndexIDAccessor final : public IndexIDAccessor {
   // [0, visible_limit_). Gaps caused by interleaved index ID allocation are
   // recorded in deleted_index_ids_ and remain inaccessible to this snapshot.
   index_id_t visible_limit_{0};
-  std::shared_ptr<std::set<index_id_t>> deleted_index_ids_ =
-      std::make_shared<std::set<index_id_t>>();
+  std::shared_ptr<std::vector<index_id_t>> deleted_index_ids_ =
+      std::make_shared<std::vector<index_id_t>>();
 };
 
 // Non-owning adapter for indexes backed by a VecColumn. Its purpose is to
@@ -130,7 +133,7 @@ class NEUG_API VecColumnBackedIndexIDAccessor final : public IndexIDAccessor {
   vid_t GetVIDByIndexID(index_id_t index_id) const override;
   index_id_t GetNextIndexID() const override;
   index_id_t GetVisibleLimit() const override;
-  const std::set<index_id_t>& GetDeletedIndexIDs() const override;
+  const std::vector<index_id_t>& GetDeletedIndexIDs() const override;
   index_id_t UpsertVID(vid_t vid) override;
   Status DeleteVID(vid_t vid) override;
 

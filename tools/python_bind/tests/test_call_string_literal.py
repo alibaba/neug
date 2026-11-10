@@ -224,7 +224,7 @@ def test_varchar_max_length_survives_reopen_for_create_and_copy(tmp_path):
     )
     csv_path = tmp_path / "varchar.csv"
     csv_path.write_text(f"id,val\ncopy,{long_value}\n")
-    conn.execute(f'COPY t FROM "{csv_path}" (HEADER TRUE, DELIMITER=",");')
+    conn.execute(f'COPY t FROM "{csv_path.as_posix()}" (HEADER TRUE, DELIMITER=",");')
     conn.execute(
         "CREATE (:small {id:$id, val:$val});",
         "insert",

@@ -23,6 +23,7 @@
 #include "neug/utils/exception/exception.h"
 #include "neug/utils/pb_utils.h"
 #include "neug/utils/yaml_utils.h"
+#include "node_database.h"
 #include "node_query_request.h"
 
 #include <rapidjson/document.h>
@@ -44,8 +45,6 @@ Status ClosedConnectionStatus() {
 
 }  // namespace
 
-Napi::FunctionReference NodeConnection::constructor;
-
 Napi::Object NodeConnection::Init(Napi::Env env, Napi::Object exports) {
   Napi::Function func = DefineClass(
       env, "NodeConnection",
@@ -59,29 +58,39 @@ Napi::Object NodeConnection::Init(Napi::Env env, Napi::Object exports) {
           InstanceMethod("getSchema", &NodeConnection::GetSchema),
           InstanceMethod("close", &NodeConnection::Close),
       });
-  constructor = Napi::Persistent(func);
-  constructor.SuppressDestruct();
+  env.GetInstanceData<AddonData>()->connection_constructor =
+      Napi::Persistent(func);
   exports.Set("NodeConnection", func);
   return exports;
 }
 
 NodeConnection::NodeConnection(const Napi::CallbackInfo& info)
-    : Napi::ObjectWrap<NodeConnection>(info), db_(nullptr), conn_(nullptr) {}
+    : Napi::ObjectWrap<NodeConnection>(info) {}
 
-void NodeConnection::SetConnection(NeugDB* db,
+NodeConnection::~NodeConnection() {
+  try {
+    CloseConnection();
+  } catch (const std::exception& e) {
+    LOG(ERROR) << "Failed to close worker connection: " << e.what();
+  }
+}
+
+void NodeConnection::SetConnection(std::shared_ptr<DatabaseState> state,
                                    std::shared_ptr<Connection> conn) {
-  db_ = db;
+  state_ = std::move(state);
   conn_ = std::move(conn);
   if (!conn_) {
     THROW_RUNTIME_ERROR("Connection is null");
   }
 }
 
-Napi::Object NodeConnection::NewInstance(Napi::Env env, NeugDB& db,
+Napi::Object NodeConnection::NewInstance(Napi::Env env,
+                                         std::shared_ptr<DatabaseState> state,
                                          std::shared_ptr<Connection> conn) {
-  Napi::Object obj = constructor.New({});
+  Napi::Object obj =
+      env.GetInstanceData<AddonData>()->connection_constructor.New({});
   NodeConnection* wrapped = Napi::ObjectWrap<NodeConnection>::Unwrap(obj);
-  wrapped->SetConnection(&db, std::move(conn));
+  wrapped->SetConnection(std::move(state), std::move(conn));
   return obj;
 }
 
@@ -112,6 +121,10 @@ Napi::Value NodeConnection::Execute(const Napi::CallbackInfo& info) {
     }
   }
 
+  if (!conn_) {
+    return NodeQueryResult::NewInstanceFromStatus(env,
+                                                  ClosedConnectionStatus());
+  }
   auto query_result = conn_->Query(query_string, access_mode, params_json);
   if (!query_result) {
     return NodeQueryResult::NewInstanceFromStatus(env, query_result.error());
@@ -154,6 +167,9 @@ Napi::Value NodeConnection::HasActiveTransaction(
 Napi::Value NodeConnection::GetSchema(const Napi::CallbackInfo& info) {
   Napi::Env env = info.Env();
   try {
+    if (!conn_) {
+      THROW_RUNTIME_ERROR("Connection is closed.");
+    }
     return Napi::String::New(env, conn_->GetSchema());
   } catch (const neug::exception::Exception& e) {
     Napi::Error::New(env, e.what()).ThrowAsJavaScriptException();
@@ -163,10 +179,19 @@ Napi::Value NodeConnection::GetSchema(const Napi::CallbackInfo& info) {
   return env.Null();
 }
 
-Napi::Value NodeConnection::Close(const Napi::CallbackInfo& info) {
+void NodeConnection::CloseConnection() {
   if (conn_) {
     conn_->Close();
     conn_.reset();
+  }
+  state_.reset();
+}
+
+Napi::Value NodeConnection::Close(const Napi::CallbackInfo& info) {
+  try {
+    CloseConnection();
+  } catch (const std::exception& e) {
+    Napi::Error::New(info.Env(), e.what()).ThrowAsJavaScriptException();
   }
   return info.Env().Undefined();
 }

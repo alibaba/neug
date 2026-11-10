@@ -263,6 +263,11 @@ struct ActivateIndexesRedo {
   static void Serialize(InArchive& arc);
 };
 
+struct OptimizeIndexesRedo {
+  static void Serialize(InArchive& arc, const std::vector<std::string>& names);
+  static std::vector<std::string> Deserialize(OutArchive& arc);
+};
+
 struct AddGraphEntryRedo {
   std::string name;
   ProjectedGraphEntry entry;

@@ -27,6 +27,7 @@ from datetime import datetime
 from pathlib import Path
 
 import pytest
+from conftest import cypher_path
 
 sys.path.append(os.path.join(os.path.dirname(__file__), "../"))
 
@@ -103,7 +104,7 @@ class TestLoadArray:
         self.conn.execute(
             f"""
             COPY Person FROM (
-                LOAD FROM "{csv_path.as_posix()}" (delim=',')
+                LOAD FROM {cypher_path(csv_path)} (delim=',')
                 RETURN id, name, CAST(address, 'STRING[3]') AS addresses
             )
             """
@@ -136,7 +137,7 @@ class TestLoadArray:
         self.conn.execute("LOAD PARQUET")
         result = list(
             self.conn.execute(
-                f'LOAD FROM "{parquet_path.as_posix()}" '
+                f"LOAD FROM {cypher_path(parquet_path)} "
                 "RETURN id, CAST(values, 'FLOAT[3]') ORDER BY id"
             )
         )
@@ -164,7 +165,7 @@ class TestLoadArray:
         self.conn.execute("LOAD PARQUET")
         result = list(
             self.conn.execute(
-                f'LOAD FROM "{parquet_path.as_posix()}" '
+                f"LOAD FROM {cypher_path(parquet_path)} "
                 "RETURN id, CAST(values, 'STRING[2][2]') ORDER BY id"
             )
         )
@@ -192,7 +193,7 @@ class TestLoadArray:
         self.conn.execute("LOAD PARQUET")
         result = list(
             self.conn.execute(
-                f'LOAD FROM "{parquet_path.as_posix()}" '
+                f"LOAD FROM {cypher_path(parquet_path)} "
                 "RETURN id, CAST(values, 'FLOAT[3]') ORDER BY id"
             )
         )
@@ -226,7 +227,7 @@ class TestLoadArray:
 
         result = list(
             self.conn.execute(
-                f'LOAD FROM "{parquet_path.as_posix()}" '
+                f"LOAD FROM {cypher_path(parquet_path)} "
                 "RETURN seconds, milliseconds, microseconds, nanoseconds, times"
             )
         )
@@ -284,7 +285,7 @@ class TestLoadArray:
         result = list(
             self.conn.execute(
                 f"""
-                LOAD FROM "{parquet_path.as_posix()}"
+                LOAD FROM {cypher_path(parquet_path)}
                 RETURN id,
                        CAST(floats, 'FLOAT[3]'),
                        CAST(doubles, 'DOUBLE[2]'),
@@ -326,7 +327,7 @@ class TestLoadArray:
             "3|[0.0, 0.0, 0.0]\n",
         )
         query = f"""
-        LOAD FROM "{csv_path.as_posix()}" (delim='|')
+        LOAD FROM {cypher_path(csv_path)} (delim='|')
         RETURN id, CAST(values, 'FLOAT[3]')
         """
         result = list(self.conn.execute(query))
@@ -354,7 +355,7 @@ class TestLoadArray:
             "2|[3.333333333, 4.444444444]\n",
         )
         query = f"""
-        LOAD FROM "{csv_path.as_posix()}" (delim='|')
+        LOAD FROM {cypher_path(csv_path)} (delim='|')
         RETURN id, CAST(values, 'DOUBLE[2]')
         """
         result = list(self.conn.execute(query))
@@ -374,7 +375,7 @@ class TestLoadArray:
             "id|nums\n" "1|[10, 20, 30]\n" "2|[-1, 0, 1]\n",
         )
         query = f"""
-        LOAD FROM "{csv_path.as_posix()}" (delim='|')
+        LOAD FROM {cypher_path(csv_path)} (delim='|')
         RETURN id, CAST(nums, 'INT32[3]')
         """
         result = list(self.conn.execute(query))
@@ -389,7 +390,7 @@ class TestLoadArray:
             "id|nums\n" "1|[100000000000, 200000000000]\n" "2|[0, 1]\n",
         )
         query = f"""
-        LOAD FROM "{csv_path.as_posix()}" (delim='|')
+        LOAD FROM {cypher_path(csv_path)} (delim='|')
         RETURN id, CAST(nums, 'INT64[2]')
         """
         result = list(self.conn.execute(query))
@@ -404,7 +405,7 @@ class TestLoadArray:
             "id|tags\n" "1|[hello, world, test]\n" "2|[foo, bar, baz]\n",
         )
         query = f"""
-        LOAD FROM "{csv_path.as_posix()}" (delim='|')
+        LOAD FROM {cypher_path(csv_path)} (delim='|')
         RETURN id, CAST(tags, 'STRING[3]')
         """
         result = list(self.conn.execute(query))
@@ -419,7 +420,7 @@ class TestLoadArray:
             "id|matrix\n" "1|[[1, 2], [3, 4]]\n" "2|[[5, 6], [7, 8]]\n",
         )
         query = f"""
-        LOAD FROM "{csv_path.as_posix()}" (delim='|')
+        LOAD FROM {cypher_path(csv_path)} (delim='|')
         RETURN id, CAST(matrix, 'INT32[2][2]')
         """
         result = list(self.conn.execute(query))
@@ -434,7 +435,7 @@ class TestLoadArray:
             "id|data\n" "1|[[a, b], [c, d]]\n" "2|[[w, x], [y, z]]\n",
         )
         query = f"""
-        LOAD FROM "{csv_path.as_posix()}" (delim='|')
+        LOAD FROM {cypher_path(csv_path)} (delim='|')
         RETURN id, CAST(data, 'STRING[2][2]')
         """
         result = list(self.conn.execute(query))
@@ -449,7 +450,7 @@ class TestLoadArray:
             "id|dates\n" "1|[1970-01-01, 2023-06-15]\n" "2|[2000-01-01, 2001-01-01]\n",
         )
         query = f"""
-        LOAD FROM "{csv_path.as_posix()}" (delim='|')
+        LOAD FROM {cypher_path(csv_path)} (delim='|')
         RETURN id, CAST(dates, 'DATE[2]')
         """
         result = list(self.conn.execute(query))
@@ -471,7 +472,7 @@ class TestLoadArray:
             "2|[2000-01-01 00:00:00, 2001-01-01 00:00:00]\n",
         )
         query = f"""
-        LOAD FROM "{csv_path.as_posix()}" (delim='|')
+        LOAD FROM {cypher_path(csv_path)} (delim='|')
         RETURN id, CAST(times, 'TIMESTAMP[2]')
         """
         result = list(self.conn.execute(query))
@@ -491,7 +492,7 @@ class TestLoadArray:
             "id|durations\n" "1|[2 days, 3 hours]\n" "2|[1 year 2 months, 4 days]\n",
         )
         query = f"""
-        LOAD FROM "{csv_path.as_posix()}" (delim='|')
+        LOAD FROM {cypher_path(csv_path)} (delim='|')
         RETURN id, CAST(durations, 'INTERVAL[2]')
         """
         result = list(self.conn.execute(query))
@@ -507,7 +508,7 @@ class TestLoadArray:
             "id|ints|floats\n" "1|[1, 2, 3]|[1.1, 2.2]\n" "2|[4, 5, 6]|[3.3, 4.4]\n",
         )
         query = f"""
-        LOAD FROM "{csv_path.as_posix()}" (delim='|')
+        LOAD FROM {cypher_path(csv_path)} (delim='|')
         RETURN id, CAST(ints, 'INT64[3]'), CAST(floats, 'DOUBLE[2]')
         """
         result = list(self.conn.execute(query))
@@ -539,7 +540,7 @@ class TestLoadArray:
             ],
         )
         query = f"""
-        LOAD FROM "{json_path.as_posix()}"
+        LOAD FROM {cypher_path(json_path)}
         RETURN id,
                CAST(floats, 'FLOAT[3]'),
                CAST(doubles, 'DOUBLE[2]'),
@@ -583,7 +584,7 @@ class TestLoadArray:
             ],
         )
         query = f"""
-        LOAD FROM "{json_path.as_posix()}"
+        LOAD FROM {cypher_path(json_path)}
         RETURN id,
                CAST(tags, 'STRING[2]'),
                CAST(matrix, 'INT32[2][2]'),
@@ -618,7 +619,7 @@ class TestLoadArray:
             ],
         )
         query = f"""
-        LOAD FROM "{json_path.as_posix()}"
+        LOAD FROM {cypher_path(json_path)}
         RETURN id,
                CAST(dates, 'DATE[2]'),
                CAST(times, 'TIMESTAMP[2]'),
@@ -657,7 +658,9 @@ class TestLoadArray:
         )
         self.conn.execute("LOAD PARQUET")
         result = list(
-            self.conn.execute(f'LOAD FROM "{parquet_path}" RETURN id, tags ORDER BY id')
+            self.conn.execute(
+                f"LOAD FROM {cypher_path(parquet_path)} RETURN id, tags ORDER BY id"
+            )
         )
         assert result == [
             [1, [1, 2, 3]],
@@ -682,7 +685,7 @@ class TestLoadArray:
         self.conn.execute("LOAD PARQUET")
         result = list(
             self.conn.execute(
-                f'LOAD FROM "{parquet_path}" RETURN id, names ORDER BY id'
+                f"LOAD FROM {cypher_path(parquet_path)} RETURN id, names ORDER BY id"
             )
         )
         assert result == [
@@ -707,7 +710,7 @@ class TestLoadArray:
         self.conn.execute("LOAD PARQUET")
         result = list(
             self.conn.execute(
-                f'LOAD FROM "{parquet_path}" RETURN id, values ORDER BY id'
+                f"LOAD FROM {cypher_path(parquet_path)} RETURN id, values ORDER BY id"
             )
         )
         assert result == [
@@ -743,7 +746,9 @@ class TestLoadArray:
         self.conn.execute("LOAD PARQUET")
 
         rows = list(
-            self.conn.execute(f'LOAD FROM "{list_path}" RETURN id, values ORDER BY id')
+            self.conn.execute(
+                f"LOAD FROM {cypher_path(list_path)} RETURN id, values ORDER BY id"
+            )
         )
         assert rows == [
             [1, [1, None, 3]],
@@ -752,14 +757,16 @@ class TestLoadArray:
 
         rows = list(
             self.conn.execute(
-                f'LOAD FROM "{list_path}" '
+                f"LOAD FROM {cypher_path(list_path)} "
                 "UNWIND values AS value RETURN value ORDER BY value"
             )
         )
         assert rows == [[1], [3], [4], [5], [None]]
 
         rows = list(
-            self.conn.execute(f'LOAD FROM "{array_path}" RETURN id, vec ORDER BY id')
+            self.conn.execute(
+                f"LOAD FROM {cypher_path(array_path)} RETURN id, vec ORDER BY id"
+            )
         )
         assert rows == [
             [1, [1.0, None, 3.0]],
@@ -783,7 +790,7 @@ class TestLoadArray:
         self.conn.execute("LOAD PARQUET")
         result = list(
             self.conn.execute(
-                f'LOAD FROM "{parquet_path}" RETURN id, values ORDER BY id'
+                f"LOAD FROM {cypher_path(parquet_path)} RETURN id, values ORDER BY id"
             )
         )
         assert result == [
@@ -808,12 +815,14 @@ class TestLoadArray:
         self.conn.execute("LOAD PARQUET")
         self.conn.execute(
             f"COPY (MATCH (t:Tag) RETURN t.id, t.tags "
-            f"ORDER BY t.id) TO '{out_path}'"
+            f"ORDER BY t.id) TO {cypher_path(out_path)}"
         )
 
         # Load back from parquet
         result = list(
-            self.conn.execute(f'LOAD FROM "{out_path}" RETURN * ORDER BY "t.id"')
+            self.conn.execute(
+                f'LOAD FROM {cypher_path(out_path)} RETURN * ORDER BY "t.id"'
+            )
         )
         assert len(result) == 3
         assert result[0][0] == 1

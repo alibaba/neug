@@ -449,6 +449,23 @@ void ReplayCowGraphWal(PropertyGraph& graph, uint32_t timestamp, char* data,
       GraphView view(graph);
       auto ret = DropStorageIndex(graph, view, name);
       THROW_STORAGE_EXCEPTION_STATUS("Failed to drop index in redo: ", ret);
+    } else if (op_type == OpType::kOptimizeIndexes) {
+      auto names = OptimizeIndexesRedo::Deserialize(arc);
+      auto& manager = graph.mutable_index_manager();
+      for (const auto& name : names) {
+        // Maintenance progress can be rebuilt after loading the extension.
+        // Do not change the existing pending-index recovery lifecycle.
+        if (manager.GetPendingIndexByName(name)) {
+          LOG(WARNING) << "Skip optimize replay for pending index: " << name;
+          continue;
+        }
+        IndexOptions options;
+        options.index_name = name;
+        auto ret = manager.OptimizeIndexes(options);
+        if (!ret)
+          THROW_STORAGE_EXCEPTION("Failed to optimize index in redo: " +
+                                  ret.error().ToString());
+      }
     } else if (op_type == OpType::kActivateIndexes) {
       GraphView view(graph);
       auto ret = ActivateStorageIndexes(graph, view);

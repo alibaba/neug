@@ -114,11 +114,22 @@ function(build_zvec_as_third_party)
 
     # ZVec currently creates several common third-party targets unconditionally.
     # Build it in an isolated CMake project to avoid collisions with NeuG targets.
-    set(_zvec_auto_detect_arch OFF)
-    if(CMAKE_SYSTEM_NAME STREQUAL "Linux"
-       AND CMAKE_SYSTEM_PROCESSOR MATCHES "^(x86_64|amd64|AMD64|x86|i[3-6]86)$")
-        # ZVec's RaBitQ sources require their per-source AVX2 flags on x86.
-        set(_zvec_auto_detect_arch ON)
+    # Let ZVec select SIMD compiler flags for each target architecture.
+    # Without them, runtime dispatch can select kernels built as no-op stubs.
+    set(_zvec_auto_detect_arch ON)
+
+    # Temporarily disable RaBitQ; ordinary HNSW keeps architecture detection.
+    set(_zvec_rabitq_supported OFF)
+    set(_zvec_rabitq_byproducts)
+    if(_zvec_rabitq_supported)
+        # RaBitQ 0.7 moved its kernels from headers into compiled libraries.
+        set(_zvec_rabitq_core_library
+            "${_zvec_binary_dir}/lib/${CMAKE_STATIC_LIBRARY_PREFIX}rabitq_core${CMAKE_STATIC_LIBRARY_SUFFIX}")
+        set(_zvec_rabitq_fastscan_library
+            "${_zvec_binary_dir}/lib/${CMAKE_STATIC_LIBRARY_PREFIX}rabitq_fastscan${CMAKE_STATIC_LIBRARY_SUFFIX}")
+        list(APPEND _zvec_rabitq_byproducts
+            "${_zvec_rabitq_core_library}"
+            "${_zvec_rabitq_fastscan_library}")
     endif()
 
     set(_zvec_cmake_args
@@ -129,6 +140,7 @@ function(build_zvec_as_third_party)
         "-DBUILD_ZVEC_AILEGO_SHARED=OFF"
         "-DBUILD_PYTHON_BINDINGS=OFF"
         "-DBUILD_C_BINDINGS=OFF"
+        "-DZVEC_ENABLE_RABITQ=OFF"
         "-DAUTO_DETECT_ARCH=${_zvec_auto_detect_arch}"
         "-DBUILD_TOOLS=OFF")
     if(MSVC)
@@ -145,12 +157,16 @@ function(build_zvec_as_third_party)
     ExternalProject_Add(zvec_external
         SOURCE_DIR "${ZVEC_SOURCE_DIR}"
         BINARY_DIR "${_zvec_binary_dir}"
+        # Recheck source changes after updating the pinned ZVec revision.
+        # The nested build still rebuilds only out-of-date objects.
+        BUILD_ALWAYS TRUE
         INSTALL_COMMAND ""
         # Ninja needs explicit file-producing rules for imported static libraries.
         BUILD_BYPRODUCTS
             "${_zvec_core_library}"
             "${_zvec_ailego_library}"
             "${_zvec_turbo_library}"
+            ${_zvec_rabitq_byproducts}
             "${_zvec_roaring_library}"
         BUILD_COMMAND
             "${CMAKE_COMMAND}" --build <BINARY_DIR>
@@ -179,6 +195,18 @@ function(build_zvec_as_third_party)
         IMPORTED_LOCATION "${_zvec_roaring_library}"
         INTERFACE_INCLUDE_DIRECTORIES "${_zvec_roaring_include_dir}")
     add_dependencies(zvec_roaring zvec_external)
+
+    if(_zvec_rabitq_supported)
+        add_library(zvec_rabitq_core STATIC IMPORTED GLOBAL)
+        set_target_properties(zvec_rabitq_core PROPERTIES
+            IMPORTED_LOCATION "${_zvec_rabitq_core_library}")
+        add_dependencies(zvec_rabitq_core zvec_external)
+        add_library(zvec_rabitq_fastscan STATIC IMPORTED GLOBAL)
+        set_target_properties(zvec_rabitq_fastscan PROPERTIES
+            IMPORTED_LOCATION "${_zvec_rabitq_fastscan_library}"
+            INTERFACE_LINK_LIBRARIES zvec_rabitq_core)
+        add_dependencies(zvec_rabitq_fastscan zvec_external)
+    endif()
 
     set(ZVEC_SOURCE_DIR "${ZVEC_SOURCE_DIR}" PARENT_SCOPE)
 endfunction()

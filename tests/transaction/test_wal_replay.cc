@@ -153,8 +153,9 @@ TEST(WalWriterTest, ReopensSameInstanceOnNewTimeline) {
       (std::filesystem::path(test_dir) / "checkpoint-0" / "wal").string();
   const auto new_wal_dir =
       (std::filesystem::path(test_dir) / "checkpoint-1" / "wal").string();
-  constexpr uint32_t old_marker = 17;
-  constexpr uint32_t new_marker = 29;
+  // Include LF, CR, CTRL+Z, and NUL to detect Windows text-mode translation.
+  constexpr uint32_t old_marker = 0x1a0d0a00;
+  constexpr uint32_t new_marker = 0x0a1a0dff;
   std::filesystem::create_directories(old_wal_dir);
   std::filesystem::create_directories(new_wal_dir);
 
@@ -1073,8 +1074,9 @@ TEST_F(WalReplayTest,
 // statement returns, so the loaded data survives a crash even though neither
 // checkpoint_on_close nor checkpoint_on_recovery is enabled.
 TEST_F(WalReplayTest, CopyFromPublishesCheckpointAndSurvivesRecovery) {
+  // Cypher string literals need '/' separators, including on Windows.
   const auto csv_path =
-      (std::filesystem::path(db_dir_) / "people.csv").string();
+      (std::filesystem::path(db_dir_) / "people.csv").generic_string();
   write_copy_csv(csv_path, "2|copy-a\n3|copy-b\n");
 
   {
@@ -1110,8 +1112,9 @@ TEST_F(WalReplayTest, CopyFromPublishesCheckpointAndSurvivesRecovery) {
 }
 
 TEST_F(WalReplayTest, CopyFromWithInferredSchemaCommitsCheckpoint) {
+  // Cypher string literals need '/' separators, including on Windows.
   const auto csv_path =
-      (std::filesystem::path(db_dir_) / "inferred.csv").string();
+      (std::filesystem::path(db_dir_) / "inferred.csv").generic_string();
   write_copy_csv(csv_path, "7|inferred\n");
 
   {
@@ -1147,8 +1150,9 @@ TEST_F(WalReplayTest, CopyFromWithInferredSchemaCommitsCheckpoint) {
 // in-memory state, crashing recovery. With the seal the checkpoint already
 // contains the COPY data, so replay finds the vertex.
 TEST_F(WalReplayTest, CopyFromThenWalUpdateRecoversAfterCrash) {
+  // Cypher string literals need '/' separators, including on Windows.
   const auto csv_path =
-      (std::filesystem::path(db_dir_) / "people.csv").string();
+      (std::filesystem::path(db_dir_) / "people.csv").generic_string();
   write_copy_csv(csv_path, "2|copy-a\n3|copy-b\n");
 
   {
@@ -1189,9 +1193,12 @@ TEST_F(WalReplayTest, CopyFromThenWalUpdateRecoversAfterCrash) {
 
 // A failed COPY discards its private workspace and publishes no checkpoint.
 TEST_F(WalReplayTest, FailedCopyDoesNotPublishCheckpoint) {
-  const auto good_csv = (std::filesystem::path(db_dir_) / "good.csv").string();
+  // Cypher string literals need '/' separators, including on Windows.
+  const auto good_csv =
+      (std::filesystem::path(db_dir_) / "good.csv").generic_string();
   write_copy_csv(good_csv, "2|copy-a\n");
-  const auto bad_csv = (std::filesystem::path(db_dir_) / "bad.csv").string();
+  const auto bad_csv =
+      (std::filesystem::path(db_dir_) / "bad.csv").generic_string();
   // A non-numeric id fails CSV parsing, so the statement fails up front.
   write_copy_csv(bad_csv, "not-a-number|copy-c\n");
 
@@ -1233,8 +1240,11 @@ TEST_F(WalReplayTest, FailedCopyDoesNotPublishCheckpoint) {
 // A checkpoint preparation failure discards the private bulk workspace. The
 // previously published graph and checkpoint remain current and usable.
 TEST_F(WalReplayTest, CopyFromCheckpointPreparationFailureRollsBack) {
-  const auto csv_a = (std::filesystem::path(db_dir_) / "people-a.csv").string();
-  const auto csv_b = (std::filesystem::path(db_dir_) / "people-b.csv").string();
+  // Cypher string literals need '/' separators, including on Windows.
+  const auto csv_a =
+      (std::filesystem::path(db_dir_) / "people-a.csv").generic_string();
+  const auto csv_b =
+      (std::filesystem::path(db_dir_) / "people-b.csv").generic_string();
   write_copy_csv(csv_a, "2|copy-a\n");
   write_copy_csv(csv_b, "3|copy-b\n");
 
@@ -1309,8 +1319,11 @@ TEST_F(WalReplayTest, CopyFromCheckpointPreparationFailureRollsBack) {
 // A second COPY to the same table rewrites modules already present in the
 // previous checkpoint. Both completed batches must survive recovery.
 TEST_F(WalReplayTest, RepeatedCopyToSameTableRecovers) {
-  const auto csv_a = (std::filesystem::path(db_dir_) / "people-a.csv").string();
-  const auto csv_b = (std::filesystem::path(db_dir_) / "people-b.csv").string();
+  // Cypher string literals need '/' separators, including on Windows.
+  const auto csv_a =
+      (std::filesystem::path(db_dir_) / "people-a.csv").generic_string();
+  const auto csv_b =
+      (std::filesystem::path(db_dir_) / "people-b.csv").generic_string();
   write_copy_csv(csv_a, "2|copy-a\n");
   write_copy_csv(csv_b, "3|copy-b\n");
 

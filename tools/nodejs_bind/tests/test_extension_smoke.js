@@ -19,7 +19,8 @@ const assert = require('assert').strict;
 const { test } = require('./test-shim');
 
 const enabled = /^(1|true|yes|on)$/i.test(process.env.NEUG_RUN_EXTENSION_TESTS || '');
-const extensions = ['parquet', 'httpfs', 'pattern_matching', 'vector_search', 'fts', 'gds'];
+const extensions = (process.env.NEUG_TEST_EXTENSIONS ||
+  'parquet;httpfs;pattern_matching;vector_search;fts;gds').split(';').filter(Boolean);
 
 test('load_all_extensions', {
   skip: enabled ? false : 'Set NEUG_RUN_EXTENSION_TESTS=1 to run extension tests.',

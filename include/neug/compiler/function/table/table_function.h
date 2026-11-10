@@ -173,6 +173,11 @@ using table_func_infer_input_types =
         const binder::expression_vector&)>;
 
 struct NEUG_API TableFunction : Function {
+  // Canonical string argument slots, addressable by position or name.
+  // Omitted arguments are represented by an empty string literal.
+  std::vector<std::pair<std::string, common::DataType>> namedParameters;
+  // Writes through the caller's StorageUpdateInterface and may join its txn.
+  bool transactionalWrite{false};
   table_func_t tableFunc = nullptr;
   table_func_bind_t bindFunc = nullptr;
   table_func_init_shared_t initSharedStateFunc = nullptr;
