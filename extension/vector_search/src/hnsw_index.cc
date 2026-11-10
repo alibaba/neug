@@ -126,8 +126,10 @@ int ParseConcurrency(
     return value;
   } catch (const std::exception&) {
     THROW_INVALID_ARGUMENT_EXCEPTION(
-        "HNSW option 'concurrency' must be an integer in [0, 2147483647]; "
-        "0 means automatic concurrency");
+        "HNSW option 'concurrency' must be a non-negative integer; "
+        "0 uses the maximum number of CPU cores on the hardware platform. "
+        "Large values are capped by the hardware CPU core count and the "
+        "number of task chunks.");
   }
 }
 

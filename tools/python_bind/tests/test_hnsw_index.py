@@ -113,7 +113,13 @@ def test_index_concurrency_rejects_invalid_values(tmp_path, value):
     try:
         conn.execute("CREATE NODE TABLE Item(id INT64 PRIMARY KEY, v FLOAT[2]);")
         with pytest.raises(
-            RuntimeError, match=r"concurrency.*integer in \[0, 2147483647\]"
+            RuntimeError,
+            match=(
+                r"concurrency.*must be a non-negative integer; "
+                r"0 uses the maximum number of CPU cores on the hardware platform\. "
+                r"Large values are capped by the hardware CPU core count and the "
+                r"number of task chunks\."
+            ),
         ):
             conn.execute(
                 "CREATE INDEX item_hnsw ON Item USING HNSW (v) "
