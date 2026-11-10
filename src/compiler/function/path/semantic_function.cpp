@@ -27,7 +27,7 @@
 #include <set>
 
 #include "neug/common/types/value.h"
-#include "neug/execution/common/relationship.h"
+#include "neug/storages/csr/csr_view_utils.h"
 #include "neug/storages/graph/graph_interface.h"
 
 using namespace neug::binder;
@@ -67,8 +67,7 @@ static neug::Value isTrail(const std::vector<neug::Value>& args,
   const auto relationships = path.relationships();
   for (size_t i = 0; i < relationships.size(); ++i) {
     for (size_t j = 0; j < i; ++j) {
-      if (execution::same_relationship(*graph, relationships[i],
-                                       relationships[j])) {
+      if (neug::same_relationship(*graph, relationships[i], relationships[j])) {
         return neug::Value::BOOLEAN(false);
       }
     }

@@ -19,9 +19,9 @@
 #include "neug/execution/common/context_chunk.h"
 #include "neug/execution/common/operators/retrieve/path_expand_impl.h"
 #include "neug/execution/common/params_map.h"
-#include "neug/execution/common/relationship.h"
 #include "neug/execution/expression/special_predicates.h"
 #include "neug/execution/utils/params.h"
+#include "neug/storages/csr/csr_view_utils.h"
 #include "neug/utils/result.h"
 
 namespace neug {
