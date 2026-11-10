@@ -20,6 +20,11 @@ namespace neug {
 
 enum class DataTypeId : uint8_t;
 class Property;
+class StorageReadInterface;
+
+// Compare snapshot-local CSR relationship identity, including parallel edges.
+bool same_relationship(const StorageReadInterface& graph,
+                       const EdgeRecord& left, const EdgeRecord& right);
 
 int32_t fuzzy_search_offset_from_nbr_list(const NbrList& nbr_list,
                                           vid_t expected_nbr,

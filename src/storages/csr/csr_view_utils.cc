@@ -16,11 +16,101 @@
 #include "neug/storages/csr/csr_view_utils.h"
 
 #include <cassert>
+#include <cmath>
 
 #include "neug/common/types/graph_types.h"
+#include "neug/storages/graph/graph_interface.h"
 #include "neug/utils/property/types.h"
 
 namespace neug {
+
+bool same_relationship(const StorageReadInterface& graph,
+                       const EdgeRecord& left, const EdgeRecord& right) {
+  if (!(left == right)) {
+    return false;
+  }
+  if (left.prop == right.prop) {
+    return true;
+  }
+  auto outgoing = graph.GetGenericOutgoingGraphView(
+      left.label.src_label, left.label.dst_label, left.label.edge_label);
+  auto incoming = graph.GetGenericIncomingGraphView(
+      left.label.dst_label, left.label.src_label, left.label.edge_label);
+  const auto schema = graph.schema().get_edge_schema(
+      left.label.src_label, left.label.dst_label, left.label.edge_label);
+  auto same_payload = [&](const void* a, const void* b) {
+    if (!schema->is_bundled()) {
+      // Both CSR directions store the same stable property-row identity.
+      return *static_cast<const uint64_t*>(a) ==
+             *static_cast<const uint64_t*>(b);
+    }
+    if (schema->properties.empty() ||
+        schema->properties[0].id() == DataTypeId::kEmpty) {
+      return true;
+    }
+    auto accessor = graph.GetEdgeDataAccessor(
+        left.label.src_label, left.label.dst_label, left.label.edge_label, 0);
+    const auto left_value = accessor.get_data_from_ptr(a);
+    const auto right_value = accessor.get_data_from_ptr(b);
+    // NaN payloads must share an identity-matching group across CSR directions.
+    // Occurrence matching below still distinguishes parallel relationships;
+    // ordinary query-level floating-point equality remains unchanged.
+    if (schema->properties[0].id() == DataTypeId::kFloat) {
+      if (std::isnan(left_value.GetValue<float>()) &&
+          std::isnan(right_value.GetValue<float>())) {
+        return true;
+      }
+    } else if (schema->properties[0].id() == DataTypeId::kDouble) {
+      if (std::isnan(left_value.GetValue<double>()) &&
+          std::isnan(right_value.GetValue<double>())) {
+        return true;
+      }
+    }
+    return left_value == right_value;
+  };
+  if (!same_payload(left.prop, right.prop)) {
+    return false;
+  }
+  // Bundled edges have separate incoming/outgoing storage. Pair equal visible
+  // entries by occurrence within their endpoint/payload/timestamp group rather
+  // than collapsing parallel edges (including identical or propertyless ones).
+  auto occurrence = [&](const EdgeRecord& edge) {
+    // Named-path construction can reverse traversal orientation without
+    // relocating the payload. Determine the owning CSR from the pointer.
+    auto edges = outgoing.get_edges(edge.src);
+    bool owns_outgoing = false;
+    for (auto it = edges.begin(); it != edges.end(); ++it) {
+      if (it.get_data_ptr() == edge.prop) {
+        owns_outgoing = true;
+        break;
+      }
+    }
+    if (!owns_outgoing) {
+      edges = incoming.get_edges(edge.dst);
+    }
+    auto timestamp = [&](const void* data) -> timestamp_t {
+      return edges.cfg.ts_offset == 0
+                 ? 0
+                 : *reinterpret_cast<const timestamp_t*>(
+                       static_cast<const char*>(data) - edges.cfg.data_offset +
+                       edges.cfg.ts_offset);
+    };
+    const auto ts = timestamp(edge.prop);
+    size_t ordinal = 0;
+    for (auto it = edges.begin(); it != edges.end(); ++it) {
+      if (it.get_data_ptr() == edge.prop) {
+        return std::make_pair(ts, ordinal);
+      }
+      if (it.get_vertex() == (owns_outgoing ? edge.dst : edge.src) &&
+          timestamp(it.get_data_ptr()) == ts &&
+          same_payload(it.get_data_ptr(), edge.prop)) {
+        ++ordinal;
+      }
+    }
+    THROW_INTERNAL_EXCEPTION("Path relationship is absent from its CSR view");
+  };
+  return occurrence(left) == occurrence(right);
+}
 
 bool nbr_data_eq(const char* data_ptr, const char* expected_ptr,
                  const DataTypeId& type) {
