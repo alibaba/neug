@@ -48,7 +48,7 @@ def run_web_ui(monkeypatch):
         monkeypatch.setattr(socket, "getfqdn", lambda name="": name)
 
     @contextmanager
-    def run(shell):
+    def run(shell, ui_arg=":ui"):
         server = None
         ready = threading.Event()
 
@@ -59,7 +59,7 @@ def run_web_ui(monkeypatch):
             server.serve_forever()
 
         monkeypatch.setattr(web_ui.Flask, "run", run_server)
-        thread = threading.Thread(target=shell.default, args=(":ui",), daemon=True)
+        thread = threading.Thread(target=shell.default, args=(ui_arg,), daemon=True)
         thread.start()
         try:
             assert ready.wait(timeout=10), "Web UI did not start listening"
@@ -263,8 +263,72 @@ def test_start_local_database_neug_ui(runner, tmp_path, run_web_ui):
             headers = {"Content-Type": "text/plain"}
             data = "MATCH (n) RETURN count(n)"
             response = requests.post(url, headers=headers, data=data, timeout=10)
-            expected_output = """COUNT(_0_n)": 6"""
             assert response.status_code == 200
-            assert expected_output in response.text
+            # The local connection path returns pretty-printed JSON, so parse
+            # the payload instead of substring-matching its raw text.
+            payload = response.json()
+            assert payload["table"] == [{"COUNT(_0_n)": 6}]
     finally:
         db.close()
+
+
+def test_neug_ui_custom_host_port(runner, tmp_path, run_web_ui):
+    db_path = tmp_path / "modern_graph"
+    db = Database(db_path=str(db_path), mode="w")
+    try:
+        db.load_builtin_dataset("modern_graph")
+        connection = db.connect()
+        shell = neug_cli.NeugShell(connection)
+        with run_web_ui(shell, ui_arg=":ui 127.0.0.1:5001"):
+            url = "http://127.0.0.1:5001/cypherv2"
+            headers = {"Content-Type": "text/plain"}
+            data = "MATCH (n) RETURN count(n)"
+            response = requests.post(url, headers=headers, data=data, timeout=10)
+            assert response.status_code == 200
+            payload = response.json()
+            assert payload["table"] == [{"COUNT(_0_n)": 6}]
+    finally:
+        db.close()
+
+
+def test_neug_ui_schema_endpoint(runner, tmp_path, run_web_ui):
+    db_path = tmp_path / "modern_graph"
+    db = Database(db_path=str(db_path), mode="w")
+    try:
+        db.load_builtin_dataset("modern_graph")
+        connection = db.connect()
+        shell = neug_cli.NeugShell(connection)
+        with run_web_ui(shell):
+            response = requests.get("http://127.0.0.1:5000/schema", timeout=10)
+            assert response.status_code == 200
+            schema = response.json()
+            assert "person" in str(schema)
+            assert "software" in str(schema)
+    finally:
+        db.close()
+
+
+def test_neug_ui_index_page(runner, tmp_path, run_web_ui):
+    db_path = tmp_path / "modern_graph"
+    db = Database(db_path=str(db_path), mode="w")
+    try:
+        db.load_builtin_dataset("modern_graph")
+        connection = db.connect()
+        shell = neug_cli.NeugShell(connection)
+        with run_web_ui(shell):
+            response = requests.get("http://127.0.0.1:5000/", timeout=10)
+            assert response.status_code == 200
+            assert "<html" in response.text.lower()
+    finally:
+        db.close()
+
+
+def test_ui_invalid_endpoint(capsys):
+    class DummyConnection:
+        pass
+
+    shell = neug_cli.NeugShell(DummyConnection())
+    # Malformed endpoint: rejected before any Flask import or server start.
+    shell.default(":ui not-an-endpoint")
+    captured = capsys.readouterr()
+    assert "Invalid endpoint: not-an-endpoint" in captured.out
