@@ -3,6 +3,7 @@
 
 import argparse
 import hashlib
+import json
 import os
 import re
 import shutil
@@ -14,12 +15,31 @@ from pathlib import Path
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--wheel", required=True, type=Path)
-    parser.add_argument("--extensions", required=True)
+    # Wheel mode (extract from a repaired wheel) and artifact mode (publish
+    # pre-built artifacts downloaded from every platform job) share --version;
+    # the remaining flags are validated per mode in main().
+    parser.add_argument("--wheel", type=Path)
+    parser.add_argument("--extensions")
     parser.add_argument("--version", required=True)
-    parser.add_argument("--platform", required=True)
-    parser.add_argument("--output-dir", required=True, type=Path)
+    parser.add_argument("--platform")
+    parser.add_argument("--output-dir", type=Path)
     parser.add_argument("--skip-upload", action="store_true")
+    parser.add_argument(
+        "--from-artifacts",
+        type=Path,
+        help=(
+            "Publish pre-built extension artifacts downloaded from every "
+            "platform job (a directory holding extension-packages-<platform>-* "
+            "subdirectories) instead of extracting them from a wheel."
+        ),
+    )
+    parser.add_argument(
+        "--matrix",
+        help=(
+            "ci-plan matrix JSON mapping each platform to its oss_platform; "
+            "required together with --from-artifacts."
+        ),
+    )
     return parser.parse_args()
 
 
@@ -112,6 +132,17 @@ def extract_extensions(
     return artifacts
 
 
+def oss_object_name(version: str, platform: str, extension: str, filename: str) -> str:
+    """Build the OSS object key for one extension artifact file.
+
+    Shared by the real upload and the --skip-upload dry run so both emit the
+    exact same ``neug/extensions/v<version>/<oss_platform>/<extension>/<file>``
+    key (a leading ``v`` on the release tag is normalized away first).
+    """
+    normalized_version = version.removeprefix("v")
+    return f"neug/extensions/v{normalized_version}/{platform}/{extension}/{filename}"
+
+
 def upload_artifacts(
     artifacts: dict[str, tuple[Path, Path]], version: str, platform: str
 ) -> None:
@@ -136,26 +167,96 @@ def upload_artifacts(
     )
     bucket_name = os.environ["OSS_BUCKET_NAME"]
     bucket = oss2.Bucket(auth, os.environ["OSS_ENDPOINT"], bucket_name)
-    normalized_version = version.removeprefix("v")
     for extension, files in artifacts.items():
         for artifact in files:
-            object_name = (
-                f"neug/extensions/v{normalized_version}/{platform}/"
-                f"{extension}/{artifact.name}"
-            )
+            object_name = oss_object_name(version, platform, extension, artifact.name)
             print(f"Uploading {artifact} to oss://{bucket_name}/{object_name}")
             bucket.put_object_from_file(object_name, str(artifact))
+
+
+def publish_from_artifacts(
+    artifacts_root: Path,
+    matrix: list[dict],
+    version: str,
+    skip_upload: bool = False,
+) -> list[str]:
+    """Publish pre-built extension artifacts gathered from every platform job.
+
+    ``artifacts_root`` holds one subdirectory per downloaded artifact, named
+    ``extension-packages-<platform>-*``. A platform may carry a default and a
+    cxx11abi variant; both share the same logical extension directory on OSS and
+    are told apart only by the ``-cxx11abi`` filename suffix. The platform ->
+    oss_platform mapping is taken from the ci-plan matrix rather than parsed out
+    of directory names. With ``skip_upload`` the resolved object keys are printed
+    instead of pushed, so the layout can be verified without OSS credentials.
+    """
+    published = []
+    for entry in matrix:
+        platform = entry["platform"]
+        oss_platform = entry["oss_platform"]
+        variants: dict[str, dict[str, tuple[Path, Path]]] = {
+            "default": {},
+            "cxx11abi": {},
+        }
+        pattern = f"extension-packages-{platform}-*"
+        for artifact_dir in sorted(artifacts_root.glob(pattern)):
+            for path in sorted(artifact_dir.glob("*.neug_extension")):
+                name = path.name.removeprefix("lib").removesuffix(".neug_extension")
+                abi = "cxx11abi" if name.endswith("-cxx11abi") else "default"
+                extension = name.removesuffix("-cxx11abi")
+                checksum = path.with_name(path.name + ".sha256")
+                variants[abi][extension] = (path, checksum)
+        if not any(variants.values()):
+            raise RuntimeError(f"No extension artifacts for platform {platform}")
+        for files in variants.values():
+            if not files:
+                continue
+            if skip_upload:
+                bucket_name = os.environ.get("OSS_BUCKET_NAME", "<OSS_BUCKET_NAME>")
+                for extension, pair in sorted(files.items()):
+                    for artifact in pair:
+                        key = oss_object_name(
+                            version, oss_platform, extension, artifact.name
+                        )
+                        print(f"[dry-run] {artifact} -> oss://{bucket_name}/{key}")
+            else:
+                upload_artifacts(files, version, oss_platform)
+        published.append(platform)
+    return published
 
 
 def main() -> int:
     args = parse_args()
     try:
-        extensions = parse_extensions(args.extensions)
-        artifacts = extract_extensions(
-            args.wheel, extensions, args.platform, args.output_dir
-        )
-        if not args.skip_upload:
-            upload_artifacts(artifacts, args.version, args.platform)
+        if args.from_artifacts is not None:
+            if not args.matrix:
+                raise ValueError("--matrix is required with --from-artifacts")
+            published = publish_from_artifacts(
+                args.from_artifacts,
+                json.loads(args.matrix),
+                args.version,
+                args.skip_upload,
+            )
+            print(f"Published extensions for platforms: {published}")
+        else:
+            missing = [
+                flag
+                for flag, value in (
+                    ("--wheel", args.wheel),
+                    ("--extensions", args.extensions),
+                    ("--platform", args.platform),
+                    ("--output-dir", args.output_dir),
+                )
+                if value is None
+            ]
+            if missing:
+                raise ValueError(f"Missing required arguments: {', '.join(missing)}")
+            extensions = parse_extensions(args.extensions)
+            artifacts = extract_extensions(
+                args.wheel, extensions, args.platform, args.output_dir
+            )
+            if not args.skip_upload:
+                upload_artifacts(artifacts, args.version, args.platform)
     except (OSError, RuntimeError, ValueError, zipfile.BadZipFile) as error:
         print(f"Error: {error}", file=sys.stderr)
         return 1

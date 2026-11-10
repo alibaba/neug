@@ -234,6 +234,9 @@ jobs:
         VERSION: ${{ github.event.release.tag_name }}
 
     - name: Upload Extension-Packages
+      # Preserve built extensions even if an earlier step (e.g. Upload Wheels)
+      # fails, so a failed run can be recovered without a full rebuild.
+      if: always()
       uses: actions/upload-artifact@v4
       with:
         name: extension-packages-linux-${{ matrix.arch }}-${{ steps.packages.outputs.version }}

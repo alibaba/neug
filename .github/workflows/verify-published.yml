@@ -126,8 +126,13 @@ jobs:
           test_dir="$RUNNER_TEMP/verify-python-$version"
           if [ "$RUNNER_OS" = Windows ]; then
             cache=$(cygpath -u "$RUNNER_TOOL_CACHE")
-            python=$(find "$cache/Python/$version".* -type f -name python.exe -print -quit)
+            # Use setup-python's matching version/architecture installation.
+            # Avoid unrelated runner-provided Python executables and nested
+            # Lib/venv launcher templates, which require a pyvenv.cfg file.
+            python=$(find "$cache/Python/$version".* -maxdepth 2 -type f -path "*/${RUNNER_ARCH,,}/python.exe" -print -quit)
             test -n "$python"
+            echo "Using Python $version ($RUNNER_ARCH): $python"
+            "$python" --version
             "$python" -m venv "$test_dir"
             py="$test_dir/Scripts/python.exe"
           else
