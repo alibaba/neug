@@ -16,6 +16,7 @@
 #include "neug/storages/csr/csr_view_utils.h"
 
 #include <cassert>
+#include <cmath>
 
 #include "neug/common/types/graph_types.h"
 #include "neug/storages/graph/graph_interface.h"
@@ -49,7 +50,23 @@ bool same_relationship(const StorageReadInterface& graph,
     }
     auto accessor = graph.GetEdgeDataAccessor(
         left.label.src_label, left.label.dst_label, left.label.edge_label, 0);
-    return accessor.get_data_from_ptr(a) == accessor.get_data_from_ptr(b);
+    const auto left_value = accessor.get_data_from_ptr(a);
+    const auto right_value = accessor.get_data_from_ptr(b);
+    // NaN payloads must share an identity-matching group across CSR directions.
+    // Occurrence matching below still distinguishes parallel relationships;
+    // ordinary query-level floating-point equality remains unchanged.
+    if (schema->properties[0].id() == DataTypeId::kFloat) {
+      if (std::isnan(left_value.GetValue<float>()) &&
+          std::isnan(right_value.GetValue<float>())) {
+        return true;
+      }
+    } else if (schema->properties[0].id() == DataTypeId::kDouble) {
+      if (std::isnan(left_value.GetValue<double>()) &&
+          std::isnan(right_value.GetValue<double>())) {
+        return true;
+      }
+    }
+    return left_value == right_value;
   };
   if (!same_payload(left.prop, right.prop)) {
     return false;

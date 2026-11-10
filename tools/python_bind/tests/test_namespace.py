@@ -719,6 +719,67 @@ def test_namespace_shortest_hop_filters_and_path_functions(
         db.close()
 
 
+@pytest.mark.parametrize("property_type", ["FLOAT", "DOUBLE"])
+@pytest.mark.parametrize("weights", [("NaN",), ("NaN", "NaN"), ("NaN", "1.0")])
+@pytest.mark.parametrize("reopen", [False, True])
+def test_namespace_trail_nan_edge_identity(tmp_path, property_type, weights, reopen):
+    """NaN does not hide edge reuse or collapse distinct parallel edges."""
+    db_dir = str(tmp_path / "nan_edges")
+    db = Database(db_dir, mode="w")
+    conn = db.connect()
+    try:
+        conn.execute("CREATE NODE TABLE Doc(id INT64 PRIMARY KEY, visible BOOL)")
+        conn.execute(f"CREATE REL TABLE LINK(FROM Doc TO Doc, weight {property_type})")
+        conn.execute(
+            "CREATE (:Doc {id: 1, visible: true}), (:Doc {id: 2, visible: true})"
+        )
+        # One transaction also exercises equal timestamps for parallel NaN edges.
+        edges = ", ".join(
+            f"(a)-[:LINK {{weight: CAST('{weight}', '{property_type}')}}]->(b)"
+            for weight in weights
+        )
+        conn.execute("MATCH (a:Doc {id: 1}), (b:Doc {id: 2}) CREATE " + edges)
+        conn.execute(
+            "CALL project_graph('visible', {'Doc': 'n.visible = true'}, ['[Doc, LINK, Doc]'])"
+        )
+        if reopen:
+            conn.close()
+            db.close()
+            db = Database(db_dir, mode="w")
+            conn = db.connect()
+
+        # Start at either endpoint to cover both CSR traversal orientations.
+        for start in [1, 2]:
+            pattern = (
+                "USE NAMESPACE visible MATCH p="
+                f"(:Doc {{id: {start}}})-[:LINK* {{kind}}2..2]-"
+                f"(n:Doc {{id: {start}}}) "
+            )
+            walk = pattern.replace("{kind}", "")
+            trail = pattern.replace("{kind}", "TRAIL ")
+            expected_trails = len(weights) * (len(weights) - 1)
+            flags = list(conn.execute(walk + "RETURN IS_TRAIL(p), IS_ACYCLIC(p)"))
+            assert sorted(flags) == (
+                [[False, False]] * len(weights) + [[True, False]] * expected_trails
+            )
+            assert list(conn.execute(trail + "RETURN count(n)")) == [[expected_trails]]
+            assert (
+                list(conn.execute(trail + "RETURN IS_TRAIL(p), IS_ACYCLIC(p)"))
+                == [[True, False]] * expected_trails
+            )
+
+        # Identity-specific NaN matching must not alter scalar equality.
+        equality = list(
+            conn.execute("MATCH ()-[r:LINK]->() RETURN r.weight = r.weight")
+        )
+        assert sorted(row[0] for row in equality) == sorted(
+            weight != "NaN" for weight in weights
+        )
+    finally:
+        conn.close()
+        db.close()
+
+
 @pytest.mark.parametrize("properties", ["different", "identical", "empty", "unbundled"])
 @pytest.mark.parametrize("reopen", [False, True])
 def test_namespace_trail_parallel_edge_identity(tmp_path, properties, reopen):
