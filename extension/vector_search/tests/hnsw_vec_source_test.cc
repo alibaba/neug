@@ -81,12 +81,13 @@ class HNSWVecSourceTest : public ::testing::Test {
     meta.schema.columns.push_back({"v", type_});
     meta.options["m"] = "16";
     meta.options["ef_construction"] = "100";
+    meta.options["concurrency"] = std::to_string(workers);
     ModuleDescriptor descriptor;
     descriptor.set("index_meta", meta.ToJsonString());
     descriptor.set("flat_index_offset", "0");
     auto index = std::make_unique<HNSWIndex>();
     index->Open(*checkpoint_, descriptor, MemoryLevel::kInMemory);
-    EXPECT_TRUE(index->Rebind({{column_.get()}, workers}).ok());
+    EXPECT_TRUE(index->Rebind({{column_.get()}}).ok());
     return index;
   }
 

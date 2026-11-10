@@ -23,6 +23,7 @@
 #include <sstream>
 #include <stdexcept>
 #include <string_view>
+#include <thread>
 #include <utility>
 #include <variant>
 
@@ -102,8 +103,9 @@ int ParsePositive(const common::case_insensitive_map_t<std::string>& options,
   if (iter == options.end())
     return default_value;
   try {
-    auto value = std::stoi(iter->second);
-    if (value <= 0)
+    size_t consumed = 0;
+    auto value = std::stoi(iter->second, &consumed);
+    if (value <= 0 || consumed != iter->second.size())
       throw std::invalid_argument("not positive");
     return value;
   } catch (const std::exception&) {
@@ -222,6 +224,9 @@ void HNSWIndex::ParseOptions() {
   m_ = ParsePositive(meta_->options, "m", m_);
   ef_construction_ =
       ParsePositive(meta_->options, "ef_construction", ef_construction_);
+  build_workers_ =
+      ParsePositive(meta_->options, "concurrency",
+                    std::max(1u, std::thread::hardware_concurrency()));
 
   auto metric = meta_->options.find("metric");
   if (metric == meta_->options.end() || metric->second == "l2" ||
@@ -387,10 +392,6 @@ void HNSWIndex::Dump(Checkpoint& ckp, CheckpointManifest& manifest,
 }
 
 Status HNSWIndex::Rebind(const IndexBindContext& context) {
-  if (context.max_thread_num == 0) {
-    return Status(StatusCode::ERR_INVALID_ARGUMENT,
-                  "HNSWIndex worker limit must be positive");
-  }
   if (context.columns.size() != 1) {
     return Status(StatusCode::ERR_INVALID_ARGUMENT,
                   "HNSWIndex requires exactly one property column binding");
@@ -425,7 +426,6 @@ Status HNSWIndex::Rebind(const IndexBindContext& context) {
       std::make_unique<VecColumnBackedIndexIDAccessor>(*offset_accessor);
   const bool initialize_visible_ids = column_ == nullptr;
   column_ = column;
-  build_workers_ = context.max_thread_num;
   const auto limit = index_id_accessor_->GetVisibleLimit();
   local_buffer_enabled_ =
       metric_ != zvec::core_interface::MetricType::kCosine ||

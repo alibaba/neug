@@ -77,8 +77,7 @@ class StorageIndexManager {
     std::vector<std::pair<std::string, Value>> properties;
   };
 
-  explicit StorageIndexManager(size_t max_thread_num = 1)
-      : max_thread_num_(max_thread_num) {}
+  StorageIndexManager() = default;
   result<std::vector<ShowIndexStats>> ShowIndexes(
       const IndexOptions& options = {}) const;
   result<std::vector<OptimizeIndexResult>> OptimizeIndexes(
@@ -192,7 +191,6 @@ class StorageIndexManager {
   }
 
   std::shared_ptr<Checkpoint> ckp_;
-  size_t max_thread_num_ = 1;
   MemoryLevel memory_level_{MemoryLevel::kInMemory};
   std::unordered_map<std::string, std::unique_ptr<StorageIndex>> indexes_;
   std::unordered_map<std::string, PendingIndex> pending_indexes_;

@@ -63,13 +63,11 @@ class ExampleIndex : public StorageIndex {
                     "ExampleIndex requires exactly one property column");
     }
     bound_column_ = context.columns[0];
-    bound_workers_ = context.max_thread_num;
     return Status::OK();
   }
 
   bool IsBound() const { return bound_column_ != nullptr; }
   const ColumnBase* BoundColumn() const { return bound_column_; }
-  size_t BoundWorkers() const { return bound_workers_; }
   index_id_t GetIndexID(vid_t vid) const {
     return index_id_accessor_ ? index_id_accessor_->GetIndexIDByVID(vid)
                               : INVALID_INDEX_ID;
@@ -240,7 +238,6 @@ class ExampleIndex : public StorageIndex {
 
   std::shared_ptr<IDataContainer> index_buffer_;
   const ColumnBase* bound_column_ = nullptr;
-  size_t bound_workers_ = 0;
 };
 
 }  // namespace neug

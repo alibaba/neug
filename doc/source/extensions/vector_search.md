@@ -257,7 +257,8 @@ WITH (
     metric = 'cosine',
     cosine_normalize = true,
     m = 16,
-    ef_construction = 200
+    ef_construction = 200,
+    concurrency = 4
 );
 ```
 
@@ -277,6 +278,7 @@ The following parameters control HNSW index construction and search behavior:
 | `cosine_normalize` | Whether a **cosine** HNSW index may permanently L2-normalize the indexed property values | `true` |
 | `m`               | Maximum number of connections created for each node in the HNSW graph | `50` |
 | `ef_construction` | Size of the candidate list used while building the index. Larger values generally improve index quality at the cost of build time and memory | `500` |
+| `concurrency` | Maximum number of workers for index construction and optimization; must be a positive integer | Hardware thread count, matching GDS procedures |
 
 When creating an index:
 
@@ -285,12 +287,13 @@ When creating an index:
   index, including vectors in the Local Buffer described below.
 
 NeuG automatically uses multiple CPU cores to build HNSW indexes, reducing build
-time for larger datasets without additional configuration. Each build uses up
-to the database's `max_thread_num` setting, which defaults to the hardware
-thread count. This also accelerates index updates during `COPY FROM` and when
-merging buffered vectors with
-`CALL optimize_indexes()`. Actual speedup depends on the dataset, index settings,
-and available CPU cores.
+time for larger datasets without additional configuration. Set `concurrency` in
+`CREATE INDEX ... WITH (...)` to limit the workers for that index. If omitted,
+it defaults to the hardware thread count, matching GDS procedures. The same
+setting applies during `COPY FROM` and `CALL optimize_indexes()`, and is retained
+when the database is reopened. It is independent of the database's
+`max_thread_num`. Actual speedup depends on the dataset, index settings, and
+available CPU cores.
 
 ### Vector normalization
 

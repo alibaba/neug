@@ -249,14 +249,14 @@ class APIndexTest : public ::testing::Test {
     meta.SetSchema(Schema());
     staging.checkpoint()->SetManifest(std::move(meta));
     auto ckp = staging.Publish();
-    graph_ = std::make_shared<PropertyGraph>(4);
+    graph_ = std::make_shared<PropertyGraph>();
     graph_->Open(ckp, MemoryLevel::kInMemory);
     published_graph_ = graph_;
     view_ = std::make_unique<GraphView>(*graph_);
     ResetStorageAdapter();
   }
 
-  void ReopenGraph(size_t max_thread_num = 4) {
+  void ReopenGraph() {
     ap_.reset();
     workspace_.reset();
     view_.reset();
@@ -265,7 +265,7 @@ class APIndexTest : public ::testing::Test {
     checkpoint_mgr_.Close();
     checkpoint_mgr_.Open(work_dir_);
     ASSERT_NE(checkpoint_mgr_.Current(), nullptr);
-    graph_ = std::make_shared<PropertyGraph>(max_thread_num);
+    graph_ = std::make_shared<PropertyGraph>();
     graph_->Open(checkpoint_mgr_.Current(), MemoryLevel::kInMemory);
     published_graph_ = graph_;
     view_ = std::make_unique<GraphView>(*graph_);
@@ -735,58 +735,6 @@ TEST_F(APIndexTest, CloneRebindsIndexToClonedPropertyColumn) {
   ASSERT_NE(cloned, nullptr);
   EXPECT_TRUE(cloned->IsBound());
   EXPECT_NE(cloned->BoundColumn(), original->BoundColumn());
-  EXPECT_EQ(original->BoundWorkers(), 4);
-  EXPECT_EQ(cloned->BoundWorkers(), 4);
-}
-
-TEST_F(APIndexTest, RuntimeIndexWorkerLimitSurvivesCheckpointAndRebind) {
-  CreatePersonTable();
-  ASSERT_TRUE(CreateIndex("idx_person_age", "Person", "age"));
-  auto check = [&](const std::string& name, size_t workers) {
-    auto* index = dynamic_cast<ExampleIndex*>(GetIndex(name));
-    ASSERT_NE(index, nullptr);
-    EXPECT_EQ(index->BoundWorkers(), workers);
-  };
-  check("idx_person_age", 4);
-  auto staging = checkpoint_mgr_.CreateStaging();
-  ASSERT_TRUE(graph_->DumpDirtyAndReopen(staging.checkpoint(), 1));
-  staging.Publish();
-  check("idx_person_age", 4);
-  // The worker limit is runtime configuration, not persisted index metadata.
-  ReopenGraph(2);
-  check("idx_person_age", 2);
-  ASSERT_TRUE(CreateIndex("idx_person_age_second", "Person", "age"));
-  check("idx_person_age_second", 2);
-}
-
-TEST_F(APIndexTest, DeferredIndexActivationInheritsRuntimeWorkerLimit) {
-  CreatePersonTable();
-  const auto label = graph_->schema().get_vertex_label_id("Person");
-  const auto* column =
-      graph_->get_vertex_table(label).GetPropertyColumnBase("age");
-  auto meta = std::make_unique<IndexMeta>();
-  meta->name = "deferred_workers";
-  meta->type = "deferred_workers";
-  meta->schema.label_id = label;
-  meta->schema.label_name = "Person";
-  meta->schema.columns.push_back({"age", DataType::INT32});
-  auto created = graph_->mutable_index_manager().CreateIndex(
-      std::move(meta), std::make_unique<DefaultIndexIDAccessor>(), {column},
-      graph_->GetVertexSet(label), false);
-  ASSERT_TRUE(created);
-  ASSERT_TRUE(std::holds_alternative<PendingIndex*>(*created));
-  auto clone = graph_->Clone();
-  ModuleFactory::instance().Register("deferred_workers_index", [] {
-    return std::make_unique<ExampleIndex>();
-  });
-  auto activated = clone->ActivateIndexes();
-  ASSERT_TRUE(activated);
-  EXPECT_EQ(*activated, 1);
-  auto found = clone->index_manager().GetIndexByName("deferred_workers");
-  ASSERT_TRUE(found);
-  auto* index = dynamic_cast<ExampleIndex*>(*found);
-  ASSERT_NE(index, nullptr);
-  EXPECT_EQ(index->BoundWorkers(), 4);
 }
 
 TEST_F(APIndexTest, DropVertexTypeDeletesBoundIndex) {

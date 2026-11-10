@@ -104,8 +104,6 @@ struct SearchCandidate {
 
 struct IndexBindContext {
   std::vector<const ColumnBase*> columns;
-  // Runtime per-operation worker limit; never persisted with index metadata.
-  size_t max_thread_num = 1;
 };
 
 struct IndexValue {
