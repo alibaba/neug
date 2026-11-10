@@ -15,6 +15,8 @@
 #
 # Core Namespace and projected-graph tests; no GDS extension required.
 
+import subprocess
+import sys
 from contextlib import contextmanager
 
 import pytest
@@ -523,6 +525,17 @@ def test_issue_1207_recursive_node_predicate(
         assert [node["id"] for node in nodes] == [1, 2, 3]
         assert all(node["workspace"] == "payments" for node in nodes)
         assert all(node["content"] == "visible content" for node in nodes)
+        function_rows = list(
+            conn.execute(
+                query + "RETURN LENGTH(p), NODES(p), RELS(p), "
+                "PROPERTIES(NODES(p), 'content'), PROPERTIES(RELS(p), 'weight'), "
+                "IS_TRAIL(p), IS_ACYCLIC(p)",
+                parameters=parameters,
+            )
+        )
+        assert function_rows == [
+            [2, nodes, rows[0][1]["rels"], ["visible content"] * 3, [1, 1], True, True]
+        ]
     finally:
         conn.close()
         db.close()
@@ -584,6 +597,338 @@ def test_namespace_recursive_path_uniqueness(
     finally:
         conn.close()
         db.close()
+
+
+@pytest.mark.parametrize("direction", ["out", "in", "both"])
+@pytest.mark.parametrize("use_namespace", [False, True])
+@pytest.mark.parametrize("with_edge_predicate", [False, True])
+def test_namespace_shortest_hop_filters_and_path_functions(
+    tmp_path, direction, use_namespace, with_edge_predicate
+):
+    """The shortest in-scope path may be longer than the base-graph shortest."""
+    db = Database(str(tmp_path / "shortest_scope"), mode="w")
+    conn = db.connect()
+    try:
+        conn.execute(
+            "CREATE NODE TABLE Doc(id INT64 PRIMARY KEY, workspace STRING, content STRING)"
+        )
+        conn.execute("CREATE REL TABLE LINK(FROM Doc TO Doc, weight INT64)")
+        for doc_id in [1, 2, 4, 5, 6, 7]:
+            conn.execute(
+                "CREATE (:Doc {id: $id, workspace: $workspace, content: $content})",
+                parameters={
+                    "id": doc_id,
+                    "workspace": "finance" if doc_id == 4 else "payments",
+                    "content": "secret" if doc_id == 4 else "doc-{}".format(doc_id),
+                },
+            )
+        edges = [(1, 4, 1), (4, 2, 1), (1, 5, 10), (5, 6, 20), (6, 2, 30)]
+        if with_edge_predicate:
+            edges += [(1, 7, 0), (7, 2, 1)]
+        for src, dst, weight in edges:
+            if direction == "in":
+                src, dst = dst, src
+            conn.execute(
+                "MATCH (a:Doc {id: $src}), (b:Doc {id: $dst}) "
+                "CREATE (a)-[:LINK {weight: $weight}]->(b)",
+                parameters={"src": src, "dst": dst, "weight": weight},
+            )
+        edge_predicate = "r.weight > 0" if with_edge_predicate else ""
+        conn.execute(
+            "CALL project_graph('payments', {'Doc': 'n.workspace = \"payments\"'}, "
+            "{'[Doc, LINK, Doc]': '" + edge_predicate + "'})"
+        )
+        recursive_filter = ""
+        if not use_namespace:
+            recursive_filter = "(r, v | WHERE v.workspace = $workspace"
+            if with_edge_predicate:
+                recursive_filter += " AND " + edge_predicate
+            recursive_filter += ")"
+        hop = {"out": "-{}->", "in": "<-{}-", "both": "-{}-"}[direction].format(
+            "[p:LINK* SHORTEST 1..4 {}]".format(recursive_filter)
+        )
+        prefix = "USE NAMESPACE payments " if use_namespace else ""
+        match = prefix + "MATCH (a:Doc)" + hop + "(n:Doc) WHERE a.id = 1 AND n.id = 2 "
+        parameters = {} if use_namespace else {"workspace": "payments"}
+        rows = list(
+            conn.execute(
+                match + "RETURN n.id, p, LENGTH(p), NODES(p), RELS(p), "
+                "PROPERTIES(NODES(p), 'id'), PROPERTIES(NODES(p), 'content'), "
+                "PROPERTIES(RELS(p), 'weight'), IS_TRAIL(p), IS_ACYCLIC(p)",
+                parameters=parameters,
+            )
+        )
+        assert len(rows) == 1
+        endpoint, path, length, nodes, rels, ids, contents, weights, trail, acyclic = (
+            rows[0]
+        )
+        assert endpoint == 2
+        assert length == path["length"] == 3
+        assert ids == [1, 5, 6, 2]
+        assert contents == ["doc-1", "doc-5", "doc-6", "doc-2"]
+        assert weights == [10, 20, 30]
+        assert nodes == path["nodes"]
+        assert rels == path["rels"]
+        assert all(node["workspace"] == "payments" for node in nodes)
+        assert trail and acyclic
+        # Exercise projections that do not materialize the entire path.
+        for projection, expected in [
+            ("n.id", [[2]]),
+            ("LENGTH(p)", [[3]]),
+            ("PROPERTIES(NODES(p), 'content')", [[contents]]),
+            ("PROPERTIES(RELS(p), 'weight')", [[weights]]),
+        ]:
+            assert (
+                list(
+                    conn.execute(match + "RETURN " + projection, parameters=parameters)
+                )
+                == expected
+            )
+        assert (
+            list(
+                conn.execute(
+                    match.replace("1..4", "1..2") + "RETURN n.id", parameters=parameters
+                )
+            )
+            == []
+        )
+        # ORDER BY/LIMIT fusion must not bypass hop filtering either.
+        ordered = prefix + "MATCH (a:Doc)" + hop + "(n:Doc) WHERE a.id = 1 AND a <> n "
+        result = list(
+            conn.execute(
+                ordered + "RETURN n.id, LENGTH(p) ORDER BY LENGTH(p) LIMIT 10",
+                parameters=parameters,
+            )
+        )
+        expected = [[2, 3], [5, 1], [6, 2]]
+        if direction == "both" and with_edge_predicate:
+            expected.append([7, 4])
+        assert sorted(result) == sorted(expected)
+        multiple_sources = match.replace("a.id = 1", "a.id IN [1, 5]")
+        assert sorted(
+            conn.execute(
+                multiple_sources + "RETURN a.id, LENGTH(p)", parameters=parameters
+            )
+        ) == [[1, 3], [5, 2]]
+        zero = match.replace("1..4", "0..0").replace("n.id = 2", "n.id = 1")
+        with pytest.raises(RuntimeError, match="Lower bound.*must be 1"):
+            conn.execute(zero + "RETURN LENGTH(p)", parameters=parameters)
+    finally:
+        conn.close()
+        db.close()
+
+
+@pytest.mark.parametrize("properties", ["different", "identical", "empty", "unbundled"])
+@pytest.mark.parametrize("reopen", [False, True])
+def test_namespace_trail_parallel_edge_identity(tmp_path, properties, reopen):
+    db_dir = str(tmp_path / "parallel_edges")
+    db = Database(db_dir, mode="w")
+    conn = db.connect()
+    try:
+        conn.execute("CREATE NODE TABLE Doc(id INT64 PRIMARY KEY, visible BOOL)")
+        columns = {
+            "different": ", weight INT64",
+            "identical": ", weight INT64",
+            "empty": "",
+            "unbundled": ", weight INT64, note STRING",
+        }[properties]
+        conn.execute("CREATE REL TABLE LINK(FROM Doc TO Doc" + columns + ")")
+        conn.execute(
+            "CREATE (:Doc {id: 1, visible: true}), (:Doc {id: 2, visible: true})"
+        )
+        first = "" if properties == "empty" else " {weight: 1}"
+        second = "" if properties == "empty" else " {weight: 2}"
+        if properties == "identical":
+            second = first
+        if properties == "unbundled":
+            first = " {weight: 1, note: 'a'}"
+            second = " {weight: 2, note: 'b'}"
+        # Insert in one transaction: identical payloads also have identical timestamps.
+        conn.execute(
+            "MATCH (a:Doc {id: 1}), (b:Doc {id: 2}) CREATE (a)-[:LINK"
+            + first
+            + "]->(b), (a)-[:LINK"
+            + second
+            + "]->(b)"
+        )
+        conn.execute(
+            "CALL project_graph('visible', {'Doc': 'n.visible = true'}, ['[Doc, LINK, Doc]'])"
+        )
+        if reopen:
+            conn.close()
+            db.close()
+            db = Database(db_dir, mode="w")
+            conn = db.connect()
+        query = "USE NAMESPACE visible MATCH p=(:Doc {id: 1})-[:LINK* TRAIL 2..2]-(n:Doc {id: 1}) RETURN n.id, p"
+        rows = list(conn.execute(query))
+        assert len(rows) == 2
+        assert list(
+            conn.execute(
+                query.replace("RETURN n.id, p", "RETURN IS_TRAIL(p), IS_ACYCLIC(p)")
+            )
+        ) == [[True, False], [True, False]]
+        assert all(
+            row[0] == 1 and [n["id"] for n in row[1]["nodes"]] == [1, 2, 1]
+            for row in rows
+        )
+        if properties != "empty":
+            expected = (
+                [[1, 1], [1, 1]] if properties == "identical" else [[1, 2], [2, 1]]
+            )
+            assert (
+                sorted([[r["weight"] for r in row[1]["rels"]] for row in rows])
+                == expected
+            )
+        assert list(conn.execute(query.replace("2..2", "4..4"))) == []
+        assert list(conn.execute(query.replace("TRAIL", "ACYCLIC"))) == []
+        # Arbitrary walks include both same-edge reversals and distinct-edge trails.
+        flags = list(
+            conn.execute(
+                query.replace("TRAIL", "").replace(
+                    "RETURN n.id, p", "RETURN IS_TRAIL(p)"
+                )
+            )
+        )
+        assert sorted(row[0] for row in flags) == [False, False, True, True]
+    finally:
+        conn.close()
+        db.close()
+
+
+@pytest.mark.parametrize("path_kind", ["", "TRAIL", "ACYCLIC"])
+def test_namespace_path_functions_optional_and_edge_endpoints(tmp_path, path_kind):
+    db = Database(str(tmp_path / "path_functions"), mode="w")
+    c = db.connect()
+    try:
+        c.execute("CREATE NODE TABLE Doc(id INT64 PRIMARY KEY, content STRING)")
+        c.execute("CREATE REL TABLE LINK(FROM Doc TO Doc, weight INT64)")
+        c.execute(
+            "CREATE (:Doc {id: 1, content: 'one'}), (:Doc {id: 2, content: 'two'})"
+        )
+        c.execute(
+            "MATCH (a:Doc {id: 1}), (b:Doc {id: 2}) CREATE (a)-[:LINK {weight: 7}]->(b)"
+        )
+        c.execute(
+            "CALL project_graph('visible', {'Doc': 'n.id > 0'}, ['[Doc, LINK, Doc]'])"
+        )
+        for pattern in [
+            "(a:Doc {id: 1})-[e:LINK]->(b:Doc)",
+            "(b:Doc)<-[e:LINK]-(a:Doc {id: 1})",
+        ]:
+            rows = list(
+                c.execute(
+                    "USE NAMESPACE visible MATCH "
+                    + pattern
+                    + " RETURN START_NODE(e), END_NODE(e)"
+                )
+            )
+            assert len(rows) == 1
+            assert [node["id"] for node in rows[0]] == [1, 2]
+        optional = (
+            "USE NAMESPACE visible MATCH (a:Doc {id: 1}) OPTIONAL MATCH p=(a)-[:LINK*"
+            + path_kind
+            + " 1..2]->(b:Doc {id: 99}) "
+        )
+        assert list(
+            c.execute(
+                optional
+                + "RETURN LENGTH(p), NODES(p), RELS(p), PROPERTIES(NODES(p), 'content'), "
+                "PROPERTIES(RELS(p), 'weight'), IS_TRAIL(p), IS_ACYCLIC(p)"
+            )
+        ) == [[None] * 7]
+        zero = (
+            "USE NAMESPACE visible MATCH p=(:Doc {id: 1})-[:LINK*"
+            + path_kind
+            + " 0..0]->(:Doc) "
+        )
+        assert list(
+            c.execute(
+                zero + "RETURN LENGTH(p), PROPERTIES(NODES(p), 'id'), "
+                "PROPERTIES(NODES(p), 'content'), PROPERTIES(RELS(p), 'weight')"
+            )
+        ) == [[0, [1], ["one"], []]]
+    finally:
+        c.close()
+        db.close()
+
+
+@pytest.mark.parametrize("direction", ["out", "in", "both"])
+def test_namespace_shortest_edge_only_filter(tmp_path, direction):
+    db = Database(str(tmp_path / "edge_only"), mode="w")
+    c = db.connect()
+    try:
+        c.execute("CREATE NODE TABLE Doc(id INT64 PRIMARY KEY)")
+        c.execute("CREATE REL TABLE LINK(FROM Doc TO Doc, weight INT64)")
+        for i in [1, 2, 3]:
+            c.execute("CREATE (:Doc {id: $id})", parameters={"id": i})
+        for src, dst, weight in [(1, 2, 0), (1, 3, 1), (3, 2, 2)]:
+            if direction == "in":
+                src, dst = dst, src
+            c.execute(
+                "MATCH (a:Doc {id: $src}), (b:Doc {id: $dst}) CREATE (a)-[:LINK {weight: $weight}]->(b)",
+                parameters={"src": src, "dst": dst, "weight": weight},
+            )
+        c.execute(
+            "CALL project_graph('edges', ['Doc'], {'[Doc, LINK, Doc]': 'r.weight > 0'})"
+        )
+        hop = {"out": "-{}->", "in": "<-{}-", "both": "-{}-"}[direction].format(
+            "[p:LINK* SHORTEST 1..3]"
+        )
+        query = (
+            "USE NAMESPACE edges MATCH (:Doc {id: 1})"
+            + hop
+            + "(n:Doc {id: 2}) RETURN PROPERTIES(NODES(p), 'id'), PROPERTIES(RELS(p), 'weight')"
+        )
+        assert list(c.execute(query)) == [[[1, 3, 2], [1, 2]]]
+    finally:
+        c.close()
+        db.close()
+
+
+def test_namespace_all_shortest_unsupported_is_query_error(tmp_path):
+    # Run in a child so a regression to CHECK/FATAL is reported as a test failure.
+    script = """
+from neug import Database
+import sys
+db = Database(sys.argv[1], mode="w")
+c = db.connect()
+c.execute("CREATE NODE TABLE Doc(id INT64 PRIMARY KEY, workspace STRING, score INT64)")
+c.execute("CREATE REL TABLE LINK(FROM Doc TO Doc)")
+c.execute("CREATE (:Doc {id: 1, workspace: 'payments', score: 10}), (:Doc {id: 2, workspace: 'payments', score: 20})")
+c.execute("MATCH (a:Doc {id: 1}), (b:Doc {id: 2}) CREATE (a)-[:LINK]->(b)")
+c.execute("CALL project_graph('payments', {'Doc': 'n.workspace = \\\"payments\\\"'}, ['[Doc, LINK, Doc]'])")
+for prefix in ["USE NAMESPACE payments ", ""]:
+    query = (prefix + "MATCH (a:Doc)-[p:LINK* ALL SHORTEST 1..4]-(n:Doc) "
+             "WHERE a.id = 1 AND n.id = 2 AND n.workspace = 'payments' RETURN n.id, p")
+    try:
+        c.execute(query)
+    except RuntimeError as error:
+        assert "ALL SHORTEST" in str(error), str(error)
+    else:
+        raise AssertionError("Expected a regular unsupported-query error")
+    assert list(c.execute("RETURN 42")) == [[42]]
+for predicate in ["n.score = 20", "LABEL(n) = 'Doc'"]:
+    try:
+        c.execute("MATCH (a:Doc)-[p:LINK* ALL SHORTEST 1..4]-(n:Doc) WHERE a.id = 1 AND " + predicate + " RETURN n.id, p")
+    except RuntimeError as error:
+        assert "ALL SHORTEST" in str(error), str(error)
+    else:
+        raise AssertionError("Non-primary-key endpoints are unsupported")
+    assert list(c.execute("RETURN 42")) == [[42]]
+assert list(c.execute("MATCH (a:Doc)-[p:LINK* ALL SHORTEST 1..4]-(n:Doc) WHERE a.id = 1 AND n.id = 2 RETURN n.id")) == [[2]]
+c.close()
+db.close()
+print("all-shortest-query-error-ok")
+"""
+    result = subprocess.run(
+        [sys.executable, "-c", script, str(tmp_path / "all_shortest")],
+        capture_output=True,
+        text=True,
+        errors="replace",
+        timeout=60,
+    )
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert "all-shortest-query-error-ok" in result.stdout
 
 
 def test_issue_1093_namespace_variable_length_path_regression(tmp_path):

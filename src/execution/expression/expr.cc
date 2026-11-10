@@ -225,6 +225,9 @@ static std::unique_ptr<ExprBase> build_expr(
         children.emplace_back(
             parse_expression(op.parameters(i), ctx_meta, var_type));
       }
+      if (scalarFunc->name == "IS_TRAIL" && children.size() == 1) {
+        return std::make_unique<PathIsTrailExpr>(std::move(children[0]));
+      }
       return std::make_unique<ScalarFunctionExpr>(fn, signature, ret_type,
                                                   std::move(children));
     }

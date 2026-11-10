@@ -25,11 +25,11 @@ bool is_pk_oid_exact_check(const neug::Schema& schema, label_t label,
   }
   if (!(expr.operators(0).has_var() && expr.operators(0).var().has_property() &&
         expr.operators(0).var().property().has_key())) {
-    auto& key = expr.operators(7).var().property().key();
-    if (!(key.item_case() == common::NameOrId::ItemCase::kName &&
-          key.name() == schema.get_vertex_primary_key_name(label))) {
-      return false;
-    }
+    return false;
+  }
+  const auto& key = expr.operators(0).var().property().key();
+  if (!(key.item_case() == common::NameOrId::ItemCase::kName &&
+        key.name() == schema.get_vertex_primary_key_name(label))) {
     return false;
   }
   if (!(expr.operators(1).item_case() == common::ExprOpr::kLogical &&

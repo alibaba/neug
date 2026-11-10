@@ -31,6 +31,11 @@ class OprTimer;
 
 namespace ops {
 
+static bool has_hop_predicate(const physical::PathExpand& path) {
+  return path.base().edge_expand().params().has_predicate() ||
+         path.base().get_v().params().has_predicate();
+}
+
 static bool is_shortest_path_with_order_by_limit(
     const physical::PhysicalPlan& plan, int i, int& path_len_alias,
     int& vertex_alias) {
@@ -309,6 +314,11 @@ neug::result<OpBuildResultT> SPOrderByLimitOprBuilder::Build(
   const auto& opr = plan.plan(op_idx).opr().path();
   int path_len_alias = -1;
   int vertex_alias = -1;
+  // This fusion filters only result endpoints. Let the general path operator
+  // evaluate recursive predicates before visiting each neighbor instead.
+  if (has_hop_predicate(opr)) {
+    return std::make_pair(nullptr, ContextMeta());
+  }
   if (is_shortest_path_with_order_by_limit(plan, op_idx, path_len_alias,
                                            vertex_alias)) {
     ContextMeta ret_meta = ctx_meta;
@@ -463,12 +473,7 @@ class ASPOpr : public IOperator {
     aspp_.hop_upper = hop_range.upper;
 
     aspp_.labels = parse_label_triplets(meta);
-    CHECK(aspp_.labels.size() == 1) << "only support one label triplet";
-    CHECK(aspp_.labels[0].src_label == aspp_.labels[0].dst_label)
-        << "only support same src and dst label";
-    CHECK(is_pk_oid_exact_check(schema, aspp_.labels[0].src_label,
-                                get_v_opr.params().predicate()))
-        << "ASPOpr only support pk oid exact check";
+    // The builder validates the operator's prerequisites before construction.
     expr_opr_ = get_v_opr.params().predicate().operators(2);
   }
 
@@ -562,6 +567,11 @@ neug::result<OpBuildResultT> SPOprBuilder::Build(
     const neug::Schema& schema, const ContextMeta& ctx_meta,
     const physical::PhysicalPlan& plan, int op_idx) {
   ContextMeta ret_meta = ctx_meta;
+  const auto& recursive_path = plan.plan(op_idx).opr().path();
+  if (has_hop_predicate(recursive_path) &&
+      recursive_path.path_opt() == physical::PathExpand::ANY_SHORTEST) {
+    return std::make_pair(nullptr, ContextMeta());
+  }
   if (is_shortest_path(plan, op_idx)) {
     auto vertex = plan.plan(op_idx + 1).opr().vertex();
     auto path = plan.plan(op_idx).opr().path();
@@ -643,6 +653,15 @@ neug::result<OpBuildResultT> SPOprBuilder::Build(
       LOG(ERROR) << "Currently only support non-optional shortest path without "
                     "predicate";
       return std::make_pair(nullptr, ContextMeta());
+    }
+    const auto labels = parse_label_triplets(plan.plan(op_idx).meta_data(0));
+    if (has_hop_predicate(path) || labels.size() != 1 ||
+        labels[0].src_label != labels[0].dst_label ||
+        !is_pk_oid_exact_check(schema, labels[0].src_label,
+                               vertex.params().predicate())) {
+      RETURN_UNSUPPORTED_ERROR(
+          "ALL SHORTEST requires one same-label relationship type, an exact "
+          "primary-key endpoint predicate, and no recursive predicates");
     }
     return std::make_pair(
         std::make_unique<ASPOpr>(schema, plan.plan(op_idx).opr().path(),

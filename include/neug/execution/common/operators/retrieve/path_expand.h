@@ -29,6 +29,11 @@ namespace execution {
 
 class PathExpand {
  public:
+  // Compare snapshot-local CSR relationship identity, including parallel edges.
+  static bool same_relationship(const StorageReadInterface& graph,
+                                const EdgeRecord& left,
+                                const EdgeRecord& right);
+
   // PathExpand(expandOpt == Vertex && alias == -1 && resultOpt == END_V) +
   // GetV(opt == END)
   static neug::result<ContextChunk> edge_expand_v(
@@ -109,9 +114,82 @@ class PathExpand {
       const ParamsMap& query_params);
 
   template <typename PRED_T>
+  static neug::result<ContextChunk> shortest_path_with_hop_predicate(
+      const StorageReadInterface& graph, ContextChunk&& chunk,
+      const PathExpandParams& params, const PRED_T& pred) {
+    auto& vertices =
+        *std::dynamic_pointer_cast<IVertexColumn>(chunk.get(params.start_tag));
+    std::vector<std::vector<std::pair<LabelTriplet, Direction>>> adjacency(
+        graph.schema().vertex_label_frontier());
+    for (const auto& triplet : params.labels) {
+      if (params.dir != Direction::kIn) {
+        adjacency[triplet.src_label].emplace_back(triplet, Direction::kOut);
+      }
+      if (params.dir != Direction::kOut) {
+        adjacency[triplet.dst_label].emplace_back(triplet, Direction::kIn);
+      }
+    }
+    PathColumnBuilder builder;
+    sel_vec_t offsets;
+    foreach_vertex(vertices, [&](size_t index, label_t label, vid_t vertex) {
+      vector_t<Path> frontier{Path(label, vertex)};
+      flat_hash_set<VertexRecord> visited;
+      visited.emplace(label, vertex);
+      for (int depth = 0; depth < params.hop_upper && !frontier.empty();
+           ++depth) {
+        vector_t<Path> next;
+        for (const auto& path : frontier) {
+          if (depth >= params.hop_lower) {
+            builder.push_back_opt(Path(path));
+            offsets.push_back(index);
+          }
+          if (depth + 1 >= params.hop_upper) {
+            continue;
+          }
+          const auto end = path.end_node();
+          for (const auto& [triplet, direction] : adjacency[end.label_]) {
+            auto neighbor_label = direction == Direction::kOut
+                                      ? triplet.dst_label
+                                      : triplet.src_label;
+            auto view =
+                direction == Direction::kOut
+                    ? graph.GetGenericOutgoingGraphView(
+                          end.label_, neighbor_label, triplet.edge_label)
+                    : graph.GetGenericIncomingGraphView(
+                          end.label_, neighbor_label, triplet.edge_label);
+            auto edges = view.get_edges(end.vid_);
+            for (auto it = edges.begin(); it != edges.end(); ++it) {
+              VertexRecord neighbor{neighbor_label, it.get_vertex()};
+              // Rejected hops must not mark a vertex visited: another in-scope
+              // edge/path may still reach it. Endpoint filtering is performed
+              // separately by the following GetV operator.
+              if (!pred(end.label_, end.vid_, neighbor_label, it.get_vertex(),
+                        triplet.edge_label, direction, it.get_data_ptr())) {
+                continue;
+              }
+              if (visited.emplace(neighbor).second) {
+                next.push_back(path.expand(triplet.edge_label, neighbor_label,
+                                           it.get_vertex(), direction,
+                                           it.get_data_ptr()));
+              }
+            }
+          }
+        }
+        frontier.swap(next);
+      }
+    });
+    chunk.set_with_reshuffle(params.alias, builder.finish(), offsets);
+    return chunk;
+  }
+
+  template <typename PRED_T>
   static neug::result<ContextChunk> edge_expand_p_with_pred(
       const StorageReadInterface& graph, ContextChunk&& chunk,
       const PathExpandParams& params, const PRED_T& pred) {
+    if (params.opt == PathOpt::kAnyShortest) {
+      return shortest_path_with_hop_predicate(graph, std::move(chunk), params,
+                                              pred);
+    }
     if (params.opt != PathOpt::kArbitrary && params.opt != PathOpt::kTrail &&
         params.opt != PathOpt::kSimple) {
       LOG(ERROR) << "unsupported path expand option with predicate";
@@ -155,10 +233,9 @@ class PathExpand {
       if (params.opt == PathOpt::kTrail) {
         auto src = direction == Direction::kOut ? end.vid_ : neighbor;
         auto dst = direction == Direction::kOut ? neighbor : end.vid_;
+        EdgeRecord candidate{triplet, src, dst, data, direction};
         for (const auto& edge : path.relationships()) {
-          // Compare stored edge orientation, so traversing an edge backwards
-          // in an undirected pattern cannot reuse the same relationship.
-          if (edge.label == triplet && edge.src == src && edge.dst == dst) {
+          if (same_relationship(graph, edge, candidate)) {
             return false;
           }
         }

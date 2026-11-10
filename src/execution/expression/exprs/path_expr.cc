@@ -17,9 +17,44 @@
 
 #include "neug/common/types/i_context_column.h"
 #include "neug/execution/common/context.h"
+#include "neug/execution/common/operators/retrieve/path_expand.h"
 
 namespace neug {
 namespace execution {
+class BindedPathIsTrailExpr : public RecordExprBase {
+ public:
+  BindedPathIsTrailExpr(const StorageReadInterface& graph,
+                        std::unique_ptr<BindedExprBase>&& path_expr)
+      : graph_(graph), path_expr_(std::move(path_expr)) {}
+  const DataType& type() const override { return DataType::BOOLEAN; }
+  Value eval_record(const DataChunk& chunk, size_t idx) const override {
+    auto value = path_expr_->Cast<RecordExprBase>().eval_record(chunk, idx);
+    if (value.IsNull()) {
+      return Value(DataType::BOOLEAN);
+    }
+    auto edges = PathValue::Get(value).relationships();
+    for (size_t i = 0; i < edges.size(); ++i) {
+      for (size_t j = 0; j < i; ++j) {
+        if (PathExpand::same_relationship(graph_, edges[i], edges[j])) {
+          return Value::BOOLEAN(false);
+        }
+      }
+    }
+    return Value::BOOLEAN(true);
+  }
+
+ private:
+  const StorageReadInterface& graph_;
+  std::unique_ptr<BindedExprBase> path_expr_;
+};
+
+std::unique_ptr<BindedExprBase> PathIsTrailExpr::bind(
+    const IStorageInterface* storage, const ParamsMap& params) const {
+  return std::make_unique<BindedPathIsTrailExpr>(
+      dynamic_cast<const StorageReadInterface&>(*storage),
+      path_expr_->bind(storage, params));
+}
+
 class BindedPathNodesExpr : public RecordExprBase {
  public:
   BindedPathNodesExpr(std::unique_ptr<BindedExprBase>&& path_expr)
@@ -31,6 +66,9 @@ class BindedPathNodesExpr : public RecordExprBase {
 
   Value eval_record(const DataChunk& chunk, size_t idx) const override {
     Value path_val = path_expr_->Cast<RecordExprBase>().eval_record(chunk, idx);
+    if (path_val.IsNull()) {
+      return Value(type());
+    }
     const Path& path = PathValue::Get(path_val);
     const auto& nodes = path.nodes();
     std::vector<Value> node_values;
@@ -62,6 +100,9 @@ class BindedPathRelationsExpr : public RecordExprBase {
 
   Value eval_record(const DataChunk& chunk, size_t idx) const override {
     Value path_val = path_expr_->Cast<RecordExprBase>().eval_record(chunk, idx);
+    if (path_val.IsNull()) {
+      return Value(type());
+    }
     const Path& path = PathValue::Get(path_val);
     const auto& edges = path.relationships();
     std::vector<Value> edge_values;
@@ -237,6 +278,11 @@ class BindedPathVerticesPropsExpr : public RecordExprBase {
     const auto& vertices = PathValue::Get(path_val).nodes();
     std::vector<Value> prop_values;
     for (const auto& vertex : vertices) {
+      if (prop_ ==
+          graph_.schema().get_vertex_primary_key_name(vertex.label())) {
+        prop_values.push_back(graph_.GetVertexId(vertex.label(), vertex.vid()));
+        continue;
+      }
       const auto& prop_names = graph_.schema().get_vertex_property_names(
           static_cast<label_t>(vertex.label()));
       auto it = std::find(prop_names.begin(), prop_names.end(), prop_);
