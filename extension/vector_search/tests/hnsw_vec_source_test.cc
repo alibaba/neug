@@ -159,6 +159,38 @@ TEST_F(HNSWVecSourceTest, ParallelBuildAndOptimizePreserveSnapshots) {
   EXPECT_FALSE(index->Optimize()->changed);
 }
 
+TEST_F(HNSWVecSourceTest, ExtremeConcurrencyHandlesEmptyAndChunkBoundaries) {
+  for (size_t workers : {size_t{0}, size_t{2147483647}}) {
+    for (vid_t count : {0u, 1u, 64u, 65u, 129u}) {
+      SCOPED_TRACE(::testing::Message()
+                   << "workers=" << workers << ", count=" << count);
+      for (vid_t i = 0; i < count; ++i)
+        column_->set_any(i, MakeVector(i), true);
+      auto index = MakeIndex(workers);
+      VertexTimestamp timestamps;
+      timestamps.Init(count, count);
+      ASSERT_TRUE(index->BulkBuild(VertexSet(count, timestamps, 0)).ok());
+      EXPECT_EQ(index->Show()->buffered_count.value(), 0);
+      EXPECT_FALSE(index->Optimize()->changed);
+      if (count != 0)
+        ExpectNearest(*index, count - 1);
+      // Grow by each boundary size to exercise Optimize's offset-based range.
+      const auto first = column_->get_offset_accessor()->GetVisibleLimit();
+      for (vid_t i = first; i < first + count; ++i) {
+        column_->set_any(i, MakeVector(i), true);
+        ASSERT_TRUE(index->Upsert(i, {0, MakeVector(i)}).ok());
+      }
+      auto optimized = index->Optimize();
+      ASSERT_TRUE(optimized.has_value());
+      EXPECT_EQ(optimized->indexed_count, count);
+      EXPECT_EQ(optimized->skipped_count, 0);
+      EXPECT_EQ(index->Show()->buffered_count.value(), 0);
+      if (count != 0)
+        ExpectNearest(*index, first + count - 1);
+    }
+  }
+}
+
 TEST_F(HNSWVecSourceTest, SerialAndParallelBuildPreserveIDsAndRecall) {
   // Exceed ZVec's default brute-force threshold to exercise HNSW traversal.
   constexpr vid_t count = 2048;

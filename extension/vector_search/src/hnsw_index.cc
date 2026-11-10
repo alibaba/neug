@@ -113,6 +113,32 @@ int ParsePositive(const common::case_insensitive_map_t<std::string>& options,
                                      "' must be a positive integer");
   }
 }
+int ParseConcurrency(
+    const common::case_insensitive_map_t<std::string>& options) {
+  const auto iter = options.find("concurrency");
+  if (iter == options.end())
+    return 0;
+  try {
+    size_t consumed = 0;
+    const auto value = std::stoi(iter->second, &consumed);
+    if (value < 0 || consumed != iter->second.size())
+      throw std::invalid_argument("invalid concurrency");
+    return value;
+  } catch (const std::exception&) {
+    THROW_INVALID_ARGUMENT_EXCEPTION(
+        "HNSW option 'concurrency' must be an integer in [0, 2147483647]; "
+        "0 means automatic concurrency");
+  }
+}
+
+ParallelOptions BuildParallelOptions(size_t requested, size_t range) {
+  constexpr size_t chunk_size = 64;
+  const size_t hardware = std::max(1u, std::thread::hardware_concurrency());
+  const size_t chunks = range == 0 ? 0 : 1 + (range - 1) / chunk_size;
+  return {std::min({requested == 0 ? hardware : requested, hardware, chunks}),
+          chunk_size};
+}
+
 }  // namespace
 
 HNSWVecSource::HNSWVecSource(const VecColumn* column)
@@ -224,9 +250,7 @@ void HNSWIndex::ParseOptions() {
   m_ = ParsePositive(meta_->options, "m", m_);
   ef_construction_ =
       ParsePositive(meta_->options, "ef_construction", ef_construction_);
-  build_workers_ =
-      ParsePositive(meta_->options, "concurrency",
-                    std::max(1u, std::thread::hardware_concurrency()));
+  build_workers_ = ParseConcurrency(meta_->options);
 
   auto metric = meta_->options.find("metric");
   if (metric == meta_->options.end() || metric->second == "l2" ||
@@ -489,38 +513,45 @@ Status HNSWIndex::BulkBuild(const VertexSet& vertices) {
     roaring::Roaring ids;
     size_t indexed_count = 0;
   };
-  const ParallelOptions options{build_workers_, 64};
+  const auto options = BuildParallelOptions(build_workers_, vertices.size());
   std::vector<BuildWorkerState> states(options.max_workers);
   HNSWVecSource source(column_);
   const auto vector_byte_size = source.GetVectorByteSize();
-  auto status = neug::parallel_for(
-      0, vertices.size(), options, [&](size_t vid, size_t worker_id) -> Status {
-        if (!vertices.valid(vid))
-          return Status::OK();
-        const auto id = index_id_accessor_->GetIndexIDByVID(vid);
-        if (id == INVALID_INDEX_ID)
-          return Status::OK();
-        const auto* data = source.get_vector(id);
-        if (!data)
-          return Status::RuntimeError(
-              "HNSW bulk build requires an available vector for vertex " +
-              std::to_string(vid) + " (index ID=" + std::to_string(id) + ")");
-        zvec::core_interface::VectorData vector;
-        vector.vector = zvec::core_interface::DenseVector{data};
-        const auto ret = zvec_index_->add_with_source(vector, id, source);
-        if (ret != 0 && ret != zvec::core::IndexError_Duplicate)
-          return Status::RuntimeError(
-              "ZVec internal bulk build failed for vertex " +
-              std::to_string(vid) + " with error code " + std::to_string(ret) +
-              ". See logs for details.");
-        auto& state = states[worker_id];
-        state.fingerprints.insert(static_cast<uint64_t>(
-            std::hash<std::string_view>{}(std::string_view(
-                static_cast<const char*>(data), vector_byte_size))));
-        state.ids.add(id);
-        ++state.indexed_count;
-        return Status::OK();
-      });
+  auto status =
+      vertices.size() == 0
+          ? Status::OK()
+          : neug::parallel_for(
+                0, vertices.size(), options,
+                [&](size_t vid, size_t worker_id) -> Status {
+                  if (!vertices.valid(vid))
+                    return Status::OK();
+                  const auto id = index_id_accessor_->GetIndexIDByVID(vid);
+                  if (id == INVALID_INDEX_ID)
+                    return Status::OK();
+                  const auto* data = source.get_vector(id);
+                  if (!data)
+                    return Status::RuntimeError(
+                        "HNSW bulk build requires an available vector for "
+                        "vertex " +
+                        std::to_string(vid) +
+                        " (index ID=" + std::to_string(id) + ")");
+                  zvec::core_interface::VectorData vector;
+                  vector.vector = zvec::core_interface::DenseVector{data};
+                  const auto ret =
+                      zvec_index_->add_with_source(vector, id, source);
+                  if (ret != 0 && ret != zvec::core::IndexError_Duplicate)
+                    return Status::RuntimeError(
+                        "ZVec internal bulk build failed for vertex " +
+                        std::to_string(vid) + " with error code " +
+                        std::to_string(ret) + ". See logs for details.");
+                  auto& state = states[worker_id];
+                  state.fingerprints.insert(static_cast<uint64_t>(
+                      std::hash<std::string_view>{}(std::string_view(
+                          static_cast<const char*>(data), vector_byte_size))));
+                  state.ids.add(id);
+                  ++state.indexed_count;
+                  return Status::OK();
+                });
   if (!status.ok())
     return status;
   flat_hash_set<uint64_t> duplicate_statistics;
@@ -580,7 +611,7 @@ result<OptimizeIndexStats> HNSWIndex::Optimize() {
     size_t indexed_count = 0;
     size_t skipped_count = 0;
   };
-  const ParallelOptions options{build_workers_, 64};
+  const auto options = BuildParallelOptions(build_workers_, limit - begin);
   std::vector<OptimizeWorkerState> states(options.max_workers);
   HNSWVecSource source(column_);
   auto status = neug::parallel_for(

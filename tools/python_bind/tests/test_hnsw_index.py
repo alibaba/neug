@@ -42,7 +42,7 @@ DIMENSION = 16
 NUM_VECTORS = 2000
 
 
-@pytest.mark.parametrize("concurrency", [None, 1, 4])
+@pytest.mark.parametrize("concurrency", [None, 0, 1, 4, 2147483647])
 def test_index_concurrency_option_survives_reopen(tmp_path, concurrency):
     path = tmp_path / "concurrency-db"
     db = Database(str(path), mode="w", max_thread_num=1, checkpoint_on_close=False)
@@ -106,13 +106,15 @@ def test_index_concurrency_option_survives_reopen(tmp_path, concurrency):
 
 
 @pytest.mark.parametrize(
-    "value", ["0", "'-1'", "1.5", "'2workers'", "'invalid'", "2147483648"]
+    "value", ["'-1'", "1.5", "'2workers'", "'invalid'", "2147483648"]
 )
 def test_index_concurrency_rejects_invalid_values(tmp_path, value):
     db, conn = _open_database(tmp_path / "invalid-concurrency")
     try:
         conn.execute("CREATE NODE TABLE Item(id INT64 PRIMARY KEY, v FLOAT[2]);")
-        with pytest.raises(RuntimeError, match="concurrency.*positive integer"):
+        with pytest.raises(
+            RuntimeError, match=r"concurrency.*integer in \[0, 2147483647\]"
+        ):
             conn.execute(
                 "CREATE INDEX item_hnsw ON Item USING HNSW (v) "
                 f"WITH (concurrency={value});"
