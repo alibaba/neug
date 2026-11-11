@@ -83,6 +83,11 @@ class Checkpoint {
     return file_mgr_->CreateRuntimeContainer(size, level);
   }
 
+  // Runtime allocations may outlive the manifest-specific Checkpoint object.
+  std::shared_ptr<CheckpointFileManager> runtime_allocator() const {
+    return file_mgr_;
+  }
+
   /// Consume @p buffer and publish it as an immutable object.
   std::string Commit(IDataContainer& buffer) {
     return file_mgr_->Commit(buffer);
@@ -137,7 +142,7 @@ class Checkpoint {
   std::string wal_dir_;
   uint64_t id_;
   CheckpointManifest manifest_;
-  std::unique_ptr<CheckpointFileManager> file_mgr_;
+  std::shared_ptr<CheckpointFileManager> file_mgr_;
 };
 
 /// File name prefix for the allocator with @p allocator_id under

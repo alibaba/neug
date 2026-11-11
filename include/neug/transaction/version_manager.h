@@ -13,6 +13,8 @@
  * limitations under the License.
  */
 #pragma once
+#include <memory>
+#include "neug/transaction/insert_capacity.h"
 
 #include <stdint.h>
 #include <atomic>
@@ -86,6 +88,15 @@ class IVersionManager {
   // Acquire one shared operation lease and the TP coherent read view published
   // behind it. The returned lease owns the reader admission directly.
   virtual ReadOperationLease acquire_read_operation() = 0;
+  // Default keeps existing test implementations source compatible.
+  virtual std::unique_ptr<ExclusiveOperationLease>
+  acquire_capacity_maintenance() {
+    return nullptr;
+  }
+  // Implementations exposing capacity maintenance must also publish its view.
+  virtual void publish_capacity_snapshot(uint32_t generation) noexcept {
+    LOG(FATAL) << "Capacity snapshot publication is not supported";
+  }
   virtual uint32_t acquire_insert_timestamp() = 0;
   virtual void release_insert_timestamp(uint32_t ts) = 0;
   // Waiters directly contend the admission phase. Acquisition order is
@@ -105,12 +116,16 @@ class IVersionManager {
   virtual void release_compact_timestamp(uint32_t ts) = 0;
   virtual void revert_compact_timestamp(uint32_t ts) = 0;
 
+  InsertCapacityReservations& insert_capacity_reservations() {
+    return capacity_reservations_;
+  }
   virtual ~IVersionManager() {}
 
  protected:
   virtual RuntimeWaitFn runtime_wait_impl() const noexcept = 0;
 
  private:
+  InsertCapacityReservations capacity_reservations_;
   friend class UpdateTimestampLease;
 
   // Timed acquisition is intentionally lease-only: callers must not receive a
@@ -181,6 +196,13 @@ class VersionManager : public IVersionManager {
       RuntimeWaitFn runtime_wait) noexcept override;
 
   ReadOperationLease acquire_read_operation() override;
+  std::unique_ptr<ExclusiveOperationLease> acquire_capacity_maintenance()
+      override {
+    return std::make_unique<ExclusiveOperationLease>(gate_);
+  }
+  // Caller already owns exclusive maintenance; preserve the visibility
+  // timestamp.
+  void publish_capacity_snapshot(uint32_t generation) noexcept override;
   uint32_t acquire_insert_timestamp() override;
   void release_insert_timestamp(uint32_t ts) override;
   uint32_t acquire_update_timestamp() override;

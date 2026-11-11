@@ -24,6 +24,8 @@
 #include "neug/transaction/wal/local_wal_writer.h"
 #include "neug/transaction/wal/wal.h"
 #include "neug/utils/exception/exception.h"
+#include "neug/utils/property/array_column.h"
+#include "neug/utils/property/vec_column.h"
 
 #include <fcntl.h>
 #include <sys/stat.h>
@@ -537,4 +539,133 @@ TEST_F(LocalWalParserTest, MmapFailureThrowsIOException) {
 TEST_F(LocalWalParserTest, OpenEmptyWalDirNoThrow) {
   neug::LocalWalParser parser(wal_dir_);
   EXPECT_EQ(parser.last_ts(), 0);
+}
+
+// A deterministic overlap: neither reservation has applied any rows yet.
+TEST_F(MvccInsertTransactionTest, CapacityReservationsPreventOverbooking) {
+  neug::NeugDB db;
+  db.Open(db_dir);
+  auto& graph = const_cast<neug::PropertyGraph&>(db.graph());
+  auto label = graph.schema().get_vertex_label_id("person");
+  auto& table = graph.get_vertex_table(label);
+  ASSERT_GT(table.Capacity(), table.Size() + 2);
+  neug::InsertCapacityRequest large, small, growth;
+  for (size_t i = 0; i < table.Capacity() - table.Size() - 1; ++i) {
+    large.AddVertex("person", neug::Value::INT64(i + 100),
+                    {neug::Value::STRING(""), neug::Value::INT64(0)});
+  }
+  for (size_t i = 0; i < 2; ++i) {
+    small.AddVertex("person", neug::Value::INT64(i + 10000),
+                    {neug::Value::STRING(""), neug::Value::INT64(0)});
+  }
+  neug::InsertCapacityReservations reservations;
+  EXPECT_TRUE(reservations.TryReserve(graph, large, growth));
+  EXPECT_FALSE(reservations.TryReserve(graph, small, growth));
+  reservations.Release(large);
+  EXPECT_TRUE(reservations.TryReserve(graph, small, growth));
+  reservations.Release(small);
+  EXPECT_TRUE(reservations.TryReserve(graph, large, growth));
+  reservations.Release(large);
+  db.Close();
+}
+
+// Capacity rejection happens before any table is resized or reservation stored.
+TEST_F(MvccInsertTransactionTest, RejectVectorGrowthBeforeMutation) {
+  neug::NeugDB db;
+  db.Open(db_dir);
+  auto conn = db.Connect();
+  ASSERT_TRUE(conn->Query(
+      "CREATE NODE TABLE vector_item(id INT64 PRIMARY KEY, v FLOAT[2]);"));
+  auto& graph = const_cast<neug::PropertyGraph&>(db.graph());
+  auto& table =
+      graph.get_vertex_table(graph.schema().get_vertex_label_id("vector_item"));
+  auto* array =
+      dynamic_cast<neug::ArrayColumn*>(table.get_table().get_column_by_id(0));
+  ASSERT_NE(array, nullptr);
+  const auto type = array->array_type();
+  auto value =
+      neug::Value::ARRAY(type, {neug::Value::FLOAT(1), neug::Value::FLOAT(2)});
+  auto accessor = std::make_unique<neug::DefaultIndexIDAccessor>();
+  accessor->Open(graph.checkpoint(), neug::ModuleDescriptor{},
+                 neug::MemoryLevel::kInMemory);
+  auto vector = std::make_unique<neug::VecColumn>(
+      array->shared_buffer<float>(), std::move(accessor), type, array->size(),
+      value, graph.checkpoint(), neug::MemoryLevel::kInMemory);
+  const auto mapping_capacity = vector->size();
+  const auto payload_capacity = vector->buffer_size();
+  table.SetColumn(0, std::move(vector));
+  const auto capacity = table.Capacity();
+  neug::InsertCapacityRequest request, growth;
+  for (size_t i = 0; i <= std::max(capacity, mapping_capacity); ++i)
+    request.AddVertex("vector_item", neug::Value::INT64(i), {value});
+  neug::InsertCapacityReservations reservations;
+  EXPECT_THROW(reservations.TryReserve(graph, request, growth), std::exception);
+  EXPECT_THROW(request.Grow(graph), std::exception);
+  EXPECT_EQ(table.Capacity(), capacity);
+  EXPECT_EQ(table.Size(), 0);
+  auto* vec =
+      dynamic_cast<neug::VecColumn*>(table.get_table().get_column_by_id(0));
+  ASSERT_NE(vec, nullptr);
+  EXPECT_EQ(vec->size(), mapping_capacity);
+  EXPECT_EQ(vec->buffer_size(), payload_capacity);
+  EXPECT_EQ(vec->get_offset_accessor()->GetNextIndexID(), 0);
+  neug::InsertCapacityRequest ordinary;
+  ordinary.AddVertex(
+      "person", neug::Value::INT64(100),
+      {neug::Value::STRING("after rejection"), neug::Value::INT64(0)});
+  EXPECT_TRUE(reservations.TryReserve(graph, ordinary, growth));
+  reservations.Release(ordinary);
+  conn.reset();
+  db.Close();
+}
+
+TEST_F(MvccInsertTransactionTest,
+       AtomicGrowthPreservesSourceOnEveryAllocationFailure) {
+  neug::NeugDB db;
+  db.Open(db_dir);
+  auto& graph = const_cast<neug::PropertyGraph&>(db.graph());
+  const auto label = graph.schema().get_vertex_label_id("person");
+  auto& table = graph.get_vertex_table(label);
+  const auto capacity = table.Capacity();
+  const auto size = table.Size();
+  const auto alice = table.get_indexer().get_index(neug::Value::INT64(1));
+  const auto original_name = table.get_table()
+                                 .get_column_by_id(0)
+                                 ->get_any(alice)
+                                 .GetValue<std::string>();
+  neug::InsertCapacityRequest request;
+  for (size_t i = 0; i <= capacity; ++i)
+    request.AddVertex(
+        "person", neug::Value::INT64(100 + i),
+        {neug::Value::STRING(std::string(200, 'x')), neug::Value::INT64(i)});
+  bool succeeded = false;
+  int failures = 0;
+  for (int allocation = 0; allocation < 64; ++allocation) {
+    auto candidate = graph.Clone();
+    neug::SetResizeFailureCountdownForTest(allocation);
+    try {
+      request.Grow(*candidate);
+      succeeded = true;
+    } catch (const std::bad_alloc&) { ++failures; } catch (...) {
+      neug::SetResizeFailureCountdownForTest(-1);
+      throw;
+    }
+    neug::SetResizeFailureCountdownForTest(-1);
+    EXPECT_EQ(table.Capacity(), capacity);
+    EXPECT_EQ(table.Size(), size);
+    EXPECT_EQ(table.get_indexer().get_index(neug::Value::INT64(1)), alice);
+    EXPECT_EQ(table.get_table()
+                  .get_column_by_id(0)
+                  ->get_any(alice)
+                  .GetValue<std::string>(),
+              original_name);
+    if (succeeded) {
+      EXPECT_TRUE(request.Fits(*candidate));
+      break;
+    }
+  }
+  EXPECT_TRUE(succeeded);
+  EXPECT_GE(failures,
+            5);  // Includes columns, primary hash buckets and CSR directories.
+  db.Close();
 }

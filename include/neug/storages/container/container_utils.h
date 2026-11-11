@@ -24,6 +24,20 @@
 
 namespace neug {
 
+class CheckpointFileManager;
+
+#ifdef NEUG_BUILD_TEST
+// Thread-local allocation failure injection; -1 disables it.
+void SetResizeFailureCountdownForTest(int countdown);
+#endif
+
+// Return a replacement without mutating the source container. Equal sizes are
+// a no-op unless private storage is needed for subsequent initialization.
+std::shared_ptr<IDataContainer> ResizeContainerCopy(
+    const std::shared_ptr<CheckpointFileManager>& allocator, MemoryLevel level,
+    const std::shared_ptr<IDataContainer>& source, size_t bytes,
+    bool force_copy = false);
+
 /**
  * @brief Create and open a data container (overload 1: returns new container).
  *

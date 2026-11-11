@@ -114,6 +114,8 @@ class NEUG_API ImmutableCsr : public TypedCsrBase<EDATA_T> {
   // Zero-copy COW clone: share IDataContainer buffers via shared_ptr.
   std::unique_ptr<Module> Clone() const override {
     auto cow_clone = std::make_unique<ImmutableCsr<EDATA_T>>();
+    cow_clone->resize_allocator_ = resize_allocator_;
+    cow_clone->level_ = level_;
     cow_clone->adj_list_buffer_ = adj_list_buffer_;
     cow_clone->degree_list_buffer_ = degree_list_buffer_;
     cow_clone->nbr_list_buffer_ = nbr_list_buffer_;
@@ -134,6 +136,8 @@ class NEUG_API ImmutableCsr : public TypedCsrBase<EDATA_T> {
   }
 
  private:
+  std::shared_ptr<CheckpointFileManager> resize_allocator_;
+  MemoryLevel level_ = MemoryLevel::kInMemory;
   std::shared_ptr<IDataContainer> adj_list_buffer_;
   std::shared_ptr<IDataContainer> degree_list_buffer_;
   std::shared_ptr<IDataContainer> nbr_list_buffer_;
@@ -227,6 +231,8 @@ class NEUG_API SingleImmutableCsr : public TypedCsrBase<EDATA_T> {
   // Zero-copy COW clone: share IDataContainer buffer via shared_ptr.
   std::unique_ptr<Module> Clone() const override {
     auto cow_clone = std::make_unique<SingleImmutableCsr<EDATA_T>>();
+    cow_clone->resize_allocator_ = resize_allocator_;
+    cow_clone->level_ = level_;
     cow_clone->nbr_list_buffer_ = nbr_list_buffer_;
     cow_clone->edge_num_ = edge_num_.load();
     return cow_clone;
@@ -244,6 +250,8 @@ class NEUG_API SingleImmutableCsr : public TypedCsrBase<EDATA_T> {
   }
 
  private:
+  std::shared_ptr<CheckpointFileManager> resize_allocator_;
+  MemoryLevel level_ = MemoryLevel::kInMemory;
   void refresh_prefetch_policy();
   CsrPrefetchPolicy prefetch_policy_;
   std::shared_ptr<IDataContainer> nbr_list_buffer_;

@@ -390,6 +390,9 @@ void VecColumn::set_any(size_t vid, const Value& value, bool insert_safe) {
       THROW_INVALID_ARGUMENT_EXCEPTION(status.ToString());
     }
   }
+  if (!insert_safe && vid >= offset_accessor_->size()) {
+    THROW_STORAGE_EXCEPTION("VecColumn VID mapping capacity is insufficient");
+  }
   index_id_t next_offset = offset_accessor_->GetNextIndexID();
   if (next_offset >= size_) {
     if (!insert_safe) {
