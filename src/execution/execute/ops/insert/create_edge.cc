@@ -101,8 +101,16 @@ neug::result<OpBuildResultT> CreateEdgeOprBuilder::Build(
     ret_meta.set(edge.alias().id(), DataType::EDGE);
     std::vector<std::pair<std::string, std::unique_ptr<ExprBase>>> props;
     for (const auto& prop : edge.property_mappings()) {
+      if (!prop.has_property() || !prop.has_data()) {
+        THROW_INTERNAL_EXCEPTION("Incomplete PropertyMapping: " +
+                                 prop.DebugString());
+      }
       auto expr = neug::execution::parse_expression(
           prop.data(), ctx_meta, neug::execution::VarType::kRecord);
+      if (!expr) {
+        THROW_INTERNAL_EXCEPTION("Invalid property expression: " +
+                                 prop.DebugString());
+      }
       props.emplace_back(prop.property().key().name(), std::move(expr));
     }
     properties.push_back(std::move(props));

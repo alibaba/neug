@@ -110,6 +110,10 @@ neug::result<OpBuildResultT> CreateVertexOprBuilder::Build(
                                  prop.DebugString());
       }
       auto expr = parse_expression(prop.data(), ctx_meta, VarType::kRecord);
+      if (!expr) {
+        THROW_INTERNAL_EXCEPTION("Invalid property expression: " +
+                                 prop.DebugString());
+      }
       props.emplace_back(prop.property().key().name(), std::move(expr));
     }
     properties.push_back(std::move(props));
