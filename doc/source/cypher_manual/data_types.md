@@ -143,7 +143,9 @@ The following table shows all Component Types that LIST can support:
 
 **Important Note on LIST Component Types**: 
 
-NeuG supports lists through tuple data types, meaning composite types can be heterogeneous. Here are some examples:
+Bracket literals containing compatible numeric types automatically convert their elements to a common numeric type. For example, `RETURN [1, 2.5]` returns `[1.0, 2.5]`. NULL elements in a numeric literal inherit that common type, so `RETURN [1.0, NULL]` preserves the NULL without requiring an explicit cast.
+
+Other heterogeneous literals are supported through tuple data types. Here are some examples:
 
 Mixing different primitive types in a single list:
 ```cypher
@@ -162,8 +164,8 @@ MATCH (n:Person) RETURN [["name", n.name], ["age", n.age]];
 
 **Key Technical Details:**
 - Lists in NeuG can contain elements of different data types (heterogeneous lists)
-- This is achieved through internal tuple data type support
-- Type conversion is handled automatically when possible
+- Compatible numeric elements use a common numeric type; other heterogeneous elements use internal tuple data type support
+- Type conversion is handled automatically when possible, including typing NULL elements from the numeric elements in the same literal
 - Nested lists are fully supported for complex data structures
 - The system maintains type safety while allowing flexibility in list composition
 
