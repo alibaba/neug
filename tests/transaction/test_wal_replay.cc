@@ -69,7 +69,13 @@ std::string make_test_dir() {
   return (std::filesystem::temp_directory_path() / dir_name).string();
 }
 
-TEST(WalWriterTest, ReopensSameInstanceOnNewTimeline) {
+class WalWriterTest : public ::testing::TestWithParam<neug::WalSyncMode> {};
+
+INSTANTIATE_TEST_SUITE_P(SyncModes, WalWriterTest,
+                         ::testing::Values(neug::WalSyncMode::STANDARD,
+                                           neug::WalSyncMode::FULL));
+
+TEST_P(WalWriterTest, ReopensSameInstanceOnNewTimeline) {
   const auto test_dir = make_test_dir();
   const auto old_wal_dir =
       (std::filesystem::path(test_dir) / "checkpoint-0" / "wal").string();
@@ -82,7 +88,8 @@ TEST(WalWriterTest, ReopensSameInstanceOnNewTimeline) {
   std::filesystem::create_directories(new_wal_dir);
 
   {
-    auto writer = neug::WalWriterFactory::CreateWalWriter(old_wal_dir, 0);
+    auto writer =
+        neug::WalWriterFactory::CreateWalWriter(old_wal_dir, 0, GetParam());
     auto* const identity = writer.get();
     writer->open(old_wal_dir);
     ASSERT_TRUE(writer->append(reinterpret_cast<const char*>(&old_marker),
@@ -110,7 +117,7 @@ TEST(WalWriterTest, ReopensSameInstanceOnNewTimeline) {
   std::filesystem::remove_all(test_dir);
 }
 
-TEST(WalWriterSetTest, DirectWriterStaysStableAcrossTpActivation) {
+TEST_P(WalWriterTest, DirectWriterStaysStableAcrossTpActivation) {
   const auto test_dir = make_test_dir();
   const auto ap_wal_dir = (std::filesystem::path(test_dir) / "ap").string();
   const auto tp_wal_dir = (std::filesystem::path(test_dir) / "tp").string();
@@ -120,7 +127,7 @@ TEST(WalWriterSetTest, DirectWriterStaysStableAcrossTpActivation) {
 
   {
     neug::WalWriterSet writers(/*slot_num=*/3, neug::DBMode::READ_WRITE,
-                               ap_wal_dir);
+                               ap_wal_dir, GetParam());
     auto* const direct_writer = &writers.DirectWriter();
     ASSERT_TRUE(direct_writer->append(reinterpret_cast<const char*>(&marker),
                                       sizeof(marker)));
@@ -137,6 +144,10 @@ TEST(WalWriterSetTest, DirectWriterStaysStableAcrossTpActivation) {
     ASSERT_TRUE(direct_writer->append(reinterpret_cast<const char*>(&marker),
                                       sizeof(marker)));
 
+    ASSERT_TRUE(first_tp_writer->append(reinterpret_cast<const char*>(&marker),
+                                        sizeof(marker)));
+    ASSERT_TRUE(second_tp_writer->append(reinterpret_cast<const char*>(&marker),
+                                         sizeof(marker)));
     writers.DeactivateTransactional();
     EXPECT_EQ(&writers.DirectWriter(), direct_writer);
     EXPECT_THROW((void) writers.WriterFor(1), std::exception);
@@ -350,6 +361,51 @@ class WalReplayTest : public ::testing::Test {
 
   std::string db_dir_;
 };
+
+class WalSyncReplayTest
+    : public WalReplayTest,
+      public ::testing::WithParamInterface<neug::WalSyncMode> {};
+
+INSTANTIATE_TEST_SUITE_P(SyncModes, WalSyncReplayTest,
+                         ::testing::Values(neug::WalSyncMode::STANDARD,
+                                           neug::WalSyncMode::FULL));
+
+TEST_P(WalSyncReplayTest, ServiceWritesRecoverAcrossCheckpointAndReactivation) {
+  auto config = make_config(db_dir_, 2);
+  config.wal_sync_mode = GetParam();
+  {
+    neug::NeugDB db;
+    ASSERT_TRUE(db.Open(config));
+    EXPECT_EQ(db.config().wal_sync_mode, GetParam());
+    create_person_schema(db);
+    {
+      neug::NeugDBService service(db);
+      insert_person_and_return_ts(service, 1, "before-checkpoint");
+    }
+    {
+      auto conn = db.Connect();
+      assert_query_ok(*conn, "CHECKPOINT;");
+      conn->Close();
+    }
+    {
+      neug::NeugDBService service(db);
+      insert_person_and_return_ts(service, 2, "after-checkpoint");
+      EXPECT_EQ(read_person_count(service), 2);
+    }
+    db.Close();
+  }
+  {
+    neug::NeugDB db;
+    ASSERT_TRUE(db.Open(config));
+    {
+      neug::NeugDBService service(db);
+      EXPECT_TRUE(read_has_person(service, 1));
+      EXPECT_TRUE(read_has_person(service, 2));
+      EXPECT_EQ(read_person_count(service), 2);
+    }
+    db.Close();
+  }
+}
 
 static void expect_compact_completes_timestamp_and_preserves_next_insert(
     bool commit) {

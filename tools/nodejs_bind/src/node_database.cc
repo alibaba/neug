@@ -184,6 +184,16 @@ NodeDatabase::NodeDatabase(const Napi::CallbackInfo& info)
     buffer_strategy = opts.Get("bufferStrategy").As<Napi::String>().Utf8Value();
   }
 
+  std::string wal_sync_mode = "STANDARD";
+  if (opts.Has("walSyncMode")) {
+    if (!opts.Get("walSyncMode").IsString()) {
+      Napi::TypeError::New(env, "walSyncMode must be a string")
+          .ThrowAsJavaScriptException();
+      return;
+    }
+    wal_sync_mode = opts.Get("walSyncMode").As<Napi::String>().Utf8Value();
+  }
+
   bool auto_load_extension = false;
   if (opts.Has("autoLoadExtension")) {
     if (!opts.Get("autoLoadExtension").IsBoolean()) {
@@ -215,6 +225,7 @@ NodeDatabase::NodeDatabase(const Napi::CallbackInfo& info)
   config.planner_kind = planner;
   config.checkpoint_on_close = checkpoint_on_close;
   try {
+    config.wal_sync_mode = ParseWalSyncMode(wal_sync_mode);
     config.memory_level = ParseBufferStrategy(buffer_strategy);
     state_ = std::make_shared<DatabaseState>(config, mode);
     owner_ = true;
@@ -282,6 +293,9 @@ Napi::Value NodeDatabase::GetOptions(const Napi::CallbackInfo& info) {
   options.Set("databasePath", state_->options.data_dir);
   options.Set("mode", state_->mode);
   options.Set("maxThreadNum", state_->options.max_thread_num);
+  options.Set("walSyncMode", state_->options.wal_sync_mode == WalSyncMode::FULL
+                                 ? "FULL"
+                                 : "STANDARD");
   return options;
 }
 

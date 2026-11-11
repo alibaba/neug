@@ -160,6 +160,10 @@ bool NeugDB::Open(const NeugDBConfig& config) {
   if (!closed_.load(std::memory_order_acquire)) {
     THROW_RUNTIME_ERROR("NeugDB instance is already open.");
   }
+  if (config.wal_sync_mode != WalSyncMode::STANDARD &&
+      config.wal_sync_mode != WalSyncMode::FULL) {
+    THROW_INVALID_ARGUMENT_EXCEPTION("wal_sync_mode must be STANDARD or FULL");
+  }
   config_ = config;
   try {
     preprocessConfig();
@@ -222,7 +226,8 @@ bool NeugDB::Open(const NeugDBConfig& config) {
       checkpoint_mgr_.CollectGarbage();
     }
     wal_writers_ = std::make_unique<WalWriterSet>(
-        allocators_.size(), config_.mode, graph().checkpoint().wal_dir());
+        allocators_.size(), config_.mode, graph().checkpoint().wal_dir(),
+        config_.wal_sync_mode);
     initVersionManager(initial_visibility_ts);
     initQueryRuntime();
   } catch (...) {

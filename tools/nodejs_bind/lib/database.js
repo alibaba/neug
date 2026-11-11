@@ -106,6 +106,7 @@ class Database {
    * @param {number} [options.maxThreadNum=0] - Maximum number of threads (0 = no limit).
    * @param {boolean} [options.checkpointOnClose=true] - Whether to checkpoint on close.
    * @param {boolean} [options.autoLoadExtension=false] - Load installed extensions before indexes open; failures are logged.
+   * @param {string} [options.walSyncMode='STANDARD'] - WAL synchronization policy: STANDARD or FULL (case-insensitive).
    * @param {string} [options.bufferStrategy='M_FULL'] - Buffer strategy:
    *   'InMemory'/'M_FULL', 'SyncToFile'/'M_LAZY', 'HugePagePreferred'/'M_HUGE'.
    */
@@ -117,10 +118,18 @@ class Database {
       checkpointOnClose = true,
       bufferStrategy = 'M_FULL',
       autoLoadExtension = false,
+      walSyncMode = 'STANDARD',
     } = options;
 
     if (typeof autoLoadExtension !== 'boolean') {
       throw new TypeError('autoLoadExtension must be a boolean');
+    }
+
+    if (typeof walSyncMode !== 'string') {
+      throw new TypeError('walSyncMode must be a string');
+    }
+    if (!/^(STANDARD|FULL)$/i.test(walSyncMode)) {
+      throw new Error('walSyncMode must be STANDARD or FULL');
     }
 
     this._connections = [];
@@ -193,6 +202,7 @@ class Database {
       checkpointOnClose,
       bufferStrategy,
       autoLoadExtension,
+      walSyncMode,
     });
 
     if (!dbPath || dbPath.trim() === '') {

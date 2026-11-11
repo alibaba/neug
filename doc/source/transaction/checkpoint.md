@@ -157,3 +157,32 @@ returns an error so the application can correct the cause and retry.
 For the on-disk layout, AP/TP coordination, checkpoint publication, garbage
 collection, and legacy-format migration, see
 [Transaction Model](transaction_model.md).
+
+## WAL synchronization policy
+
+Choose `wal_sync_mode` when opening a database:
+
+```python
+import neug
+
+db = neug.Database("/path/to/database", wal_sync_mode="STANDARD")
+# For stronger power-loss protection on supported macOS storage:
+# db = neug.Database("/path/to/database", wal_sync_mode="FULL")
+```
+
+- `STANDARD` (default): standard durable commit protection with lower write
+  latency on macOS.
+- `FULL`: stronger protection against power loss on supported macOS storage,
+  potentially at higher write latency. If the storage does not support this
+  protection, NeuG falls back to `STANDARD`.
+- On Linux and Windows, the two modes provide the same behavior.
+
+Both modes synchronize committed WAL writes. `STANDARD` on macOS does not
+provide the additional power-loss protection of `FULL`. The default has changed
+from the previous stronger macOS behavior; select `FULL` to retain it where
+supported. Values are case-insensitive: for example, `standard`, `Standard`, and
+`STANDARD` select the same mode.
+
+The setting applies to all embedded and service writes for that database.
+Specify it on each open; it is not saved with the database. It does not change
+checkpoint settings, and does not make an in-memory database persistent.

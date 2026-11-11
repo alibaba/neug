@@ -23,8 +23,8 @@
 namespace neug {
 
 WalWriterSet::WalWriterSet(size_t slot_num, DBMode mode,
-                           const std::string& wal_uri)
-    : mode_(mode), writers_(slot_num) {
+                           const std::string& wal_uri, WalSyncMode sync_mode)
+    : mode_(mode), sync_mode_(sync_mode), writers_(slot_num) {
   if (slot_num == 0) {
     THROW_INVALID_ARGUMENT_EXCEPTION("WAL writer set cannot be empty");
   }
@@ -38,7 +38,7 @@ std::unique_ptr<IWalWriter> WalWriterSet::CreateWriter(
     size_t slot_id, const std::string& wal_uri) const {
   auto writer = mode_ == DBMode::READ_WRITE
                     ? WalWriterFactory::CreateWalWriter(
-                          wal_uri, static_cast<int>(slot_id))
+                          wal_uri, static_cast<int>(slot_id), sync_mode_)
                     : WalWriterFactory::CreateDummyWalWriter();
   CHECK(writer != nullptr);
   if (mode_ == DBMode::READ_WRITE) {

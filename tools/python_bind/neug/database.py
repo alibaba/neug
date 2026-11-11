@@ -88,6 +88,7 @@ class Database(object):
         checkpoint_on_close: bool = True,
         buffer_strategy: str = "M_FULL",
         auto_load_extension: bool = False,
+        wal_sync_mode: str = "STANDARD",
     ):
         """
         Open a database.
@@ -111,6 +112,13 @@ class Database(object):
         checkpoint_on_close : bool
             Whether to automatically create a checkpoint when the database is closed. Default is True.
             If False, no checkpoint is created automatically when close the database.
+        wal_sync_mode : str
+            WAL synchronization policy: STANDARD (default) or FULL, case-insensitive.
+            FULL provides
+            stronger power-loss protection on supported macOS storage, with higher
+            write latency; otherwise it uses STANDARD protection. On Linux and
+            Windows both modes are equivalent. Applies to embedded and service writes.
+            Set on each open; does not change checkpoint settings.
         buffer_strategy : str
             Buffer strategy to use for the database, could be 'InMemory' (or 'M_FULL'), 'SyncToFile' (or 'M_LAZY')
             or 'HugePagePreferred' (or 'M_HUGE'). Default is 'M_FULL'. This setting controls how graph data is
@@ -152,6 +160,14 @@ class Database(object):
         self._async_connections = []
         if not isinstance(auto_load_extension, bool):
             raise TypeError("auto_load_extension must be a bool")
+        if not isinstance(wal_sync_mode, str):
+            raise TypeError("wal_sync_mode must be a string")
+        if not wal_sync_mode.isascii() or wal_sync_mode.upper() not in (
+            "STANDARD",
+            "FULL",
+        ):
+            raise ValueError("wal_sync_mode must be STANDARD or FULL")
+        wal_sync_mode = wal_sync_mode.upper()
         import sys as _sys
 
         # On Windows, ':' (drive letter) and '\\' (path separator) are valid.
@@ -220,6 +236,7 @@ class Database(object):
             checkpoint_on_close=checkpoint_on_close,
             buffer_strategy=buffer_strategy,
             auto_load_extension=auto_load_extension,
+            wal_sync_mode=wal_sync_mode,
         )
         self._max_thread_num = self._database.max_thread_num()
         self._serving = False

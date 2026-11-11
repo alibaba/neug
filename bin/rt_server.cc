@@ -42,6 +42,8 @@ int main(int argc, char** argv) {
       "auto-load-extension",
       "Automatically load installed extensions before opening indexes",
       cxxopts::value<bool>()->default_value("false"))(
+      "wal-sync-mode", "WAL synchronization policy (STANDARD or FULL)",
+      cxxopts::value<std::string>()->default_value("STANDARD"))(
       "host", "Host address", cxxopts::value<std::string>());
 
   google::InitGoogleLogging(argv[0]);
@@ -79,6 +81,8 @@ int main(int argc, char** argv) {
   neug::NeugDBConfig config(data_path, thread_num);
   config.memory_level = memory_level;
   config.auto_load_extension = vm["auto-load-extension"].as<bool>();
+  config.wal_sync_mode =
+      neug::ParseWalSyncMode(vm["wal-sync-mode"].as<std::string>());
   db.Open(config);
 
   auto end = std::chrono::high_resolution_clock::now();
