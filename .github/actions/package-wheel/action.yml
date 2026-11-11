@@ -121,7 +121,17 @@ runs:
       done
       set -u
       cd "$GITHUB_WORKSPACE/tools/python_bind"
+      # Self-hosted runners persist $GITHUB_WORKSPACE across runs and workflows.
+      # A wheel built earlier (possibly root-owned from the manylinux container,
+      # so it survives checkout's `git clean -ffdx`) can linger in these
+      # wheelhouses at a different version. Wipe them best-effort and, below,
+      # scope every glob to the version being built now, so a stale wheel is
+      # never repacked, smoke-installed, uploaded, or shipped. Mixing versions
+      # makes `pip install <wheelhouse>/*.whl` fail with ResolutionImpossible.
+      rm -rf "$WHEELHOUSE" "$COMPLETE_WHEELHOUSE" 2>/dev/null || true
       mkdir -p "$WHEELHOUSE" "$COMPLETE_WHEELHOUSE"
+      pkg_version="$(cat "$GITHUB_WORKSPACE/NEUG_VERSION")"
+      test -n "$pkg_version"
       for version in $PYTHON_VERSIONS; do
         if [ "$RUNNER_OS" = Linux ]; then
           abi="cp${version/./}"
@@ -172,7 +182,7 @@ runs:
         else
           cp "$RUNNER_TEMP/wheel-$version/"*.whl "$COMPLETE_WHEELHOUSE/"
         fi
-        for wheel in "$COMPLETE_WHEELHOUSE/"*"cp${version/./}"*.whl; do
+        for wheel in "$COMPLETE_WHEELHOUSE/neug-${pkg_version}-"*"cp${version/./}"*.whl; do
           unpack_dir=$(mktemp -d "$RUNNER_TEMP/core-wheel.XXXXXX")
           "$py" -m wheel unpack "$wheel" -d "$unpack_dir"
           for package in "$unpack_dir"/*; do
@@ -194,7 +204,7 @@ runs:
           # Verify the installed wheel without source paths or egg-info.
           cd "$verify_dir"
           export PYTHONPATH=
-          "$verify_py" -m pip install "$WHEELHOUSE/"*"cp${version/./}"*.whl
+          "$verify_py" -m pip install "$WHEELHOUSE/neug-${pkg_version}-"*"cp${version/./}"*.whl
           "$verify_py" -c 'import neug; db=neug.Database(); c=db.connect(); print(c.execute("RETURN 1"))'
         )
       done
@@ -230,8 +240,13 @@ runs:
     shell: bash
     run: |
       set -euo pipefail
-      wheel=$(find complete_wheelhouse -maxdepth 1 -name '*.whl' -print -quit)
       version="${VERSION:-$(cat NEUG_VERSION)}"
+      # Wheel filenames carry the un-prefixed NEUG_VERSION, while $VERSION may be
+      # a release tag with a leading "v". Select the wheel just built for this
+      # version so a stale one left in complete_wheelhouse is never picked up.
+      wheel_version="$(cat NEUG_VERSION)"
+      wheel=$(find complete_wheelhouse -maxdepth 1 -name "neug-${wheel_version}-*.whl" -print -quit)
+      test -n "$wheel"
       echo "version=$version" >> "$GITHUB_OUTPUT"
       python3 scripts/publish_extensions_from_wheel.py \
         --wheel "$wheel" --extensions "$EXTENSIONS" \

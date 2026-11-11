@@ -183,6 +183,12 @@ jobs:
       run: |
         set -euo pipefail
         export CMAKE_BUILD_PARALLEL_LEVEL=$(nproc)
+        # Self-hosted runners persist $GITHUB_WORKSPACE across runs; cibuildwheel
+        # writes complete_wheelhouse from inside the manylinux container
+        # (root-owned), so a stale wheel from a previous version can survive
+        # checkout's `git clean`. Wipe both wheelhouses best-effort so downstream
+        # globs never mix versions (which breaks pip install / twine upload).
+        rm -rf complete_wheelhouse core_wheelhouse 2>/dev/null || true
         python3 -m cibuildwheel ./tools/python_bind --output-dir complete_wheelhouse
 
     # ========================================
@@ -192,8 +198,22 @@ jobs:
     - name: Create Core Wheels
       run: |
         set -euo pipefail
+        # Only repackage the wheel built for the current version. On a persistent
+        # self-hosted runner complete_wheelhouse may retain a root-owned wheel of
+        # a different version that survived git-clean; globbing every *.whl mixes
+        # versions and later breaks `pip install core_wheelhouse/*.whl` (verify)
+        # and `twine upload downloaded/*.whl` (release) with ResolutionImpossible
+        # or duplicate-upload errors. Filenames use the un-prefixed NEUG_VERSION.
+        wheel_version="$(cat NEUG_VERSION)"
+        rm -rf core_wheelhouse
         mkdir -p core_wheelhouse
-        for wheel in complete_wheelhouse/*.whl; do
+        shopt -s nullglob
+        wheels=(complete_wheelhouse/neug-"${wheel_version}"-*.whl)
+        if [ "${#wheels[@]}" -eq 0 ]; then
+          echo "::error::No wheel built for neug ${wheel_version} in complete_wheelhouse" >&2
+          exit 1
+        fi
+        for wheel in "${wheels[@]}"; do
           unpack_dir=$(mktemp -d "$RUNNER_TEMP/core-wheel.XXXXXX")
           python3 -m wheel unpack "$wheel" -d "$unpack_dir"
           for package in "$unpack_dir"/*; do
@@ -221,8 +241,12 @@ jobs:
       shell: bash
       run: |
         set -euo pipefail
-        wheel=$(find complete_wheelhouse -maxdepth 1 -name '*.whl' -print -quit)
         version="${VERSION:-$(cat NEUG_VERSION)}"
+        # Match the wheel built for this version (filenames use the un-prefixed
+        # NEUG_VERSION) instead of any stale wheel left in complete_wheelhouse.
+        wheel_version="$(cat NEUG_VERSION)"
+        wheel=$(find complete_wheelhouse -maxdepth 1 -name "neug-${wheel_version}-*.whl" -print -quit)
+        test -n "$wheel"
         echo "version=$version" >> "$GITHUB_OUTPUT"
         python3 scripts/publish_extensions_from_wheel.py \
           --wheel "$wheel" --extensions "$EXTENSIONS" \
