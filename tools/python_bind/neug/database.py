@@ -113,12 +113,9 @@ class Database(object):
             Whether to automatically create a checkpoint when the database is closed. Default is True.
             If False, no checkpoint is created automatically when close the database.
         wal_sync_mode : str
-            WAL synchronization policy: STANDARD (default) or FULL, case-insensitive.
-            FULL provides
-            stronger power-loss protection on supported macOS storage, with higher
-            write latency; otherwise it uses STANDARD protection. On Linux and
-            Windows both modes are equivalent. Applies to embedded and service writes.
-            Set on each open; does not change checkpoint settings.
+            STANDARD (default) or FULL, case-insensitive. Sets the WAL synchronization
+            policy for this database, including service writes. Specify on each open.
+            See [WAL synchronization policy](../../transaction/checkpoint.md#wal-synchronization-policy).
         buffer_strategy : str
             Buffer strategy to use for the database, could be 'InMemory' (or 'M_FULL'), 'SyncToFile' (or 'M_LAZY')
             or 'HugePagePreferred' (or 'M_HUGE'). Default is 'M_FULL'. This setting controls how graph data is

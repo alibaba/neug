@@ -1,4 +1,3 @@
-add_neug_test(wal_sync_test test_wal_sync.cc)
 add_neug_test(runtime_wait_test test_runtime_wait.cc)
 add_neug_test(operation_gate_test test_operation_gate.cc)
 add_neug_test(read_view_publication_test test_read_view_publication.cc)

@@ -106,9 +106,7 @@ config.wal_sync_mode = neug::WalSyncMode::STANDARD;  // Default; or FULL
 neug::NeugDB db;
 db.Open(config);
 ```
-
-See [WAL synchronization policy](../../transaction/checkpoint.md#wal-synchronization-policy)
-for the meaning of `wal_sync_mode`.
+See [WAL synchronization policy](../../transaction/checkpoint.md#wal-synchronization-policy) for the meaning of `wal_sync_mode`.
 
 - **Parameters:**
   - `config`: Configuration object with all database settings. config.auto_load_extension (bool, default false) controls automatic loading of installed extensions before indexes are opened. See the [Python configuration reference](../python_api/database.md) for details.
