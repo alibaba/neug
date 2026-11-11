@@ -1058,3 +1058,50 @@ def test_invalid_array_cast_keeps_process_and_connection_usable(
         timeout=60,
     )
     assert result.returncode == 0, result.stdout + result.stderr
+
+
+@pytest.mark.parametrize(
+    "expression, expected",
+    [
+        ("[1, 2.5]", [1.0, 2.5]),
+        ("[2.5, 1]", [2.5, 1.0]),
+        ("[1.0, NULL]", [1.0, None]),
+        ("[NULL, 1.0]", [None, 1.0]),
+        ("[1, NULL, 2.5]", [1.0, None, 2.5]),
+        ("[NULL, 1, 2.5]", [None, 1.0, 2.5]),
+        ("[1, 2.5, NULL]", [1.0, 2.5, None]),
+        ("CAST([1.0, NULL], 'FLOAT[2]')", [1.0, None]),
+        ("CAST([NULL, 1.0], 'FLOAT[2]')", [None, 1.0]),
+        ("CAST([CAST(NULL, 'FLOAT'), 1.0], 'FLOAT[2]')", [None, 1.0]),
+        ("CAST([CAST($x, 'FLOAT'), NULL], 'FLOAT[2]')", [2.0, None]),
+    ],
+)
+@pytest.mark.parametrize("mode", ["ap", "session"])
+def test_numeric_array_literal_type_inference(tmp_path, expression, expected, mode):
+    db = Database(str(tmp_path), mode="w", checkpoint_on_close=False)
+    conn = db.connect()
+    try:
+        if mode == "session":
+            import socket
+
+            from neug.session import Session
+
+            conn.close()
+            with socket.socket() as sock:
+                sock.bind(("127.0.0.1", 0))
+                port = sock.getsockname()[1]
+            endpoint = db.serve(port, "127.0.0.1", False)
+            conn = Session.open(endpoint, timeout="30s")
+        values = _nested_list(
+            list(conn.execute("RETURN " + expression, parameters={"x": 2.0}))[0][0]
+        )
+        assert values == expected
+        assert all(value is None or isinstance(value, float) for value in values)
+        # Numeric promotion must not change heterogeneous tuple literals.
+        mixed = _nested_list(list(conn.execute("RETURN ['marko', 2]"))[0][0])
+        assert mixed == ["marko", 2]
+        assert isinstance(mixed[1], int)
+        assert list(conn.execute("RETURN 1")) == [[1]]
+    finally:
+        conn.close()
+        db.close()

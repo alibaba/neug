@@ -20,8 +20,6 @@
  * Zhou Xiaoli in 2025 to support Neug-specific features.
  */
 
-#include <algorithm>
-
 #include "neug/compiler/binder/expression/expression_util.h"
 #include "neug/compiler/common/types/types.h"
 #include "neug/compiler/common/vector/value_vector.h"
@@ -103,17 +101,28 @@ static std::unique_ptr<FunctionBindData> bindFunc(
     const ScalarBindFuncInput& input) {
   // Numeric elements share an element type, rather than becoming STRUCT fields.
   // paramTypes makes the binder insert real casts before vector data is copied.
-  const auto types = binder::ExpressionUtil::getDataTypes(input.arguments);
+  std::vector<DataType> numericTypes;
+  bool numericElements = true;
+  for (const auto& arg : input.arguments) {
+    const auto& type = arg->getDataType();
+    if (type.id() == DataTypeId::kUnknown &&
+        binder::ExpressionUtil::isNullLiteral(*arg)) {
+      continue;
+    }
+    if (!LogicalTypeUtils::isNumerical(type)) {
+      numericElements = false;
+      break;
+    }
+    numericTypes.push_back(type.copy());
+  }
   DataType numericType;
-  if (!types.empty() &&
-      std::all_of(types.begin(), types.end(),
-                  [](const DataType& type) {
-                    return LogicalTypeUtils::isNumerical(type);
-                  }) &&
-      LogicalTypeUtils::tryGetMaxLogicalType(types, numericType)) {
+  // Untyped NULLs take the common numeric type. Leave all-NULL literals
+  // unresolved so enclosing functions can still supply their element type.
+  if (numericElements && !numericTypes.empty() &&
+      LogicalTypeUtils::tryGetMaxLogicalType(numericTypes, numericType)) {
     return std::make_unique<FunctionBindData>(
-        std::vector<DataType>(types.size(), numericType.copy()),
-        DataType::Array(numericType.copy(), types.size()));
+        std::vector<DataType>(input.arguments.size(), numericType.copy()),
+        DataType::Array(numericType.copy(), input.arguments.size()));
   }
   DataType combinedType(DataTypeId::kUnknown);
   // check if all arguments have the same type, if not, set to ANY.
