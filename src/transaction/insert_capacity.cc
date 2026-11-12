@@ -21,9 +21,10 @@ size_t AddSize(size_t a, size_t b) {
     THROW_STORAGE_EXCEPTION("Insert capacity overflow");
   return a + b;
 }
-size_t Target(size_t current, size_t required) {
-  return std::max(required,
-                  AddSize(current, std::max(size_t{4096}, current / 4)));
+// Reserve 25% headroom over the complete requirement, with a minimum
+// capacity of 4096. Call only when the existing capacity is insufficient.
+size_t Target(size_t required) {
+  return std::max(size_t{4096}, AddSize(required, required / 4));
 }
 void Check(const Status& status) {
   if (!status.ok())
@@ -171,8 +172,7 @@ void InsertCapacityRequest::GrowColumn(ColumnBase& col, size_t rows,
   if (dynamic_cast<VecColumn*>(&col))
     THROW_STORAGE_EXCEPTION(
         "Insert-only VecColumn growth is not supported; use update mode");
-  const auto target_rows =
-      rows > col.size() ? Target(col.size(), rows) : col.size();
+  const auto target_rows = rows > col.size() ? Target(rows) : col.size();
   const ColumnNeed empty;
   const auto& child = need.children.empty() ? empty : need.children[0];
   if (auto* str = dynamic_cast<StringColumn*>(&col)) {
@@ -183,7 +183,7 @@ void InsertCapacityRequest::GrowColumn(ColumnBase& col, size_t rows,
       const auto used = capacity - available;
       // Grow total payload capacity geometrically, then translate back to
       // StringColumn::resize's additional-bytes argument.
-      append_bytes = Target(capacity, AddSize(used, need.bytes)) - used;
+      append_bytes = Target(AddSize(used, need.bytes)) - used;
     }
     str->resize(target_rows, append_bytes);
   } else if (auto* list = dynamic_cast<ListPropertyColumn*>(&col)) {
@@ -294,7 +294,7 @@ void InsertCapacityRequest::Grow(PropertyGraph& graph) const {
     if (rows > std::numeric_limits<vid_t>::max())
       THROW_STORAGE_EXCEPTION("VID capacity overflow");
     if (rows > vt.Capacity())
-      Check(graph.EnsureCapacity(label, Target(vt.Capacity(), rows)));
+      Check(graph.EnsureCapacity(label, Target(rows)));
     GrowColumn(const_cast<ColumnBase&>(vt.get_indexer().get_keys()), rows,
                ColumnNeed{n.rows, n.key_bytes, {}});
     for (size_t i = 0; i < n.columns.size(); ++i)
@@ -312,7 +312,7 @@ void InsertCapacityRequest::Grow(PropertyGraph& graph) const {
     Validate(*et.table(), n);
     auto rows = AddSize(et.PropTableSize(), n.rows);
     if (rows > et.Capacity())
-      Check(graph.EnsureCapacity(sl, dl, el, Target(et.Capacity(), rows)));
+      Check(graph.EnsureCapacity(sl, dl, el, Target(rows)));
     for (size_t i = 0; i < n.columns.size(); ++i)
       GrowColumn(*et.table()->get_column_by_id(i), rows, n.columns[i]);
     graph.MarkEdgeTableDirty(sl, dl, el);

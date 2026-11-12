@@ -747,16 +747,41 @@ TEST_F(MvccInsertTransactionTest, StringPayloadGrowthIsGeometric) {
     while (column->available_space() >= payload.size())
       column->set_value(0, payload);
     const auto old_capacity = column->data_capacity();
+    const auto required =
+        old_capacity - column->available_space() + payload.size();
     EXPECT_FALSE(request.Fits(graph));
     request.Grow(graph);
     EXPECT_TRUE(request.Fits(graph));
-    EXPECT_GE(column->data_capacity(), old_capacity + old_capacity / 4);
+    EXPECT_EQ(column->data_capacity(),
+              std::max(size_t{4096}, required + required / 4));
     EXPECT_EQ(column->size(), rows);
     EXPECT_EQ(table.Capacity(), vertex_capacity);
     // A fitting request must not allocate again.
     neug::SetResizeFailureCountdownForTest(0);
     EXPECT_NO_THROW(request.Grow(graph));
     neug::SetResizeFailureCountdownForTest(-1);
+  }
+  db.Close();
+}
+
+TEST_F(MvccInsertTransactionTest, RowGrowthUsesCompleteBatchRequirement) {
+  neug::NeugDB db;
+  db.Open(db_dir);
+  auto& graph = const_cast<neug::PropertyGraph&>(db.graph());
+  const auto label = graph.schema().get_vertex_label_id("person");
+  const auto& original = graph.get_vertex_table(label);
+  for (const auto required :
+       {original.Capacity() + 1, original.Capacity() * 3}) {
+    neug::InsertCapacityRequest request;
+    for (size_t i = original.Size(); i < required; ++i) {
+      request.AddVertex("person", neug::Value::INT64(i + 100),
+                        {neug::Value::STRING(""), neug::Value::INT64(0)});
+    }
+    auto candidate = graph.Clone();
+    request.Grow(*candidate);
+    EXPECT_TRUE(request.Fits(*candidate));
+    EXPECT_EQ(candidate->get_vertex_table(label).Capacity(),
+              std::max(size_t{4096}, required + required / 4));
   }
   db.Close();
 }
