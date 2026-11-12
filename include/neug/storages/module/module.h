@@ -58,7 +58,11 @@ class NEUG_API Module {
    * @brief Persist module state and write the descriptor to @p meta under
    * @p key.
    *
-   * Composite modules may write additional referenced module entries.
+   * Composite modules may write additional referenced module entries. A
+   * module may defer part of its serialization (e.g. object finalizers)
+   * until Checkpoint::FinalizeObjectWriter, which SetManifest and
+   * persist_manifest run automatically; callers that dump modules outside
+   * those paths must invoke it before consuming @p meta.
    */
   virtual void Dump(Checkpoint& ckp, CheckpointManifest& meta,
                     const std::string& key) = 0;

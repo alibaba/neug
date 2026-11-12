@@ -517,7 +517,13 @@ TEST(VersionManagerTimestampWindowTest,
 
 TEST(VersionManagerTimestampWindowTest, TimestampExhaustionRestoresAdmission) {
   VersionManager manager;
-  manager.init_ts({std::numeric_limits<uint32_t>::max() - 1, 0}, 1);
+  // Ordinary write timestamps stop at the maintenance watermark, well below the
+  // reserved sentinel encodings (MAX_TIMESTAMP / INVALID_TIMESTAMP), so the
+  // last reservable ordinary timestamp is watermark - 1. Initializing there
+  // leaves write_ts at the watermark and every further reservation exhausted.
+  constexpr uint32_t kLastOrdinaryTs =
+      VersionManager::kWriteTimestampWatermark - 1;
+  manager.init_ts({kLastOrdinaryTs, 0}, 1);
 
   EXPECT_THROW(manager.acquire_insert_timestamp(), exception::RuntimeError);
   EXPECT_THROW(manager.acquire_update_timestamp(), exception::RuntimeError);
@@ -525,8 +531,7 @@ TEST(VersionManagerTimestampWindowTest, TimestampExhaustionRestoresAdmission) {
 
   {
     auto read = manager.acquire_read_operation();
-    EXPECT_EQ(read.published_view.visibility_ts,
-              std::numeric_limits<uint32_t>::max() - 1);
+    EXPECT_EQ(read.published_view.visibility_ts, kLastOrdinaryTs);
   }
   EXPECT_TRUE(manager.try_set_runtime_wait_if_quiescent(&NativeRuntimeWait));
 }

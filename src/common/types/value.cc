@@ -449,6 +449,11 @@ Value Value::CreateValue(std::string_view value) {
 }
 
 template <>
+Value Value::CreateValue(EmptyType value) {
+  return Value(DataType::EMPTY);
+}
+
+template <>
 Value Value::CreateValue(float value) {
   return Value::FLOAT(value);
 }
