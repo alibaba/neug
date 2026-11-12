@@ -64,6 +64,7 @@ constructor(options = {}) {
     checkpointOnClose = true,
     bufferStrategy = 'M_FULL',
     autoLoadExtension = false,
+    walSyncMode = 'STANDARD',
   } = options;
 }
 ```
@@ -87,6 +88,10 @@ Open a database.
 
     In TP mode, it is the default service execution-slot capacity. An explicit
     smaller service concurrency reduces the service-local pool.
+  - `options.walSyncMode` (string)
+    `STANDARD` (default) or `FULL`, case-insensitive. Sets the database WAL
+    synchronization policy, for example `new Database({ databasePath: '/data/graph', walSyncMode: 'FULL' })`.
+    Specify on each open. See [WAL synchronization policy](../../transaction/checkpoint.md#wal-synchronization-policy).
   - `options.checkpointOnClose` (boolean)
     Whether to automatically create a checkpoint when the database is closed. Default is true.
     If false, no checkpoint is created automatically when close the database.

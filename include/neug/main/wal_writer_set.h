@@ -36,7 +36,8 @@ class IWalWriter;
  */
 class WalWriterSet {
  public:
-  WalWriterSet(size_t slot_num, DBMode mode, const std::string& wal_uri);
+  WalWriterSet(size_t slot_num, DBMode mode, const std::string& wal_uri,
+               WalSyncMode sync_mode = WalSyncMode::STANDARD);
   ~WalWriterSet() noexcept;
 
   WalWriterSet(const WalWriterSet&) = delete;
@@ -59,6 +60,7 @@ class WalWriterSet {
                                            const std::string& wal_uri) const;
 
   DBMode mode_;
+  WalSyncMode sync_mode_;
   std::vector<std::unique_ptr<IWalWriter>> writers_;
 };
 

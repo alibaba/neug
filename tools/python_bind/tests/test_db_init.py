@@ -21,6 +21,7 @@ import multiprocessing
 import os
 import shutil
 import sys
+from contextlib import closing
 from pathlib import Path
 
 import pytest
@@ -495,3 +496,30 @@ def test_memory_level_invalid(tmp_path):
     with pytest.raises(Exception) as excinfo:
         Database(db_path=str(db_dir), mode="w", buffer_strategy="invalid_level")
         assert str(ERR_INVALID_ARGUMENT) in str(excinfo.value)
+
+
+@pytest.mark.parametrize("mode", ["", "NONE", "INVALID", " FULL", "full ", "ſtandard"])
+def test_invalid_wal_sync_mode(tmp_path, mode):
+    path = tmp_path / "invalid"
+    with pytest.raises(ValueError, match="STANDARD or FULL"):
+        Database(str(path), wal_sync_mode=mode)
+    assert not path.exists()
+
+
+@pytest.mark.parametrize("mode", [None, 1, True])
+def test_wal_sync_mode_type(tmp_path, mode):
+    with pytest.raises(TypeError, match="must be a string"):
+        Database(str(tmp_path / "invalid"), wal_sync_mode=mode)
+
+
+@pytest.mark.parametrize("mode", ["standard", "sTaNdArD", "full", "fUlL"])
+def test_native_wal_sync_case_insensitive(tmp_path, mode):
+    # Bypass Python normalization to cover the parser shared by C++ and the CLI.
+    from neug.database import neug_py_bind
+
+    with closing(
+        neug_py_bind.PyDatabase(
+            database_path=str(tmp_path / "native"), mode="w", wal_sync_mode=mode
+        )
+    ):
+        pass
