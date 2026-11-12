@@ -9,6 +9,7 @@
 #include <tuple>
 #include <vector>
 #include "neug/common/types/value.h"
+#include "neug/utils/api.h"
 
 namespace neug {
 class PropertyGraph;
@@ -17,7 +18,7 @@ class ColumnBase;
 // Owns only logical identities and counts, never references the discarded
 // transaction's graph or redo. Reservations are tracked separately per
 // database.
-class InsertCapacityRequest {
+class NEUG_API InsertCapacityRequest {
  public:
   // Append counts are additive across outstanding transactions. LIST/ARRAY
   // have one child requirement; STRUCT has one per field, recursively.
@@ -60,7 +61,7 @@ class InsertCapacityRequest {
 // Per database, short critical section only; never held across execution,
 // WAL append, admission waits or resize. Applied rows may temporarily be
 // counted twice, deliberately preferring an early retry to overcommit.
-class InsertCapacityReservations {
+class NEUG_API InsertCapacityReservations {
  public:
   bool TryReserve(PropertyGraph& graph, const InsertCapacityRequest& request,
                   InsertCapacityRequest& growth_request);
