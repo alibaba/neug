@@ -28,6 +28,17 @@ import pytest
 
 from neug.database import Database
 
+ARRAY_TEST_MODES = [
+    "ap",
+    pytest.param(
+        "session",
+        marks=pytest.mark.skipif(
+            os.environ.get("NEUG_TEST_LITE") == "1",
+            reason="Session tests require an HTTP server, unavailable in lite builds",
+        ),
+    ),
+]
+
 
 def _nested_list(value):
     if isinstance(value, (str, bytes)):
@@ -910,7 +921,7 @@ def test_issue_1217_reproducer(tmp_path):
     assert result.returncode == 0, result.stdout + result.stderr
 
 
-@pytest.mark.parametrize("mode", ["ap", "session"])
+@pytest.mark.parametrize("mode", ARRAY_TEST_MODES)
 @pytest.mark.parametrize(
     "elements, expected",
     [
@@ -985,7 +996,7 @@ def test_mixed_numeric_array_in_subprocess(tmp_path, elements, expected, mode):
     assert result.returncode == 0, result.stdout + result.stderr
 
 
-@pytest.mark.parametrize("mode", ["ap", "session"])
+@pytest.mark.parametrize("mode", ARRAY_TEST_MODES)
 @pytest.mark.parametrize(
     "expression",
     [
@@ -1076,7 +1087,7 @@ def test_invalid_array_cast_keeps_process_and_connection_usable(
         ("CAST([CAST($x, 'FLOAT'), NULL], 'FLOAT[2]')", [2.0, None]),
     ],
 )
-@pytest.mark.parametrize("mode", ["ap", "session"])
+@pytest.mark.parametrize("mode", ARRAY_TEST_MODES)
 def test_numeric_array_literal_type_inference(tmp_path, expression, expected, mode):
     db = Database(str(tmp_path), mode="w", checkpoint_on_close=False)
     conn = db.connect()
