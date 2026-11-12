@@ -78,7 +78,6 @@ class StructPropertyColumn : public ColumnBase {
   }
 
  private:
-  friend class InsertCapacityRequest;
   void openInternal(Checkpoint& ckp, const CheckpointManifest* manifest,
                     const ModuleDescriptor& desc, MemoryLevel level);
   ModuleDescriptor dumpSelfDescriptor() const;

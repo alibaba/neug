@@ -24,7 +24,6 @@ import socket
 import sys
 import threading
 import time
-from contextlib import closing
 
 import pytest
 
@@ -532,79 +531,4 @@ def test_atomic_growth_four_readers_four_writers(tmp_path):
             session.close()
     finally:
         db.stop_serving()
-        db.close()
-
-
-@pytest.mark.parametrize(
-    "property_type,expression,expected",
-    [
-        ("STRING[]", "CAST([$v, $v], 'STRING[]')", ["x" * 200] * 2),
-        ("STRING[2]", "CAST([$v, $v], 'STRING[2]')", ["x" * 200] * 2),
-        ("INT64[]", "CAST([1, 2, 3], 'INT64[]')", [1, 2, 3]),
-        (
-            "STRUCT(name STRING, tags STRING[])",
-            "CAST({name:$v, tags:CAST([$v, $v], 'STRING[]')}, "
-            "'STRUCT(name STRING, tags STRING[])')",
-            {"name": "x" * 200, "tags": ["x" * 200] * 2},
-        ),
-        (
-            "STRING[][2][]",
-            "CAST([CAST([CAST([$v], 'STRING[]'), CAST([$v], 'STRING[]')], "
-            "'STRING[][2]')], 'STRING[][2][]')",
-            [[["x" * 200], ["x" * 200]]],
-        ),
-    ],
-)
-def test_nested_insert_capacity_and_recovery(
-    tmp_path, property_type, expression, expected
-):
-    expression = expression.replace("$v", "'" + "x" * 200 + "'")
-    path = str(tmp_path / "nested_capacity")
-    # Reopening a checkpoint leaves LIST elements and string payloads without
-    # spare capacity, while the table still has ample row slots for this batch.
-    db = Database(path, max_thread_num=4, checkpoint_on_close=True)
-    c = db.connect()
-    list(
-        c.execute(
-            f"CREATE NODE TABLE Item(id INT64, value {property_type}, PRIMARY KEY(id))"
-        )
-    )
-    list(c.execute(f"CREATE (:Item {{id:-1,value:{expression}}})", parameters={}))
-    c.close()
-    db.close()
-    db = Database(path, max_thread_num=4, checkpoint_on_close=False)
-    endpoint = _start_capacity_growth_service(db)
-
-    def write(worker):
-        with closing(Session(endpoint, timeout="60s")) as session:
-            for batch in range(4):
-                ids = list(
-                    range(worker * 80 + batch * 20, worker * 80 + (batch + 1) * 20)
-                )
-                list(
-                    session.execute(
-                        f"UNWIND CAST($ids, 'INT64[]') AS id CREATE (:Item {{id:id,value:{expression}}})",
-                        access_mode="insert",
-                        parameters={"ids": ids},
-                    )
-                )
-
-    try:
-        with concurrent.futures.ThreadPoolExecutor(max_workers=4) as pool:
-            list(pool.map(write, range(4)))
-        with closing(Session(endpoint, timeout="60s")) as session:
-            assert list(session.execute("MATCH (n:Item) RETURN count(n)")) == [[321]]
-            for row in session.execute("MATCH (n:Item) RETURN n.value"):
-                assert row[0] == expected, repr(row[0])
-    finally:
-        db.stop_serving()
-        db.close()
-    db = Database(path, max_thread_num=4, checkpoint_on_close=False)
-    c = db.connect()
-    try:
-        values = list(c.execute("MATCH (n:Item) RETURN n.value"))
-        assert len(values) == 321
-        assert all(row[0] == expected for row in values)
-    finally:
-        c.close()
         db.close()

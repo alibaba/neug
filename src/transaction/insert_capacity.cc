@@ -7,10 +7,6 @@
 #include "neug/storages/graph/property_graph.h"
 #include "neug/storages/index/storage_index_manager.h"
 #include "neug/transaction/wal/wal.h"
-#include "neug/utils/property/array_column.h"
-#include "neug/utils/property/default_value.h"
-#include "neug/utils/property/list_property_column.h"
-#include "neug/utils/property/struct_property_column.h"
 #include "neug/utils/property/vec_column.h"
 #include "neug/utils/serialization/out_archive.h"
 
@@ -39,63 +35,18 @@ void Validate(const Table& table, const InsertCapacityRequest::Need& need) {
 }
 }  // namespace
 
-void InsertCapacityRequest::AddValue(ColumnNeed& n, const Value& value) {
-  n.count = AddSize(n.count, 1);
-  Value fallback;
-  if (value.IsNull())
-    fallback = get_default_value(value.type());
-  const Value& normalized = value.IsNull() ? fallback : value;
-  switch (normalized.type().id()) {
-  case DataTypeId::kVarchar:
-    n.bytes = AddSize(n.bytes, normalized.GetValue<std::string_view>().size());
-    break;
-  case DataTypeId::kList:
-  case DataTypeId::kArray: {
-    n.children.resize(1);
-    const auto& children = normalized.type().id() == DataTypeId::kList
-                               ? ListValue::GetChildren(normalized)
-                               : ArrayValue::GetChildren(normalized);
-    for (const auto& child : children)
-      AddValue(n.children[0], child);
-    break;
-  }
-  case DataTypeId::kStruct: {
-    const auto& children = StructValue::GetChildren(normalized);
-    n.children.resize(children.size());
-    for (size_t i = 0; i < children.size(); ++i)
-      AddValue(n.children[i], children[i]);
-    break;
-  }
-  default:
-    break;
-  }
-}
-void InsertCapacityRequest::MergeColumn(ColumnNeed& n,
-                                        const ColumnNeed& other) {
-  n.count = AddSize(n.count, other.count);
-  n.bytes = AddSize(n.bytes, other.bytes);
-  n.children.resize(std::max(n.children.size(), other.children.size()));
-  for (size_t i = 0; i < other.children.size(); ++i)
-    MergeColumn(n.children[i], other.children[i]);
-}
-void InsertCapacityRequest::SubtractColumn(ColumnNeed& n,
-                                           const ColumnNeed& other) noexcept {
-  CHECK_GE(n.count, other.count);
-  CHECK_GE(n.bytes, other.bytes);
-  n.count -= other.count;
-  n.bytes -= other.bytes;
-  for (size_t i = 0; i < other.children.size(); ++i)
-    SubtractColumn(n.children[i], other.children[i]);
-}
 void InsertCapacityRequest::Add(Need& n, const std::vector<Value>& props) {
   n.rows = AddSize(n.rows, 1);
   if (n.types.empty()) {
     for (const auto& p : props)
       n.types.push_back(p.type());
-    n.columns.resize(props.size());
+    n.bytes.resize(props.size());
   }
-  for (size_t i = 0; i < props.size(); ++i)
-    AddValue(n.columns[i], props[i]);
+  for (size_t i = 0; i < props.size(); ++i) {
+    if (!props[i].IsNull() && props[i].type().id() == DataTypeId::kVarchar)
+      n.bytes[i] =
+          AddSize(n.bytes[i], props[i].GetValue<std::string_view>().size());
+  }
 }
 void InsertCapacityRequest::AddVertex(const std::string& label,
                                       const Value& key,
@@ -134,68 +85,34 @@ InsertCapacityRequest InsertCapacityRequest::FromWal(char* data,
   return request;
 }
 bool InsertCapacityRequest::ColumnFits(ColumnBase& col, size_t rows,
-                                       const ColumnNeed& need) {
+                                       size_t count, size_t bytes) {
   if (auto* vec = dynamic_cast<VecColumn*>(&col)) {
     return rows <= vec->size() &&
-           AddSize(vec->get_offset_accessor()->GetNextIndexID(), need.count) <=
+           AddSize(vec->get_offset_accessor()->GetNextIndexID(), count) <=
                vec->buffer_size();
   }
   if (rows > col.size())
     return false;
   if (auto* str = dynamic_cast<StringColumn*>(&col))
-    return need.bytes <= str->available_space();
-  const ColumnNeed empty;
-  const auto& child = need.children.empty() ? empty : need.children[0];
-  if (auto* list = dynamic_cast<ListPropertyColumn*>(&col)) {
-    std::lock_guard<std::mutex> lock(list->append_mutex_);
-    return ColumnFits(*list->elements_,
-                      AddSize(list->elements_tail_, child.count), child);
-  }
-  if (auto* array = dynamic_cast<ArrayColumn*>(&col)) {
-    if (array->array_size_ &&
-        rows > std::numeric_limits<size_t>::max() / array->array_size_)
-      THROW_STORAGE_EXCEPTION("Insert array capacity overflow");
-    return ColumnFits(*array->child_column_, rows * array->array_size_, child);
-  }
-  if (auto* tuple = dynamic_cast<StructPropertyColumn*>(&col)) {
-    for (size_t i = 0; i < tuple->fields_.size(); ++i)
-      if (!ColumnFits(*tuple->fields_[i], rows,
-                      i < need.children.size() ? need.children[i] : empty))
-        return false;
-  }
+    return bytes <= str->available_space();
   return true;
 }
 void InsertCapacityRequest::GrowColumn(ColumnBase& col, size_t rows,
-                                       const ColumnNeed& need) {
-  if (ColumnFits(col, rows, need))
+                                       size_t count, size_t bytes) {
+  if (dynamic_cast<VecColumn*>(&col)) {
+    if (!ColumnFits(col, rows, count, bytes))
+      THROW_STORAGE_EXCEPTION(
+          "Insert-only VecColumn growth is not supported; use update mode");
     return;
-  if (dynamic_cast<VecColumn*>(&col))
-    THROW_STORAGE_EXCEPTION(
-        "Insert-only VecColumn growth is not supported; use update mode");
+  }
   const auto target_rows =
       rows > col.size() ? Target(col.size(), rows) : col.size();
-  const ColumnNeed empty;
-  const auto& child = need.children.empty() ? empty : need.children[0];
   if (auto* str = dynamic_cast<StringColumn*>(&col)) {
-    const auto append_bytes = need.bytes > str->available_space()
-                                  ? Target(str->available_space(), need.bytes)
-                                  : need.bytes;
+    // The second argument is additional append bytes, not total capacity.
+    const auto append_bytes = bytes > str->available_space()
+                                  ? Target(str->available_space(), bytes)
+                                  : bytes;
     str->resize(target_rows, append_bytes);
-  } else if (auto* list = dynamic_cast<ListPropertyColumn*>(&col)) {
-    if (target_rows > list->size())
-      list->resize(target_rows);
-    GrowColumn(*list->elements_, AddSize(list->elements_tail_, child.count),
-               child);
-  } else if (auto* array = dynamic_cast<ArrayColumn*>(&col)) {
-    if (array->array_size_ &&
-        target_rows > std::numeric_limits<size_t>::max() / array->array_size_)
-      THROW_STORAGE_EXCEPTION("Insert array capacity overflow");
-    GrowColumn(*array->child_column_, target_rows * array->array_size_, child);
-    array->size_ = target_rows;
-  } else if (auto* tuple = dynamic_cast<StructPropertyColumn*>(&col)) {
-    for (size_t i = 0; i < tuple->fields_.size(); ++i)
-      GrowColumn(*tuple->fields_[i], target_rows,
-                 i < need.children.size() ? need.children[i] : empty);
   } else if (rows > col.size()) {
     col.resize(target_rows);
   }
@@ -205,8 +122,7 @@ void InsertCapacityRequest::ValidateGrowthSupport(PropertyGraph& graph) const {
                           bool table_grows) {
     for (size_t i = 0; i < table.col_num(); ++i) {
       auto* vec = dynamic_cast<VecColumn*>(table.get_column_by_id(i));
-      if (vec &&
-          (table_grows || !ColumnFits(*vec, rows, ColumnNeed{count, 0, {}})))
+      if (vec && (table_grows || !ColumnFits(*vec, rows, count, 0)))
         THROW_STORAGE_EXCEPTION(
             "Insert-only VecColumn growth is not supported; use update mode");
     }
@@ -254,10 +170,10 @@ bool InsertCapacityRequest::Fits(PropertyGraph& graph) const {
     if (rows > vt.Capacity())
       return false;
     auto& key = const_cast<ColumnBase&>(vt.get_indexer().get_keys());
-    if (!ColumnFits(key, rows, ColumnNeed{n.rows, n.key_bytes, {}}))
+    if (!ColumnFits(key, rows, n.rows, n.key_bytes))
       return false;
-    for (size_t i = 0; i < n.columns.size(); ++i)
-      if (!ColumnFits(*table.get_column_by_id(i), rows, n.columns[i]))
+    for (size_t i = 0; i < n.bytes.size(); ++i)
+      if (!ColumnFits(*table.get_column_by_id(i), rows, n.rows, n.bytes[i]))
         return false;
   }
   for (const auto& [names, n] : edges_) {
@@ -271,8 +187,9 @@ bool InsertCapacityRequest::Fits(PropertyGraph& graph) const {
     auto rows = AddSize(et.PropTableSize(), n.rows);
     if (rows > et.Capacity())
       return false;
-    for (size_t i = 0; i < n.columns.size(); ++i)
-      if (!ColumnFits(*et.table()->get_column_by_id(i), rows, n.columns[i]))
+    for (size_t i = 0; i < n.bytes.size(); ++i)
+      if (!ColumnFits(*et.table()->get_column_by_id(i), rows, n.rows,
+                      n.bytes[i]))
         return false;
   }
   return true;
@@ -291,9 +208,9 @@ void InsertCapacityRequest::Grow(PropertyGraph& graph) const {
     if (rows > vt.Capacity())
       Check(graph.EnsureCapacity(label, Target(vt.Capacity(), rows)));
     GrowColumn(const_cast<ColumnBase&>(vt.get_indexer().get_keys()), rows,
-               ColumnNeed{n.rows, n.key_bytes, {}});
-    for (size_t i = 0; i < n.columns.size(); ++i)
-      GrowColumn(*vt.get_table().get_column_by_id(i), rows, n.columns[i]);
+               n.rows, n.key_bytes);
+    for (size_t i = 0; i < n.bytes.size(); ++i)
+      GrowColumn(*vt.get_table().get_column_by_id(i), rows, n.rows, n.bytes[i]);
     graph.MarkVertexTableDirty(label);
   }
   for (const auto& [names, n] : edges_) {
@@ -308,8 +225,8 @@ void InsertCapacityRequest::Grow(PropertyGraph& graph) const {
     auto rows = AddSize(et.PropTableSize(), n.rows);
     if (rows > et.Capacity())
       Check(graph.EnsureCapacity(sl, dl, el, Target(et.Capacity(), rows)));
-    for (size_t i = 0; i < n.columns.size(); ++i)
-      GrowColumn(*et.table()->get_column_by_id(i), rows, n.columns[i]);
+    for (size_t i = 0; i < n.bytes.size(); ++i)
+      GrowColumn(*et.table()->get_column_by_id(i), rows, n.rows, n.bytes[i]);
     graph.MarkEdgeTableDirty(sl, dl, el);
   }
 }
@@ -325,8 +242,8 @@ void InsertCapacityRequest::Merge(const InsertCapacityRequest& other) {
       CHECK(n.types == need.types);
       n.rows = AddSize(n.rows, need.rows);
       n.key_bytes = AddSize(n.key_bytes, need.key_bytes);
-      for (size_t i = 0; i < n.columns.size(); ++i)
-        MergeColumn(n.columns[i], need.columns[i]);
+      for (size_t i = 0; i < n.bytes.size(); ++i)
+        n.bytes[i] = AddSize(n.bytes[i], need.bytes[i]);
     }
   };
   merge(vertices_, other.vertices_);
@@ -343,8 +260,9 @@ void InsertCapacityRequest::Subtract(
       CHECK_GE(n.key_bytes, need.key_bytes);
       n.rows -= need.rows;
       n.key_bytes -= need.key_bytes;
-      for (size_t i = 0; i < n.columns.size(); ++i) {
-        SubtractColumn(n.columns[i], need.columns[i]);
+      for (size_t i = 0; i < n.bytes.size(); ++i) {
+        CHECK_GE(n.bytes[i], need.bytes[i]);
+        n.bytes[i] -= need.bytes[i];
       }
       if (n.rows == 0)
         destination.erase(it);
