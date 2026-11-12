@@ -28,7 +28,6 @@ import pytest
 
 from neug.database import Database
 
-
 ARRAY_TEST_MODES = [
     "ap",
     pytest.param(
