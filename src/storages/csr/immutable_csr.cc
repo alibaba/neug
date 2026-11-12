@@ -14,7 +14,6 @@
  */
 
 #include "neug/storages/csr/immutable_csr.h"
-#include "neug/storages/container/container_utils.h"
 
 #include "neug/storages/checkpoint_manifest.h"
 #include "neug/storages/module/module_factory.h"
@@ -32,6 +31,7 @@
 #include <thread>
 #include <utility>
 
+#include "neug/storages/container/container_utils.h"
 #include "neug/storages/container/i_container.h"
 #include "neug/utils/property/types.h"
 
@@ -131,18 +131,19 @@ void ImmutableCsr<EDATA_T>::compact() {
 
 template <typename EDATA_T>
 void ImmutableCsr<EDATA_T>::resize(vid_t vnum) {
-  const auto old_size = size();
-  if (vnum == old_size)
+  auto old_v_cap = size();
+  if (vnum == old_v_cap) {
     return;
+  }
   auto adj = ResizeContainerCopy(resize_allocator_, level_, adj_list_buffer_,
                                  vnum * sizeof(nbr_t*));
   auto degrees = ResizeContainerCopy(resize_allocator_, level_,
                                      degree_list_buffer_, vnum * sizeof(int));
-  auto** pointers = static_cast<nbr_t**>(adj->GetData());
-  auto* counts = static_cast<int*>(degrees->GetData());
-  for (vid_t i = old_size; i < vnum; ++i) {
-    pointers[i] = nullptr;
-    counts[i] = 0;
+  auto** adj_arr = reinterpret_cast<nbr_t**>(adj->GetData());
+  auto* deg_arr = reinterpret_cast<int*>(degrees->GetData());
+  for (vid_t i = old_v_cap; i < vnum; ++i) {
+    adj_arr[i] = nullptr;
+    deg_arr[i] = 0;
   }
   adj_list_buffer_ = std::move(adj);
   degree_list_buffer_ = std::move(degrees);
@@ -417,8 +418,9 @@ void SingleImmutableCsr<EDATA_T>::compact() {}
 template <typename EDATA_T>
 void SingleImmutableCsr<EDATA_T>::resize(vid_t vnum) {
   const auto old_size = size();
-  if (vnum == old_size)
+  if (vnum == old_size) {
     return;
+  }
   auto replacement = ResizeContainerCopy(
       resize_allocator_, level_, nbr_list_buffer_, vnum * sizeof(nbr_t));
   auto* data = static_cast<nbr_t*>(replacement->GetData());

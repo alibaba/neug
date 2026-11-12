@@ -121,8 +121,9 @@ class TypedColumn : public ColumnBase {
     auto replacement = ResizeContainerCopy(resize_allocator_, level_, buffer_,
                                            size * sizeof(T));
     auto* data = static_cast<T*>(replacement->GetData());
-    for (size_t i = old_size; i < size; ++i)
+    for (size_t i = old_size; i < size; ++i) {
       data[i] = default_typed_value;
+    }
     buffer_ = std::move(replacement);
     size_ = size;
   }
@@ -414,8 +415,9 @@ class TypedColumn<std::string_view> : public ColumnBase {
   void resize(size_t size) override {
     size_t avg_size =
         items_buffer_->GetDataSize() == 0 ? width_ : string_avg_size();
-    if (avg_size == 0)
+    if (avg_size == 0) {
       avg_size = width_;
+    }
     auto items = ResizeContainerCopy(resize_allocator_, level_, items_buffer_,
                                      size * sizeof(string_item));
     auto data = ResizeContainerCopy(resize_allocator_, level_, data_buffer_,
@@ -438,8 +440,9 @@ class TypedColumn<std::string_view> : public ColumnBase {
   }
 
   void resize(size_t size, const Value& default_value) override {
-    if (default_value.type().id() != type())
+    if (default_value.type().id() != type()) {
       THROW_RUNTIME_ERROR("Default value type does not match column type");
+    }
     auto default_str = default_value.GetValue<std::string>();
     default_str = truncate_utf8(default_str, width_);
     const size_t new_items = size > size_ ? size - size_ : 0;
@@ -455,13 +458,15 @@ class TypedColumn<std::string_view> : public ColumnBase {
       std::memcpy(static_cast<char*>(data->GetData()) + tail,
                   default_str.data(), default_str.size());
       auto* entries = static_cast<string_item*>(items->GetData());
-      for (size_t i = size_; i < size; ++i)
+      for (size_t i = size_; i < size; ++i) {
         entries[i] = {tail, static_cast<uint32_t>(default_str.size())};
+      }
     }
     items_buffer_ = std::move(items);
     data_buffer_ = std::move(data);
-    if (new_items && !default_str.empty())
+    if (new_items && !default_str.empty()) {
       pos_.store(tail + default_str.size());
+    }
     size_ = size;
   }
 
@@ -512,8 +517,7 @@ class TypedColumn<std::string_view> : public ColumnBase {
         size_t new_avg_width = (pos_.load() + idx) / (idx + 1);
         size_t new_len =
             std::max(size_ * new_avg_width, pos_.load() + dst_value.size());
-        data_buffer_ = ResizeContainerCopy(resize_allocator_, level_,
-                                           data_buffer_, new_len);
+        data_buffer_->Resize(new_len);
       } else {
         std::stringstream ss;
         ss << "Not enough space in buffer for new value, and insert_safe is "
@@ -575,8 +579,7 @@ class TypedColumn<std::string_view> : public ColumnBase {
   // byte buffer. This is used by consuming compaction before Dump.
   void shrink_items(size_t size) {
     assert(size <= size_);
-    items_buffer_ = ResizeContainerCopy(
-        resize_allocator_, level_, items_buffer_, size * sizeof(string_item));
+    items_buffer_->Resize(size * sizeof(string_item));
     size_ = size;
   }
 

@@ -14,7 +14,6 @@
  */
 
 #include "neug/storages/csr/mutable_csr.h"
-#include "neug/storages/container/container_utils.h"
 
 #include "neug/storages/checkpoint_manifest.h"
 #include "neug/storages/module/module_factory.h"
@@ -33,6 +32,7 @@
 #include <utility>
 #include <vector>
 
+#include "neug/storages/container/container_utils.h"
 #include "neug/storages/container/file_mmap_container.h"
 #include "neug/utils/exception/exception.h"
 #include "neug/utils/io/file/file_utils.h"
@@ -207,9 +207,15 @@ void MutableCsr<EDATA_T>::compact() {
 
 template <typename EDATA_T>
 void MutableCsr<EDATA_T>::resize(vid_t vnum) {
-  const auto old_vnum = vertex_capacity();
-  if (vnum == old_vnum)
+  if (adj_list_buffer_ == nullptr || degree_list_ == nullptr ||
+      cap_list_ == nullptr) {
+    LOG(ERROR) << "Containers not initialized, cannot resize";
+    THROW_RUNTIME_ERROR("Containers not initialized");
+  }
+  auto old_vnum = vertex_capacity();
+  if (vnum == old_vnum) {
     return;
+  }
   auto adj = ResizeContainerCopy(resize_allocator_, level_, adj_list_buffer_,
                                  vnum * sizeof(nbr_t*));
   auto degrees = ResizeContainerCopy(resize_allocator_, level_, degree_list_,
@@ -219,20 +225,21 @@ void MutableCsr<EDATA_T>::resize(vid_t vnum) {
   std::unique_ptr<SpinLock[]> locks;
   if (vnum > old_vnum) {
     locks = std::make_unique<SpinLock[]>(vnum);
-    auto** pointers = static_cast<nbr_t**>(adj->GetData());
-    auto* counts = static_cast<std::atomic<int>*>(degrees->GetData());
-    auto* capacities = static_cast<int*>(caps->GetData());
+    auto** buf_arr = reinterpret_cast<nbr_t**>(adj->GetData());
+    auto* sz_arr = reinterpret_cast<std::atomic<int>*>(degrees->GetData());
+    auto* cap_arr = reinterpret_cast<int*>(caps->GetData());
     for (vid_t i = old_vnum; i < vnum; ++i) {
-      pointers[i] = nullptr;
-      counts[i].store(0, std::memory_order_relaxed);
-      capacities[i] = 0;
+      buf_arr[i] = nullptr;
+      sz_arr[i].store(0, std::memory_order_relaxed);
+      cap_arr[i] = 0;
     }
   }
   adj_list_buffer_ = std::move(adj);
   degree_list_ = std::move(degrees);
   cap_list_ = std::move(caps);
-  if (locks)
+  if (locks) {
     locks_ = std::move(locks);
+  }
   refresh_prefetch_policy();
 }
 
@@ -574,8 +581,9 @@ void SingleMutableCsr<EDATA_T>::compact() {
 template <typename EDATA_T>
 void SingleMutableCsr<EDATA_T>::resize(vid_t vnum) {
   const auto old_size = vertex_capacity();
-  if (vnum == old_size)
+  if (vnum == old_size) {
     return;
+  }
   auto replacement = ResizeContainerCopy(resize_allocator_, level_, nbr_list_,
                                          vnum * sizeof(nbr_t));
   auto* data = static_cast<nbr_t*>(replacement->GetData());
