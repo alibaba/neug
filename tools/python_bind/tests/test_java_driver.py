@@ -6,6 +6,9 @@ import socket
 import subprocess
 import sys
 import time
+from contextlib import closing
+
+import pytest
 
 from neug.database import Database
 
@@ -21,7 +24,8 @@ def wait_until_ready(host, port, timeout=60):
     raise RuntimeError(f"Timed out waiting for NeuG server on {host}:{port}")
 
 
-def test_java_driver_e2e(tmp_path):
+@pytest.mark.parametrize("wal_sync_mode", ["standard", "fUlL"])
+def test_java_driver_e2e(tmp_path, wal_sync_mode):
     host = os.environ.get("NEUG_JAVA_DRIVER_E2E_HOST", "127.0.0.1")
     port = int(os.environ.get("NEUG_JAVA_DRIVER_E2E_PORT", "10010"))
     db_path = str(tmp_path / "modern_graph")
@@ -32,9 +36,14 @@ def test_java_driver_e2e(tmp_path):
     java_driver_dir = os.path.join(repo_root, "tools", "java_driver")
     endpoint = f"http://{host}:{port}"
 
-    db = Database(db_path=db_path, mode="w")
+    db = Database(
+        db_path=db_path,
+        mode="w",
+        wal_sync_mode=wal_sync_mode,
+        checkpoint_on_close=False,
+    )
     try:
-        with db.connect() as connection:
+        with closing(db.connect()) as connection:
             connection.execute(
                 "CREATE NODE TABLE person "
                 "(id INT64, name STRING, age INT32, PRIMARY KEY(id));"
@@ -62,3 +71,11 @@ def test_java_driver_e2e(tmp_path):
             db.close()
         except Exception:
             pass
+
+    if test_name == "JavaDriverE2ETest":
+        # No close-time checkpoint: recover the write committed by the Java client.
+        with closing(Database(db_path, wal_sync_mode=wal_sync_mode)) as reopened:
+            with closing(reopened.connect()) as connection:
+                assert list(
+                    connection.execute("MATCH (p:person {id: 2}) RETURN p.name, p.age")
+                ) == [["java-wal", 42]]

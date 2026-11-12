@@ -16,6 +16,7 @@
 #pragma once
 
 #include <cstdint>
+#include <stdexcept>
 #include <string>
 
 /**
@@ -24,6 +25,25 @@
  */
 
 namespace neug {
+
+/// Synchronization policy for committed WAL writes.
+enum class WalSyncMode { STANDARD, FULL };
+
+inline WalSyncMode ParseWalSyncMode(const std::string& value) {
+  std::string normalized = value;
+  for (char& c : normalized) {
+    if (c >= 'a' && c <= 'z') {
+      c -= 'a' - 'A';
+    }
+  }
+  if (normalized == "STANDARD") {
+    return WalSyncMode::STANDARD;
+  }
+  if (normalized == "FULL") {
+    return WalSyncMode::FULL;
+  }
+  throw std::invalid_argument("wal_sync_mode must be STANDARD or FULL");
+}
 
 /**
  * @brief Database access mode enumeration.
@@ -160,6 +180,9 @@ struct NeugDBConfig {
 
   /// Load installed extensions before opening indexes; failures are logged.
   bool auto_load_extension = false;
+
+  /// WAL synchronization policy, selected each time the database is opened.
+  WalSyncMode wal_sync_mode = WalSyncMode::STANDARD;
 };
 
 }  // namespace neug

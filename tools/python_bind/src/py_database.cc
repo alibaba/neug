@@ -56,6 +56,10 @@ void PyDatabase::initialize(pybind11::handle& m) {
             kwargs.contains("buffer_strategy")
                 ? kwargs["buffer_strategy"].cast<std::string>()
                 : "M_FULL";
+        std::string wal_sync_mode =
+            kwargs.contains("wal_sync_mode")
+                ? kwargs["wal_sync_mode"].cast<std::string>()
+                : "STANDARD";
         bool auto_load_extension = false;
         if (kwargs.contains("auto_load_extension")) {
           if (!pybind11::isinstance<pybind11::bool_>(
@@ -66,7 +70,7 @@ void PyDatabase::initialize(pybind11::handle& m) {
         }
         return std::make_shared<PyDatabase>(
             database_path, max_thread_num, mode, planner, checkpoint_on_close,
-            buffer_strategy, auto_load_extension);
+            buffer_strategy, auto_load_extension, wal_sync_mode);
       }))  // "Creating a PyDatabase. Holds a shared pointer to the C++ "
            // "NeugDB object.\n"
       .def("connect", &PyDatabase::connect,
