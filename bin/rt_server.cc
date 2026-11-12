@@ -19,11 +19,14 @@
 
 #include <glog/logging.h>
 #include <chrono>
+#include <cstdlib>
+#include <exception>
+#include <iostream>
 #include "cxxopts/cxxopts.hpp"
 
 using namespace neug;
 
-int main(int argc, char** argv) {
+int main(int argc, char** argv) try {
   cxxopts::Options options("rt_server", "Real-time graph server for NeuG");
   options.add_options()("h,help", "Display help message")("v,version",
                                                           "Display version")(
@@ -103,4 +106,10 @@ int main(int argc, char** argv) {
   service.run_and_wait_for_exit();
 
   return 0;
+} catch (const std::exception& e) {
+  std::cerr << "rt_server: " << e.what() << std::endl;
+  return EXIT_FAILURE;
+} catch (...) {
+  std::cerr << "rt_server: unknown exception" << std::endl;
+  return EXIT_FAILURE;
 }

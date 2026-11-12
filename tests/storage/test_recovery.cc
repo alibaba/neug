@@ -22,13 +22,17 @@
 #include "neug/utils/service_utils.h"
 
 #include <sys/types.h>
+#include <sys/wait.h>
 #include <unistd.h>
 #include <chrono>
 #include <csignal>
 #include <cstdlib>
 #include <filesystem>
 #include <fstream>
+#include <iterator>
 #include <thread>
+#include <utility>
+#include <vector>
 #ifdef __APPLE__
 #include <mach-o/dyld.h>
 #endif
@@ -305,6 +309,40 @@ class NeugDBWALRecoverySubprocessTest : public ::testing::Test {
     return query_result.ToString();
   }
 };
+
+TEST_F(NeugDBWALRecoverySubprocessTest, InvalidCommandLineExitsNormally) {
+  const std::vector<std::pair<std::string, std::string>> cases = {
+      {"--wal-sync-mode", "wal_sync_mode must be STANDARD or FULL"},
+      {"--thread-num", "bogus"},
+      {"--http-port", "bogus"},
+      {"--memory-level", "bogus"},
+      {"--unknown-option", "unknown-option"}};
+  for (const auto& [option, expected_error] : cases) {
+    SCOPED_TRACE(option);
+    const pid_t pid = fork();
+    ASSERT_GE(pid, 0);
+    if (pid == 0) {
+      const int fd =
+          ::open(log_file_.c_str(), O_WRONLY | O_CREAT | O_TRUNC, 0644);
+      if (fd == -1 || ::dup2(fd, STDERR_FILENO) == -1) {
+        _exit(126);
+      }
+      ::close(fd);
+      execl(neugdb_bin_.c_str(), neugdb_bin_.c_str(), "--data-path",
+            data_dir_.c_str(), option.c_str(), "bogus", (char*) nullptr);
+      _exit(127);
+    }
+    int status = 0;
+    ASSERT_EQ(waitpid(pid, &status, 0), pid);
+    ASSERT_TRUE(WIFEXITED(status)) << "Server terminated by a signal";
+    EXPECT_EQ(WEXITSTATUS(status), EXIT_FAILURE);
+    std::ifstream log(log_file_);
+    const std::string error((std::istreambuf_iterator<char>(log)),
+                            std::istreambuf_iterator<char>());
+    EXPECT_NE(error.find("rt_server: "), std::string::npos) << error;
+    EXPECT_NE(error.find(expected_error), std::string::npos) << error;
+  }
+}
 
 TEST_F(NeugDBWALRecoverySubprocessTest, SimulateCrashAndRecoverFromWAL) {
   StartService();
