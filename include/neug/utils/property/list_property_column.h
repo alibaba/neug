@@ -85,6 +85,7 @@ class ListPropertyColumn : public ColumnBase {
   const DataType& child_type() const { return child_type_; }
 
  private:
+  friend class InsertCapacityRequest;
   void openInternal(Checkpoint& ckp, const CheckpointManifest* manifest,
                     const ModuleDescriptor& desc, MemoryLevel level);
   ModuleDescriptor dumpSelfDescriptor() const;
