@@ -176,9 +176,15 @@ void InsertCapacityRequest::GrowColumn(ColumnBase& col, size_t rows,
   const ColumnNeed empty;
   const auto& child = need.children.empty() ? empty : need.children[0];
   if (auto* str = dynamic_cast<StringColumn*>(&col)) {
-    const auto append_bytes = need.bytes > str->available_space()
-                                  ? Target(str->available_space(), need.bytes)
-                                  : need.bytes;
+    auto append_bytes = need.bytes;
+    const auto available = str->available_space();
+    if (need.bytes > available) {
+      const auto capacity = str->data_capacity();
+      const auto used = capacity - available;
+      // Grow total payload capacity geometrically, then translate back to
+      // StringColumn::resize's additional-bytes argument.
+      append_bytes = Target(capacity, AddSize(used, need.bytes)) - used;
+    }
     str->resize(target_rows, append_bytes);
   } else if (auto* list = dynamic_cast<ListPropertyColumn*>(&col)) {
     if (target_rows > list->size())

@@ -261,6 +261,8 @@ class TypedColumn<std::string_view> : public ColumnBase {
   explicit TypedColumn()
       : size_(0), pos_(0), width_(STRING_DEFAULT_MAX_LENGTH) {}
   TypedColumn(TypedColumn<std::string_view>&& rhs) {
+    resize_allocator_ = std::move(rhs.resize_allocator_);
+    level_ = rhs.level_;
     items_buffer_ = std::move(rhs.items_buffer_);
     data_buffer_ = std::move(rhs.data_buffer_);
     size_ = rhs.size_;
@@ -560,6 +562,8 @@ class TypedColumn<std::string_view> : public ColumnBase {
     items_buffer_ = items_buffer_->Fork(ckp, level);
     data_buffer_ = data_buffer_->Fork(ckp, level);
   }
+
+  size_t data_capacity() const { return data_buffer_->GetDataSize(); }
 
   size_t available_space() const {
     if (!data_buffer_) {

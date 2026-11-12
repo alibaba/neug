@@ -350,6 +350,22 @@ class TypedColumnStringCowTest : public ::testing::Test {
 
 TYPED_TEST_SUITE(TypedColumnStringCowTest, StringCases);
 
+TYPED_TEST(TypedColumnStringCowTest, ResizeAfterMove) {
+  auto ckp = this->create_checkpoint();
+  StringColumn original;
+  original.Open(*ckp, ModuleDescriptor(), TypeParam::kOpenLevel);
+  original.resize(4, size_t{1024});
+  original.set_value(0, "before move");
+  StringColumn moved(std::move(original));
+  EXPECT_EQ(moved.get_view(0), "before move");
+  ASSERT_NO_THROW(moved.resize(32, size_t{4096}));
+  moved.set_value(31, "after move");
+  EXPECT_EQ(moved.size(), 32);
+  EXPECT_EQ(moved.get_view(0), "before move");
+  EXPECT_EQ(moved.get_view(31), "after move");
+  EXPECT_GE(moved.available_space(), 4096 - std::string("after move").size());
+}
+
 TYPED_TEST(TypedColumnStringCowTest, ResizeCloneWithoutDetach) {
   auto ckp = this->create_checkpoint();
   StringColumn original;
