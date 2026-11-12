@@ -142,27 +142,19 @@ The `insert_safe` parameter controls resize behavior, inherited from the `Column
 - When `true`, the elements column is resized as needed; the caller must provide external
   synchronization during resize.
 
-**Known limitation — insert transaction with list properties:**
+**Capacity preparation for insert transactions:**
 
-After loading a graph from a checkpoint directory, the elements column is sized exactly to
-the live element count (`elements_tail_ == elements_->size()`), leaving zero spare capacity.
-The insert-transaction path (`GraphView::AddVertex` → `TableView::insert` → `set_any`)
-always passes `insert_safe=false`.  Therefore, inserting a **non-empty** list property
-via an insert transaction will throw a `StorageException` ("list length changed ... which
-requires resizing elements_ but insert_safe is false") unless the list length happens to
-match the row's current list length (enabling in-place overwrite).
+After loading a checkpoint, the elements column has no spare capacity
+(`elements_tail_ == elements_->size()`). Insert transactions recursively reserve
+LIST elements and nested STRING payloads before appending the WAL. If capacity is
+insufficient, query execution discards the buffered transaction, grows storage under
+exclusive maintenance, and retries the query once. Non-empty lists can therefore be
+inserted after reopening a checkpoint, including LIST fields inside STRUCT values.
 
-This differs from `StringColumn`, which pre-allocates ~25% extra space during `Dump` and
-persists the used-portion marker (`pos_`) in the checkpoint descriptor, allowing subsequent
-inserts to use the slack.  `ListPropertyColumn` does not currently implement an analogous
-pre-allocation strategy, so non-empty list inserts after loading from checkpoint are
-expected to fail.
-
-Workarounds:
-- Insert vertices with empty lists, then update the list values via `SnapshotCowWriteTransaction`
-  (which uses `insert_safe=true`).
-- Pre-populate the graph with sufficient list data during the initial bulk load before
-  checkpointing, so that insert transactions are not needed for list properties.
+The actual column writes still use `insert_safe=false`: they consume the prepared
+capacity without resizing shared buffers. Direct column or graph writes that bypass
+transaction capacity preparation must provide sufficient capacity themselves, or
+they can still throw `StorageException`.
 
 
 ## 6. Struct Property Storage
@@ -221,9 +213,6 @@ movement suffices.
 - Indexes cannot be created on struct properties: the only supported index is HNSW
   on `FLOAT[]` array properties, and `CREATE INDEX` on a struct column is rejected
   with "HNSW index can only be created on VecColumn".
-- The insert-transaction limitation of `ListPropertyColumn` (§5.4) applies to
-  `LIST`-typed struct fields and `LIST<STRUCT>` properties as well, since they are
-  backed by `ListPropertyColumn` children.
 - On edge tables, a struct property forces the unbundled columnar layout: bundled
   CSR edge storage only supports a single fixed-size primitive property.
 

@@ -16,6 +16,7 @@
 
 namespace neug {
 namespace {
+thread_local size_t reservation_failures_for_test = 0;
 size_t AddSize(size_t a, size_t b) {
   if (b > std::numeric_limits<size_t>::max() - a)
     THROW_STORAGE_EXCEPTION("Insert capacity overflow");
@@ -39,6 +40,10 @@ void Validate(const Table& table, const InsertCapacityRequest::Need& need) {
   }
 }
 }  // namespace
+
+void SetInsertReservationFailuresForTest(size_t count) {
+  reservation_failures_for_test = count;
+}
 
 void InsertCapacityRequest::AddValue(ColumnNeed& n, const Value& value) {
   n.count = AddSize(n.count, 1);
@@ -364,6 +369,11 @@ bool InsertCapacityReservations::TryReserve(
   std::lock_guard<std::mutex> lock(mutex_);
   auto combined = outstanding_;
   combined.Merge(request);
+  if (reservation_failures_for_test != 0) {
+    --reservation_failures_for_test;
+    growth_request = std::move(combined);
+    return false;
+  }
   if (!combined.Fits(graph)) {
     growth_request = std::move(combined);
     return false;

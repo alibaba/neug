@@ -155,6 +155,74 @@ TEST_F(MvccInsertTransactionTest, MvccInsertTransactionBasic) {
   }
 }
 
+TEST_F(MvccInsertTransactionTest, CapacityRetryLimitLeavesSlotUsable) {
+  neug::NeugDB db;
+  db.Open(db_dir);
+  auto svc = std::make_shared<neug::NeugDBService>(db);
+  auto slot = svc->AcquireExecutionSlot();
+  struct ResetFailures {
+    ~ResetFailures() { neug::SetInsertReservationFailuresForTest(0); }
+  } reset;
+
+  // Neither attempt may append WAL or apply rows. Force both reservation
+  // misses rather than relying on a race with another writer after growth.
+  neug::SetInsertReservationFailuresForTest(2);
+  auto failed = slot->ExecuteQuery(
+      "CREATE (:person {id:3, name:'Eve', age:28})", "insert");
+  ASSERT_FALSE(failed);
+  EXPECT_EQ(failed.error().error_code(), neug::StatusCode::ERR_INTERNAL_ERROR);
+  EXPECT_EQ(failed.error().error_message(),
+            "Insert capacity retry limit exceeded");
+  auto count = slot->ExecuteQuery("MATCH (n:person) RETURN count(n)", "read");
+  ASSERT_TRUE(count) << count.error().ToString();
+  EXPECT_EQ(count.value().GetInt64(0), 2);
+
+  // Reusing the same ID catches partial application; reusing the same slot
+  // catches leaked admission, timestamps and capacity reservations.
+  auto inserted = slot->ExecuteQuery(
+      "CREATE (:person {id:3, name:'Eve', age:28})", "insert");
+  ASSERT_TRUE(inserted) << inserted.error().ToString();
+  auto value =
+      slot->ExecuteQuery("MATCH (n:person {id:3}) RETURN n.name", "read");
+  ASSERT_TRUE(value) << value.error().ToString();
+  EXPECT_EQ(value.value().GetString(0), "Eve");
+}
+
+TEST_F(MvccInsertTransactionTest, CapacityRetryDoesNotLogAbortError) {
+  class AbortLogSink : public google::LogSink {
+   public:
+    AbortLogSink() { google::AddLogSink(this); }
+    ~AbortLogSink() override { google::RemoveLogSink(this); }
+    void send(google::LogSeverity severity, const char*, const char*, int,
+              const google::LogMessageTime&, const char* message,
+              size_t length) override {
+      if (severity == google::GLOG_ERROR &&
+          std::string(message, length).find("transaction (insert)") !=
+              std::string::npos) {
+        ++aborts;
+      }
+    }
+    int aborts = 0;
+  } logs;
+  struct ResetFailures {
+    ~ResetFailures() { neug::SetInsertReservationFailuresForTest(0); }
+  } reset;
+  neug::NeugDB db;
+  db.Open(db_dir);
+  auto svc = std::make_shared<neug::NeugDBService>(db);
+  auto slot = svc->AcquireExecutionSlot();
+  neug::SetInsertReservationFailuresForTest(1);
+  auto inserted = slot->ExecuteQuery(
+      "CREATE (:person {id:3, name:'Eve', age:28})", "insert");
+  ASSERT_TRUE(inserted) << inserted.error().ToString();
+  EXPECT_EQ(logs.aborts, 0);
+  {
+    auto transaction = slot->BeginMvccInsertTransaction();
+    transaction.Abort();
+  }
+  EXPECT_EQ(logs.aborts, 1);
+}
+
 TEST_F(MvccInsertTransactionTest, AddVertex) {
   neug::NeugDB db;
   neug::NeugDBConfig config(db_dir);

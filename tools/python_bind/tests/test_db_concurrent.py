@@ -517,17 +517,29 @@ def test_atomic_growth_four_readers_four_writers(tmp_path):
             assert list(session.execute("MATCH (n:Item {id:9999}) RETURN n.value")) == [
                 ["y" * 250]
             ]
-            list(
-                session.execute(
-                    "MATCH (a:Item {id:-1}), (b:Item {id:9999}) CREATE (a)-[:Link {note:'after growth'}]->(b)",
-                    access_mode="insert",
+            # Exceed the initial adjacency and unbundled STRING capacity after
+            # vertex growth. One endpoint pair also stresses its CSR buffers.
+            payload = "e" * 50
+            for batch in range(20):
+                list(
+                    session.execute(
+                        "MATCH (a:Item {id:-1}), (b:Item {id:9999}) "
+                        "UNWIND CAST($ids, 'INT64[]') AS id "
+                        "CREATE (a)-[:Link {note:$note}]->(b)",
+                        access_mode="insert",
+                        parameters={
+                            "ids": list(range(batch * 1000, (batch + 1) * 1000)),
+                            "note": payload,
+                        },
+                    )
                 )
-            )
-            assert list(
+            notes = list(
                 session.execute(
                     "MATCH (:Item {id:-1})-[e:Link]->(:Item {id:9999}) RETURN e.note"
                 )
-            ) == [["after growth"]]
+            )
+            assert len(notes) == 20000
+            assert all(row == [payload] for row in notes)
         finally:
             session.close()
     finally:

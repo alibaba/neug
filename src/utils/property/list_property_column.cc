@@ -292,11 +292,8 @@ void ListPropertyColumn::set_any(size_t index, const Value& value,
 
   auto new_offset = elements_tail_;
   auto required_size = new_offset + children.size();
-  // This check fails when the elements column has no spare capacity.
-  // In the insert-transaction path (insert_safe always false), this throws
-  // a StorageException.  After loading from checkpoint there is no spare
-  // space, so any non-empty list whose length differs from the current
-  // list length will trigger this error.  See storages/README.md §5.4.
+  // Strict writes require capacity prepared before WAL append. Direct callers
+  // that bypass transaction reservation must also reserve elements themselves.
   if (required_size > elements_->size()) {
     if (!insert_safe) {
       THROW_STORAGE_EXCEPTION(

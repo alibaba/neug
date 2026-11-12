@@ -220,7 +220,9 @@ void MvccInsertTransaction::ReleaseCapacity() noexcept {
 void MvccInsertTransaction::Abort() {
   ReleaseCapacity();
   if (timestamp_ != INVALID_TIMESTAMP) {
-    LOG(ERROR) << "aborting " << timestamp_ << "-th transaction (insert)";
+    if (!capacity_retry_) {
+      LOG(ERROR) << "aborting " << timestamp_ << "-th transaction (insert)";
+    }
     view_ = nullptr;
     guard_.release();
     vm_.release_insert_timestamp(timestamp_);

@@ -3,6 +3,7 @@
  */
 #pragma once
 
+#include <cstddef>
 #include <map>
 #include <mutex>
 #include <string>
@@ -14,6 +15,10 @@
 namespace neug {
 class PropertyGraph;
 class ColumnBase;
+
+// Force reservation misses on the calling thread for deterministic retry tests.
+// Zero disables injection; failed reservations do not change outstanding usage.
+NEUG_API void SetInsertReservationFailuresForTest(size_t count);
 
 // Owns only logical identities and counts, never references the discarded
 // transaction's graph or redo. Reservations are tracked separately per
