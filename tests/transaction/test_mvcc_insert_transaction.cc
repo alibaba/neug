@@ -669,3 +669,60 @@ TEST_F(MvccInsertTransactionTest,
             5);  // Includes columns, primary hash buckets and CSR directories.
   db.Close();
 }
+
+TEST_F(MvccInsertTransactionTest, NestedCapacityWithoutVertexGrowth) {
+  neug::NeugDB db;
+  db.Open(db_dir);
+  auto conn = db.Connect();
+  ASSERT_TRUE(conn->Query(
+      "CREATE NODE TABLE nested_item(id INT64 PRIMARY KEY, values STRING[]);"));
+  auto& graph = const_cast<neug::PropertyGraph&>(db.graph());
+  const auto label = graph.schema().get_vertex_label_id("nested_item");
+  const auto capacity = graph.get_vertex_table(label).Capacity();
+  ASSERT_GT(capacity, 2);
+  std::vector<neug::Value> strings(200,
+                                   neug::Value::STRING(std::string(200, 'x')));
+  auto value = neug::Value::LIST(neug::DataType(neug::DataTypeId::kVarchar),
+                                 std::move(strings));
+  neug::InsertCapacityRequest request;
+  request.AddVertex("nested_item", neug::Value::INT64(1), {value});
+  EXPECT_FALSE(request.Fits(graph));
+  bool succeeded = false;
+  int failures = 0;
+  for (int allocation = 0; allocation < 16; ++allocation) {
+    auto candidate = graph.Clone();
+    neug::SetResizeFailureCountdownForTest(allocation);
+    try {
+      request.Grow(*candidate);
+      succeeded = true;
+    } catch (const std::bad_alloc&) { ++failures; } catch (...) {
+      neug::SetResizeFailureCountdownForTest(-1);
+      throw;
+    }
+    neug::SetResizeFailureCountdownForTest(-1);
+    EXPECT_FALSE(request.Fits(graph));
+    EXPECT_EQ(graph.get_vertex_table(label).Capacity(), capacity);
+    if (succeeded) {
+      EXPECT_TRUE(request.Fits(*candidate));
+      EXPECT_EQ(candidate->get_vertex_table(label).Capacity(), capacity);
+      // Once every nested buffer fits, growth must perform no allocations.
+      neug::SetResizeFailureCountdownForTest(0);
+      EXPECT_NO_THROW(request.Grow(*candidate));
+      neug::SetResizeFailureCountdownForTest(-1);
+      // Each reservation fits alone; their string payloads exceed the shared
+      // capacity when combined. Releasing restores the complete nested budget.
+      neug::InsertCapacityReservations reservations;
+      neug::InsertCapacityRequest growth;
+      EXPECT_TRUE(reservations.TryReserve(*candidate, request, growth));
+      EXPECT_FALSE(reservations.TryReserve(*candidate, request, growth));
+      reservations.Release(request);
+      EXPECT_TRUE(reservations.TryReserve(*candidate, request, growth));
+      reservations.Release(request);
+      break;
+    }
+  }
+  EXPECT_TRUE(succeeded);
+  EXPECT_GE(failures, 2);
+  conn.reset();
+  db.Close();
+}

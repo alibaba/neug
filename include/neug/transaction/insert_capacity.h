@@ -19,10 +19,17 @@ class ColumnBase;
 // database.
 class InsertCapacityRequest {
  public:
+  // Append counts are additive across outstanding transactions. LIST/ARRAY
+  // have one child requirement; STRUCT has one per field, recursively.
+  struct ColumnNeed {
+    size_t count = 0;
+    size_t bytes = 0;
+    std::vector<ColumnNeed> children;
+  };
   struct Need {
     size_t rows = 0;
     size_t key_bytes = 0;
-    std::vector<size_t> bytes;
+    std::vector<ColumnNeed> columns;
     std::vector<DataType> types;
   };
   void AddVertex(const std::string& label, const Value& key,
@@ -41,10 +48,12 @@ class InsertCapacityRequest {
   void Merge(const InsertCapacityRequest& other);
   void Subtract(const InsertCapacityRequest& other) noexcept;
   static void Add(Need& need, const std::vector<Value>& props);
-  static bool ColumnFits(ColumnBase& col, size_t rows, size_t count,
-                         size_t bytes);
-  static void GrowColumn(ColumnBase& col, size_t rows, size_t count,
-                         size_t bytes);
+  static void AddValue(ColumnNeed& need, const Value& value);
+  static void MergeColumn(ColumnNeed& target, const ColumnNeed& source);
+  static void SubtractColumn(ColumnNeed& target,
+                             const ColumnNeed& source) noexcept;
+  static bool ColumnFits(ColumnBase& col, size_t rows, const ColumnNeed& need);
+  static void GrowColumn(ColumnBase& col, size_t rows, const ColumnNeed& need);
   std::map<std::string, Need> vertices_;
   std::map<std::tuple<std::string, std::string, std::string>, Need> edges_;
 };

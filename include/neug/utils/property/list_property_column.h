@@ -15,6 +15,7 @@
 #pragma once
 
 #include <memory>
+#include <mutex>
 #include <string>
 
 #include "neug/common/types.h"
@@ -66,12 +67,8 @@ class ListPropertyColumn : public ColumnBase {
   void resize(size_t size, const Value& default_value) override;
 
   DataTypeId type() const override { return DataTypeId::kList; }
-  // When insert_safe is false (the insert-transaction path), setting a
-  // non-empty list on a row whose current list length differs will throw a
-  // StorageException if the elements column has no spare capacity.  After
-  // loading from a checkpoint, elements_tail_ == elements_->size(), so there
-  // is zero spare space and any non-empty list insertion will fail.
-  // See storages/README.md §5.4 for details.
+  // Strict inserts require the transaction to reserve element and nested
+  // payload capacity before WAL append. Update writes may grow on demand.
   void set_any(size_t index, const Value& value, bool insert_safe) override;
   Value get_any(size_t index) const override;
 
@@ -85,12 +82,15 @@ class ListPropertyColumn : public ColumnBase {
   const DataType& child_type() const { return child_type_; }
 
  private:
+  friend class InsertCapacityRequest;
   void openInternal(Checkpoint& ckp, const CheckpointManifest* manifest,
                     const ModuleDescriptor& desc, MemoryLevel level);
   ModuleDescriptor dumpSelfDescriptor() const;
 
   DataType list_type_;
   DataType child_type_;
+  // Serializes append allocation and child writes across insert transactions.
+  mutable std::mutex append_mutex_;
   size_t elements_tail_;
   std::unique_ptr<ULongColumn> items_;
   std::unique_ptr<ColumnBase> elements_;
