@@ -87,6 +87,9 @@ class ScriptedVersionManager : public IVersionManager {
     return {capture_published_view(), std::move(admission)};
   }
   uint32_t acquire_insert_timestamp() override { return 1; }
+  uint32_t insert_read_timestamp() const override {
+    return UnpackPublishedReadView(published_.load()).visibility_ts;
+  }
   void release_insert_timestamp(uint32_t) override {}
   uint32_t acquire_update_timestamp() override { return 1; }
   uint32_t acquire_update_timestamp_until(

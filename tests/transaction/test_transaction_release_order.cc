@@ -62,6 +62,7 @@ class ReleaseOrderVersionManager : public IVersionManager {
     return {{1, 0}, SharedOperationLease(operation_gate_)};
   }
   uint32_t acquire_insert_timestamp() override { return 1; }
+  uint32_t insert_read_timestamp() const override { return 0; }
   uint32_t acquire_update_timestamp() override { return 1; }
   uint32_t acquire_update_timestamp_until(
       std::chrono::steady_clock::time_point) override {

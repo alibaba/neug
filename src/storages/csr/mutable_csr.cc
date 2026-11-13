@@ -418,6 +418,26 @@ void MutableCsr<EDATA_T>::delete_edge(vid_t src, int32_t offset,
 }
 
 template <typename EDATA_T>
+void MutableCsr<EDATA_T>::undo_insert_edges(vid_t src, vid_t dst,
+                                            timestamp_t owner) {
+  if (src >= vertex_capacity()) {
+    return;
+  }
+  // Serialize with append/growth: marking a stale copied buffer is not undo.
+  std::lock_guard<SpinLock> lock(locks_[src]);
+  auto* sizes = reinterpret_cast<std::atomic<int>*>(degree_list_->GetData());
+  auto* nbrs = reinterpret_cast<nbr_t**>(adj_list_buffer_->GetData())[src];
+  for (int i = 0; i < sizes[src].load(); ++i) {
+    auto expected = owner;
+    if (nbrs[i].neighbor == dst &&
+        nbrs[i].timestamp.compare_exchange_strong(
+            expected, std::numeric_limits<timestamp_t>::max())) {
+      edge_num_.fetch_sub(1, std::memory_order_relaxed);
+    }
+  }
+}
+
+template <typename EDATA_T>
 void MutableCsr<EDATA_T>::revert_delete_edge(vid_t src, vid_t nbr,
                                              int32_t offset, timestamp_t ts) {
   vid_t vnum = static_cast<vid_t>(vertex_capacity());
@@ -686,6 +706,22 @@ void SingleMutableCsr<EDATA_T>::delete_edge(vid_t src, int32_t offset,
     LOG(ERROR) << "Fail to delete edge, already deleted.";
   } else {
     LOG(ERROR) << "Fail to delete edge, timestamp not satisfied.";
+  }
+}
+
+template <typename EDATA_T>
+void SingleMutableCsr<EDATA_T>::undo_insert_edges(vid_t src, vid_t dst,
+                                                  timestamp_t owner) {
+  if (src >= vertex_capacity()) {
+    return;
+  }
+  std::lock_guard<SpinLock> lock(insert_lock_);
+  auto& nbr = reinterpret_cast<nbr_t*>(nbr_list_->GetData())[src];
+  auto expected = owner;
+  if (nbr.timestamp.load() == owner && nbr.neighbor == dst &&
+      nbr.timestamp.compare_exchange_strong(
+          expected, std::numeric_limits<timestamp_t>::max())) {
+    edge_num_.fetch_sub(1, std::memory_order_relaxed);
   }
 }
 

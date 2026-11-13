@@ -15,6 +15,7 @@
 #include <gtest/gtest.h>
 #include <filesystem>
 #include <string_view>
+#include <thread>
 #include <utility>
 #ifdef _WIN32
 #include <process.h>
@@ -26,7 +27,9 @@
 #include "neug/storages/allocators.h"
 #include "neug/storages/checkpoint_manager.h"
 #include "neug/storages/csr/csr_view_utils.h"
+#include "neug/storages/csr/mutable_csr.h"
 #include "neug/storages/graph/edge_table.h"
+#include "neug/storages/graph/graph_view.h"
 #include "neug/storages/loader/loader_utils.h"
 #include "neug/storages/module_descriptor.h"
 #include "unittest/utils.h"
@@ -294,6 +297,115 @@ TEST_F(EdgeTableTest, EdgeNumUsesStoredDirection) {
     EXPECT_EQ(neighbor.get_vertex(), 1);
     ++neighbor;
     EXPECT_TRUE(neighbor == neighbors.end());
+  }
+}
+
+TEST_F(EdgeTableTest,
+       UndoInsertCleansHalfEdgeWithoutDeletingOccupiedSingleSlot) {
+  auto ckp = make_checkpoint(workspace());
+  auto schema = std::make_shared<EdgeSchema>(
+      *schema_.get_edge_schema(src_label_, dst_label_, edge_label_int_));
+  schema->oe_strategy = EdgeStrategy::kSingle;
+  schema->ie_strategy = EdgeStrategy::kMultiple;
+  EdgeTable table(schema);
+  table.Init(ckp, MemoryLevel::kInMemory);
+  table.EnsureCapacity(4, 4);
+  Allocator alloc(MemoryLevel::kInMemory, "");
+  EdgeTableView view(table);
+  table.AddEdge(0, 1, {Value::INT32(10)}, 1, alloc, false);
+  // Incoming is appended first; outgoing rejects its occupied single slot.
+  EXPECT_THROW(table.AddEdge(0, 2, {Value::INT32(20)}, 2, alloc, false),
+               std::exception);
+  auto pending = table.get_incoming_view(2).get_edges(2);
+  ASSERT_TRUE(pending.begin() != pending.end());
+  view.UndoInsertedEdges(0, 2, 2);
+  view.UndoInsertedEdges(0, 2, 2);
+  auto removed = table.get_incoming_view(2).get_edges(2);
+  EXPECT_TRUE(removed.begin() == removed.end());
+  auto preserved = table.get_outgoing_view(2).get_edges(0);
+  ASSERT_TRUE(preserved.begin() != preserved.end());
+  EXPECT_EQ(preserved.begin().get_vertex(), 1);
+  EXPECT_EQ(preserved.begin().get_timestamp(), 1);
+  EXPECT_EQ(table.EdgeNum(), 1u);
+
+  // Once the owner's edge is undone the single slot may be reused. Stale
+  // rollback must neither remove the replacement nor decrement its count.
+  view.UndoInsertedEdges(0, 1, 1);
+  table.AddEdge(0, 2, {Value::INT32(30)}, 3, alloc, false);
+  view.UndoInsertedEdges(0, 2, 2);
+  EXPECT_EQ(table.EdgeNum(), 1u);
+  auto replacement = table.get_outgoing_view(3).get_edges(0);
+  ASSERT_TRUE(replacement.begin() != replacement.end());
+  EXPECT_EQ(replacement.begin().get_timestamp(), 3);
+}
+
+TEST_F(EdgeTableTest, UndoParallelEdgesSupportsSingleDirectionStorage) {
+  auto ckp = make_checkpoint(workspace());
+  Allocator alloc(MemoryLevel::kInMemory, "");
+  for (const auto& [outgoing, incoming] :
+       {std::pair{EdgeStrategy::kNone, EdgeStrategy::kMultiple},
+        std::pair{EdgeStrategy::kMultiple, EdgeStrategy::kNone},
+        std::pair{EdgeStrategy::kMultiple, EdgeStrategy::kMultiple}}) {
+    auto schema = std::make_shared<EdgeSchema>(
+        *schema_.get_edge_schema(src_label_, dst_label_, edge_label_empty_));
+    schema->oe_strategy = outgoing;
+    schema->ie_strategy = incoming;
+    EdgeTable table(schema);
+    table.Init(ckp, MemoryLevel::kInMemory);
+    table.EnsureCapacity(4, 4);
+    EdgeTableView view(table);
+    table.AddEdge(0, 1, {}, 1, alloc, false);
+    for (int i = 0; i < 20; ++i) {
+      table.AddEdge(0, 1, {}, 2, alloc, false);
+    }
+    table.AddEdge(0, 1, {}, 3, alloc, false);
+    view.UndoInsertedEdges(0, 1, 2);
+    view.UndoInsertedEdges(0, 1, 2);
+    EXPECT_EQ(table.EdgeNum(), 2u);
+    auto csr = outgoing == EdgeStrategy::kNone ? table.get_incoming_view(3)
+                                               : table.get_outgoing_view(3);
+    auto edges = csr.get_edges(outgoing == EdgeStrategy::kNone ? 1 : 0);
+    size_t count = 0;
+    for (auto it = edges.begin(); it != edges.end(); ++it) {
+      EXPECT_NE(it.get_timestamp(), 2u);
+      ++count;
+    }
+    EXPECT_EQ(count, 2u);
+  }
+}
+
+TEST_F(EdgeTableTest, UndoInsertSerializesWithConcurrentAdjacencyGrowth) {
+  auto ckp = make_checkpoint(workspace());
+  EdgeTable table(
+      schema_.get_edge_schema(src_label_, dst_label_, edge_label_empty_));
+  table.Init(ckp, MemoryLevel::kInMemory);
+  table.EnsureCapacity(4, 4);
+  Allocator first_alloc(MemoryLevel::kInMemory, "");
+  Allocator second_alloc(MemoryLevel::kInMemory, "");
+  EdgeTableView view(table);
+  for (int i = 0; i < 20; ++i) {
+    table.AddEdge(0, 1, {}, 1, first_alloc, false);
+  }
+  std::thread inserter([&] {
+    for (int i = 0; i < 1000; ++i) {
+      table.AddEdge(0, 1, {}, 2, second_alloc, false);
+    }
+  });
+  for (int i = 0; i < 100; ++i) {
+    view.UndoInsertedEdges(0, 1, 1);
+  }
+  inserter.join();
+  EXPECT_EQ(table.EdgeNum(), 1000u);
+  for (bool incoming : {false, true}) {
+    auto csr =
+        incoming ? table.get_incoming_view(2) : table.get_outgoing_view(2);
+    auto edges = csr.get_edges(incoming ? 1 : 0);
+    size_t count = 0;
+    for (auto it = edges.begin(); it != edges.end(); ++it) {
+      EXPECT_EQ(it.get_timestamp(), 2u);
+      ++count;
+    }
+    EXPECT_EQ(count, 1000u);
   }
 }
 

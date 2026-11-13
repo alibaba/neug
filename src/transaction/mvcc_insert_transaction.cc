@@ -43,7 +43,8 @@ MvccInsertTransaction::MvccInsertTransaction(SnapshotGuard guard,
       alloc_(alloc),
       wal_writer_(wal_writer),
       vm_(vm),
-      timestamp_(timestamp) {
+      timestamp_(timestamp),
+      read_timestamp_(vm.insert_read_timestamp()) {
   arc_.Resize(sizeof(WalHeader));
 }
 
@@ -51,7 +52,7 @@ MvccInsertTransaction::~MvccInsertTransaction() { Abort(); }
 
 bool MvccInsertTransaction::GetVertexIndex(label_t label, const Value& id,
                                            vid_t& index) const {
-  if (view_->get_lid(label, id, index, timestamp_)) {
+  if (view_->get_lid(label, id, index, read_timestamp_)) {
     return true;
   }
   if (added_vertices_.size() > label && added_vertices_[label] != nullptr &&
@@ -64,15 +65,17 @@ bool MvccInsertTransaction::GetVertexIndex(label_t label, const Value& id,
 
 Value MvccInsertTransaction::get_vertex_id(label_t label, vid_t lid) const {
   if (added_vertices_.size() <= label || added_vertices_[label] == nullptr) {
-    return view_->GetOid(label, lid, timestamp_);
+    return view_->GetOid(label, lid, read_timestamp_);
   }
   vid_t base = added_vertices_base_[label];
   if (lid >= base) {
     Value ret{DataType{DataTypeId::kNull}};
-    CHECK(added_vertices_[label]->get_key(lid - base, ret));
+    if (!added_vertices_[label]->get_key(lid - base, ret)) {
+      THROW_STORAGE_EXCEPTION("Insert edge endpoint is not visible");
+    }
     return ret;
   } else {
-    return view_->GetOid(label, lid, timestamp_);
+    return view_->GetOid(label, lid, read_timestamp_);
   }
 }
 
@@ -174,6 +177,18 @@ bool MvccInsertTransaction::Commit() {
   header->timestamp = timestamp_;
 
   try {
+    ApplyInserts();
+  } catch (const std::exception& e) {
+    LOG(ERROR) << "Failed to apply inserts: " << e.what();
+    Abort();
+    return false;
+  } catch (...) {
+    LOG(ERROR) << "Failed to apply inserts: unknown exception";
+    Abort();
+    return false;
+  }
+
+  try {
     if (!wal_writer_.append(arc_.GetBuffer(), arc_.GetSize())) {
       LOG(ERROR) << "Failed to append wal log";
       Abort();
@@ -185,10 +200,9 @@ bool MvccInsertTransaction::Commit() {
   } catch (...) {
     LOG(FATAL) << "Insert WAL append failed after commit append began";
   }
-  // Apply WAL operations through the writable view. Capacity is assumed
-  // to be sufficient; the strict insert path will throw if exhausted.
-  IngestWal(*view_, timestamp_, arc_.GetBuffer() + sizeof(WalHeader),
-            header->length, alloc_);
+  // Durable WAL is the commit decision. Nothing after this point may undo it.
+  vertex_undo_.clear();
+  edge_undo_.clear();
 
   view_ = nullptr;
   guard_.release();
@@ -199,11 +213,76 @@ bool MvccInsertTransaction::Commit() {
 
 void MvccInsertTransaction::Abort() {
   if (timestamp_ != INVALID_TIMESTAMP) {
+    RollbackInserts();
     LOG(ERROR) << "aborting " << timestamp_ << "-th transaction (insert)";
     view_ = nullptr;
     guard_.release();
     vm_.release_insert_timestamp(timestamp_);
     clear();
+  }
+}
+
+void MvccInsertTransaction::ApplyInserts() {
+  OutArchive arc;
+  arc.SetSlice(arc_.GetBuffer() + sizeof(WalHeader),
+               arc_.GetSize() - sizeof(WalHeader));
+  while (!arc.Empty()) {
+    OpType op;
+    arc >> op;
+    if (op == OpType::kInsertVertex) {
+      InsertVertexRedo redo;
+      arc >> redo;
+      auto label = view_->schema().get_vertex_label_id(redo.vertex_type);
+      vertex_undo_.push_back({label, redo.oid});
+      // Partial writes must be checkpointed as tombstones after rollback too.
+      view_->MarkVertexTableDirty(label);
+      vid_t vid;
+      auto status =
+          view_->AddVertex(label, redo.oid, redo.props, vid, timestamp_);
+      THROW_STORAGE_EXCEPTION_STATUS("Failed to insert vertex", status);
+    } else if (op == OpType::kInsertEdge) {
+      InsertEdgeRedo redo;
+      arc >> redo;
+      const auto& schema = view_->schema();
+      auto src_label = schema.get_vertex_label_id(redo.src_type);
+      auto dst_label = schema.get_vertex_label_id(redo.dst_type);
+      auto edge_label = schema.get_edge_label_id(redo.edge_type);
+      vid_t src, dst;
+      if (!view_->GetInsertEndpoint(src_label, redo.src, src, read_timestamp_,
+                                    timestamp_) ||
+          !view_->GetInsertEndpoint(dst_label, redo.dst, dst, read_timestamp_,
+                                    timestamp_)) {
+        THROW_STORAGE_EXCEPTION("Insert edge endpoint is not visible");
+      }
+      edge_undo_.push_back({src_label, dst_label, edge_label, src, dst});
+      view_->MarkEdgeTableDirty(src_label, dst_label, edge_label);
+      int32_t offset;
+      const void* prop = nullptr;
+      auto status =
+          view_->AddEdge(src_label, src, dst_label, dst, edge_label,
+                         redo.properties, timestamp_, alloc_, offset, prop);
+      THROW_STORAGE_EXCEPTION_STATUS("Failed to insert edge", status);
+    } else {
+      THROW_INTERNAL_EXCEPTION("Unexpected insert operation");
+    }
+  }
+}
+
+void MvccInsertTransaction::RollbackInserts() noexcept {
+  try {
+    // Do not make vertex slots reusable until both CSR directions are clean.
+    for (auto it = edge_undo_.rbegin(); it != edge_undo_.rend(); ++it) {
+      view_->UndoInsertedEdges(it->src_label, it->src, it->dst_label, it->dst,
+                               it->edge_label, timestamp_);
+    }
+    edge_undo_.clear();
+    for (auto it = vertex_undo_.rbegin(); it != vertex_undo_.rend(); ++it) {
+      view_->UndoInsertedVertex(it->label, it->oid, timestamp_);
+    }
+    vertex_undo_.clear();
+  } catch (...) {
+    // Never publish a timestamp with incomplete cleanup.
+    LOG(FATAL) << "Insert rollback failed";
   }
 }
 

@@ -67,6 +67,18 @@ state, change schema, or change indexes are serialized through an update lease.
 An explicit read-write transaction retains the required lease until commit or
 rollback. Its changes remain private until commit publishes them.
 
+Insert transactions apply buffered changes to runtime storage before persisting
+their WAL record, and publish visibility only after WAL persistence succeeds.
+If apply fails, or the WAL writer confirms that it wrote no bytes, an in-memory
+undo journal removes the transaction's edges in both directions before removing
+its vertices. Undo includes partially applied operations, matches the owning
+insert timestamp, and retains physical slots for later reuse or compaction.
+
+An insert may reference only vertices visible at its captured committed read
+timestamp or vertices created by that same transaction. Another transaction may
+still be uncommitted even if it has a smaller timestamp, so its vertices are not
+necessarily visible to this insert transaction.
+
 Each successful ordinary write is recorded in the WAL. Service-mode checkpoint
 maintenance waits for in-flight work, temporarily prevents new transactions
 from starting, publishes the new checkpoint, and rotates execution-slot WAL

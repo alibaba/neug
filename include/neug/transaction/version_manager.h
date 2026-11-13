@@ -87,6 +87,9 @@ class IVersionManager {
   // behind it. The returned lease owns the reader admission directly.
   virtual ReadOperationLease acquire_read_operation() = 0;
   virtual uint32_t acquire_insert_timestamp() = 0;
+  // Caller must already hold insert admission, which pins the snapshot
+  // generation.
+  virtual uint32_t insert_read_timestamp() const = 0;
   virtual void release_insert_timestamp(uint32_t ts) = 0;
   // Waiters directly contend the admission phase. Acquisition order is
   // intentionally unspecified; the successful phase CAS linearizes ownership.
@@ -182,6 +185,11 @@ class VersionManager : public IVersionManager {
 
   ReadOperationLease acquire_read_operation() override;
   uint32_t acquire_insert_timestamp() override;
+  uint32_t insert_read_timestamp() const override {
+    return UnpackPublishedReadView(
+               published_read_view_.load(std::memory_order_acquire))
+        .visibility_ts;
+  }
   void release_insert_timestamp(uint32_t ts) override;
   uint32_t acquire_update_timestamp() override;
   void begin_update_commit(uint32_t ts) override;
