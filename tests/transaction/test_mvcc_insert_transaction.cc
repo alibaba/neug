@@ -625,6 +625,132 @@ TEST_F(MvccInsertTransactionTest,
   db.Close();
 }
 
+TEST_F(MvccInsertTransactionTest,
+       EdgePropertyTombstonesStayInvisibleAcrossCheckpoints) {
+  using namespace neug;
+  for (auto level : {MemoryLevel::kInMemory, MemoryLevel::kSyncToFile}) {
+    SCOPED_TRACE(static_cast<int>(level));
+    // Start each storage mode from the same committed fixture.
+    SetUp();
+    NeugDBConfig config(db_dir);
+    config.memory_level = level;
+    config.checkpoint_on_close = true;
+    NeugDB db;
+    db.Open(config);
+    auto svc = std::make_shared<NeugDBService>(db);
+    auto verify = [&](bool replacement) {
+      auto slot = svc->AcquireExecutionSlot();
+      auto txn = slot->BeginSnapshotReadTransaction();
+      StorageReadInterface gi(txn.view(), txn.timestamp());
+      const auto person = gi.schema().get_vertex_label_id("person");
+      const auto software = gi.schema().get_vertex_label_id("software");
+      const auto created = gi.schema().get_edge_label_id("created");
+      auto weight = gi.GetEdgeDataAccessor(person, software, created, 0);
+      auto since = gi.GetEdgeDataAccessor(person, software, created, 1);
+      for (bool incoming : {false, true}) {
+        auto edges =
+            incoming
+                ? gi.GetGenericIncomingGraphView(software, person, created)
+                : gi.GetGenericOutgoingGraphView(person, software, created);
+        size_t seen = 0;
+        for (auto lid : gi.GetVertexSet(incoming ? software : person)) {
+          auto adjacency = edges.get_edges(lid);
+          for (auto it = adjacency.begin(); it != adjacency.end(); ++it) {
+            const auto src =
+                gi.GetVertexId(person, incoming ? it.get_vertex() : lid)
+                    .GetValue<int64_t>();
+            const auto dst =
+                gi.GetVertexId(software, incoming ? lid : it.get_vertex())
+                    .GetValue<int64_t>();
+            if (src == 1 && dst == 1) {
+              EXPECT_DOUBLE_EQ(weight.get_data(it).GetValue<double>(), 0.8);
+              EXPECT_EQ(since.get_data(it).GetValue<int64_t>(), 2021);
+            } else if (src == 2 && dst == 2) {
+              EXPECT_DOUBLE_EQ(weight.get_data(it).GetValue<double>(), 0.7);
+              EXPECT_EQ(since.get_data(it).GetValue<int64_t>(), 2020);
+            } else {
+              EXPECT_TRUE(replacement);
+              EXPECT_EQ(src, 1);
+              EXPECT_EQ(dst, 2);
+              EXPECT_DOUBLE_EQ(weight.get_data(it).GetValue<double>(), 0.9);
+              EXPECT_EQ(since.get_data(it).GetValue<int64_t>(), 2030);
+            }
+            ++seen;
+          }
+        }
+        EXPECT_EQ(seen, replacement ? 3u : 2u);
+      }
+    };
+    size_t retained_rows;
+    {
+      SnapshotGuard observer(db.graph_snapshot_store());
+      auto& graph = *observer.get().mutable_graph();
+      const auto person = graph.schema().get_vertex_label_id("person");
+      const auto software = graph.schema().get_vertex_label_id("software");
+      const auto created = graph.schema().get_edge_label_id("created");
+      auto& table = graph.get_edge_table(person, software, created);
+      const auto initial_rows = table.PropTableSize();
+      auto* since = table.table()->get_column_by_id(1);
+      const auto capacity = since->size();
+      for (int i = 0; i < 3; ++i) {
+        auto slot = svc->AcquireExecutionSlot();
+        auto txn = slot->BeginMvccInsertTransaction();
+        vid_t src, dst;
+        ASSERT_TRUE(txn.GetVertexIndex(person, Value::INT64(1), src));
+        ASSERT_TRUE(txn.GetVertexIndex(software, Value::INT64(2), dst));
+        // Both endpoints survive: a leaked edge cannot hide behind a deleted
+        // vertex. Fail only after the CSR entries and weight are written.
+        since->resize(table.PropTableSize());
+        const void* prop = nullptr;
+        ASSERT_TRUE(txn.AddEdge(person, src, software, dst, created,
+                                {Value::DOUBLE(0.2), Value::INT64(2026)},
+                                prop));
+        EXPECT_FALSE(txn.Commit());
+        txn.Abort();
+        // Restore the injected capacity restriction before checkpointing.
+        since->resize(capacity);
+        EXPECT_EQ(table.PropTableSize(), initial_rows + i + 1);
+        EXPECT_EQ(table.EdgeNum(), 2u);
+      }
+      retained_rows = table.PropTableSize();
+    }
+    verify(false);
+    svc.reset();
+    db.Close();  // Publish a checkpoint containing the unreachable rows.
+    db.Open(config);
+    svc = std::make_shared<NeugDBService>(db);
+    verify(false);
+    {
+      auto slot = svc->AcquireExecutionSlot();
+      auto txn = slot->BeginMvccInsertTransaction();
+      const auto person = txn.schema().get_vertex_label_id("person");
+      const auto software = txn.schema().get_vertex_label_id("software");
+      const auto created = txn.schema().get_edge_label_id("created");
+      EXPECT_EQ(
+          db.graph().get_edge_table(person, software, created).PropTableSize(),
+          retained_rows);
+      vid_t src, dst;
+      ASSERT_TRUE(txn.GetVertexIndex(person, Value::INT64(1), src));
+      ASSERT_TRUE(txn.GetVertexIndex(software, Value::INT64(2), dst));
+      const void* prop = nullptr;
+      ASSERT_TRUE(txn.AddEdge(person, src, software, dst, created,
+                              {Value::DOUBLE(0.9), Value::INT64(2030)}, prop));
+      ASSERT_TRUE(txn.Commit());
+      EXPECT_EQ(
+          db.graph().get_edge_table(person, software, created).PropTableSize(),
+          retained_rows + 1);
+    }
+    verify(true);
+    svc.reset();
+    db.Close();
+    db.Open(config);
+    svc = std::make_shared<NeugDBService>(db);
+    verify(true);
+    svc.reset();
+    db.Close();
+  }
+}
+
 TEST_F(MvccInsertTransactionTest, InsertCannotUseAnotherUnpublishedVertex) {
   using namespace neug;
   NeugDB db;
