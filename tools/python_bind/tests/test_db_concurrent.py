@@ -609,3 +609,83 @@ def test_nested_insert_capacity_and_recovery(
     finally:
         c.close()
         db.close()
+
+
+@pytest.mark.parametrize("property_type", ["INT64[]", "STRING[]", "STRING[][]"])
+def test_concurrent_list_distinct_payload_and_recovery(tmp_path, property_type):
+    import json
+
+    def payload(row):
+        count = row % 3 + 1
+        if property_type == "INT64[]":
+            return [row * 10 + i for i in range(count)]
+        if property_type == "STRING[]":
+            return [f"row-{row}-element-{i}" for i in range(count)]
+        return [
+            [f"row-{row}-list-{i}-element-{j}" for j in range(i + 1)]
+            for i in range(count)
+        ]
+
+    def expression(values, data_type):
+        child_type = data_type[:-2]
+        children = [
+            expression(v, child_type) if child_type.endswith("[]") else json.dumps(v)
+            for v in values
+        ]
+        return f"CAST([{','.join(children)}], '{data_type}')"
+
+    path = str(tmp_path / "list_cas")
+    db = Database(path, max_thread_num=4, checkpoint_on_close=True)
+    conn = db.connect()
+    list(
+        conn.execute(
+            f"CREATE NODE TABLE Item(id INT64, value {property_type}, PRIMARY KEY(id))"
+        )
+    )
+    list(
+        conn.execute(
+            f"CREATE (:Item {{id:-1,value:{expression(payload(-1), property_type)}}})"
+        )
+    )
+    conn.close()
+    db.close()
+    db = Database(path, max_thread_num=4, checkpoint_on_close=False)
+    endpoint = _start_capacity_growth_service(db)
+    barrier = threading.Barrier(4)
+    count = 128
+
+    def write(worker):
+        with closing(Session(endpoint, timeout="60s")) as session:
+            session._http_session.trust_env = False
+            barrier.wait(timeout=30)
+            for row in range(worker, count * 4, 4):
+                list(
+                    session.execute(
+                        f"CREATE (:Item {{id:{row},value:{expression(payload(row), property_type)}}})",
+                        access_mode="insert",
+                    )
+                )
+
+    expected = {row: payload(row) for row in range(-1, count * 4)}
+    try:
+        with concurrent.futures.ThreadPoolExecutor(max_workers=4) as pool:
+            list(pool.map(write, range(4)))
+        with closing(Session(endpoint, timeout="60s")) as session:
+            session._http_session.trust_env = False
+            before = list(
+                session.execute("MATCH (n:Item) RETURN n.id, n.value ORDER BY n.id")
+            )
+            assert len(before) == len(expected)
+            assert dict(before) == expected
+    finally:
+        db.stop_serving()
+        db.close()
+    db = Database(path, max_thread_num=4, checkpoint_on_close=False)
+    conn = db.connect()
+    try:
+        after = list(conn.execute("MATCH (n:Item) RETURN n.id, n.value ORDER BY n.id"))
+        assert after == before
+        assert dict(after) == expected
+    finally:
+        conn.close()
+        db.close()

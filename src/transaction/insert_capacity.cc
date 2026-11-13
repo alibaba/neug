@@ -148,8 +148,11 @@ bool InsertCapacityRequest::ColumnFits(ColumnBase& col, size_t rows,
   const ColumnNeed empty;
   const auto& child = need.children.empty() ? empty : need.children[0];
   if (auto* list = dynamic_cast<ListPropertyColumn*>(&col)) {
-    return ColumnFits(*list->elements_,
-                      AddSize(list->elements_tail_, child.count), child);
+    return ColumnFits(
+        *list->elements_,
+        AddSize(list->elements_tail_.load(std::memory_order_relaxed),
+                child.count),
+        child);
   }
   if (auto* array = dynamic_cast<ArrayColumn*>(&col)) {
     if (array->array_size_ &&
@@ -189,7 +192,9 @@ void InsertCapacityRequest::GrowColumn(ColumnBase& col, size_t rows,
   } else if (auto* list = dynamic_cast<ListPropertyColumn*>(&col)) {
     if (target_rows > list->size())
       list->resize(target_rows);
-    GrowColumn(*list->elements_, AddSize(list->elements_tail_, child.count),
+    GrowColumn(*list->elements_,
+               AddSize(list->elements_tail_.load(std::memory_order_relaxed),
+                       child.count),
                child);
   } else if (auto* array = dynamic_cast<ArrayColumn*>(&col)) {
     if (array->array_size_ &&
