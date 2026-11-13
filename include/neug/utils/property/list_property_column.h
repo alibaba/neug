@@ -14,6 +14,7 @@
  */
 #pragma once
 
+#include <atomic>
 #include <memory>
 #include <string>
 
@@ -68,10 +69,9 @@ class ListPropertyColumn : public ColumnBase {
   DataTypeId type() const override { return DataTypeId::kList; }
   // When insert_safe is false (the insert-transaction path), setting a
   // non-empty list on a row whose current list length differs will throw a
-  // StorageException if the elements column has no spare capacity.  After
-  // loading from a checkpoint, elements_tail_ == elements_->size(), so there
-  // is zero spare space and any non-empty list insertion will fail.
-  // See storages/README.md §5.4 for details.
+  // StorageException if the elements column has insufficient spare capacity.
+  // Insert transactions prepare this capacity before concurrent WAL ingestion;
+  // the CAS reserves disjoint ranges without permitting concurrent resize.
   void set_any(size_t index, const Value& value, bool insert_safe) override;
   Value get_any(size_t index) const override;
 
@@ -85,13 +85,15 @@ class ListPropertyColumn : public ColumnBase {
   const DataType& child_type() const { return child_type_; }
 
  private:
+  friend class InsertCapacityRequest;
   void openInternal(Checkpoint& ckp, const CheckpointManifest* manifest,
                     const ModuleDescriptor& desc, MemoryLevel level);
   ModuleDescriptor dumpSelfDescriptor() const;
 
   DataType list_type_;
   DataType child_type_;
-  size_t elements_tail_;
+  // Allocation high-water mark, not a publication barrier for element data.
+  std::atomic<size_t> elements_tail_;
   std::unique_ptr<ULongColumn> items_;
   std::unique_ptr<ColumnBase> elements_;
 

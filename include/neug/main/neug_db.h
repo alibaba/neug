@@ -378,7 +378,8 @@ class NEUG_API NeugDB {
   void initAllocators(const std::string& allocator_dir);
   void reopenAllocators(const std::string& allocator_dir);
   timestamp_t openGraphAndIngestWals();
-  timestamp_t ingestWals(IWalParser& parser, PropertyGraph& graph,
+  timestamp_t ingestWals(IWalParser& parser,
+                         std::shared_ptr<PropertyGraph>& graph,
                          timestamp_t base_timestamp);
   void initPlanner();
   void initQueryRuntime();

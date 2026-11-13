@@ -49,6 +49,17 @@
 #include "neug/utils/yaml_utils.h"
 
 namespace neug {
+#ifdef NEUG_BUILD_TEST
+namespace {
+thread_local std::function<void(bool)> insert_retry_hook;
+thread_local bool capacity_maintenance_unavailable = false;
+}  // namespace
+void SetInsertRetryHookForTest(std::function<void(bool)> hook,
+                               bool maintenance_unavailable) {
+  insert_retry_hook = std::move(hook);
+  capacity_maintenance_unavailable = maintenance_unavailable;
+}
+#endif
 
 ExecutionSlotLease::~ExecutionSlotLease() { reset(); }
 
@@ -701,9 +712,85 @@ Status ExecutionSlot::executeAutoCommitQuery(const std::string& query,
       StorageReadInterface storage(transaction.view(), transaction.timestamp());
       status = execute_and_commit(transaction, storage);
     } else if (access_mode == AccessMode::kInsert) {
-      auto transaction = BeginMvccInsertTransaction();
-      StorageTPInsertInterface storage(transaction);
-      status = execute_and_commit(transaction, storage);
+      // A retry must release every borrowed view and insert admission before
+      // waiting for the all-blocked maintenance phase.
+      constexpr size_t kCapacityRetries = 1;
+      uint64_t retry_generation = 0;
+      for (size_t attempt = 0; attempt <= kCapacityRetries; ++attempt) {
+#ifdef NEUG_BUILD_TEST
+        if (attempt != 0 && insert_retry_hook)
+          insert_retry_hook(true);
+#endif
+        InsertCapacityRequest request;
+        uint64_t planning_generation = 0;
+        {
+          auto transaction = BeginMvccInsertTransaction();
+          if (attempt != 0 &&
+              snapshot_store_.CurrentPlanningGeneration() != retry_generation) {
+            status =
+                Status::InternalError("Schema changed during insert retry");
+            break;
+          }
+          StorageTPInsertInterface storage(transaction);
+          status = execute_and_commit(transaction, storage);
+          if (!transaction.RequiresCapacityRetry())
+            break;
+          request = transaction.capacity_request();
+          planning_generation = snapshot_store_.CurrentPlanningGeneration();
+          retry_generation = planning_generation;
+        }
+        response.Clear();
+        if (attempt == kCapacityRetries) {
+          status =
+              Status::InternalError("Insert capacity retry limit exceeded");
+          break;
+        }
+#ifdef NEUG_BUILD_TEST
+        if (insert_retry_hook)
+          insert_retry_hook(false);
+        auto maintenance =
+            capacity_maintenance_unavailable
+                ? nullptr
+                : version_manager_.acquire_capacity_maintenance();
+#else
+        auto maintenance = version_manager_.acquire_capacity_maintenance();
+#endif
+        if (!maintenance) {
+          status = Status::InternalError("Capacity maintenance is unavailable");
+          break;
+        }
+        try {
+          std::shared_ptr<PropertyGraph> candidate;
+          status =
+              snapshot_store_.WithCheckpointMaintenance([&](auto& context) {
+                if (snapshot_store_.CurrentPlanningGeneration() !=
+                    planning_generation)
+                  return Status::InternalError(
+                      "Schema changed during insert retry");
+                auto& graph = context.MutableCurrentSnapshot();
+                if (!request.Fits(graph)) {
+                  candidate = graph.Clone();
+                  request.Grow(*candidate);
+                }
+                return Status::OK();
+              });
+          if (status.ok() && candidate) {
+            auto prepared =
+                snapshot_store_.PrepareSnapshot(candidate, planning_generation);
+            if (!prepared) {
+              status = prepared.error();
+            } else {
+              const auto generation = std::move(prepared.value()).Publish();
+              version_manager_.publish_capacity_snapshot(generation);
+            }
+          }
+        } catch (const std::exception& e) {
+          status = Status::InternalError(
+              std::string("Insert capacity growth failed: ") + e.what());
+        }
+        if (!status.ok())
+          break;
+      }
     } else if (access_mode == AccessMode::kUpdate ||
                access_mode == AccessMode::kSchema) {
       auto transaction = BeginSnapshotCowWriteTransaction();

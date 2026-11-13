@@ -78,7 +78,7 @@ void ListPropertyColumn::openInternal(Checkpoint& ckp,
   if (desc.module_type.empty()) {
     items_->Open(ckp, ModuleDescriptor{}, level);
     elements_->Open(ckp, ModuleDescriptor{}, level);
-    elements_tail_ = 0;
+    elements_tail_.store(0, std::memory_order_relaxed);
     return;
   }
 
@@ -102,11 +102,9 @@ void ListPropertyColumn::openInternal(Checkpoint& ckp,
       column_module::ResolveChild(resolver, desc, kElementsRef, elements_desc,
                                   "ListPropertyColumn::Open"),
       level);
-  // After loading from a checkpoint, elements_tail_ equals elements_->size(),
-  // meaning there is zero spare capacity in the elements column.  Any
-  // non-empty list insertion via insert transaction (insert_safe=false)
-  // will throw a StorageException.  This is a known limitation.
-  elements_tail_ = elements_->size();
+  // Checkpoints have no spare element capacity. Insert transactions prepare
+  // capacity before WAL append; update writes may grow on demand.
+  elements_tail_.store(elements_->size(), std::memory_order_relaxed);
 
   if (items_->size() != expected_rows) {
     THROW_RUNTIME_ERROR("ListPropertyColumn::Open: row metadata size mismatch");
@@ -146,7 +144,7 @@ void ListPropertyColumn::Dump(Checkpoint& ckp, CheckpointManifest& meta,
                               ? static_cast<StringColumn*>(elements_.get())
                               : nullptr;
 
-  if (total_elements != elements_tail_) {
+  if (total_elements != elements_tail_.load(std::memory_order_relaxed)) {
     struct LiveRange {
       size_t row;
       list_meta_item item;
@@ -199,13 +197,14 @@ void ListPropertyColumn::Dump(Checkpoint& ckp, CheckpointManifest& meta,
         set_item(row, {tail, 0});
       }
     }
-    elements_tail_ = tail;
+    elements_tail_.store(tail, std::memory_order_relaxed);
   }
-  if (elements_->size() != elements_tail_) {
+  if (elements_->size() != elements_tail_.load(std::memory_order_relaxed)) {
     if (string_elements) {
-      string_elements->shrink_items(elements_tail_);
+      string_elements->shrink_items(
+          elements_tail_.load(std::memory_order_relaxed));
     } else {
-      elements_->resize(elements_tail_);
+      elements_->resize(elements_tail_.load(std::memory_order_relaxed));
     }
   }
 
@@ -225,7 +224,7 @@ void ListPropertyColumn::resize(size_t size) {
   auto old_size = this->size();
   items_->resize(size);
   for (size_t i = old_size; i < size; ++i) {
-    set_item(i, {elements_tail_, 0});
+    set_item(i, {elements_tail_.load(std::memory_order_relaxed), 0});
   }
 }
 
@@ -290,30 +289,42 @@ void ListPropertyColumn::set_any(size_t index, const Value& value,
     return;
   }
 
-  auto new_offset = elements_tail_;
-  auto required_size = new_offset + children.size();
-  // This check fails when the elements column has no spare capacity.
-  // In the insert-transaction path (insert_safe always false), this throws
-  // a StorageException.  After loading from checkpoint there is no spare
-  // space, so any non-empty list whose length differs from the current
-  // list length will trigger this error.  See storages/README.md §5.4.
-  if (required_size > elements_->size()) {
-    if (!insert_safe) {
-      THROW_STORAGE_EXCEPTION(
-          "ListPropertyColumn::set_any: list length changed from " +
-          std::to_string(old_length) + " to " +
-          std::to_string(children.size()) +
-          ", which requires resizing elements_ but insert_safe is false");
+  auto new_offset = elements_tail_.load(std::memory_order_relaxed);
+  for (;;) {
+    // list_meta_item stores offsets in 48 bits. Check before arithmetic or
+    // allocation so a failed reservation cannot consume tail space.
+    constexpr size_t max_offset = (uint64_t{1} << 48) - 1;
+    if (new_offset > max_offset || children.size() > max_offset - new_offset) {
+      THROW_STORAGE_EXCEPTION("List element offset overflow");
     }
-    auto current_capacity = elements_->size();
-    auto new_capacity =
-        current_capacity == 0 ? required_size : current_capacity * 2;
-    elements_->resize(std::max(required_size, new_capacity));
+    const auto required_size = new_offset + children.size();
+    if (required_size > elements_->size()) {
+      if (!insert_safe) {
+        THROW_STORAGE_EXCEPTION(
+            "ListPropertyColumn::set_any: list length changed from " +
+            std::to_string(old_length) + " to " +
+            std::to_string(children.size()) +
+            ", which requires resizing elements_ but insert_safe is false");
+      }
+      // Update writes have exclusive access. Strict concurrent inserts must
+      // reserve sufficient capacity before WAL append and cannot resize here.
+      const auto current_capacity = elements_->size();
+      const auto new_capacity =
+          current_capacity > max_offset / 2 ? max_offset : current_capacity * 2;
+      elements_->resize(std::max(required_size, new_capacity));
+    }
+    if (elements_tail_.compare_exchange_weak(new_offset, required_size,
+                                             std::memory_order_relaxed,
+                                             std::memory_order_relaxed)) {
+      break;
+    }
   }
+  // Each writer now owns a disjoint range. Data visibility comes from the
+  // transaction's publication, not the tail CAS. Do not rewind the tail on a
+  // child-write failure: another writer may already own a later range.
   for (size_t i = 0; i < children.size(); ++i) {
     write_child(new_offset + i, children[i], insert_safe);
   }
-  elements_tail_ = required_size;
   set_item(index, {new_offset, children.size()});
 }
 
@@ -336,7 +347,8 @@ std::unique_ptr<Module> ListPropertyColumn::Clone() const {
   auto clone = std::make_unique<ListPropertyColumn>();
   clone->list_type_ = list_type_;
   clone->child_type_ = child_type_;
-  clone->elements_tail_ = elements_tail_;
+  clone->elements_tail_.store(elements_tail_.load(std::memory_order_relaxed),
+                              std::memory_order_relaxed);
   if (items_) {
     clone->items_.reset(static_cast<ULongColumn*>(items_->Clone().release()));
   }

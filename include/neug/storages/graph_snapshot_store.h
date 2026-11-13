@@ -187,6 +187,11 @@ class NEUG_API GraphSnapshotStore {
   /// Current PropertyGraph. The caller must keep the current slot stable
   /// through writer admission while using the returned reference.
   const PropertyGraph& CurrentSnapshot() const noexcept;
+  // Caller holds insert or exclusive maintenance admission.
+  uint64_t CurrentPlanningGeneration() const noexcept {
+    return slots_[cur_slot_index_.load(std::memory_order_acquire)]
+        .planning_generation();
+  }
 
   /// Reserve and build a pending snapshot tagged with @p planning_generation.
   /// Returns ERR_POOL_EXHAUSTED without touching @p new_pg on failure.

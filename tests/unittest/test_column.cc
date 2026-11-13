@@ -14,12 +14,15 @@
  */
 
 #include <gtest/gtest.h>
+#include <atomic>
 #include <chrono>
 #include <cmath>
 #include <cstring>
 #include <filesystem>
+#include <future>
 #include <map>
 #include <memory>
+#include <thread>
 
 #include "neug/common/columns/edge_columns.h"
 #include "neug/compiler/common/type_utils.h"
@@ -251,6 +254,25 @@ class TypedColumnInt32CowTest : public ::testing::Test {
 
 TYPED_TEST_SUITE(TypedColumnInt32CowTest, Int32Cases);
 
+TYPED_TEST(TypedColumnInt32CowTest, ResizeCloneWithoutDetach) {
+  auto ckp = this->create_checkpoint();
+  TypedColumn<int32_t> original;
+  original.Open(*ckp, ModuleDescriptor(), TypeParam::kOpenLevel);
+  original.resize(4, Value::INT32(42));
+  const auto* original_data = original.data();
+  auto module = original.Clone();
+  auto* clone = static_cast<TypedColumn<int32_t>*>(module.get());
+  clone->resize(4);
+  EXPECT_EQ(clone->data(), original_data);
+  clone->resize(32, Value::INT32(7));
+  EXPECT_EQ(original.size(), 4);
+  EXPECT_EQ(original.data(), original_data);
+  EXPECT_NE(clone->data(), original_data);
+  clone->set_value(0, 99);
+  EXPECT_EQ(original.get_view(0), 42);
+  EXPECT_EQ(clone->get_view(31), 7);
+}
+
 TYPED_TEST(TypedColumnInt32CowTest, CowIsolationAndDumpOpenMatrix) {
   TypedColumn<int32_t> original;
   auto base_ckp = this->create_checkpoint();
@@ -330,6 +352,49 @@ class TypedColumnStringCowTest : public ::testing::Test {
 };
 
 TYPED_TEST_SUITE(TypedColumnStringCowTest, StringCases);
+
+TYPED_TEST(TypedColumnStringCowTest, ResizeAfterMove) {
+  auto ckp = this->create_checkpoint();
+  StringColumn original;
+  original.Open(*ckp, ModuleDescriptor(), TypeParam::kOpenLevel);
+  original.resize(4, size_t{1024});
+  original.set_value(0, "before move");
+  StringColumn moved(std::move(original));
+  EXPECT_EQ(moved.get_view(0), "before move");
+  ASSERT_NO_THROW(moved.resize(32, size_t{4096}));
+  moved.set_value(31, "after move");
+  EXPECT_EQ(moved.size(), 32);
+  EXPECT_EQ(moved.get_view(0), "before move");
+  EXPECT_EQ(moved.get_view(31), "after move");
+  EXPECT_GE(moved.available_space(), 4096 - std::string("after move").size());
+}
+
+TYPED_TEST(TypedColumnStringCowTest, ResizeCloneWithoutDetach) {
+  auto ckp = this->create_checkpoint();
+  StringColumn original;
+  original.Open(*ckp, ModuleDescriptor(), TypeParam::kOpenLevel);
+  original.resize(4, size_t{1024});
+  original.set_value(0, "original");
+  const auto old_available = original.available_space();
+  const auto* old_bytes = original.get_view(0).data();
+  auto module = original.Clone();
+  auto* clone = static_cast<StringColumn*>(module.get());
+  clone->resize(32, size_t{0});
+  EXPECT_EQ(clone->get_view(0).data(),
+            old_bytes);  // No payload copy for row-only growth.
+  EXPECT_EQ(original.size(), 4);
+  SetResizeFailureCountdownForTest(
+      1);  // Item allocation succeeds, byte allocation fails.
+  EXPECT_THROW(clone->resize(64, size_t{4096}), std::bad_alloc);
+  SetResizeFailureCountdownForTest(-1);
+  EXPECT_EQ(clone->size(), 32);
+  EXPECT_EQ(clone->get_view(0), "original");
+  clone->resize(64, size_t{4096});
+  EXPECT_EQ(original.available_space(), old_available);
+  EXPECT_EQ(original.get_view(0).data(), old_bytes);
+  EXPECT_NE(clone->get_view(0).data(), old_bytes);
+  EXPECT_EQ(clone->get_view(0), "original");
+}
 
 TYPED_TEST(TypedColumnStringCowTest, CowIsolationAndDumpOpenMatrix) {
   TypedColumn<std::string_view> original;
@@ -502,6 +567,78 @@ TEST(ListPropertyColumnTest, RecursiveLifecycle) {
   EXPECT_EQ(reopened.get_any(0), final_value);
   EXPECT_EQ(ListValue::GetChildren(reopened.get_any(1)).size(), 0);
 
+  std::filesystem::remove_all(temp_dir);
+}
+
+TEST(ListPropertyColumnTest, ConcurrentAppendUsesDisjointRanges) {
+  auto temp_dir =
+      std::filesystem::temp_directory_path() /
+      ("list_cas_" +
+       std::to_string(
+           std::chrono::steady_clock::now().time_since_epoch().count()));
+  std::filesystem::create_directories(temp_dir);
+  CheckpointManager manager;
+  manager.Open(temp_dir.string());
+  auto ckp = make_checkpoint(manager);
+  ListPropertyColumn column(DataType::List(DataType::INT64));
+  column.Open(*ckp, ModuleDescriptor{}, MemoryLevel::kInMemory);
+  constexpr size_t rows = 4096;
+  column.resize(rows + 1);
+  // Leave spare element capacity via the existing exclusive update path.
+  column.set_any(0,
+                 Value::LIST(DataType::INT64,
+                             std::vector<Value>(rows * 4, Value::INT64(-1))),
+                 true);
+  column.set_any(0, Value::LIST(DataType::INT64, {Value::INT64(-1)}), true);
+  auto payload = [](size_t row) {
+    return Value::LIST(DataType::INT64,
+                       {Value::INT64(row), Value::INT64(row + 10000),
+                        Value::INT64(row + 20000)});
+  };
+  std::atomic<int> ready{0};
+  std::vector<std::future<void>> workers;
+  for (size_t worker = 0; worker < 4; ++worker) {
+    workers.push_back(std::async(std::launch::async, [&, worker] {
+      ready.fetch_add(1);
+      while (ready.load() != 4)
+        std::this_thread::yield();
+      for (size_t row = worker + 1; row <= rows; row += 4)
+        column.set_any(row, payload(row), false);
+    }));
+  }
+  for (auto& worker : workers)
+    worker.get();
+  for (size_t row = 1; row <= rows; ++row) {
+    ASSERT_EQ(column.get_any(row), payload(row)) << "row=" << row;
+  }
+  std::filesystem::remove_all(temp_dir);
+}
+
+TEST(ListPropertyColumnTest, FailedReservationDoesNotConsumeCapacity) {
+  auto temp_dir =
+      std::filesystem::temp_directory_path() /
+      ("list_cas_capacity_" +
+       std::to_string(
+           std::chrono::steady_clock::now().time_since_epoch().count()));
+  std::filesystem::create_directories(temp_dir);
+  CheckpointManager manager;
+  manager.Open(temp_dir.string());
+  auto ckp = make_checkpoint(manager);
+  ListPropertyColumn column(DataType::List(DataType::INT64));
+  column.Open(*ckp, ModuleDescriptor{}, MemoryLevel::kInMemory);
+  column.resize(3);
+  auto three = Value::LIST(DataType::INT64,
+                           {Value::INT64(1), Value::INT64(2), Value::INT64(3)});
+  auto two = Value::LIST(DataType::INT64, {Value::INT64(4), Value::INT64(5)});
+  column.set_any(0, three, true);  // tail=3, capacity=3
+  column.set_any(0, Value::LIST(DataType::INT64, {Value::INT64(9)}),
+                 true);  // tail=4, capacity=6
+  EXPECT_THROW(column.set_any(1, three, false), std::exception);
+  EXPECT_THROW(column.set_any(1, three, false), std::exception);
+  EXPECT_TRUE(ListValue::GetChildren(column.get_any(1)).empty());
+  EXPECT_NO_THROW(column.set_any(1, two, false));
+  EXPECT_EQ(column.get_any(1), two);
+  EXPECT_THROW(column.set_any(2, two, false), std::exception);
   std::filesystem::remove_all(temp_dir);
 }
 

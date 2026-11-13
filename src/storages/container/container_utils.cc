@@ -15,11 +15,14 @@
 
 #include "neug/storages/container/container_utils.h"
 
+#include <algorithm>
 #include <cstdio>
+#include <cstring>
 #include <filesystem>
 #include <functional>
 #include <memory>
 #include <utility>
+#include "neug/storages/checkpoint.h"
 
 #include "neug/storages/container/anon_mmap_container.h"
 #include "neug/storages/container/file_header.h"
@@ -29,6 +32,38 @@
 #include "neug/utils/io/file/file_utils.h"
 
 namespace neug {
+
+#ifdef NEUG_BUILD_TEST
+namespace {
+thread_local int resize_failure_countdown = -1;
+}
+void SetResizeFailureCountdownForTest(int countdown) {
+  resize_failure_countdown = countdown;
+}
+#endif
+
+std::shared_ptr<IDataContainer> ResizeContainerCopy(
+    const std::shared_ptr<CheckpointFileManager>& allocator, MemoryLevel level,
+    const std::shared_ptr<IDataContainer>& source, size_t bytes,
+    bool force_copy) {
+  if (source && bytes == source->GetDataSize() && !force_copy)
+    return source;
+  if (!allocator)
+    THROW_STORAGE_EXCEPTION("Resize requires an initialized checkpoint");
+#ifdef NEUG_BUILD_TEST
+  if (resize_failure_countdown == 0)
+    throw std::bad_alloc();
+  if (resize_failure_countdown > 0)
+    --resize_failure_countdown;
+#endif
+  auto replacement = allocator->CreateRuntimeContainer(bytes, level);
+  if (!replacement)
+    THROW_STORAGE_EXCEPTION("Failed to allocate resize container");
+  const size_t copy_bytes = source ? std::min(bytes, source->GetDataSize()) : 0;
+  if (copy_bytes)
+    std::memcpy(replacement->GetData(), source->GetData(), copy_bytes);
+  return replacement;
+}
 
 void prepare_container_file(const std::string& snapshot_file,
                             const std::string& tmp_file) {

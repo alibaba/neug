@@ -46,6 +46,8 @@ template <typename EDATA_T>
 void MutableCsr<EDATA_T>::Open(Checkpoint& ckp,
                                const ModuleDescriptor& descriptor,
                                MemoryLevel memory_level) {
+  resize_allocator_ = ckp.runtime_allocator();
+  level_ = memory_level;
   unsorted_since_ = std::stoull(descriptor.get("unsorted_since").value_or("0"));
   // Incremental checkpoints preserve tombstones, so the sum of degrees counts
   // occupied slots rather than live edges. Validating the persisted live-edge
@@ -211,23 +213,32 @@ void MutableCsr<EDATA_T>::resize(vid_t vnum) {
     THROW_RUNTIME_ERROR("Containers not initialized");
   }
   auto old_vnum = vertex_capacity();
+  if (vnum == old_vnum) {
+    return;
+  }
+  auto adj = ResizeContainerCopy(resize_allocator_, level_, adj_list_buffer_,
+                                 vnum * sizeof(nbr_t*));
+  auto degrees = ResizeContainerCopy(resize_allocator_, level_, degree_list_,
+                                     vnum * sizeof(int));
+  auto caps = ResizeContainerCopy(resize_allocator_, level_, cap_list_,
+                                  vnum * sizeof(int));
+  std::unique_ptr<SpinLock[]> locks;
   if (vnum > old_vnum) {
-    adj_list_buffer_->Resize(vnum * sizeof(nbr_t*));
-    degree_list_->Resize(vnum * sizeof(int));
-    cap_list_->Resize(vnum * sizeof(int));
-    auto** buf_arr = reinterpret_cast<nbr_t**>(adj_list_buffer_->GetData());
-    auto* sz_arr = reinterpret_cast<std::atomic<int>*>(degree_list_->GetData());
-    auto* cap_arr = reinterpret_cast<int*>(cap_list_->GetData());
+    locks = std::make_unique<SpinLock[]>(vnum);
+    auto** buf_arr = reinterpret_cast<nbr_t**>(adj->GetData());
+    auto* sz_arr = reinterpret_cast<std::atomic<int>*>(degrees->GetData());
+    auto* cap_arr = reinterpret_cast<int*>(caps->GetData());
     for (vid_t i = old_vnum; i < vnum; ++i) {
       buf_arr[i] = nullptr;
       sz_arr[i].store(0, std::memory_order_relaxed);
       cap_arr[i] = 0;
     }
-    locks_ = std::make_unique<SpinLock[]>(vnum);
-  } else {
-    adj_list_buffer_->Resize(vnum * sizeof(nbr_t*));
-    degree_list_->Resize(vnum * sizeof(int));
-    cap_list_->Resize(vnum * sizeof(int));
+  }
+  adj_list_buffer_ = std::move(adj);
+  degree_list_ = std::move(degrees);
+  cap_list_ = std::move(caps);
+  if (locks) {
+    locks_ = std::move(locks);
   }
   refresh_prefetch_policy();
 }
@@ -525,6 +536,8 @@ template <typename EDATA_T>
 void SingleMutableCsr<EDATA_T>::Open(Checkpoint& ckp,
                                      const ModuleDescriptor& descriptor,
                                      MemoryLevel level) {
+  resize_allocator_ = ckp.runtime_allocator();
+  level_ = level;
   assert(descriptor.module_type.empty() ||
          descriptor.module_type == ModuleTypeName());
   nbr_list_ = ckp.OpenFile(
@@ -567,14 +580,18 @@ void SingleMutableCsr<EDATA_T>::compact() {
 
 template <typename EDATA_T>
 void SingleMutableCsr<EDATA_T>::resize(vid_t vnum) {
-  size_t old_vnum = vertex_capacity();
-  nbr_list_->Resize(vnum * sizeof(nbr_t));
-  if (vnum > old_vnum) {
-    auto* data = reinterpret_cast<nbr_t*>(nbr_list_->GetData());
-    for (vid_t i = old_vnum; i < vnum; ++i) {
-      data[i].timestamp.store(std::numeric_limits<timestamp_t>::max());
-    }
+  const auto old_size = vertex_capacity();
+  if (vnum == old_size) {
+    return;
   }
+  auto replacement = ResizeContainerCopy(resize_allocator_, level_, nbr_list_,
+                                         vnum * sizeof(nbr_t));
+  auto* data = static_cast<nbr_t*>(replacement->GetData());
+  for (vid_t i = old_size; i < vnum; ++i) {
+    data[i].timestamp.store(std::numeric_limits<timestamp_t>::max());
+  }
+  nbr_list_ = std::move(replacement);
+  refresh_prefetch_policy();
 }
 
 template <typename EDATA_T>
