@@ -88,6 +88,35 @@ bool VertexTableView::get_lid(const Value& oid, vid_t& lid,
 
 vid_t VertexTableView::LidNum() const { return indexer_->size(); }
 
+bool VertexTableView::get_insert_lid(const Value& oid, vid_t& lid,
+                                     timestamp_t read_ts,
+                                     timestamp_t owner) const {
+  return indexer_->get_index(oid, lid) && (v_ts_->IsVertexValid(lid, read_ts) ||
+                                           v_ts_->IsInsertedBy(lid, owner));
+}
+
+void VertexTableView::UndoInsertedVertex(const Value& oid, timestamp_t owner) {
+  vid_t lid;
+  if (indexer_->get_index(oid, lid)) {
+    v_ts_->UndoInsert(lid, owner);
+  }
+}
+
+void EdgeTableView::UndoInsertedEdges(vid_t src, vid_t dst, timestamp_t owner) {
+  in_csr_->undo_insert_edges(dst, src, owner);
+  out_csr_->undo_insert_edges(src, dst, owner);
+}
+
+void GraphView::UndoInsertedEdges(label_t src_label, vid_t src,
+                                  label_t dst_label, vid_t dst,
+                                  label_t edge_label, timestamp_t owner) {
+  auto index = schema_->generate_edge_label(src_label, dst_label, edge_label);
+  auto it = edge_views_.find(index);
+  if (it != edge_views_.end()) {
+    it->second.UndoInsertedEdges(src, dst, owner);
+  }
+}
+
 size_t VertexTableView::VertexNum() const {
   return v_ts_->ValidVertexNum(MAX_TIMESTAMP, indexer_->size());
 }

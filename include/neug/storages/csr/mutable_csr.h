@@ -104,6 +104,8 @@ class MutableCsr : public TypedCsrBase<EDATA_T> {
 
   void delete_edge(vid_t src, int32_t offset, timestamp_t ts) override;
 
+  void undo_insert_edges(vid_t src, vid_t dst, timestamp_t owner) override;
+
   void revert_delete_edge(vid_t src, vid_t nbr, int32_t offset,
                           timestamp_t ts) override;
 
@@ -123,7 +125,7 @@ class MutableCsr : public TypedCsrBase<EDATA_T> {
     auto** buffers = reinterpret_cast<nbr_t**>(adj_list_buffer_->GetData());
     auto* sizes = reinterpret_cast<std::atomic<int>*>(degree_list_->GetData());
     auto* caps = reinterpret_cast<int*>(cap_list_->GetData());
-    locks_[src].lock();
+    std::lock_guard<SpinLock> lock(locks_[src]);
     int sz = sizes[src].load(std::memory_order_relaxed);
     int cap = caps[src];
     if (sz == cap) {  // including cap == 0
@@ -148,7 +150,6 @@ class MutableCsr : public TypedCsrBase<EDATA_T> {
     }
     const void* data_ptr = static_cast<const void*>(&nbr.data);
     sizes[src].store(sz + 1, std::memory_order_release);
-    locks_[src].unlock();
     return {sz, data_ptr};
   }
 
@@ -309,6 +310,8 @@ class SingleMutableCsr : public TypedCsrBase<EDATA_T> {
 
   void delete_edge(vid_t src, int32_t offset, timestamp_t ts) override;
 
+  void undo_insert_edges(vid_t src, vid_t dst, timestamp_t owner) override;
+
   void revert_delete_edge(vid_t src, vid_t nbr, int32_t offset,
                           timestamp_t ts) override;
 
@@ -325,10 +328,13 @@ class SingleMutableCsr : public TypedCsrBase<EDATA_T> {
           "Source vertex id out of range: " + std::to_string(src) +
           " >= " + std::to_string(vertex_capacity()));
     }
+    std::lock_guard<SpinLock> lock(insert_lock_);
     auto* nbrs = reinterpret_cast<nbr_t*>(nbr_list_->GetData());
+    if (nbrs[src].timestamp.load() != std::numeric_limits<timestamp_t>::max()) {
+      THROW_INVALID_ARGUMENT_EXCEPTION("Single edge slot is already occupied");
+    }
     nbrs[src].neighbor = dst;
     nbrs[src].data = data;
-    CHECK_EQ(nbrs[src].timestamp, std::numeric_limits<timestamp_t>::max());
     nbrs[src].timestamp.store(ts);
     edge_num_.fetch_add(1, std::memory_order_relaxed);
     return {0, static_cast<const void*>(&nbrs[src].data)};
@@ -382,6 +388,7 @@ class SingleMutableCsr : public TypedCsrBase<EDATA_T> {
   }
 
  private:
+  SpinLock insert_lock_;
   std::shared_ptr<IDataContainer> nbr_list_;
   std::atomic<uint64_t> edge_num_{0};
   CsrPrefetchPolicy prefetch_policy_;

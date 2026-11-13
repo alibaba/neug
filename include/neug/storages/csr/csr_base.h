@@ -76,6 +76,11 @@ class CsrBase : public Module {
 
   virtual void delete_edge(vid_t src, int32_t offset, timestamp_t ts) = 0;
 
+  // Undo all parallel entries owned by this insert, independently per
+  // direction. Immutable/empty CSRs cannot acquire entries through the online
+  // insert path.
+  virtual void undo_insert_edges(vid_t src, vid_t dst, timestamp_t owner) {}
+
   virtual void revert_delete_edge(vid_t src, vid_t nbr, int32_t offset,
                                   timestamp_t ts) = 0;
 

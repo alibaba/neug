@@ -143,8 +143,13 @@ struct NbrIterator {
 
   /** @brief Get the timestamp of current edge. */
   inline timestamp_t get_timestamp() const {
-    return *(reinterpret_cast<const timestamp_t*>(
-        static_cast<const char*>(cur) + cfg.ts_offset));
+    // Immutable CSR uses the neighbor's INVALID_VID sentinel for filtering;
+    // mutable CSR stores a real atomic timestamp at ts_offset.
+    return cfg.ts_offset == 0
+               ? *reinterpret_cast<const timestamp_t*>(cur)
+               : reinterpret_cast<const std::atomic<timestamp_t>*>(
+                     static_cast<const char*>(cur) + cfg.ts_offset)
+                     ->load();
   }
 
   /** @brief Get the neighbor (destination) vertex ID. */
