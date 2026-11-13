@@ -49,6 +49,17 @@
 #include "neug/utils/yaml_utils.h"
 
 namespace neug {
+#ifdef NEUG_BUILD_TEST
+namespace {
+thread_local std::function<void(bool)> insert_retry_hook;
+thread_local bool capacity_maintenance_unavailable = false;
+}  // namespace
+void SetInsertRetryHookForTest(std::function<void(bool)> hook,
+                               bool maintenance_unavailable) {
+  insert_retry_hook = std::move(hook);
+  capacity_maintenance_unavailable = maintenance_unavailable;
+}
+#endif
 
 ExecutionSlotLease::~ExecutionSlotLease() { reset(); }
 
@@ -706,6 +717,10 @@ Status ExecutionSlot::executeAutoCommitQuery(const std::string& query,
       constexpr size_t kCapacityRetries = 1;
       uint64_t retry_generation = 0;
       for (size_t attempt = 0; attempt <= kCapacityRetries; ++attempt) {
+#ifdef NEUG_BUILD_TEST
+        if (attempt != 0 && insert_retry_hook)
+          insert_retry_hook(true);
+#endif
         InsertCapacityRequest request;
         uint64_t planning_generation = 0;
         {
@@ -730,7 +745,16 @@ Status ExecutionSlot::executeAutoCommitQuery(const std::string& query,
               Status::InternalError("Insert capacity retry limit exceeded");
           break;
         }
+#ifdef NEUG_BUILD_TEST
+        if (insert_retry_hook)
+          insert_retry_hook(false);
+        auto maintenance =
+            capacity_maintenance_unavailable
+                ? nullptr
+                : version_manager_.acquire_capacity_maintenance();
+#else
         auto maintenance = version_manager_.acquire_capacity_maintenance();
+#endif
         if (!maintenance) {
           status = Status::InternalError("Capacity maintenance is unavailable");
           break;

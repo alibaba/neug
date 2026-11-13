@@ -846,3 +846,61 @@ TEST_F(MvccInsertTransactionTest, EdgeCapacityGrowthCoversRowsAndPayload) {
   EXPECT_TRUE(payload.Fits(*candidate));
   EXPECT_EQ(grown.Capacity(), capacity);
 }
+
+class InsertRetryFailureTest : public MvccInsertTransactionTest,
+                               public ::testing::WithParamInterface<int> {};
+
+TEST_P(InsertRetryFailureTest, FailureLeavesSlotUsable) {
+  neug::NeugDB db;
+  db.Open(db_dir);
+  auto svc = std::make_shared<neug::NeugDBService>(db);
+  auto slot = svc->AcquireExecutionSlot();
+  auto ddl_slot = svc->AcquireExecutionSlot();
+  const auto label = db.graph().schema().get_vertex_label_id("person");
+  const auto before = db.graph().get_vertex_table(label).Size();
+  struct ResetInjection {
+    ~ResetInjection() {
+      neug::SetInsertRetryHookForTest({});
+      neug::SetInsertReservationFailuresForTest(0);
+    }
+  } reset;
+  bool schema_changed = false;
+  const int scenario = GetParam();
+  neug::SetInsertReservationFailuresForTest(1);
+  neug::SetInsertRetryHookForTest(
+      [&](bool second_attempt) {
+        if (scenario == 2 || second_attempt != (scenario == 1))
+          return;
+        auto changed = ddl_slot->ExecuteTransactionalRequest(
+            R"json({"query":"CREATE NODE TABLE AddedDuringRetry(id INT64, PRIMARY KEY(id))","access_mode":"schema","parameters":{}})json");
+        EXPECT_TRUE(changed) << changed.error().error_message();
+        schema_changed = bool(changed);
+      },
+      scenario == 2);
+  const std::string query =
+      R"json({"query":"CREATE (:person {id: 100, name: 'retry', age: 20})","access_mode":"insert","parameters":{}})json";
+  auto failed = slot->ExecuteTransactionalRequest(query);
+  ASSERT_FALSE(failed);
+  EXPECT_EQ(failed.error().error_message(),
+            scenario == 2 ? "Capacity maintenance is unavailable"
+                          : "Schema changed during insert retry");
+  EXPECT_EQ(schema_changed, scenario != 2);
+  EXPECT_EQ(db.graph().get_vertex_table(label).Size(), before);
+  neug::SetInsertRetryHookForTest({});
+  neug::SetInsertReservationFailuresForTest(0);
+  auto success = slot->ExecuteTransactionalRequest(query);
+  ASSERT_TRUE(success) << success.error().error_message();
+  EXPECT_EQ(db.graph().get_vertex_table(label).Size(), before + 1);
+  EXPECT_TRUE(slot->ExecuteTransactionalRequest(
+      R"json({"query":"MATCH (n:person) RETURN count(n)","access_mode":"read","parameters":{}})json"));
+}
+
+INSTANTIATE_TEST_SUITE_P(InsertCapacity, InsertRetryFailureTest,
+                         ::testing::Values(0, 1, 2),
+                         [](const ::testing::TestParamInfo<int>& info) {
+                           return info.param == 0
+                                      ? "SchemaChangedBeforeMaintenance"
+                                      : info.param == 1
+                                            ? "SchemaChangedBeforeRetry"
+                                            : "MaintenanceUnavailable";
+                         });
