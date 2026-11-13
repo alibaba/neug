@@ -15,6 +15,15 @@
 #include "neug/utils/serialization/out_archive.h"
 
 namespace neug {
+#ifdef NEUG_BUILD_TEST
+namespace {
+thread_local int reservation_failures = 0;
+}
+void SetInsertReservationFailuresForTest(int count) {
+  reservation_failures = count;
+}
+#endif
+
 namespace {
 size_t AddSize(size_t a, size_t b) {
   if (b > std::numeric_limits<size_t>::max() - a)
@@ -369,6 +378,13 @@ bool InsertCapacityReservations::TryReserve(
   std::lock_guard<std::mutex> lock(mutex_);
   auto combined = outstanding_;
   combined.Merge(request);
+#ifdef NEUG_BUILD_TEST
+  if (reservation_failures > 0) {
+    --reservation_failures;
+    growth_request = std::move(combined);
+    return false;
+  }
+#endif
   if (!combined.Fits(graph)) {
     growth_request = std::move(combined);
     return false;

@@ -14,6 +14,10 @@
 namespace neug {
 class PropertyGraph;
 class ColumnBase;
+#ifdef NEUG_BUILD_TEST
+// Fail the next N reservations on this thread, without modifying the ledger.
+NEUG_API void SetInsertReservationFailuresForTest(int count);
+#endif
 
 // Owns only logical identities and counts, never references the discarded
 // transaction's graph or redo. Reservations are tracked separately per

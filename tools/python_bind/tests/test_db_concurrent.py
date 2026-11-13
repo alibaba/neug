@@ -689,3 +689,60 @@ def test_concurrent_list_distinct_payload_and_recovery(tmp_path, property_type):
     finally:
         conn.close()
         db.close()
+
+
+def test_edge_insert_capacity_growth_and_recovery(tmp_path):
+    path = str(tmp_path / "edge_capacity")
+    db = Database(path, max_thread_num=4, checkpoint_on_close=True)
+    conn = db.connect()
+    list(conn.execute("CREATE NODE TABLE Item(id INT64, PRIMARY KEY(id))"))
+    list(
+        conn.execute("CREATE REL TABLE Link(FROM Item TO Item, seq INT64, note STRING)")
+    )
+    list(conn.execute("CREATE (:Item {id:0}), (:Item {id:1})"))
+    conn.close()
+    db.close()
+    db = Database(path, max_thread_num=4, checkpoint_on_close=False)
+    endpoint = _start_capacity_growth_service(db)
+    expected = [
+        [i, f"batch-{i // 1000}-" + "x" * (50 if i < 10000 else 200)]
+        for i in range(20000)
+    ]
+    try:
+        with closing(Session(endpoint, timeout="60s")) as session:
+            session._http_session.trust_env = False
+            for start in range(0, 20000, 1000):
+                list(
+                    session.execute(
+                        "MATCH (a:Item {id:0}), (b:Item {id:1}) "
+                        "UNWIND CAST($ids, 'INT64[]') AS id "
+                        "CREATE (a)-[:Link {seq:id,note:$note}]->(b)",
+                        access_mode="insert",
+                        parameters={
+                            "ids": list(range(start, start + 1000)),
+                            "note": f"batch-{start // 1000}-"
+                            + "x" * (50 if start < 10000 else 200),
+                        },
+                    )
+                )
+            before = list(
+                session.execute(
+                    "MATCH ()-[r:Link]->() RETURN r.seq,r.note ORDER BY r.seq"
+                )
+            )
+            assert before == expected
+    finally:
+        db.stop_serving()
+        db.close()
+    db = Database(path, checkpoint_on_close=False)
+    conn = db.connect()
+    try:
+        assert (
+            list(
+                conn.execute("MATCH ()-[r:Link]->() RETURN r.seq,r.note ORDER BY r.seq")
+            )
+            == expected
+        )
+    finally:
+        conn.close()
+        db.close()

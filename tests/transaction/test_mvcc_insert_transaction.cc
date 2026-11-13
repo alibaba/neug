@@ -785,3 +785,64 @@ TEST_F(MvccInsertTransactionTest, RowGrowthUsesCompleteBatchRequirement) {
   }
   db.Close();
 }
+
+TEST_F(MvccInsertTransactionTest, CapacityRetryLimitLeavesSlotUsable) {
+  neug::NeugDB db;
+  db.Open(db_dir);
+  auto svc = std::make_shared<neug::NeugDBService>(db);
+  auto slot = svc->AcquireExecutionSlot();
+  const auto label = db.graph().schema().get_vertex_label_id("person");
+  const auto before = db.graph().get_vertex_table(label).Size();
+  struct ResetInjection {
+    ~ResetInjection() { neug::SetInsertReservationFailuresForTest(0); }
+  } reset;
+  neug::SetInsertReservationFailuresForTest(2);
+  const std::string query =
+      R"json({"query":"CREATE (:person {id: 100, name: ')json" +
+      std::string(1 << 20, 'x') +
+      R"json(', age: 20})","access_mode":"insert","parameters":{}})json";
+  auto failed = slot->ExecuteTransactionalRequest(query);
+  ASSERT_FALSE(failed);
+  EXPECT_EQ(failed.error().error_message(),
+            "Insert capacity retry limit exceeded");
+  EXPECT_EQ(db.graph().get_vertex_table(label).Size(), before);
+  neug::SetInsertReservationFailuresForTest(0);
+  auto success = slot->ExecuteTransactionalRequest(query);
+  ASSERT_TRUE(success) << success.error().error_message();
+  EXPECT_EQ(db.graph().get_vertex_table(label).Size(), before + 1);
+  EXPECT_TRUE(slot->ExecuteTransactionalRequest(
+      R"json({"query":"MATCH (n:person) RETURN count(n)","access_mode":"read","parameters":{}})json"));
+}
+
+TEST_F(MvccInsertTransactionTest, EdgeCapacityGrowthCoversRowsAndPayload) {
+  neug::NeugDB db;
+  db.Open(db_dir);
+  auto conn = db.Connect();
+  ASSERT_TRUE(
+      conn->Query("CREATE REL TABLE payload(FROM person TO person, seq "
+                  "INT64, note STRING)"));
+  auto& graph = const_cast<neug::PropertyGraph&>(db.graph());
+  auto label = graph.schema().get_vertex_label_id("person");
+  auto edge = graph.schema().get_edge_label_id("payload");
+  auto& table = graph.get_edge_table(label, label, edge);
+  ASSERT_FALSE(table.meta()->is_bundled());
+  neug::InsertCapacityRequest rows;
+  for (size_t i = 0; i <= table.Capacity(); ++i)
+    rows.AddEdge("person", "person", "payload",
+                 {neug::Value::INT64(i), neug::Value::STRING("note")});
+  ASSERT_FALSE(rows.Fits(graph));
+  auto candidate = graph.Clone();
+  rows.Grow(*candidate);
+  EXPECT_TRUE(rows.Fits(*candidate));
+  EXPECT_FALSE(rows.Fits(graph));
+  auto& grown = candidate->get_edge_table(label, label, edge);
+  const auto capacity = grown.Capacity();
+  neug::InsertCapacityRequest payload;
+  payload.AddEdge(
+      "person", "person", "payload",
+      {neug::Value::INT64(0), neug::Value::STRING(std::string(1 << 20, 'x'))});
+  ASSERT_FALSE(payload.Fits(*candidate));
+  payload.Grow(*candidate);
+  EXPECT_TRUE(payload.Fits(*candidate));
+  EXPECT_EQ(grown.Capacity(), capacity);
+}
