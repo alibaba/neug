@@ -573,12 +573,24 @@ class LFIndexer {
     if (indices_->size() == 0) {
       return false;
     }
-    auto* indices_ptr = indices_->data();
+    auto* indices_ptr = indices_->mutable_data();
     auto* typed_keys = static_cast<const TypedColumn<KEY_T>*>(keys_.get());
     size_t index =
         hash_policy_.index_for_hash(GHash<KEY_T>()(oid), num_slots_minus_one_);
     while (true) {
-      INDEX_T ind = indices_ptr[index];
+      // insert_index publishes the initialized key through this slot. Acquire
+      // it before reading key metadata or payload, including on probe
+      // collisions.
+#ifdef __cpp_lib_atomic_ref
+      INDEX_T ind = std::atomic_ref<INDEX_T>(indices_ptr[index])
+                        .load(std::memory_order_acquire);
+#elif defined(_WIN32)
+      INDEX_T ind =
+          reinterpret_cast<const std::atomic<INDEX_T>*>(&indices_ptr[index])
+              ->load(std::memory_order_acquire);
+#else
+      INDEX_T ind = __atomic_load_n(&indices_ptr[index], __ATOMIC_ACQUIRE);
+#endif
       if (ind == sentinel) {
         return false;
       } else if (typed_keys->get_view(ind) == oid) {
