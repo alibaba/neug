@@ -10,6 +10,8 @@ if (BUILD_HTTP_SERVER)
 endif()
 add_neug_test(storage_test ${storage_test_src})
 
+add_neug_test(art_index test_art_allocator.cc)
+
 add_neug_test(ap_index_test test_ap_index.cc)
 
 # e2e_index_test relies on POSIX subprocess APIs (fork/waitpid/execl,

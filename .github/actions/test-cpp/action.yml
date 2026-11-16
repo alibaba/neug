@@ -26,6 +26,7 @@ runs:
       export TEST_PATH=${GITHUB_WORKSPACE}/tests
       cd ${GITHUB_WORKSPACE}/build
       ctest --output-on-failure -R storage_test -V
+      ctest --output-on-failure --no-tests=error -R '^art_index$' -V
       ctest --output-on-failure -R transaction_test -V
       ctest --output-on-failure --no-tests=error -R '^read_view_publication_test$' -V
       ctest --output-on-failure --no-tests=error -R '^test_column$' -V
