@@ -51,13 +51,41 @@
 namespace neug {
 #ifdef NEUG_BUILD_TEST
 namespace {
-thread_local std::function<void(bool)> insert_retry_hook;
-thread_local bool capacity_maintenance_unavailable = false;
+struct InsertRetryTestState {
+  std::function<void(bool)> hook;
+  bool maintenance_unavailable = false;
+};
+
+// A BRPC bthread can resume on another pthread after capacity maintenance.
+// Reacquire TLS in a non-inlined call rather than letting GCC/AArch64 retain
+// its address across that suspension (the same pattern as
+// butil/thread_local.h).
+#if defined(__GNUC__) || defined(__clang__)
+__attribute__((noinline))
+#elif defined(_MSC_VER)
+__declspec(noinline)
+#endif
+InsertRetryTestState&
+GetInsertRetryTestState() {
+  static thread_local InsertRetryTestState state;
+  auto* pointer = &state;
+#if defined(__GNUC__) || defined(__clang__)
+  asm volatile("" : "+r"(pointer) : : "memory");
+#endif
+  return *pointer;
+}
+
+void InvokeInsertRetryHook(bool second_attempt) {
+  auto& hook = GetInsertRetryTestState().hook;
+  if (hook)
+    hook(second_attempt);
+}
 }  // namespace
 void SetInsertRetryHookForTest(std::function<void(bool)> hook,
                                bool maintenance_unavailable) {
-  insert_retry_hook = std::move(hook);
-  capacity_maintenance_unavailable = maintenance_unavailable;
+  auto& state = GetInsertRetryTestState();
+  state.hook = std::move(hook);
+  state.maintenance_unavailable = maintenance_unavailable;
 }
 #endif
 
@@ -718,8 +746,8 @@ Status ExecutionSlot::executeAutoCommitQuery(const std::string& query,
       uint64_t retry_generation = 0;
       for (size_t attempt = 0; attempt <= kCapacityRetries; ++attempt) {
 #ifdef NEUG_BUILD_TEST
-        if (attempt != 0 && insert_retry_hook)
-          insert_retry_hook(true);
+        if (attempt != 0)
+          InvokeInsertRetryHook(true);
 #endif
         InsertCapacityRequest request;
         uint64_t planning_generation = 0;
@@ -746,10 +774,9 @@ Status ExecutionSlot::executeAutoCommitQuery(const std::string& query,
           break;
         }
 #ifdef NEUG_BUILD_TEST
-        if (insert_retry_hook)
-          insert_retry_hook(false);
+        InvokeInsertRetryHook(false);
         auto maintenance =
-            capacity_maintenance_unavailable
+            GetInsertRetryTestState().maintenance_unavailable
                 ? nullptr
                 : version_manager_.acquire_capacity_maintenance();
 #else
