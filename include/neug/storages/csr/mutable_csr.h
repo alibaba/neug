@@ -104,7 +104,8 @@ class MutableCsr : public TypedCsrBase<EDATA_T> {
 
   void delete_edge(vid_t src, int32_t offset, timestamp_t ts) override;
 
-  void undo_insert_edges(vid_t src, vid_t dst, timestamp_t owner) override;
+  void undo_insert_edge(vid_t src, vid_t dst, int32_t offset,
+                        timestamp_t owner) override;
 
   void revert_delete_edge(vid_t src, vid_t nbr, int32_t offset,
                           timestamp_t ts) override;
@@ -114,9 +115,9 @@ class MutableCsr : public TypedCsrBase<EDATA_T> {
                        const std::vector<EDATA_T>& data_list,
                        timestamp_t ts = 0) override;
 
-  std::pair<int32_t, const void*> put_edge(vid_t src, vid_t dst,
-                                           const EDATA_T& data, timestamp_t ts,
-                                           Allocator& alloc) override {
+  std::pair<int32_t, const void*> put_edge(
+      vid_t src, vid_t dst, const EDATA_T& data, timestamp_t ts,
+      Allocator& alloc, int32_t* inserted_offset = nullptr) override {
     if (src >= vertex_capacity()) {
       THROW_INVALID_ARGUMENT_EXCEPTION(
           "Source vertex id out of range: " + std::to_string(src) +
@@ -150,6 +151,10 @@ class MutableCsr : public TypedCsrBase<EDATA_T> {
     }
     const void* data_ptr = static_cast<const void*>(&nbr.data);
     sizes[src].store(sz + 1, std::memory_order_release);
+    // No throwing operations between publication and recording the position.
+    if (inserted_offset) {
+      *inserted_offset = sz;
+    }
     return {sz, data_ptr};
   }
 
@@ -316,7 +321,8 @@ class SingleMutableCsr : public TypedCsrBase<EDATA_T> {
 
   void delete_edge(vid_t src, int32_t offset, timestamp_t ts) override;
 
-  void undo_insert_edges(vid_t src, vid_t dst, timestamp_t owner) override;
+  void undo_insert_edge(vid_t src, vid_t dst, int32_t offset,
+                        timestamp_t owner) override;
 
   void revert_delete_edge(vid_t src, vid_t nbr, int32_t offset,
                           timestamp_t ts) override;
@@ -326,9 +332,9 @@ class SingleMutableCsr : public TypedCsrBase<EDATA_T> {
                        const std::vector<EDATA_T>& data_list,
                        timestamp_t ts = 0) override;
 
-  std::pair<int32_t, const void*> put_edge(vid_t src, vid_t dst,
-                                           const EDATA_T& data, timestamp_t ts,
-                                           Allocator& alloc) override {
+  std::pair<int32_t, const void*> put_edge(
+      vid_t src, vid_t dst, const EDATA_T& data, timestamp_t ts,
+      Allocator& alloc, int32_t* inserted_offset = nullptr) override {
     if (src >= vertex_capacity()) {
       THROW_INVALID_ARGUMENT_EXCEPTION(
           "Source vertex id out of range: " + std::to_string(src) +
@@ -343,6 +349,9 @@ class SingleMutableCsr : public TypedCsrBase<EDATA_T> {
     nbrs[src].data = data;
     nbrs[src].timestamp.store(ts);
     edge_num_.fetch_add(1, std::memory_order_relaxed);
+    if (inserted_offset) {
+      *inserted_offset = 0;
+    }
     return {0, static_cast<const void*>(&nbrs[src].data)};
   }
 
@@ -475,9 +484,9 @@ class EmptyCsr : public TypedCsrBase<EDATA_T> {
 
   void DetachVertex(vid_t /*vid*/, Allocator& /*alloc*/) override {}
 
-  std::pair<int32_t, const void*> put_edge(vid_t src, vid_t dst,
-                                           const EDATA_T& data, timestamp_t ts,
-                                           Allocator&) override {
+  std::pair<int32_t, const void*> put_edge(
+      vid_t src, vid_t dst, const EDATA_T& data, timestamp_t ts, Allocator&,
+      int32_t* inserted_offset = nullptr) override {
     return {0, nullptr};
   }
 

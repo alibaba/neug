@@ -447,6 +447,67 @@ TEST_F(MvccInsertTransactionTest, WalRejectionUndoesParallelEdgesThenVertices) {
   db.Close();  // CSR allocation buffers must outlive shutdown checkpointing.
 }
 
+TEST_F(MvccInsertTransactionTest, EdgeUndoVisitsOnlyInsertedSlots) {
+  using namespace neug;
+  for (bool parallel : {false, true}) {
+    for (int n : {32, 256, 1024}) {
+      SCOPED_TRACE(parallel ? "parallel" : "star");
+      SCOPED_TRACE(n);
+      NeugDB db;
+      db.Open(db_dir);
+      VersionManager vm;
+      vm.init_ts({0, 0}, 4);
+      Allocator alloc(MemoryLevel::kInMemory, "");
+      InsertTestWalWriter writer;
+      SnapshotGuard observer(db.graph_snapshot_store());
+      auto& view = observer.get().mutable_view();
+      const auto person = view.schema().get_vertex_label_id("person");
+      const auto knows = view.schema().get_edge_label_id("knows");
+      const auto initial_edges = view.EdgeNum(person, person, knows);
+      MvccInsertTransaction txn(SnapshotGuard(db.graph_snapshot_store()), alloc,
+                                writer, vm, vm.acquire_insert_timestamp());
+      vid_t src, dst;
+      ASSERT_TRUE(txn.GetVertexIndex(person, Value::INT64(1), src));
+      ASSERT_TRUE(txn.GetVertexIndex(person, Value::INT64(2), dst));
+      const void* prop = nullptr;
+      for (int i = 0; i < n; ++i) {
+        if (!parallel) {
+          ASSERT_TRUE(txn.AddVertex(person, Value::INT64(i + 100),
+                                    {Value::STRING("target"), Value::INT64(20)},
+                                    dst));
+        }
+        ASSERT_TRUE(txn.AddEdge(person, src, person, dst, knows,
+                                {Value::DOUBLE(0.5)}, prop));
+      }
+      writer.on_append = [&] {
+        EXPECT_EQ(view.EdgeNum(person, person, knows), initial_edges + n);
+        ResetInsertUndoSlotVisitsForTest();
+        return false;
+      };
+      EXPECT_FALSE(txn.Commit());
+      ASSERT_EQ(writer.calls, 1u);  // Must reach apply, not capacity retry.
+      EXPECT_EQ(InsertUndoSlotVisitsForTest(), 2u * n);
+      EXPECT_EQ(view.EdgeNum(person, person, knows), initial_edges);
+      EXPECT_EQ(view.VertexNum(person), 2u);
+      for (bool incoming : {false, true}) {
+        auto csr = incoming
+                       ? view.GetGenericIncomingView(person, person, knows, 1)
+                       : view.GetGenericOutgoingView(person, person, knows, 1);
+        size_t seen = 0;
+        for (auto lid : view.GetVertexSet(person, 1)) {
+          auto edges = csr.get_edges(lid);
+          for (auto it = edges.begin(); it != edges.end(); ++it) {
+            ++seen;
+          }
+        }
+        EXPECT_EQ(seen, initial_edges);
+      }
+      observer.release();
+      db.Close();
+    }
+  }
+}
+
 TEST_F(MvccInsertTransactionTest, ApplyConflictRollsBackEarlierVertexAndEdges) {
   using namespace neug;
   NeugDB db;

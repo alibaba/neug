@@ -73,6 +73,11 @@ If apply fails, or the WAL writer confirms that it wrote no bytes, an in-memory
 undo journal removes the transaction's edges in both directions before removing
 its vertices. Undo includes partially applied operations, matches the owning
 insert timestamp, and retains physical slots for later reuse or compaction.
+Each edge operation records separate incoming and outgoing adjacency offsets
+as those inserts complete, including when a later step fails. Undo uses these
+transaction-local offsets under the adjacency locks instead of scanning for
+matching edges. Append growth preserves offsets; insert admission prevents
+slot reordering until commit or rollback finishes.
 
 An insert may reference only vertices visible at its captured committed read
 timestamp or vertices created by that same transaction. Another transaction may

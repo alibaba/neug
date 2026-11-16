@@ -312,14 +312,18 @@ TEST_F(EdgeTableTest,
   table.EnsureCapacity(4, 4);
   Allocator alloc(MemoryLevel::kInMemory, "");
   EdgeTableView view(table);
-  table.AddEdge(0, 1, {Value::INT32(10)}, 1, alloc, false);
+  EdgeInsertOffsets original, partial;
+  view.AddEdge(0, 1, {Value::INT32(10)}, 1, alloc, false, &original);
   // Incoming is appended first; outgoing rejects its occupied single slot.
-  EXPECT_THROW(table.AddEdge(0, 2, {Value::INT32(20)}, 2, alloc, false),
-               std::exception);
+  EXPECT_THROW(
+      view.AddEdge(0, 2, {Value::INT32(20)}, 2, alloc, false, &partial),
+      std::exception);
+  EXPECT_GE(partial.incoming, 0);
+  EXPECT_EQ(partial.outgoing, -1);
   auto pending = table.get_incoming_view(2).get_edges(2);
   ASSERT_TRUE(pending.begin() != pending.end());
-  view.UndoInsertedEdges(0, 2, 2);
-  view.UndoInsertedEdges(0, 2, 2);
+  view.UndoInsertedEdges(0, 2, 2, partial);
+  view.UndoInsertedEdges(0, 2, 2, partial);
   auto removed = table.get_incoming_view(2).get_edges(2);
   EXPECT_TRUE(removed.begin() == removed.end());
   auto preserved = table.get_outgoing_view(2).get_edges(0);
@@ -330,9 +334,18 @@ TEST_F(EdgeTableTest,
 
   // Once the owner's edge is undone the single slot may be reused. Stale
   // rollback must neither remove the replacement nor decrement its count.
-  view.UndoInsertedEdges(0, 1, 1);
+  view.UndoInsertedEdges(0, 1, 1, original);
   table.AddEdge(0, 2, {Value::INT32(30)}, 3, alloc, false);
-  view.UndoInsertedEdges(0, 2, 2);
+  view.UndoInsertedEdges(0, 2, 2, partial);
+  view.UndoInsertedEdges(0, 1, 1, original);
+  // Even with a matching neighbor, a stale owner must not delete the reused
+  // outgoing slot. Invalid positions must not access outside the adjacency.
+  view.UndoInsertedEdges(0, 2, 1, original);
+  view.UndoInsertedEdges(0, 2, 3, EdgeInsertOffsets{-1, -1});
+  view.UndoInsertedEdges(
+      0, 2, 3,
+      EdgeInsertOffsets{std::numeric_limits<int32_t>::max(),
+                        std::numeric_limits<int32_t>::max()});
   EXPECT_EQ(table.EdgeNum(), 1u);
   auto replacement = table.get_outgoing_view(3).get_edges(0);
   ASSERT_TRUE(replacement.begin() != replacement.end());
@@ -355,12 +368,20 @@ TEST_F(EdgeTableTest, UndoParallelEdgesSupportsSingleDirectionStorage) {
     table.EnsureCapacity(4, 4);
     EdgeTableView view(table);
     table.AddEdge(0, 1, {}, 1, alloc, false);
-    for (int i = 0; i < 20; ++i) {
-      table.AddEdge(0, 1, {}, 2, alloc, false);
+    std::vector<EdgeInsertOffsets> offsets(20);
+    for (auto& position : offsets) {
+      view.AddEdge(0, 1, {}, 2, alloc, false, &position);
+      EXPECT_EQ(position.incoming >= 0, incoming != EdgeStrategy::kNone);
+      EXPECT_EQ(position.outgoing >= 0, outgoing != EdgeStrategy::kNone);
     }
     table.AddEdge(0, 1, {}, 3, alloc, false);
-    view.UndoInsertedEdges(0, 1, 2);
-    view.UndoInsertedEdges(0, 1, 2);
+    view.UndoInsertedEdges(0, 1, 2, offsets.front());
+    EXPECT_EQ(table.EdgeNum(),
+              21u);  // Only this position, not all parallel edges.
+    for (const auto& position : offsets) {
+      view.UndoInsertedEdges(0, 1, 2, position);
+      view.UndoInsertedEdges(0, 1, 2, position);
+    }
     EXPECT_EQ(table.EdgeNum(), 2u);
     auto csr = outgoing == EdgeStrategy::kNone ? table.get_incoming_view(3)
                                                : table.get_outgoing_view(3);
@@ -383,8 +404,9 @@ TEST_F(EdgeTableTest, UndoInsertSerializesWithConcurrentAdjacencyGrowth) {
   Allocator first_alloc(MemoryLevel::kInMemory, "");
   Allocator second_alloc(MemoryLevel::kInMemory, "");
   EdgeTableView view(table);
-  for (int i = 0; i < 20; ++i) {
-    table.AddEdge(0, 1, {}, 1, first_alloc, false);
+  std::vector<EdgeInsertOffsets> offsets(20);
+  for (auto& position : offsets) {
+    view.AddEdge(0, 1, {}, 1, first_alloc, false, &position);
   }
   std::thread inserter([&] {
     for (int i = 0; i < 1000; ++i) {
@@ -392,7 +414,9 @@ TEST_F(EdgeTableTest, UndoInsertSerializesWithConcurrentAdjacencyGrowth) {
     }
   });
   for (int i = 0; i < 100; ++i) {
-    view.UndoInsertedEdges(0, 1, 1);
+    for (const auto& position : offsets) {
+      view.UndoInsertedEdges(0, 1, 1, position);
+    }
   }
   inserter.join();
   EXPECT_EQ(table.EdgeNum(), 1000u);

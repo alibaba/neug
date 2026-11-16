@@ -102,18 +102,20 @@ void VertexTableView::UndoInsertedVertex(const Value& oid, timestamp_t owner) {
   }
 }
 
-void EdgeTableView::UndoInsertedEdges(vid_t src, vid_t dst, timestamp_t owner) {
-  in_csr_->undo_insert_edges(dst, src, owner);
-  out_csr_->undo_insert_edges(src, dst, owner);
+void EdgeTableView::UndoInsertedEdges(vid_t src, vid_t dst, timestamp_t owner,
+                                      const EdgeInsertOffsets& offsets) {
+  in_csr_->undo_insert_edge(dst, src, offsets.incoming, owner);
+  out_csr_->undo_insert_edge(src, dst, offsets.outgoing, owner);
 }
 
 void GraphView::UndoInsertedEdges(label_t src_label, vid_t src,
                                   label_t dst_label, vid_t dst,
-                                  label_t edge_label, timestamp_t owner) {
+                                  label_t edge_label, timestamp_t owner,
+                                  const EdgeInsertOffsets& offsets) {
   auto index = schema_->generate_edge_label(src_label, dst_label, edge_label);
   auto it = edge_views_.find(index);
   if (it != edge_views_.end()) {
-    it->second.UndoInsertedEdges(src, dst, owner);
+    it->second.UndoInsertedEdges(src, dst, owner, offsets);
   }
 }
 
@@ -228,10 +230,11 @@ EdgeDataAccessor EdgeTableView::GetDataAccessor(
 
 std::pair<int32_t, const void*> EdgeTableView::AddEdge(
     vid_t src_lid, vid_t dst_lid, const std::vector<Value>& properties,
-    timestamp_t ts, Allocator& alloc, bool insert_safe) {
+    timestamp_t ts, Allocator& alloc, bool insert_safe,
+    EdgeInsertOffsets* offsets) {
   return internal::insert_edge_into_csr_internal(
       *out_csr_, *in_csr_, view_, *table_idx_, *meta_, src_lid, dst_lid,
-      properties, ts, alloc, insert_safe);
+      properties, ts, alloc, insert_safe, offsets);
 }
 
 // ── GraphView ──
@@ -392,7 +395,7 @@ Status GraphView::AddEdge(label_t src_label, vid_t src_lid, label_t dst_label,
                           vid_t dst_lid, label_t edge_label,
                           const std::vector<Value>& properties, timestamp_t ts,
                           Allocator& alloc, int32_t& oe_offset,
-                          const void*& prop) {
+                          const void*& prop, EdgeInsertOffsets* offsets) {
   uint32_t index =
       schema_->generate_edge_label(src_label, dst_label, edge_label);
   auto it = edge_views_.find(index);
@@ -404,8 +407,8 @@ Status GraphView::AddEdge(label_t src_label, vid_t src_lid, label_t dst_label,
                       std::to_string(edge_label) + ">");
   }
   try {
-    auto ret =
-        it->second.AddEdge(src_lid, dst_lid, properties, ts, alloc, false);
+    auto ret = it->second.AddEdge(src_lid, dst_lid, properties, ts, alloc,
+                                  false, offsets);
     oe_offset = ret.first;
     prop = ret.second;
   } catch (const std::exception& e) {

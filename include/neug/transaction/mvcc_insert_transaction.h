@@ -225,6 +225,7 @@ class MvccInsertTransaction {
   struct EdgeUndo {
     label_t src_label, dst_label, edge_label;
     vid_t src, dst;
+    EdgeInsertOffsets offsets;
   };
   // Entries are recorded before mutation, including the currently failing op.
   std::vector<VertexUndo> vertex_undo_;

@@ -35,10 +35,25 @@ namespace neug {
 
 #ifdef NEUG_BUILD_TEST
 namespace {
-thread_local std::function<void()> before_insert_apply;
+// Reacquire TLS on the current pthread; bthreads may migrate during capacity
+// maintenance. Match the accessor used by the execution-slot test hooks.
+#if defined(__GNUC__) || defined(__clang__)
+__attribute__((noinline))
+#elif defined(_MSC_VER)
+__declspec(noinline)
+#endif
+std::function<void()>&
+GetBeforeInsertApplyHook() {
+  static thread_local std::function<void()> hook;
+  auto* pointer = &hook;
+#if defined(__GNUC__) || defined(__clang__)
+  asm volatile("" : "+r"(pointer) : : "memory");
+#endif
+  return *pointer;
 }
+}  // namespace
 void SetBeforeInsertApplyForTest(std::function<void()> hook) {
-  before_insert_apply = std::move(hook);
+  GetBeforeInsertApplyHook() = std::move(hook);
 }
 #endif
 
@@ -199,7 +214,7 @@ bool MvccInsertTransaction::Commit() {
 
   try {
 #ifdef NEUG_BUILD_TEST
-    auto hook = std::exchange(before_insert_apply, {});
+    auto hook = std::exchange(GetBeforeInsertApplyHook(), {});
     if (hook) {
       hook();
     }
@@ -299,9 +314,9 @@ void MvccInsertTransaction::ApplyInserts() {
       view_->MarkEdgeTableDirty(src_label, dst_label, edge_label);
       int32_t offset;
       const void* prop = nullptr;
-      auto status =
-          view_->AddEdge(src_label, src, dst_label, dst, edge_label,
-                         redo.properties, timestamp_, alloc_, offset, prop);
+      auto status = view_->AddEdge(src_label, src, dst_label, dst, edge_label,
+                                   redo.properties, timestamp_, alloc_, offset,
+                                   prop, &edge_undo_.back().offsets);
       THROW_STORAGE_EXCEPTION_STATUS("Failed to insert edge", status);
     } else {
       THROW_INTERNAL_EXCEPTION("Unexpected insert operation");
@@ -314,7 +329,7 @@ void MvccInsertTransaction::RollbackInserts() noexcept {
     // Do not make vertex slots reusable until both CSR directions are clean.
     for (auto it = edge_undo_.rbegin(); it != edge_undo_.rend(); ++it) {
       view_->UndoInsertedEdges(it->src_label, it->src, it->dst_label, it->dst,
-                               it->edge_label, timestamp_);
+                               it->edge_label, timestamp_, it->offsets);
     }
     edge_undo_.clear();
     for (auto it = vertex_undo_.rbegin(); it != vertex_undo_.rend(); ++it) {
