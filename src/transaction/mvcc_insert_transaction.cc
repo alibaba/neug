@@ -33,6 +33,15 @@
 
 namespace neug {
 
+#ifdef NEUG_BUILD_TEST
+namespace {
+thread_local std::function<void()> before_insert_apply;
+}
+void SetBeforeInsertApplyForTest(std::function<void()> hook) {
+  before_insert_apply = std::move(hook);
+}
+#endif
+
 MvccInsertTransaction::MvccInsertTransaction(SnapshotGuard guard,
                                              Allocator& alloc,
                                              IWalWriter& wal_writer,
@@ -115,6 +124,8 @@ Status MvccInsertTransaction::AddVertex(label_t label, const Value& id,
     added_vertices_[label]->_add(id);
     vid = vertex_nums_[label] + added_vertices_base_[label];
     vertex_nums_[label]++;
+    capacity_.AddVertex(view_->schema().get_vertex_label_name(label), id,
+                        props);
     InsertVertexRedo::Serialize(
         arc_, view_->schema().get_vertex_label_name(label), id, props);
   }
@@ -153,6 +164,9 @@ Status MvccInsertTransaction::AddEdge(label_t src_label, vid_t src_vid,
     }
   }
   const auto& schema = view_->schema();
+  capacity_.AddEdge(schema.get_vertex_label_name(src_label),
+                    schema.get_vertex_label_name(dst_label),
+                    schema.get_edge_label_name(edge_label), properties);
   InsertEdgeRedo::Serialize(arc_, schema.get_vertex_label_name(src_label), src,
                             schema.get_vertex_label_name(dst_label), dst,
                             schema.get_edge_label_name(edge_label), properties);
@@ -171,12 +185,25 @@ bool MvccInsertTransaction::Commit() {
     clear();
     return true;
   }
+  if (!capacity_reserved_) {
+    capacity_reserved_ = vm_.insert_capacity_reservations().TryReserve(
+        *guard_.get().mutable_graph(), capacity_, growth_request_);
+  }
+  capacity_retry_ = !capacity_reserved_;
+  if (capacity_retry_)
+    return false;
   auto* header = reinterpret_cast<WalHeader*>(arc_.GetBuffer());
   header->length = arc_.GetSize() - sizeof(WalHeader);
   header->type = 0;
   header->timestamp = timestamp_;
 
   try {
+#ifdef NEUG_BUILD_TEST
+    auto hook = std::exchange(before_insert_apply, {});
+    if (hook) {
+      hook();
+    }
+#endif
     ApplyInserts();
   } catch (const std::exception& e) {
     LOG(ERROR) << "Failed to apply inserts: " << e.what();
@@ -204,6 +231,7 @@ bool MvccInsertTransaction::Commit() {
   vertex_undo_.clear();
   edge_undo_.clear();
 
+  ReleaseCapacity();
   view_ = nullptr;
   guard_.release();
   vm_.release_insert_timestamp(timestamp_);
@@ -211,10 +239,23 @@ bool MvccInsertTransaction::Commit() {
   return true;
 }
 
+void MvccInsertTransaction::ReleaseCapacity() noexcept {
+  if (capacity_reserved_) {
+    vm_.insert_capacity_reservations().Release(capacity_);
+    capacity_reserved_ = false;
+  }
+}
+
 void MvccInsertTransaction::Abort() {
   if (timestamp_ != INVALID_TIMESTAMP) {
     RollbackInserts();
-    LOG(ERROR) << "aborting " << timestamp_ << "-th transaction (insert)";
+    ReleaseCapacity();
+    if (capacity_retry_) {
+      VLOG(1) << "Retrying insert transaction " << timestamp_
+              << " after capacity growth";
+    } else {
+      LOG(ERROR) << "aborting " << timestamp_ << "-th transaction (insert)";
+    }
     view_ = nullptr;
     guard_.release();
     vm_.release_insert_timestamp(timestamp_);
@@ -336,6 +377,9 @@ void MvccInsertTransaction::IngestWal(GraphView& view, uint32_t timestamp,
 }
 
 void MvccInsertTransaction::clear() {
+  capacity_ = {};
+  growth_request_ = {};
+  capacity_retry_ = false;
   arc_.Clear();
   added_vertices_.clear();
   added_vertices_base_.clear();

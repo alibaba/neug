@@ -295,6 +295,18 @@ void VersionManager::drain_readers() {
   gate_.wait_readers_drained();
 }
 
+void VersionManager::publish_capacity_snapshot(uint32_t generation) noexcept {
+  const auto state = gate_.load_acquire();
+  CHECK(OperationGateWord::phase(state) == AdmissionState::kAllBlocked);
+  CHECK_EQ(OperationGateWord::inserters(state), 0U);
+  installed_snapshot_generation_.store(generation, std::memory_order_relaxed);
+  const auto previous = UnpackPublishedReadView(
+      published_read_view_.load(std::memory_order_relaxed));
+  published_read_view_.store(
+      PackPublishedReadView({previous.visibility_ts, generation}),
+      std::memory_order_release);
+}
+
 void VersionManager::finish_update_timestamp(
     uint32_t ts,
     std::optional<uint32_t> installed_snapshot_generation) noexcept {

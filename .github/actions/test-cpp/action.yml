@@ -27,6 +27,8 @@ runs:
       cd ${GITHUB_WORKSPACE}/build
       ctest --output-on-failure -R storage_test -V
       ctest --output-on-failure -R transaction_test -V
+      ctest --output-on-failure --no-tests=error -R '^read_view_publication_test$' -V
+      ctest --output-on-failure --no-tests=error -R '^test_column$' -V
       ctest --output-on-failure -R csr_test -V
       ctest --output-on-failure -R edge_table_test -V
       ctest --output-on-failure -R graph_view_test -V
