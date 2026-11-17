@@ -64,7 +64,7 @@ class NEUG_API VertexTableView {
   bool get_lid(const Value& oid, vid_t& lid, timestamp_t ts) const;
   bool get_insert_lid(const Value& oid, vid_t& lid, timestamp_t read_ts,
                       timestamp_t owner) const;
-  void UndoInsertedVertex(const Value& oid, timestamp_t owner);
+  void UndoInsertedVertex(vid_t vid, timestamp_t owner);
   vid_t LidNum() const;
   // Returns the latest storage cardinality for statistics/planning, not the
   // number of vertices visible at a specific MVCC timestamp.
@@ -123,8 +123,8 @@ class NEUG_API GraphView {
                          timestamp_t read_ts, timestamp_t owner) const {
     return vertex_views_.at(label).get_insert_lid(oid, lid, read_ts, owner);
   }
-  void UndoInsertedVertex(label_t label, const Value& oid, timestamp_t owner) {
-    vertex_views_.at(label).UndoInsertedVertex(oid, owner);
+  void UndoInsertedVertex(label_t label, vid_t vid, timestamp_t owner) {
+    vertex_views_.at(label).UndoInsertedVertex(vid, owner);
   }
   void UndoInsertedEdges(label_t src_label, vid_t src, label_t dst_label,
                          vid_t dst, label_t edge_label, timestamp_t owner,

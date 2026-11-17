@@ -36,6 +36,102 @@
 
 namespace neug {
 
+namespace {
+std::vector<Value> EdgeValues(const EdgeTable& table, const NbrIterator& it) {
+  std::vector<Value> values;
+  const auto& meta = *table.get_edge_schema_ptr();
+  for (size_t col = 0; col < meta.properties.size(); ++col) {
+    if (!meta.eprop_soft_deleted[col]) {
+      values.push_back(table.get_edge_data_accessor(col).get_data(it));
+    }
+  }
+  return values;
+}
+
+std::string EncodeEdgeValues(const std::vector<Value>& values) {
+  InArchive arc;
+  arc << values;
+  return std::string(arc.GetBuffer(), arc.GetSize());
+}
+
+int32_t RawEdgeOffset(const NbrList& edges, const NbrIterator& it) {
+  return (static_cast<const char*>(it.cur) -
+          static_cast<const char*>(edges.start_ptr)) /
+         edges.cfg.stride;
+}
+
+std::pair<int32_t, int32_t> ResolveEdgeBeforeImage(
+    const EdgeTable& table, vid_t src, vid_t dst, timestamp_t ts,
+    const std::vector<Value>& before) {
+  const auto& meta = *table.get_edge_schema_ptr();
+  auto encoded = EncodeEdgeValues(before);
+  int32_t outgoing = -1, incoming = -1;
+  size_t row = 0;
+  if (meta.oe_strategy != EdgeStrategy::kNone) {
+    auto edges = table.get_outgoing_view(ts).get_edges(src);
+    for (auto it = edges.begin(); it != edges.end(); ++it) {
+      if (it.get_vertex() == dst &&
+          EncodeEdgeValues(EdgeValues(table, it)) == encoded) {
+        outgoing = RawEdgeOffset(edges, it);
+        if (!meta.is_bundled()) {
+          row = *static_cast<const size_t*>(it.get_data_ptr());
+        }
+        break;
+      }
+    }
+    if (outgoing < 0) {
+      THROW_STORAGE_EXCEPTION("WAL outgoing edge before-image not found");
+    }
+  }
+  if (meta.ie_strategy != EdgeStrategy::kNone) {
+    auto edges = table.get_incoming_view(ts).get_edges(dst);
+    for (auto it = edges.begin(); it != edges.end(); ++it) {
+      if (it.get_vertex() != src) {
+        continue;
+      }
+      // Unbundled directions must refer to the same property row, including
+      // when several parallel edges have identical property values.
+      const bool matches =
+          !meta.is_bundled() && outgoing >= 0
+              ? *static_cast<const size_t*>(it.get_data_ptr()) == row
+              : EncodeEdgeValues(EdgeValues(table, it)) == encoded;
+      if (matches) {
+        incoming = RawEdgeOffset(edges, it);
+        break;
+      }
+    }
+    if (incoming < 0) {
+      THROW_STORAGE_EXCEPTION("WAL incoming edge before-image not found");
+    }
+  }
+  return {outgoing, incoming};
+}
+}  // namespace
+
+std::vector<Value> EdgeBeforeImage(const EdgeTable& table, vid_t src, vid_t dst,
+                                   int32_t oe_offset, int32_t ie_offset,
+                                   timestamp_t ts) {
+  const bool outgoing =
+      table.get_edge_schema_ptr()->oe_strategy != EdgeStrategy::kNone;
+  auto edges = outgoing ? table.get_outgoing_view(ts).get_edges(src)
+                        : table.get_incoming_view(ts).get_edges(dst);
+  const auto offset = outgoing ? oe_offset : ie_offset;
+  if (offset >= 0 && !edges.empty() &&
+      offset < (static_cast<const char*>(edges.end_ptr) -
+                static_cast<const char*>(edges.start_ptr)) /
+                   edges.cfg.stride) {
+    auto it = edges.begin();
+    it.cur = static_cast<const char*>(edges.start_ptr) +
+             static_cast<size_t>(offset) * edges.cfg.stride;
+    if ((it.cfg.ts_offset == 0 || it.get_timestamp() <= ts) &&
+        it.get_vertex() == (outgoing ? dst : src)) {
+      return EdgeValues(table, it);
+    }
+  }
+  THROW_STORAGE_EXCEPTION(
+      "Invalid edge offset while capturing WAL before-image");
+}
+
 Status dropVertexIndex(PropertyGraph& graph, label_t label,
                        const std::string& prop_name,
                        CowDetachState* detach_state) {
@@ -263,9 +359,14 @@ void ReplayCowGraphWal(PropertyGraph& graph, uint32_t timestamp, char* data,
       }
       THROW_STORAGE_EXCEPTION_STATUS(
           "Failed to update vertex property indexes in redo: ", ret);
-    } else if (op_type == OpType::kUpdateEdgeProp) {
+    } else if (op_type == OpType::kUpdateEdgeProp ||
+               op_type == OpType::kUpdateEdgePropByValue) {
       UpdateEdgePropRedo redo;
       arc >> redo;
+      std::vector<Value> before;
+      if (op_type == OpType::kUpdateEdgePropByValue) {
+        arc >> before;
+      }
       const auto& schema = graph.schema();
       const auto src_label = schema.get_vertex_label_id(redo.src_type);
       const auto dst_label = schema.get_vertex_label_id(redo.dst_type);
@@ -273,6 +374,13 @@ void ReplayCowGraphWal(PropertyGraph& graph, uint32_t timestamp, char* data,
       vid_t src_vid, dst_vid;
       CHECK(graph.get_lid(src_label, redo.src, src_vid, timestamp));
       CHECK(graph.get_lid(dst_label, redo.dst, dst_vid, timestamp));
+      if (op_type == OpType::kUpdateEdgePropByValue) {
+        auto index =
+            schema.generate_edge_label(src_label, dst_label, edge_label);
+        std::tie(redo.oe_offset, redo.ie_offset) =
+            ResolveEdgeBeforeImage(graph.get_edge_table_by_index(index),
+                                   src_vid, dst_vid, timestamp, before);
+      }
       graph.MarkEdgeTableDirty(src_label, dst_label, edge_label);
       auto ret = graph.UpdateEdgeProperty(
           src_label, src_vid, dst_label, dst_vid, edge_label, redo.oe_offset,
@@ -303,23 +411,34 @@ void ReplayCowGraphWal(PropertyGraph& graph, uint32_t timestamp, char* data,
       }
       THROW_STORAGE_EXCEPTION_STATUS(
           "Failed to delete vertex indexes in redo: ", ret);
-    } else if (op_type == OpType::kRemoveEdge) {
+    } else if (op_type == OpType::kRemoveEdge ||
+               op_type == OpType::kRemoveEdgeByValue) {
       RemoveEdgeRedo redo;
       arc >> redo;
+      std::vector<Value> before;
+      if (op_type == OpType::kRemoveEdgeByValue) {
+        arc >> before;
+      }
       const auto& schema = graph.schema();
       const auto src_label = schema.get_vertex_label_id(redo.src_type);
       const auto dst_label = schema.get_vertex_label_id(redo.dst_type);
       const auto edge_label = schema.get_edge_label_id(redo.edge_type);
       const auto& src = redo.src;
       const auto& dst = redo.dst;
-      const auto oe_offset = redo.oe_offset;
-      const auto ie_offset = redo.ie_offset;
       vid_t src_vid, dst_vid;
       CHECK(graph.get_lid(src_label, src, src_vid, timestamp));
       CHECK(graph.get_lid(dst_label, dst, dst_vid, timestamp));
+      if (op_type == OpType::kRemoveEdgeByValue) {
+        auto index =
+            schema.generate_edge_label(src_label, dst_label, edge_label);
+        std::tie(redo.oe_offset, redo.ie_offset) =
+            ResolveEdgeBeforeImage(graph.get_edge_table_by_index(index),
+                                   src_vid, dst_vid, timestamp, before);
+      }
       graph.MarkEdgeTableDirty(src_label, dst_label, edge_label);
-      auto ret = graph.DeleteEdge(src_label, src_vid, dst_label, dst_vid,
-                                  edge_label, oe_offset, ie_offset, timestamp);
+      auto ret =
+          graph.DeleteEdge(src_label, src_vid, dst_label, dst_vid, edge_label,
+                           redo.oe_offset, redo.ie_offset, timestamp);
       THROW_STORAGE_EXCEPTION_STATUS("Failed to delete edge in redo: ", ret);
     } else if (op_type == OpType::kAddVertexProp) {
       auto redo = AddVertexPropertiesRedo::Deserialize(arc);

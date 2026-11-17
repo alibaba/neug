@@ -95,10 +95,9 @@ bool VertexTableView::get_insert_lid(const Value& oid, vid_t& lid,
                                            v_ts_->IsInsertedBy(lid, owner));
 }
 
-void VertexTableView::UndoInsertedVertex(const Value& oid, timestamp_t owner) {
-  vid_t lid;
-  if (indexer_->get_index(oid, lid)) {
-    v_ts_->UndoInsert(lid, owner);
+void VertexTableView::UndoInsertedVertex(vid_t vid, timestamp_t owner) {
+  if (vid != INVALID_VID) {
+    v_ts_->UndoInsert(vid, owner);
   }
 }
 

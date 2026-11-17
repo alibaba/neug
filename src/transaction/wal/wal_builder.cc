@@ -178,9 +178,10 @@ void WalBuilder::LogUpdateVertexProp(const std::string& vertex_type,
 void WalBuilder::LogUpdateEdgeProp(
     const std::string& src_type, const Value& src, const std::string& dst_type,
     const Value& dst, const std::string& edge_type, int32_t oe_offset,
-    int32_t ie_offset, int prop_id, const Value& value) {
+    int32_t ie_offset, int prop_id, const Value& value,
+    const std::vector<Value>* before) {
   UpdateEdgePropRedo::Serialize(arc_, src_type, src, dst_type, dst, edge_type,
-                                oe_offset, ie_offset, prop_id, value);
+                                oe_offset, ie_offset, prop_id, value, before);
   ++op_num_;
 }
 
@@ -193,9 +194,10 @@ void WalBuilder::LogRemoveVertex(const std::string& vertex_type,
 void WalBuilder::LogRemoveEdge(const std::string& src_type, const Value& src,
                                const std::string& dst_type, const Value& dst,
                                const std::string& edge_type, int32_t oe_offset,
-                               int32_t ie_offset) {
+                               int32_t ie_offset,
+                               const std::vector<Value>* before) {
   RemoveEdgeRedo::Serialize(arc_, src_type, src, dst_type, dst, edge_type,
-                            oe_offset, ie_offset);
+                            oe_offset, ie_offset, before);
   ++op_num_;
 }
 

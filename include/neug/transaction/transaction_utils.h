@@ -55,8 +55,16 @@ enum class OpType : uint8_t {
   kCreateIndex = 18,
   kDropIndex = 19,
   kActivateIndexes = 20,
-  kOptimizeIndexes = 21
+  kOptimizeIndexes = 21,
+  kUpdateEdgePropByValue = 22,
+  kRemoveEdgeByValue = 23
 };
+
+// Logical edge before-images survive holes from unlogged aborted inserts.
+// Parallel edges with identical endpoints and properties are interchangeable.
+std::vector<Value> EdgeBeforeImage(const EdgeTable& table, vid_t src, vid_t dst,
+                                   int32_t oe_offset, int32_t ie_offset,
+                                   timestamp_t ts);
 
 inline InArchive& operator<<(InArchive& in_archive, OpType& value) {
   in_archive << static_cast<uint8_t>(value);

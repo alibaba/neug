@@ -220,7 +220,7 @@ class MvccInsertTransaction {
  private:
   struct VertexUndo {
     label_t label;
-    Value oid;
+    vid_t vid = INVALID_VID;
   };
   struct EdgeUndo {
     label_t src_label, dst_label, edge_label;

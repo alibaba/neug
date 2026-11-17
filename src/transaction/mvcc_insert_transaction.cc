@@ -289,10 +289,13 @@ void MvccInsertTransaction::ApplyInserts() {
       InsertVertexRedo redo;
       arc >> redo;
       auto label = view_->schema().get_vertex_label_id(redo.vertex_type);
-      vertex_undo_.push_back({label, redo.oid});
+      vertex_undo_.push_back({label});
       // Partial writes must be checkpointed as tombstones after rollback too.
       view_->MarkVertexTableDirty(label);
-      vid_t vid;
+      // AddVertex assigns the output immediately after acquiring ownership,
+      // before property writes that may throw. Failed acquisition leaves the
+      // journal's invalid VID untouched.
+      auto& vid = vertex_undo_.back().vid;
       auto status =
           view_->AddVertex(label, redo.oid, redo.props, vid, timestamp_);
       THROW_STORAGE_EXCEPTION_STATUS("Failed to insert vertex", status);
@@ -333,7 +336,7 @@ void MvccInsertTransaction::RollbackInserts() noexcept {
     }
     edge_undo_.clear();
     for (auto it = vertex_undo_.rbegin(); it != vertex_undo_.rend(); ++it) {
-      view_->UndoInsertedVertex(it->label, it->oid, timestamp_);
+      view_->UndoInsertedVertex(it->label, it->vid, timestamp_);
     }
     vertex_undo_.clear();
   } catch (...) {

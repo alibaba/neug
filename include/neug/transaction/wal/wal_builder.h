@@ -84,12 +84,14 @@ class WalBuilder {
   void LogUpdateEdgeProp(const std::string& src_type, const Value& src,
                          const std::string& dst_type, const Value& dst,
                          const std::string& edge_type, int32_t oe_offset,
-                         int32_t ie_offset, int prop_id, const Value& value);
+                         int32_t ie_offset, int prop_id, const Value& value,
+                         const std::vector<Value>* before = nullptr);
   void LogRemoveVertex(const std::string& vertex_type, const Value& oid);
   void LogRemoveEdge(const std::string& src_type, const Value& src,
                      const std::string& dst_type, const Value& dst,
                      const std::string& edge_type, int32_t oe_offset,
-                     int32_t ie_offset);
+                     int32_t ie_offset,
+                     const std::vector<Value>* before = nullptr);
 
   // --- Query state ---
   int op_num() const { return op_num_; }

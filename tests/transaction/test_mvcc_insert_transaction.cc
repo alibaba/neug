@@ -38,12 +38,16 @@
 #include <process.h>
 #define getpid _getpid
 #endif
+#include <atomic>
+#include <chrono>
 #include <cstdlib>
 #include <cstring>
 #include <filesystem>
 #include <fstream>
 #include <functional>
+#include <stdexcept>
 #include <string>
+#include <thread>
 #include <vector>
 
 #include "glog/logging.h"
@@ -377,6 +381,112 @@ TEST_F(MvccInsertTransactionTest,
   EXPECT_TRUE(view.get_lid(view.schema().get_vertex_label_id("person"),
                            Value::INT64(3), lid, MAX_TIMESTAMP));
 }
+
+TEST_F(MvccInsertTransactionTest, CrashRecoversEdgeUpdatesAfterUndoHoles) {
+  using namespace neug;
+  ASSERT_EXIT(
+      ([&] {
+        NeugDB db;
+        NeugDBConfig config(db_dir);
+        config.memory_level = MemoryLevel::kSyncToFile;
+        config.max_thread_num = 1;
+        config.checkpoint_on_close = false;
+        db.Open(config);
+        Allocator alloc(MemoryLevel::kInMemory, "");
+        VersionManager vm;
+        vm.init_ts({0, 0}, 4);
+        InsertTestWalWriter reject;
+        reject.on_append = [] { return false; };
+        {
+          MvccInsertTransaction txn(SnapshotGuard(db.graph_snapshot_store()),
+                                    alloc, reject, vm,
+                                    vm.acquire_insert_timestamp());
+          const auto person = txn.schema().get_vertex_label_id("person");
+          const auto software = txn.schema().get_vertex_label_id("software");
+          vid_t src, dst, sw;
+          txn.GetVertexIndex(person, Value::INT64(1), src);
+          txn.GetVertexIndex(person, Value::INT64(2), dst);
+          txn.GetVertexIndex(software, Value::INT64(1), sw);
+          const void* prop = nullptr;
+          if (!txn.AddEdge(person, src, person, dst,
+                           txn.schema().get_edge_label_id("knows"),
+                           {Value::DOUBLE(99)}, prop) ||
+              !txn.AddEdge(person, src, software, sw,
+                           txn.schema().get_edge_label_id("created"),
+                           {Value::DOUBLE(99), Value::INT64(2024)}, prop) ||
+              txn.Commit() || reject.calls != 1) {
+            std::_Exit(2);
+          }
+        }
+        auto conn = db.Connect();
+        for (int weight : {42, 42, 43, 44}) {
+          if (!conn->Query("MATCH (a:person {id:1}), (b:person {id:2}) "
+                           "CREATE (a)-[:knows {closeness:" +
+                           std::to_string(weight) + ".0}]->(b)") ||
+              !conn->Query("MATCH (a:person {id:1}), (b:software {id:1}) "
+                           "CREATE (a)-[:created {weight:" +
+                           std::to_string(weight) + ".0, since:2024}]->(b)")) {
+            std::_Exit(3);
+          }
+        }
+        for (const std::string query :
+             {"MATCH ()-[r:knows]->() WHERE r.closeness=42.0 SET "
+              "r.closeness=52.0",
+              "MATCH ()-[r:created]->() WHERE r.weight=42.0 SET r.weight=52.0, "
+              "r.since=2025",
+              "MATCH ()-[r:knows]->() WHERE r.closeness=43.0 DELETE r",
+              "MATCH ()-[r:created]->() WHERE r.weight=43.0 DELETE r"}) {
+          if (!conn->Query(query)) {
+            std::_Exit(4);
+          }
+        }
+        // No destructors or checkpoint: recovery must reconstruct successful
+        // inserts without the physical slots left by the failed transaction.
+        std::_Exit(0);
+      }()),
+      ::testing::ExitedWithCode(0), ".*");
+  NeugDB reopened;
+  NeugDBConfig config(db_dir);
+  config.checkpoint_on_close = false;
+  reopened.Open(config);
+  SnapshotGuard observer(reopened.graph_snapshot_store());
+  auto& graph = *observer.get().mutable_graph();
+  const auto person = graph.schema().get_vertex_label_id("person");
+  vid_t src;
+  ASSERT_TRUE(graph.get_lid(person, Value::INT64(1), src, MAX_TIMESTAMP));
+  for (bool bundled : {false, true}) {
+    auto dst_label =
+        bundled ? person : graph.schema().get_vertex_label_id("software");
+    auto edge = graph.schema().get_edge_label_id(bundled ? "knows" : "created");
+    auto index = graph.schema().generate_edge_label(person, dst_label, edge);
+    const auto& table = graph.get_edge_table_by_index(index);
+    vid_t dst;
+    ASSERT_TRUE(graph.get_lid(dst_label, Value::INT64(bundled ? 2 : 1), dst,
+                              MAX_TIMESTAMP));
+    for (bool incoming : {false, true}) {
+      auto edges = incoming
+                       ? table.get_incoming_view(MAX_TIMESTAMP).get_edges(dst)
+                       : table.get_outgoing_view(MAX_TIMESTAMP).get_edges(src);
+      size_t updated = 0, untouched = 0;
+      for (auto it = edges.begin(); it != edges.end(); ++it) {
+        const auto weight =
+            table.get_edge_data_accessor(0).get_data(it).GetValue<double>();
+        updated += weight == 52;
+        untouched += weight == 44;
+        if (!bundled && weight == 52) {
+          EXPECT_EQ(
+              table.get_edge_data_accessor(1).get_data(it).GetValue<int64_t>(),
+              2025);
+        }
+        EXPECT_NE(weight, 42);
+        EXPECT_NE(weight, 43);
+        EXPECT_NE(weight, 99);
+      }
+      EXPECT_EQ(updated, 2u);
+      EXPECT_EQ(untouched, 1u);
+    }
+  }
+}
 #endif
 
 TEST_F(MvccInsertTransactionTest, WalRejectionUndoesParallelEdgesThenVertices) {
@@ -440,7 +550,7 @@ TEST_F(MvccInsertTransactionTest, WalRejectionUndoesParallelEdgesThenVertices) {
                              added));
   ASSERT_TRUE(next.Commit());
   // A stale/repeated undo must not remove the reused VID.
-  view.UndoInsertedVertex(person, Value::INT64(3), ts);
+  view.UndoInsertedVertex(person, added, ts);
   EXPECT_TRUE(view.get_lid(person, Value::INT64(3), added, next_ts));
   EXPECT_EQ(view.VertexNum(person), 3u);
   observer.release();
@@ -638,6 +748,85 @@ TEST_F(MvccInsertTransactionTest, PropertyFailureAlsoUndoesCurrentVertex) {
   EXPECT_EQ(view.LidNum(person),
             base + 2);  // Tombstones retain physical slots.
   age->resize(capacity);
+  observer.release();
+  db.Close();
+}
+
+TEST_F(MvccInsertTransactionTest, DuplicatePrimaryKeyPartialWriteUndoesOwnVid) {
+  using namespace neug;
+  NeugDB db;
+  db.Open(db_dir);
+  VersionManager vm;
+  vm.init_ts({0, 0}, 4);
+  Allocator alloc_a(MemoryLevel::kInMemory, "");
+  Allocator alloc_b(MemoryLevel::kInMemory, "");
+  InsertTestWalWriter writer_a, writer_b;
+  SnapshotGuard observer(db.graph_snapshot_store());
+  auto& view = observer.get().mutable_view();
+  auto person = view.schema().get_vertex_label_id("person");
+  auto* age = observer.get()
+                  .mutable_graph()
+                  ->get_vertex_table(person)
+                  .get_table()
+                  .get_column_by_id(1);
+  const auto capacity = age->size();
+  const auto base = view.LidNum(person);
+  MvccInsertTransaction a(SnapshotGuard(db.graph_snapshot_store()), alloc_a,
+                          writer_a, vm, vm.acquire_insert_timestamp());
+  MvccInsertTransaction b(SnapshotGuard(db.graph_snapshot_store()), alloc_b,
+                          writer_b, vm, vm.acquire_insert_timestamp());
+  vid_t vid;
+  for (auto* txn : {&a, &b}) {
+    ASSERT_TRUE(txn->AddVertex(person, Value::INT64(100),
+                               {Value::STRING("duplicate"), Value::INT64(20)},
+                               vid));
+  }
+  std::atomic<bool> b_looked_up{false}, a_done{false};
+  bool a_committed = false, b_committed = false;
+  // Fail the test instead of hanging CI if a commit fails before its hook.
+  auto wait_for = [](const std::atomic<bool>& flag) {
+    const auto deadline =
+        std::chrono::steady_clock::now() + std::chrono::seconds(30);
+    while (!flag.load()) {
+      if (std::chrono::steady_clock::now() >= deadline) {
+        throw std::runtime_error(
+            "Timed out waiting for vertex insert test hook");
+      }
+      std::this_thread::yield();
+    }
+  };
+  std::thread first([&] {
+    SetBeforeVertexIndexInsertForTest([&] { wait_for(b_looked_up); });
+    a_committed = a.Commit();
+    a_done.store(true);
+  });
+  std::thread second([&] {
+    SetBeforeVertexIndexInsertForTest([&] {
+      b_looked_up.store(true);
+      wait_for(a_done);
+      // B has already observed K as absent. Its distinct VID is acquired,
+      // then the property write fails; PK lookup still returns A's VID.
+      age->resize(base + 1);
+    });
+    b_committed = b.Commit();
+  });
+  first.join();
+  second.join();
+  age->resize(capacity);
+  ASSERT_TRUE(a_committed);
+  EXPECT_FALSE(b_committed);
+  EXPECT_EQ(writer_b.calls, 0u);
+  EXPECT_EQ(view.LidNum(person), base + 2);
+  EXPECT_TRUE(view.get_lid(person, Value::INT64(100), vid, MAX_TIMESTAMP));
+  EXPECT_EQ(vid, base);
+  EXPECT_EQ(view.VertexNum(person), 3u);
+  size_t visible = 0;
+  for (auto ignored : view.GetVertexSet(person, MAX_TIMESTAMP)) {
+    (void) ignored;
+    ++visible;
+  }
+  EXPECT_EQ(visible, 3u);
+  b.Abort();  // Repeated undo must preserve A.
   observer.release();
   db.Close();
 }
