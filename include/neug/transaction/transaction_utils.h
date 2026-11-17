@@ -113,8 +113,10 @@ class NEUG_API RecoveryEdgeIndex {
                int32_t outgoing, int32_t incoming, timestamp_t ts);
   void InvalidateTable(size_t table_id);
   void Clear();
+#ifdef NEUG_BUILD_TEST
   // Cumulative raw-slot visits, including index construction and maintenance.
-  size_t slot_visits() const;
+  size_t GetSlotVisitsForTest() const;
+#endif
 
  private:
   struct Impl;

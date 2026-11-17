@@ -100,7 +100,9 @@ struct RecoveryEdgeIndex::Impl {
   };
   using Table = std::array<std::unordered_map<vid_t, Adjacency>, 2>;
   std::unordered_map<size_t, Table> tables;
+#ifdef NEUG_BUILD_TEST
   size_t visits = 0;
+#endif
 
   static size_t Size(const NbrList& edges) {
     if (edges.empty()) {
@@ -113,7 +115,9 @@ struct RecoveryEdgeIndex::Impl {
 
   void ReadSlot(Adjacency& index, const EdgeTable& table, const NbrList& edges,
                 int32_t offset) {
+#ifdef NEUG_BUILD_TEST
     ++visits;
+#endif
     index.Erase(offset);
     NbrIterator it;
     // Do not call begin(): it may rescan a long prefix of tombstones.
@@ -165,7 +169,9 @@ void RecoveryEdgeIndex::Clear() { impl_->tables.clear(); }
 void RecoveryEdgeIndex::InvalidateTable(size_t table_id) {
   impl_->tables.erase(table_id);
 }
-size_t RecoveryEdgeIndex::slot_visits() const { return impl_->visits; }
+#ifdef NEUG_BUILD_TEST
+size_t RecoveryEdgeIndex::GetSlotVisitsForTest() const { return impl_->visits; }
+#endif
 
 std::pair<int32_t, int32_t> RecoveryEdgeIndex::Resolve(
     size_t table_id, const EdgeTable& table, vid_t src, vid_t dst,

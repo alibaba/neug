@@ -211,14 +211,14 @@ TEST_F(MvccInsertTransactionTest, ReplayEdgeIndexVisitsGrowLinearlyAcrossWals) {
           if (i >= n / 2)
             replay(arc);
         }
-        EXPECT_LE(index.slot_visits(), 4u * n);
+        EXPECT_LE(index.GetSlotVisitsForTest(), 4u * n);
         for (int i = 0; i < n; ++i) {
           auto before = props(1);
           RemoveEdgeRedo::Serialize(arc, "person", source, dst_type, dst_oid(i),
                                     edge_type, 999999, 999999, &before);
           replay(arc);
         }
-        EXPECT_LE(index.slot_visits(), 6u * n);
+        EXPECT_LE(index.GetSlotVisitsForTest(), 6u * n);
 
         // Clone/grow between replay calls must not retain stale graph pointers.
         graph = graph->Clone();
@@ -236,7 +236,7 @@ TEST_F(MvccInsertTransactionTest, ReplayEdgeIndexVisitsGrowLinearlyAcrossWals) {
           replay(arc);
         }
         // A tombstone prefix must not be scanned again by begin()/iteration.
-        EXPECT_LE(index.slot_visits(), 10u * n);
+        EXPECT_LE(index.GetSlotVisitsForTest(), 10u * n);
         auto dst_label = graph->schema().get_vertex_label_id(dst_type);
         auto edge = graph->schema().get_edge_label_id(edge_type);
         const auto& table = graph->get_edge_table(person, dst_label, edge);
@@ -377,7 +377,7 @@ TEST_F(MvccInsertTransactionTest,
                                 &before);
       replay();
     }
-    EXPECT_LE(index.slot_visits(), 8u * 32);
+    EXPECT_LE(index.GetSlotVisitsForTest(), 8u * 32);
   }
   snapshot.release();
   db.Close();
