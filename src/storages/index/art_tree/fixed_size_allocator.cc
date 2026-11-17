@@ -86,6 +86,9 @@ FixedSizeAllocator::FixedSizeAllocator(const idx_t segment_size,
   while (byte_count < FixedSizeBuffer::BUFFER_DATA_SIZE) {
     if (!bitmask_count ||
         (bitmask_count * bits_per_value) % available_segments_per_buffer == 0) {
+      if (FixedSizeBuffer::BUFFER_DATA_SIZE - byte_count < sizeof(validity_t)) {
+        break;
+      }
       // we need to add another validity_t value to the bitmask, to allow
       // storing another bits_per_value segments on a buffer
       bitmask_count++;
