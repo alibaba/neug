@@ -20,6 +20,7 @@
 #include "neug/storages/csr/csr_view_utils.h"
 #include "neug/storages/graph/graph_interface.h"
 #include "neug/transaction/mvcc_insert_transaction.h"
+#include "neug/transaction/transaction_utils.h"
 #include "neug/transaction/version_manager.h"
 #include "neug/transaction/wal/local_wal_parser.h"
 #include "neug/transaction/wal/local_wal_writer.h"
@@ -148,6 +149,239 @@ class MvccInsertTransactionTest : public ::testing::Test {
     return vertex_count;
   }
 };
+
+TEST_F(MvccInsertTransactionTest, ReplayEdgeIndexVisitsGrowLinearlyAcrossWals) {
+  using namespace neug;
+  NeugDB db;
+  db.Open(db_dir);
+  SnapshotGuard snapshot(db.graph_snapshot_store());
+  Allocator alloc(MemoryLevel::kInMemory, "");
+  auto graph = snapshot.get().mutable_graph()->Clone();
+  timestamp_t ts = 1;
+  int scenario = 0;
+  for (bool bundled : {false, true}) {
+    for (bool parallel : {false, true}) {
+      for (int n : {64, 256}) {
+        SCOPED_TRACE(::testing::Message()
+                     << "bundled=" << bundled << " parallel=" << parallel
+                     << " n=" << n);
+        RecoveryEdgeIndex index;
+        ++scenario;
+        auto replay = [&](InArchive& arc) {
+          ReplayCowGraphWal(*graph, ts++, arc.GetBuffer(), arc.GetSize(), alloc,
+                            &index);
+          arc.Clear();
+        };
+        const std::string dst_type = bundled ? "person" : "software";
+        const std::string edge_type = bundled ? "knows" : "created";
+        auto props = [&](double weight) {
+          std::vector<Value> values{Value::DOUBLE(weight)};
+          if (!bundled)
+            values.push_back(Value::INT64(2024));
+          return values;
+        };
+        auto dst_oid = [&](int i) {
+          return Value::INT64(scenario * 1000 + (parallel ? 0 : i));
+        };
+        const auto source = Value::INT64(100000 + scenario);
+        InArchive arc;
+        InsertVertexRedo::Serialize(
+            arc, "person", source, {Value::STRING("source"), Value::INT64(20)});
+        for (int i = 0; i < (parallel ? 1 : n); ++i) {
+          std::vector<Value> values{Value::STRING("target")};
+          values.push_back(bundled ? Value::INT64(20) : Value::STRING("C++"));
+          InsertVertexRedo::Serialize(arc, dst_type, dst_oid(i), values);
+        }
+        for (int i = 0; i < n; ++i) {
+          InsertEdgeRedo::Serialize(arc, "person", source, dst_type, dst_oid(i),
+                                    edge_type, props(0));
+        }
+        replay(arc);
+        auto update = [&](int i, double before_value, double after_value) {
+          auto before = props(before_value);
+          // Deliberately invalid persisted offsets: replay must resolve its
+          // own slots, and retain every identical parallel-edge candidate.
+          UpdateEdgePropRedo::Serialize(arc, "person", source, dst_type,
+                                        dst_oid(i), edge_type, 999999, 999999,
+                                        0, Value::DOUBLE(after_value), &before);
+        };
+        for (int i = 0; i < n; ++i) {
+          update(i, 0, 1);
+          // Cover both a batch in one WAL and repeated single-operation WALs.
+          if (i >= n / 2)
+            replay(arc);
+        }
+        EXPECT_LE(index.slot_visits(), 4u * n);
+        for (int i = 0; i < n; ++i) {
+          auto before = props(1);
+          RemoveEdgeRedo::Serialize(arc, "person", source, dst_type, dst_oid(i),
+                                    edge_type, 999999, 999999, &before);
+          replay(arc);
+        }
+        EXPECT_LE(index.slot_visits(), 6u * n);
+
+        // Clone/grow between replay calls must not retain stale graph pointers.
+        graph = graph->Clone();
+        auto person = graph->schema().get_vertex_label_id("person");
+        ASSERT_TRUE(graph->EnsureCapacity(person, 8192).ok());
+        for (int i = 0; i < n; ++i) {
+          InsertEdgeRedo::Serialize(arc, "person", source, dst_type, dst_oid(i),
+                                    edge_type, props(2));
+          // Exercise the separate insert-WAL ingestion path between updates.
+          GraphView view(*graph);
+          MvccInsertTransaction::IngestWal(view, ts++, arc.GetBuffer(),
+                                           arc.GetSize(), alloc);
+          arc.Clear();
+          update(i, 2, 3);
+          replay(arc);
+        }
+        // A tombstone prefix must not be scanned again by begin()/iteration.
+        EXPECT_LE(index.slot_visits(), 10u * n);
+        auto dst_label = graph->schema().get_vertex_label_id(dst_type);
+        auto edge = graph->schema().get_edge_label_id(edge_type);
+        const auto& table = graph->get_edge_table(person, dst_label, edge);
+        vid_t src;
+        ASSERT_TRUE(graph->get_lid(person, source, src, MAX_TIMESTAMP));
+        size_t count = 0;
+        for (auto it : table.get_outgoing_view(MAX_TIMESTAMP).get_edges(src)) {
+          (void) it;
+          ++count;
+        }
+        EXPECT_EQ(count, static_cast<size_t>(n));
+        for (int i = 0; i < (parallel ? 1 : n); ++i) {
+          vid_t dst;
+          ASSERT_TRUE(
+              graph->get_lid(dst_label, dst_oid(i), dst, MAX_TIMESTAMP));
+          auto edges = table.get_incoming_view(MAX_TIMESTAMP).get_edges(dst);
+          size_t incoming = 0;
+          for (auto it = edges.begin(); it != edges.end(); ++it) {
+            EXPECT_EQ(it.get_vertex(), src);
+            EXPECT_EQ(
+                table.get_edge_data_accessor(0).get_data(it).GetValue<double>(),
+                3);
+            ++incoming;
+          }
+          EXPECT_EQ(incoming, static_cast<size_t>(parallel ? n : 1));
+        }
+      }
+    }
+  }
+  snapshot.release();
+  db.Close();
+}
+
+TEST_F(MvccInsertTransactionTest,
+       ReplayEdgeIndexTracksSchemaAndCascadeChanges) {
+  using namespace neug;
+  NeugDB db;
+  db.Open(db_dir);
+  SnapshotGuard snapshot(db.graph_snapshot_store());
+  auto graph = snapshot.get().mutable_graph()->Clone();
+  Allocator alloc(MemoryLevel::kInMemory, "");
+  RecoveryEdgeIndex index;
+  timestamp_t ts = 1;
+  InArchive arc;
+  auto replay = [&] {
+    ReplayCowGraphWal(*graph, ts++, arc.GetBuffer(), arc.GetSize(), alloc,
+                      &index);
+    arc.Clear();
+  };
+  auto update = [&](int64_t endpoint, int column,
+                    const std::vector<Value>& before, const Value& value) {
+    UpdateEdgePropRedo::Serialize(arc, "person", Value::INT64(endpoint),
+                                  "software", Value::INT64(endpoint), "created",
+                                  999999, 999999, column, value, &before);
+    replay();
+  };
+  update(1, 0, {Value::DOUBLE(0.8), Value::INT64(2021)}, Value::DOUBLE(1));
+  // Legacy WAL mutations must refresh an index built by newer WAL records.
+  UpdateEdgePropRedo::Serialize(arc, "person", Value::INT64(1), "software",
+                                Value::INT64(1), "created", 0, 0, 0,
+                                Value::DOUBLE(2));
+  replay();
+  update(1, 0, {Value::DOUBLE(2), Value::INT64(2021)}, Value::DOUBLE(3));
+  AddEdgePropertiesParamBuilder add;
+  AddEdgePropertiesRedo::Serialize(
+      arc, "person", "software", "created",
+      add.Properties({{"extra", Value::INT64(7)}}).Build());
+  replay();
+  update(1, 2, {Value::DOUBLE(3), Value::INT64(2021), Value::INT64(7)},
+         Value::INT64(8));
+  DeleteEdgePropertiesParamBuilder drop;
+  DeleteEdgePropertiesRedo::Serialize(arc, "person", "software", "created",
+                                      drop.DeleteProperties({"since"}).Build());
+  replay();
+  update(1, 0, {Value::DOUBLE(3), Value::INT64(8)}, Value::DOUBLE(4));
+  // Removing a vertex also deletes incident edges outside the edge-WAL path.
+  RemoveVertexRedo::Serialize(arc, "software", Value::INT64(1));
+  replay();
+  InsertVertexRedo::Serialize(
+      arc, "software", Value::INT64(1),
+      {Value::STRING("replacement"), Value::STRING("C++")});
+  replay();
+  InsertEdgeRedo::Serialize(arc, "person", Value::INT64(1), "software",
+                            Value::INT64(1), "created",
+                            {Value::DOUBLE(5), Value::INT64(9)});
+  replay();
+  update(1, 0, {Value::DOUBLE(5), Value::INT64(9)}, Value::DOUBLE(6));
+  index.Clear();  // Same boundary used by NeugDB::ingestWals.
+  graph->Compact();
+  update(1, 1, {Value::DOUBLE(6), Value::INT64(9)}, Value::INT64(10));
+  update(2, 0, {Value::DOUBLE(0.7), Value::INT64(7)}, Value::DOUBLE(11));
+  snapshot.release();
+  db.Close();
+}
+
+TEST_F(MvccInsertTransactionTest,
+       ReplayEdgeIndexHandlesSingleSlotReuseAndOneDirection) {
+  using namespace neug;
+  NeugDB db;
+  db.Open(db_dir);
+  SnapshotGuard snapshot(db.graph_snapshot_store());
+  Allocator alloc(MemoryLevel::kInMemory, "");
+  for (bool incoming_only : {false, true}) {
+    auto graph = snapshot.get().mutable_graph()->Clone();
+    RecoveryEdgeIndex index;
+    timestamp_t ts = 1;
+    InArchive arc;
+    auto replay = [&] {
+      ReplayCowGraphWal(*graph, ts++, arc.GetBuffer(), arc.GetSize(), alloc,
+                        &index);
+      arc.Clear();
+    };
+    CreateEdgeTypeParamBuilder builder;
+    CreateEdgeTypeRedo::Serialize(
+        arc, builder.SrcLabel("person")
+                 .DstLabel("software")
+                 .EdgeLabel("single")
+                 .Properties({{"weight", Value::DOUBLE(0)}})
+                 .OEEdgeStrategy(incoming_only ? EdgeStrategy::kNone
+                                               : EdgeStrategy::kSingle)
+                 .IEEdgeStrategy(EdgeStrategy::kSingle)
+                 .Build());
+    replay();
+    for (int i = 0; i < 32; ++i) {
+      InsertEdgeRedo::Serialize(arc, "person", Value::INT64(1), "software",
+                                Value::INT64(1), "single", {Value::DOUBLE(i)});
+      replay();
+      std::vector<Value> before{Value::DOUBLE(i)};
+      if (!incoming_only) {
+        UpdateEdgePropRedo::Serialize(
+            arc, "person", Value::INT64(1), "software", Value::INT64(1),
+            "single", 999999, 999999, 0, Value::DOUBLE(i + 100), &before);
+        replay();
+        before = {Value::DOUBLE(i + 100)};
+      }
+      RemoveEdgeRedo::Serialize(arc, "person", Value::INT64(1), "software",
+                                Value::INT64(1), "single", 999999, 999999,
+                                &before);
+      replay();
+    }
+    EXPECT_LE(index.slot_visits(), 8u * 32);
+  }
+  snapshot.release();
+  db.Close();
+}
 
 TEST_F(MvccInsertTransactionTest, MvccInsertTransactionBasic) {
   neug::NeugDB db;

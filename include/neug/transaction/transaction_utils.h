@@ -17,6 +17,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <functional>
+#include <memory>
 #include <string>
 #include <vector>
 
@@ -98,7 +99,30 @@ Status deleteVertexIndexData(PropertyGraph& graph, label_t label,
                              const std::vector<vid_t>& vids,
                              const IndexDetachFn& detach_index = nullptr);
 
+// Recovery-only index. Stores offsets, never pointers into graph buffers, and
+// survives append/growth and graph clones. Clear after compaction or schema
+// changes that alter edge layout. One instance belongs to one recovery run.
+class NEUG_API RecoveryEdgeIndex {
+ public:
+  RecoveryEdgeIndex();
+  ~RecoveryEdgeIndex();
+  std::pair<int32_t, int32_t> Resolve(size_t table_id, const EdgeTable& table,
+                                      vid_t src, vid_t dst, timestamp_t ts,
+                                      const std::vector<Value>& before);
+  void Refresh(size_t table_id, const EdgeTable& table, vid_t src, vid_t dst,
+               int32_t outgoing, int32_t incoming, timestamp_t ts);
+  void InvalidateTable(size_t table_id);
+  void Clear();
+  // Cumulative raw-slot visits, including index construction and maintenance.
+  size_t slot_visits() const;
+
+ private:
+  struct Impl;
+  std::unique_ptr<Impl> impl_;
+};
+
 void ReplayCowGraphWal(PropertyGraph& graph, uint32_t timestamp, char* data,
-                       size_t length, Allocator& alloc);
+                       size_t length, Allocator& alloc,
+                       RecoveryEdgeIndex* edge_index = nullptr);
 
 }  // namespace neug

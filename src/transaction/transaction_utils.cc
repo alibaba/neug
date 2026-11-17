@@ -18,8 +18,11 @@
 #include <glog/logging.h>
 
 #include <algorithm>
+#include <array>
 #include <string>
 #include <tuple>
+#include <unordered_map>
+#include <unordered_set>
 #include <utility>
 #include <vector>
 
@@ -54,59 +57,166 @@ std::string EncodeEdgeValues(const std::vector<Value>& values) {
   return std::string(arc.GetBuffer(), arc.GetSize());
 }
 
-int32_t RawEdgeOffset(const NbrList& edges, const NbrIterator& it) {
-  return (static_cast<const char*>(it.cur) -
-          static_cast<const char*>(edges.start_ptr)) /
-         edges.cfg.stride;
+std::string EdgeLookupKey(vid_t neighbor, const std::string& properties) {
+  InArchive arc;
+  arc << neighbor;
+  std::string key(arc.GetBuffer(), arc.GetSize());
+  key += properties;
+  return key;
 }
+}  // namespace
 
-std::pair<int32_t, int32_t> ResolveEdgeBeforeImage(
-    const EdgeTable& table, vid_t src, vid_t dst, timestamp_t ts,
-    const std::vector<Value>& before) {
+struct RecoveryEdgeIndex::Impl {
+  struct Slot {
+    std::string key;
+    size_t row;
+  };
+  struct Adjacency {
+    size_t scanned = 0;
+    std::unordered_map<std::string, std::unordered_set<int32_t>> candidates;
+    std::unordered_map<int32_t, Slot> slots;
+    std::unordered_map<size_t, int32_t> rows;
+
+    void Erase(int32_t offset) {
+      auto it = slots.find(offset);
+      if (it == slots.end()) {
+        return;
+      }
+      auto bucket = candidates.find(it->second.key);
+      bucket->second.erase(offset);
+      if (bucket->second.empty()) {
+        candidates.erase(bucket);
+      }
+      rows.erase(it->second.row);
+      slots.erase(it);
+    }
+    int32_t Find(const std::string& key) const {
+      auto it = candidates.find(key);
+      if (it == candidates.end()) {
+        THROW_STORAGE_EXCEPTION("WAL edge before-image not found");
+      }
+      return *it->second.begin();
+    }
+  };
+  using Table = std::array<std::unordered_map<vid_t, Adjacency>, 2>;
+  std::unordered_map<size_t, Table> tables;
+  size_t visits = 0;
+
+  static size_t Size(const NbrList& edges) {
+    if (edges.empty()) {
+      return 0;
+    }
+    return (static_cast<const char*>(edges.end_ptr) -
+            static_cast<const char*>(edges.start_ptr)) /
+           edges.cfg.stride;
+  }
+
+  void ReadSlot(Adjacency& index, const EdgeTable& table, const NbrList& edges,
+                int32_t offset) {
+    ++visits;
+    index.Erase(offset);
+    NbrIterator it;
+    // Do not call begin(): it may rescan a long prefix of tombstones.
+    it.cur = static_cast<const char*>(edges.start_ptr) +
+             static_cast<size_t>(offset) * edges.cfg.stride;
+    it.end = edges.end_ptr;
+    it.cfg = edges.cfg;
+    it.timestamp = edges.timestamp;
+    if (it.get_vertex() == INVALID_VID ||
+        (it.cfg.ts_offset != 0 && (it.get_timestamp() == INVALID_TIMESTAMP ||
+                                   it.get_timestamp() > edges.timestamp))) {
+      return;
+    }
+    auto key =
+        EdgeLookupKey(it.get_vertex(), EncodeEdgeValues(EdgeValues(table, it)));
+    size_t row = table.get_edge_schema_ptr()->is_bundled()
+                     ? static_cast<size_t>(offset)
+                     : *static_cast<const size_t*>(it.get_data_ptr());
+    index.candidates[key].insert(offset);
+    index.rows[row] = offset;
+    index.slots.emplace(offset, Slot{std::move(key), row});
+  }
+
+  Adjacency& Sync(size_t id, const EdgeTable& table, bool incoming,
+                  vid_t vertex, timestamp_t ts) {
+    auto& index = tables[id][incoming][vertex];
+    auto edges = incoming ? table.get_incoming_view(ts).get_edges(vertex)
+                          : table.get_outgoing_view(ts).get_edges(vertex);
+    auto strategy = incoming ? table.get_edge_schema_ptr()->ie_strategy
+                             : table.get_edge_schema_ptr()->oe_strategy;
+    const size_t size = Size(edges);
+    // Single CSR can reuse slot zero after deletion. Re-reading it is O(1).
+    if (strategy == EdgeStrategy::kSingle || size < index.scanned) {
+      index = Adjacency{};
+    }
+    // Multiple CSR appends preserve offsets, including across buffer growth
+    // and graph clones. Index only the tail added by intervening insert WALs.
+    for (size_t offset = index.scanned; offset < size; ++offset) {
+      ReadSlot(index, table, edges, static_cast<int32_t>(offset));
+    }
+    index.scanned = size;
+    return index;
+  }
+};
+
+RecoveryEdgeIndex::RecoveryEdgeIndex() : impl_(std::make_unique<Impl>()) {}
+RecoveryEdgeIndex::~RecoveryEdgeIndex() = default;
+void RecoveryEdgeIndex::Clear() { impl_->tables.clear(); }
+void RecoveryEdgeIndex::InvalidateTable(size_t table_id) {
+  impl_->tables.erase(table_id);
+}
+size_t RecoveryEdgeIndex::slot_visits() const { return impl_->visits; }
+
+std::pair<int32_t, int32_t> RecoveryEdgeIndex::Resolve(
+    size_t table_id, const EdgeTable& table, vid_t src, vid_t dst,
+    timestamp_t ts, const std::vector<Value>& before) {
   const auto& meta = *table.get_edge_schema_ptr();
   auto encoded = EncodeEdgeValues(before);
   int32_t outgoing = INVALID_EDGE_OFFSET, incoming = INVALID_EDGE_OFFSET;
   size_t row = 0;
   if (meta.oe_strategy != EdgeStrategy::kNone) {
-    auto edges = table.get_outgoing_view(ts).get_edges(src);
-    for (auto it = edges.begin(); it != edges.end(); ++it) {
-      if (it.get_vertex() == dst &&
-          EncodeEdgeValues(EdgeValues(table, it)) == encoded) {
-        outgoing = RawEdgeOffset(edges, it);
-        if (!meta.is_bundled()) {
-          row = *static_cast<const size_t*>(it.get_data_ptr());
-        }
-        break;
-      }
-    }
-    if (outgoing < 0) {
-      THROW_STORAGE_EXCEPTION("WAL outgoing edge before-image not found");
-    }
+    auto& index = impl_->Sync(table_id, table, false, src, ts);
+    outgoing = index.Find(EdgeLookupKey(dst, encoded));
+    row = index.slots.at(outgoing).row;
   }
   if (meta.ie_strategy != EdgeStrategy::kNone) {
-    auto edges = table.get_incoming_view(ts).get_edges(dst);
-    for (auto it = edges.begin(); it != edges.end(); ++it) {
-      if (it.get_vertex() != src) {
-        continue;
+    auto& index = impl_->Sync(table_id, table, true, dst, ts);
+    if (!meta.is_bundled() && outgoing >= 0) {
+      auto it = index.rows.find(row);
+      if (it == index.rows.end() ||
+          index.slots.at(it->second).key != EdgeLookupKey(src, encoded)) {
+        THROW_STORAGE_EXCEPTION("WAL incoming edge before-image not found");
       }
-      // Unbundled directions must refer to the same property row, including
-      // when several parallel edges have identical property values.
-      const bool matches =
-          !meta.is_bundled() && outgoing >= 0
-              ? *static_cast<const size_t*>(it.get_data_ptr()) == row
-              : EncodeEdgeValues(EdgeValues(table, it)) == encoded;
-      if (matches) {
-        incoming = RawEdgeOffset(edges, it);
-        break;
-      }
-    }
-    if (incoming < 0) {
-      THROW_STORAGE_EXCEPTION("WAL incoming edge before-image not found");
+      incoming = it->second;
+    } else {
+      incoming = index.Find(EdgeLookupKey(src, encoded));
     }
   }
   return {outgoing, incoming};
 }
-}  // namespace
+
+void RecoveryEdgeIndex::Refresh(size_t table_id, const EdgeTable& table,
+                                vid_t src, vid_t dst, int32_t outgoing,
+                                int32_t incoming, timestamp_t ts) {
+  auto found = impl_->tables.find(table_id);
+  if (found == impl_->tables.end()) {
+    return;
+  }
+  for (int direction = 0; direction < 2; ++direction) {
+    auto vertex = direction ? dst : src;
+    auto offset = direction ? incoming : outgoing;
+    auto& adjacencies = found->second[direction];
+    auto it = adjacencies.find(vertex);
+    if (offset < 0 || it == adjacencies.end()) {
+      continue;
+    }
+    auto edges = direction ? table.get_incoming_view(ts).get_edges(vertex)
+                           : table.get_outgoing_view(ts).get_edges(vertex);
+    if (static_cast<size_t>(offset) < Impl::Size(edges)) {
+      impl_->ReadSlot(it->second, table, edges, offset);
+    }
+  }
+}
 
 std::vector<Value> EdgeBeforeImage(const EdgeTable& table, vid_t src, vid_t dst,
                                    int32_t oe_offset, int32_t ie_offset,
@@ -120,7 +230,7 @@ std::vector<Value> EdgeBeforeImage(const EdgeTable& table, vid_t src, vid_t dst,
       offset < (static_cast<const char*>(edges.end_ptr) -
                 static_cast<const char*>(edges.start_ptr)) /
                    edges.cfg.stride) {
-    auto it = edges.begin();
+    auto it = edges.end();
     it.cur = static_cast<const char*>(edges.start_ptr) +
              static_cast<size_t>(offset) * edges.cfg.stride;
     if ((it.cfg.ts_offset == 0 || it.get_timestamp() <= ts) &&
@@ -252,12 +362,29 @@ Status deleteVertexIndexData(PropertyGraph& graph, label_t label,
 }
 
 void ReplayCowGraphWal(PropertyGraph& graph, uint32_t timestamp, char* data,
-                       size_t length, Allocator& alloc) {
+                       size_t length, Allocator& alloc,
+                       RecoveryEdgeIndex* edge_index) {
+  RecoveryEdgeIndex local_index;
+  auto& recovery_index = edge_index ? *edge_index : local_index;
   OutArchive arc;
   arc.SetSlice(data, length);
   while (!arc.Empty()) {
     OpType op_type;
     arc >> op_type;
+    // Schema changes can renumber tables or change property encodings/layout.
+    switch (op_type) {
+    case OpType::kCreateVertexType:
+    case OpType::kCreateEdgeType:
+    case OpType::kDeleteVertexType:
+    case OpType::kDeleteEdgeType:
+    case OpType::kAddEdgeProp:
+    case OpType::kDeleteEdgeProp:
+    case OpType::kRenameEdgeProp:
+      recovery_index.Clear();
+      break;
+    default:
+      break;
+    }
     if (op_type == OpType::kCreateVertexType) {
       CreateVertexTypeParam redo = CreateVertexTypeRedo::Deserialize(arc);
       graph.MarkSchemaDirty();
@@ -378,7 +505,7 @@ void ReplayCowGraphWal(PropertyGraph& graph, uint32_t timestamp, char* data,
         auto index =
             schema.generate_edge_label(src_label, dst_label, edge_label);
         std::tie(redo.oe_offset, redo.ie_offset) =
-            ResolveEdgeBeforeImage(graph.get_edge_table_by_index(index),
+            recovery_index.Resolve(index, graph.get_edge_table_by_index(index),
                                    src_vid, dst_vid, timestamp, before);
       }
       graph.MarkEdgeTableDirty(src_label, dst_label, edge_label);
@@ -387,6 +514,11 @@ void ReplayCowGraphWal(PropertyGraph& graph, uint32_t timestamp, char* data,
           redo.ie_offset, redo.prop_id, redo.value, timestamp);
       THROW_STORAGE_EXCEPTION_STATUS("Failed to update edge property in redo: ",
                                      ret);
+      auto table_id =
+          schema.generate_edge_label(src_label, dst_label, edge_label);
+      recovery_index.Refresh(table_id, graph.get_edge_table_by_index(table_id),
+                             src_vid, dst_vid, redo.oe_offset, redo.ie_offset,
+                             timestamp);
     } else if (op_type == OpType::kRemoveVertex) {
       RemoveVertexRedo redo;
       arc >> redo;
@@ -398,6 +530,8 @@ void ReplayCowGraphWal(PropertyGraph& graph, uint32_t timestamp, char* data,
       // Cascade: DeleteVertex physically writes incident edge tables.
       for (const auto& [_, es] : graph.schema().get_all_edge_schemas()) {
         if (es->src_label_id == label || es->dst_label_id == label) {
+          recovery_index.InvalidateTable(graph.schema().generate_edge_label(
+              es->src_label_id, es->dst_label_id, es->edge_label_id));
           graph.MarkEdgeTableDirty(es->src_label_id, es->dst_label_id,
                                    es->edge_label_id);
         }
@@ -432,7 +566,7 @@ void ReplayCowGraphWal(PropertyGraph& graph, uint32_t timestamp, char* data,
         auto index =
             schema.generate_edge_label(src_label, dst_label, edge_label);
         std::tie(redo.oe_offset, redo.ie_offset) =
-            ResolveEdgeBeforeImage(graph.get_edge_table_by_index(index),
+            recovery_index.Resolve(index, graph.get_edge_table_by_index(index),
                                    src_vid, dst_vid, timestamp, before);
       }
       graph.MarkEdgeTableDirty(src_label, dst_label, edge_label);
@@ -440,6 +574,11 @@ void ReplayCowGraphWal(PropertyGraph& graph, uint32_t timestamp, char* data,
           graph.DeleteEdge(src_label, src_vid, dst_label, dst_vid, edge_label,
                            redo.oe_offset, redo.ie_offset, timestamp);
       THROW_STORAGE_EXCEPTION_STATUS("Failed to delete edge in redo: ", ret);
+      auto table_id =
+          schema.generate_edge_label(src_label, dst_label, edge_label);
+      recovery_index.Refresh(table_id, graph.get_edge_table_by_index(table_id),
+                             src_vid, dst_vid, redo.oe_offset, redo.ie_offset,
+                             timestamp);
     } else if (op_type == OpType::kAddVertexProp) {
       auto redo = AddVertexPropertiesRedo::Deserialize(arc);
       label_t label = graph.schema().get_vertex_label_id(redo.vertex_type);
