@@ -166,12 +166,14 @@ void FixedSizeAllocator::Free(const IndexPointer ptr) {
   D_ASSERT(total_segment_count > 0);
   total_segment_count--;
 
+  // Register the buffer before checking whether it became empty.
+  buffers_with_free_space.insert(buffer_id);
+  if (!buffer_with_free_space.IsValid()) {
+    buffer_with_free_space = buffer_id;
+  }
+
   // Early-out, if the buffer is not empty.
   if (buffer->segment_count != 0) {
-    buffers_with_free_space.insert(buffer_id);
-    if (!buffer_with_free_space.IsValid()) {
-      buffer_with_free_space = buffer_id;
-    }
     return;
   }
 
