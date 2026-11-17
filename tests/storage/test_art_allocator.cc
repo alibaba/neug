@@ -20,6 +20,7 @@
 
 #include <gtest/gtest.h>
 #include <chrono>
+#include <cstring>
 #include <filesystem>
 #include <memory>
 #include <set>
@@ -87,6 +88,66 @@ TEST_F(ARTAllocatorTest, UpstreamSlotLayout) {
     EXPECT_EQ(usage.node_buffer_bytes + usage.occupancy_bytes,
               FixedSizeBuffer::BUFFER_DATA_SIZE);
   }
+}
+
+TEST_F(ARTAllocatorTest, SegmentSizeBoundariesPreserveBufferBounds) {
+  const idx_t sizes[] = {
+      65531, 131063, 262127,
+      FixedSizeBuffer::BUFFER_DATA_SIZE - sizeof(validity_t)};
+  const idx_t capacities[] = {4, 2, 1, 1};
+  for (size_t i = 0; i < 4; ++i) {
+    SCOPED_TRACE(sizes[i]);
+    FixedSizeAllocator allocator(sizes[i], *checkpoint_);
+    ASSERT_EQ(allocator.GetBufferCapacity(), capacities[i]);
+    std::vector<IndexPointer> nodes;
+    // Fill the first buffer and cross into the next one. Write every byte
+    // so the last slot must fit entirely within its buffer.
+    for (idx_t slot = 0; slot <= capacities[i]; ++slot) {
+      auto node = allocator.New();
+      EXPECT_EQ(node.GetBufferId(), slot == capacities[i] ? 1 : 0);
+      EXPECT_EQ(node.GetOffset(), slot == capacities[i] ? 0 : slot);
+      std::memset(allocator.Get(node), static_cast<int>(slot + 1), sizes[i]);
+      nodes.push_back(node);
+    }
+    EXPECT_EQ(allocator.GetCapacity(), 2 * capacities[i]);
+    EXPECT_EQ(allocator.GetSegmentCount(), nodes.size());
+    for (size_t slot = 0; slot < nodes.size(); ++slot) {
+      std::vector<data_t> expected(sizes[i], static_cast<data_t>(slot + 1));
+      EXPECT_EQ(
+          std::memcmp(allocator.Get(nodes[slot]), expected.data(), sizes[i]),
+          0);
+    }
+  }
+}
+
+TEST_F(ARTAllocatorTest, SingleSlotBuffersFreeAndReuse) {
+  FixedSizeAllocator allocator(131072, *checkpoint_);
+  ASSERT_EQ(allocator.GetBufferCapacity(), 1);
+  auto first = allocator.New();
+  allocator.Free(first);
+  EXPECT_TRUE(allocator.Empty());
+  EXPECT_EQ(allocator.GetSegmentCount(), 0);
+  EXPECT_EQ(allocator.GetCapacity(), 1);
+  EXPECT_EQ(allocator.New(), first);
+
+  auto second = allocator.New();
+  ASSERT_NE(second.GetBufferId(), first.GetBufferId());
+  *allocator.Get<uint64_t>(second) = 123456;
+  EXPECT_EQ(allocator.GetCapacity(), 2);
+  allocator.Free(first);
+  EXPECT_EQ(allocator.GetSegmentCount(), 1);
+  EXPECT_EQ(allocator.New(), first);
+  EXPECT_EQ(*allocator.Get<uint64_t>(second), 123456);
+
+  // Once both buffers are empty, retain only one cached buffer for reuse.
+  allocator.Free(first);
+  allocator.Free(second);
+  EXPECT_TRUE(allocator.Empty());
+  EXPECT_EQ(allocator.GetCapacity(), 1);
+  EXPECT_EQ(allocator.New(), first);
+  allocator.Free(first);
+  allocator.RemoveEmptyBuffers();
+  EXPECT_EQ(allocator.GetCapacity(), 0);
 }
 
 TEST_F(ARTAllocatorTest, AppendPreservesLiveAddresses) {
