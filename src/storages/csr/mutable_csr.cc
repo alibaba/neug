@@ -44,12 +44,12 @@ namespace neug {
 
 #ifdef NEUG_BUILD_TEST
 namespace {
-std::atomic<size_t> insert_undo_slot_visits{0};
+std::atomic<size_t> delete_edge_slot_visits{0};
 }
-void ResetInsertUndoSlotVisitsForTest() { insert_undo_slot_visits.store(0); }
-size_t InsertUndoSlotVisitsForTest() { return insert_undo_slot_visits.load(); }
-void RecordInsertUndoSlotVisitForTest() {
-  insert_undo_slot_visits.fetch_add(1, std::memory_order_relaxed);
+void ResetDeleteEdgeSlotVisitsForTest() { delete_edge_slot_visits.store(0); }
+size_t DeleteEdgeSlotVisitsForTest() { return delete_edge_slot_visits.load(); }
+void RecordDeleteEdgeSlotVisitForTest() {
+  delete_edge_slot_visits.fetch_add(1, std::memory_order_relaxed);
 }
 #endif
 
@@ -418,8 +418,14 @@ template <typename EDATA_T>
 void MutableCsr<EDATA_T>::delete_edge(vid_t src, int32_t offset,
                                       timestamp_t ts) {
   vid_t vnum = static_cast<vid_t>(vertex_capacity());
+  if (src >= vnum || offset < 0) {
+    THROW_INVALID_ARGUMENT_EXCEPTION("src out of bound or offset out of bound");
+  }
+  // Append may replace the buffer. Resolve and delete the slot under the
+  // same lock, so concurrent insertion cannot copy an undeleted old slot.
+  std::lock_guard<SpinLock> lock(locks_[src]);
   auto* sz_arr = reinterpret_cast<std::atomic<int>*>(degree_list_->GetData());
-  if (src >= vnum || offset >= sz_arr[src].load(std::memory_order_relaxed)) {
+  if (offset >= sz_arr[src].load(std::memory_order_relaxed)) {
     THROW_INVALID_ARGUMENT_EXCEPTION("src out of bound or offset out of bound");
   }
   nbr_t* nbrs = reinterpret_cast<nbr_t**>(adj_list_buffer_->GetData())[src];
@@ -427,7 +433,10 @@ void MutableCsr<EDATA_T>::delete_edge(vid_t src, int32_t offset,
     THROW_INVALID_ARGUMENT_EXCEPTION("adjacency buffer is null");
   }
   auto old_ts = nbrs[offset].timestamp.load();
-  if (old_ts <= ts) {
+#ifdef NEUG_BUILD_TEST
+  RecordDeleteEdgeSlotVisitForTest();
+#endif
+  if (old_ts != std::numeric_limits<timestamp_t>::max() && old_ts <= ts) {
     nbrs[offset].timestamp.store(std::numeric_limits<timestamp_t>::max());
     edge_num_.fetch_sub(1, std::memory_order_relaxed);
     unsorted_since_ = 0;
@@ -436,29 +445,6 @@ void MutableCsr<EDATA_T>::delete_edge(vid_t src, int32_t offset,
   } else {
     LOG(ERROR) << "Attempting to delete edge with timestamp " << old_ts
                << " using older timestamp " << ts;
-  }
-}
-
-template <typename EDATA_T>
-void MutableCsr<EDATA_T>::undo_insert_edge(vid_t src, vid_t dst, int32_t offset,
-                                           timestamp_t owner) {
-  if (offset < 0 || src >= vertex_capacity()) {
-    return;
-  }
-  // Serialize with append/growth: marking a stale copied buffer is not undo.
-  std::lock_guard<SpinLock> lock(locks_[src]);
-  auto* sizes = reinterpret_cast<std::atomic<int>*>(degree_list_->GetData());
-  auto* nbrs = reinterpret_cast<nbr_t**>(adj_list_buffer_->GetData())[src];
-  if (offset < sizes[src].load()) {
-#ifdef NEUG_BUILD_TEST
-    RecordInsertUndoSlotVisitForTest();
-#endif
-    auto expected = owner;
-    if (nbrs[offset].neighbor == dst &&
-        nbrs[offset].timestamp.compare_exchange_strong(
-            expected, std::numeric_limits<timestamp_t>::max())) {
-      edge_num_.fetch_sub(1, std::memory_order_relaxed);
-    }
   }
 }
 
@@ -718,6 +704,7 @@ void SingleMutableCsr<EDATA_T>::batch_delete_edges(
 template <typename EDATA_T>
 void SingleMutableCsr<EDATA_T>::delete_edge(vid_t src, int32_t offset,
                                             timestamp_t ts) {
+  std::lock_guard<SpinLock> lock(insert_lock_);
   if (!nbr_list_) {
     return;
   }
@@ -729,34 +716,20 @@ void SingleMutableCsr<EDATA_T>::delete_edge(vid_t src, int32_t offset,
   }
   nbr_t* data = reinterpret_cast<nbr_t*>(nbr_list_->GetData());
   auto& nbr = data[src];
-  assert(offset == 0);
-  if (nbr.timestamp.load() <= ts) {
+  if (offset != 0) {
+    THROW_INVALID_ARGUMENT_EXCEPTION("offset out of bound");
+  }
+#ifdef NEUG_BUILD_TEST
+  RecordDeleteEdgeSlotVisitForTest();
+#endif
+  const auto old_ts = nbr.timestamp.load();
+  if (old_ts != std::numeric_limits<timestamp_t>::max() && old_ts <= ts) {
     nbr.timestamp.store(std::numeric_limits<timestamp_t>::max());
     edge_num_.fetch_sub(1, std::memory_order_relaxed);
   } else if (nbr.timestamp.load() == std::numeric_limits<timestamp_t>::max()) {
     LOG(ERROR) << "Fail to delete edge, already deleted.";
   } else {
     LOG(ERROR) << "Fail to delete edge, timestamp not satisfied.";
-  }
-}
-
-template <typename EDATA_T>
-void SingleMutableCsr<EDATA_T>::undo_insert_edge(vid_t src, vid_t dst,
-                                                 int32_t offset,
-                                                 timestamp_t owner) {
-  if (offset != 0 || src >= vertex_capacity()) {
-    return;
-  }
-  std::lock_guard<SpinLock> lock(insert_lock_);
-  auto& nbr = reinterpret_cast<nbr_t*>(nbr_list_->GetData())[src];
-#ifdef NEUG_BUILD_TEST
-  RecordInsertUndoSlotVisitForTest();
-#endif
-  auto expected = owner;
-  if (nbr.timestamp.load() == owner && nbr.neighbor == dst &&
-      nbr.timestamp.compare_exchange_strong(
-          expected, std::numeric_limits<timestamp_t>::max())) {
-    edge_num_.fetch_sub(1, std::memory_order_relaxed);
   }
 }
 

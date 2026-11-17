@@ -329,14 +329,22 @@ void MvccInsertTransaction::ApplyInserts() {
 
 void MvccInsertTransaction::RollbackInserts() noexcept {
   try {
+    auto& graph = *guard_.get().mutable_graph();
     // Do not make vertex slots reusable until both CSR directions are clean.
+    // Insert admission excludes update/compaction until cleanup completes.
+    // Each journal entry owns its recorded slots until this deletion; never
+    // replay a journal after releasing those slots for reuse.
     for (auto it = edge_undo_.rbegin(); it != edge_undo_.rend(); ++it) {
-      view_->UndoInsertedEdges(it->src_label, it->src, it->dst_label, it->dst,
-                               it->edge_label, timestamp_, it->offsets);
+      graph.get_edge_table(it->src_label, it->dst_label, it->edge_label)
+          .DeleteEdge(it->src, it->dst, it->offsets.outgoing,
+                      it->offsets.incoming, timestamp_);
     }
     edge_undo_.clear();
     for (auto it = vertex_undo_.rbegin(); it != vertex_undo_.rend(); ++it) {
-      view_->UndoInsertedVertex(it->label, it->vid, timestamp_);
+      if (it->vid != INVALID_VID) {
+        // Edges were already removed above; avoid graph-level cascade delete.
+        graph.get_vertex_table(it->label).DeleteVertex(it->vid, timestamp_);
+      }
     }
     vertex_undo_.clear();
   } catch (...) {

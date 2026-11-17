@@ -29,17 +29,20 @@
 
 namespace neug {
 
+// No adjacency slot was stored for this direction.
+inline constexpr int32_t INVALID_EDGE_OFFSET = -1;
+
 // Transaction-local positions, valid while insert admission excludes slot
 // reordering. Never retain a buffer pointer across adjacency growth.
 struct EdgeInsertOffsets {
-  int32_t incoming = -1;
-  int32_t outgoing = -1;
+  int32_t incoming = INVALID_EDGE_OFFSET;
+  int32_t outgoing = INVALID_EDGE_OFFSET;
 };
 
 #ifdef NEUG_BUILD_TEST
-NEUG_API void ResetInsertUndoSlotVisitsForTest();
-NEUG_API size_t InsertUndoSlotVisitsForTest();
-NEUG_API void RecordInsertUndoSlotVisitForTest();
+NEUG_API void ResetDeleteEdgeSlotVisitsForTest();
+NEUG_API size_t DeleteEdgeSlotVisitsForTest();
+NEUG_API void RecordDeleteEdgeSlotVisitForTest();
 #endif
 
 // CsrType is defined in csr_view.h to avoid a csr_base <-> csr_view
@@ -88,11 +91,6 @@ class CsrBase : public Module {
                                   const std::vector<vid_t>& dst_list) = 0;
 
   virtual void delete_edge(vid_t src, int32_t offset, timestamp_t ts) = 0;
-
-  // Undo one owned slot. A negative offset means this direction was not
-  // written.
-  virtual void undo_insert_edge(vid_t src, vid_t dst, int32_t offset,
-                                timestamp_t owner) {}
 
   virtual void revert_delete_edge(vid_t src, vid_t nbr, int32_t offset,
                                   timestamp_t ts) = 0;

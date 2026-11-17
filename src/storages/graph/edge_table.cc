@@ -589,8 +589,13 @@ void EdgeTable::BatchDeleteEdges(
 
 void EdgeTable::DeleteEdge(vid_t src_lid, vid_t dst_lid, int32_t oe_offset,
                            int32_t ie_offset, timestamp_t ts) {
-  out_csr_->delete_edge(src_lid, oe_offset, ts);
-  in_csr_->delete_edge(dst_lid, ie_offset, ts);
+  // Skip a direction that was not stored or not yet inserted.
+  if (oe_offset != INVALID_EDGE_OFFSET) {
+    out_csr_->delete_edge(src_lid, oe_offset, ts);
+  }
+  if (ie_offset != INVALID_EDGE_OFFSET) {
+    in_csr_->delete_edge(dst_lid, ie_offset, ts);
+  }
 }
 
 void EdgeTable::DeleteVertex(bool is_src, vid_t vid, timestamp_t ts) {

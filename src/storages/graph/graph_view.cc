@@ -95,29 +95,6 @@ bool VertexTableView::get_insert_lid(const Value& oid, vid_t& lid,
                                            v_ts_->IsInsertedBy(lid, owner));
 }
 
-void VertexTableView::UndoInsertedVertex(vid_t vid, timestamp_t owner) {
-  if (vid != INVALID_VID) {
-    v_ts_->UndoInsert(vid, owner);
-  }
-}
-
-void EdgeTableView::UndoInsertedEdges(vid_t src, vid_t dst, timestamp_t owner,
-                                      const EdgeInsertOffsets& offsets) {
-  in_csr_->undo_insert_edge(dst, src, offsets.incoming, owner);
-  out_csr_->undo_insert_edge(src, dst, offsets.outgoing, owner);
-}
-
-void GraphView::UndoInsertedEdges(label_t src_label, vid_t src,
-                                  label_t dst_label, vid_t dst,
-                                  label_t edge_label, timestamp_t owner,
-                                  const EdgeInsertOffsets& offsets) {
-  auto index = schema_->generate_edge_label(src_label, dst_label, edge_label);
-  auto it = edge_views_.find(index);
-  if (it != edge_views_.end()) {
-    it->second.UndoInsertedEdges(src, dst, owner, offsets);
-  }
-}
-
 size_t VertexTableView::VertexNum() const {
   return v_ts_->ValidVertexNum(MAX_TIMESTAMP, indexer_->size());
 }

@@ -104,9 +104,6 @@ class MutableCsr : public TypedCsrBase<EDATA_T> {
 
   void delete_edge(vid_t src, int32_t offset, timestamp_t ts) override;
 
-  void undo_insert_edge(vid_t src, vid_t dst, int32_t offset,
-                        timestamp_t owner) override;
-
   void revert_delete_edge(vid_t src, vid_t nbr, int32_t offset,
                           timestamp_t ts) override;
 
@@ -223,7 +220,7 @@ class MutableCsr : public TypedCsrBase<EDATA_T> {
     cow_clone->degree_list_ = degree_list_;
     cow_clone->cap_list_ = cap_list_;
     cow_clone->nbr_list_ = nbr_list_;
-    cow_clone->unsorted_since_ = unsorted_since_;
+    cow_clone->unsorted_since_ = unsorted_since_.load();
     cow_clone->edge_num_ = edge_num_.load();
     return cow_clone;
   }
@@ -252,7 +249,7 @@ class MutableCsr : public TypedCsrBase<EDATA_T> {
   std::shared_ptr<IDataContainer> degree_list_;
   std::shared_ptr<IDataContainer> cap_list_;
   std::shared_ptr<IDataContainer> nbr_list_;
-  timestamp_t unsorted_since_;
+  std::atomic<timestamp_t> unsorted_since_;
   std::atomic<uint64_t> edge_num_{0};
   CsrPrefetchPolicy prefetch_policy_;
 
@@ -320,9 +317,6 @@ class SingleMutableCsr : public TypedCsrBase<EDATA_T> {
       const std::vector<std::pair<vid_t, int32_t>>& edges) override;
 
   void delete_edge(vid_t src, int32_t offset, timestamp_t ts) override;
-
-  void undo_insert_edge(vid_t src, vid_t dst, int32_t offset,
-                        timestamp_t owner) override;
 
   void revert_delete_edge(vid_t src, vid_t nbr, int32_t offset,
                           timestamp_t ts) override;

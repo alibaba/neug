@@ -65,7 +65,7 @@ std::pair<int32_t, int32_t> ResolveEdgeBeforeImage(
     const std::vector<Value>& before) {
   const auto& meta = *table.get_edge_schema_ptr();
   auto encoded = EncodeEdgeValues(before);
-  int32_t outgoing = -1, incoming = -1;
+  int32_t outgoing = INVALID_EDGE_OFFSET, incoming = INVALID_EDGE_OFFSET;
   size_t row = 0;
   if (meta.oe_strategy != EdgeStrategy::kNone) {
     auto edges = table.get_outgoing_view(ts).get_edges(src);

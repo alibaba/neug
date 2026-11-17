@@ -549,12 +549,177 @@ TEST_F(MvccInsertTransactionTest, WalRejectionUndoesParallelEdgesThenVertices) {
                              {Value::STRING("replacement"), Value::INT64(30)},
                              added));
   ASSERT_TRUE(next.Commit());
-  // A stale/repeated undo must not remove the reused VID.
-  view.UndoInsertedVertex(person, added, ts);
+  // Repeated transaction Abort has no remaining journal entries, even after
+  // another transaction has reused the VID.
+  txn.Abort();
   EXPECT_TRUE(view.get_lid(person, Value::INT64(3), added, next_ts));
   EXPECT_EQ(view.VertexNum(person), 3u);
   observer.release();
   db.Close();  // CSR allocation buffers must outlive shutdown checkpointing.
+}
+
+TEST_F(MvccInsertTransactionTest,
+       RepeatedAbortPreservesVidReusedByEarlierTimestamp) {
+  using namespace neug;
+  NeugDB db;
+  NeugDBConfig config(db_dir);
+  config.memory_level = MemoryLevel::kInMemory;
+  db.Open(config);
+  VersionManager vm;
+  vm.init_ts({0, 0}, 4);
+  Allocator alloc(MemoryLevel::kInMemory, "");
+  InsertTestWalWriter replacement_writer, failed_writer;
+  SnapshotGuard observer(db.graph_snapshot_store());
+  auto& view = observer.get().mutable_view();
+  const auto person = view.schema().get_vertex_label_id("person");
+  const auto initial_count = view.VertexNum(person);
+  const auto initial_slots = view.LidNum(person);
+
+  // Reservation order differs from apply order. A stale delete using <= ts
+  // would accept the replacement's earlier timestamp.
+  const auto replacement_ts = vm.acquire_insert_timestamp();
+  MvccInsertTransaction replacement(SnapshotGuard(db.graph_snapshot_store()),
+                                    alloc, replacement_writer, vm,
+                                    replacement_ts);
+  const auto failed_ts = vm.acquire_insert_timestamp();
+  MvccInsertTransaction failed(SnapshotGuard(db.graph_snapshot_store()), alloc,
+                               failed_writer, vm, failed_ts);
+  ASSERT_LT(replacement_ts, failed_ts);
+  vid_t provisional;
+  ASSERT_TRUE(replacement.AddVertex(
+      person, Value::INT64(100),
+      {Value::STRING("replacement"), Value::INT64(30)}, provisional));
+  ASSERT_TRUE(failed.AddVertex(person, Value::INT64(100),
+                               {Value::STRING("failed"), Value::INT64(20)},
+                               provisional));
+  vid_t failed_vid = INVALID_VID;
+  failed_writer.on_append = [&] {
+    EXPECT_TRUE(view.get_lid(person, Value::INT64(100), failed_vid, failed_ts));
+    EXPECT_EQ(view.VertexNum(person), initial_count + 1);
+    return false;
+  };
+  ASSERT_FALSE(failed.Commit());
+  ASSERT_EQ(failed_writer.calls,
+            1u);  // The insertion actually reached storage.
+  ASSERT_NE(failed_vid, INVALID_VID);
+  ASSERT_EQ(view.VertexNum(person), initial_count);
+  EXPECT_EQ(vm.insert_read_timestamp(), 0u);
+
+  ASSERT_TRUE(replacement.Commit());
+  ASSERT_EQ(replacement_writer.calls, 1u);
+  vid_t replacement_vid = INVALID_VID;
+  ASSERT_TRUE(
+      view.get_lid(person, Value::INT64(100), replacement_vid, replacement_ts));
+  ASSERT_EQ(replacement_vid, failed_vid);  // Real reuse, not another VID.
+  ASSERT_EQ(view.LidNum(person), initial_slots + 1);
+  for (int i = 0; i < 3; ++i) {
+    failed.Abort();
+  }
+  EXPECT_TRUE(view.IsValidLid(person, replacement_vid, replacement_ts));
+  EXPECT_EQ(view.VertexNum(person), initial_count + 1);
+  EXPECT_EQ(view.GetVertexPropertyColumn(person, 0)
+                ->get_any(replacement_vid)
+                .GetValue<std::string>(),
+            "replacement");
+  size_t visible = 0;
+  for (auto vid : view.GetVertexSet(person, vm.insert_read_timestamp())) {
+    (void) vid;
+    ++visible;
+  }
+  EXPECT_EQ(visible, initial_count + 1);
+  observer.release();
+  db.Close();
+}
+
+TEST_F(MvccInsertTransactionTest, RepeatedAbortPreservesReusedSingleEdgeSlots) {
+  using namespace neug;
+  NeugDB db;
+  NeugDBConfig config(db_dir);
+  config.memory_level = MemoryLevel::kInMemory;
+  config.checkpoint_on_close = true;
+  db.Open(config);
+  {
+    auto svc = std::make_shared<NeugDBService>(db);
+    auto slot = svc->AcquireExecutionSlot();
+    auto txn = slot->BeginSnapshotCowWriteTransaction();
+    auto storage = txn.OpenStorage();
+    ASSERT_TRUE(
+        storage.CreateEdgeType(CreateEdgeTypeParamBuilder()
+                                   .SrcLabel("person")
+                                   .DstLabel("person")
+                                   .EdgeLabel("single_link")
+                                   .Properties({{"weight", Value::DOUBLE(0)}})
+                                   .OEEdgeStrategy(EdgeStrategy::kSingle)
+                                   .IEEdgeStrategy(EdgeStrategy::kSingle)
+                                   .Build()));
+    ASSERT_TRUE(txn.Commit());
+  }
+  db.Close();
+  db.Open(config);
+  VersionManager vm;
+  vm.init_ts({0, 0}, 4);
+  Allocator alloc(MemoryLevel::kInMemory, "");
+  InsertTestWalWriter replacement_writer, failed_writer;
+  SnapshotGuard observer(db.graph_snapshot_store());
+  auto& view = observer.get().mutable_view();
+  const auto person = view.schema().get_vertex_label_id("person");
+  const auto edge = view.schema().get_edge_label_id("single_link");
+  auto& table =
+      observer.get().mutable_graph()->get_edge_table(person, person, edge);
+  const auto replacement_ts = vm.acquire_insert_timestamp();
+  MvccInsertTransaction replacement(SnapshotGuard(db.graph_snapshot_store()),
+                                    alloc, replacement_writer, vm,
+                                    replacement_ts);
+  const auto failed_ts = vm.acquire_insert_timestamp();
+  MvccInsertTransaction failed(SnapshotGuard(db.graph_snapshot_store()), alloc,
+                               failed_writer, vm, failed_ts);
+  ASSERT_LT(replacement_ts, failed_ts);
+  vid_t src, dst;
+  ASSERT_TRUE(failed.GetVertexIndex(person, Value::INT64(1), src));
+  ASSERT_TRUE(failed.GetVertexIndex(person, Value::INT64(2), dst));
+  const void* prop = nullptr;
+  ASSERT_TRUE(replacement.AddEdge(person, src, person, dst, edge,
+                                  {Value::DOUBLE(20)}, prop));
+  ASSERT_TRUE(failed.AddEdge(person, src, person, dst, edge,
+                             {Value::DOUBLE(10)}, prop));
+  auto check_edge = [&](timestamp_t ts, double weight) {
+    EXPECT_EQ(table.EdgeNum(), 1u);
+    for (bool incoming : {false, true}) {
+      auto edges = incoming ? table.get_incoming_view(ts).get_edges(dst)
+                            : table.get_outgoing_view(ts).get_edges(src);
+      auto it = edges.begin();
+      ASSERT_TRUE(it != edges.end());
+      // Both single CSRs use offset zero, including after reuse.
+      EXPECT_EQ(it.cur, edges.start_ptr);
+      EXPECT_EQ(it.get_vertex(), incoming ? src : dst);
+      EXPECT_EQ(it.get_timestamp(), ts);
+      EXPECT_EQ(table.get_edge_data_accessor(0).get_data(it).GetValue<double>(),
+                weight);
+      ++it;
+      EXPECT_TRUE(it == edges.end());
+    }
+  };
+  failed_writer.on_append = [&] {
+    check_edge(failed_ts, 10);
+    return false;
+  };
+  ASSERT_FALSE(failed.Commit());
+  ASSERT_EQ(failed_writer.calls, 1u);
+  ASSERT_EQ(table.EdgeNum(), 0u);
+  for (bool incoming : {false, true}) {
+    auto edges = incoming ? table.get_incoming_view(failed_ts).get_edges(dst)
+                          : table.get_outgoing_view(failed_ts).get_edges(src);
+    EXPECT_TRUE(edges.begin() == edges.end());
+  }
+  ASSERT_TRUE(replacement.Commit());
+  ASSERT_EQ(replacement_writer.calls, 1u);
+  check_edge(replacement_ts, 20);
+  for (int i = 0; i < 3; ++i) {
+    failed.Abort();
+    check_edge(replacement_ts, 20);
+  }
+  observer.release();
+  db.Close();
 }
 
 TEST_F(MvccInsertTransactionTest, EdgeUndoVisitsOnlyInsertedSlots) {
@@ -591,12 +756,12 @@ TEST_F(MvccInsertTransactionTest, EdgeUndoVisitsOnlyInsertedSlots) {
       }
       writer.on_append = [&] {
         EXPECT_EQ(view.EdgeNum(person, person, knows), initial_edges + n);
-        ResetInsertUndoSlotVisitsForTest();
+        ResetDeleteEdgeSlotVisitsForTest();
         return false;
       };
       EXPECT_FALSE(txn.Commit());
       ASSERT_EQ(writer.calls, 1u);  // Must reach apply, not capacity retry.
-      EXPECT_EQ(InsertUndoSlotVisitsForTest(), 2u * n);
+      EXPECT_EQ(DeleteEdgeSlotVisitsForTest(), 2u * n);
       EXPECT_EQ(view.EdgeNum(person, person, knows), initial_edges);
       EXPECT_EQ(view.VertexNum(person), 2u);
       for (bool incoming : {false, true}) {

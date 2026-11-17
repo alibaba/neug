@@ -165,6 +165,7 @@ class NEUG_API EdgeTable {
   void DeleteProperties(Checkpoint& ckp,
                         const std::vector<std::string>& col_names);
 
+  // INVALID_EDGE_OFFSET skips a direction not stored or not yet inserted.
   void DeleteEdge(vid_t src_lid, vid_t dst_lid, int32_t oe_offset,
                   int32_t ie_offset, timestamp_t ts);
 
