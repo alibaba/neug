@@ -52,7 +52,7 @@ def test_call_echo_param(tmp_path):
         )
         assert rows == [["hello-from-params"]]
 
-        with pytest.raises(Exception, match="Missing parameter"):
+        with pytest.raises(Exception, match=r"Missing (query )?parameter"):
             list(
                 conn.execute(
                     "CALL TEST_ECHO_PARAM($param) RETURN value;",
