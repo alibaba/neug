@@ -31,6 +31,8 @@ struct MemoryUsage {
   size_t occupancy_bytes = 0;
   size_t free_slots_bytes = 0;
   size_t directory_bytes = 0;
+  // Total memory requested by the ART index, excluding additional overhead
+  // introduced by the underlying allocator's size-rounding policy.
   size_t TotalBytes() const;
   MemoryUsage& operator+=(const MemoryUsage& other);
 };

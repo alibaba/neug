@@ -69,6 +69,8 @@ class FixedSizeAllocator {
   void Load(Checkpoint& checkpoint,
             const vector<ARTBufferMetadata>& buffer_metadata,
             idx_t expected_segment_count);
+  // Report memory requested by the ART index, excluding additional overhead
+  // introduced by the underlying allocator's size-rounding policy.
   MemoryUsage GetMemoryUsage() const;
 
  private:
