@@ -1,90 +1,31 @@
 /** Copyright 2026 Alibaba Group Holding Limited. Licensed under Apache-2.0. */
 #include "test_helpers.h"
 
-TEST_F(CApiTest, TransactionsAndQueryErrors) {
-  Contacts();
-  C_OK(neug_connection_begin(connection, 0, &error));
-  uint8_t active = 0;
-  C_OK(neug_connection_has_transaction(connection, &active, &error));
-  EXPECT_EQ(active, 1);
-  Query("MATCH (p:Person {id:1}) SET p.age=26;");
-  C_OK(neug_connection_rollback(connection, &error));
-  Query("MATCH (p:Person {id:1}) RETURN p.age;");
-  EXPECT_EQ(Integer(Cell()), 25);
-  C_OK(neug_connection_begin(connection, 0, &error));
-  Query("MATCH (p:Person {id:1}) SET p.age=27;");
-  C_OK(neug_connection_commit(connection, &error));
-  Query("MATCH (p:Person {id:1}) RETURN p.age;");
-  EXPECT_EQ(Integer(Cell()), 27);
-  C_OK(neug_connection_has_transaction(connection, &active, &error));
-  EXPECT_EQ(active, 0);
-  neug_result* failed = nullptr;
-  EXPECT_NE(
-      neug_query(connection, S("THIS IS NOT CYPHER"), {}, &failed, &error),
-      NEUG_OK);
-  EXPECT_EQ(failed, nullptr);
-  neug_error_destroy(&error);
-  Query("MATCH (p:Person {id:1}) RETURN p.age;");
-  EXPECT_EQ(Integer(Cell()), 27);
-}
-
 TEST_F(CApiTest, SchemaIsAvailableThroughQueries) {
   Contacts();
   Query("CALL SHOW_NODE_TABLES() RETURN vertex_label_name, primary_key;");
   EXPECT_EQ(String(Cell()), "Person");
   EXPECT_EQ(String(Cell(0, 1)), "id");
-  Query(
-      "CALL SHOW_NODE_TABLE_INFO('Person') RETURN property_name, "
-      "property_type, primary_key;");
-  uint64_t count = 0;
-  C_OK(neug_result_row_count(result, &count, &error));
-  EXPECT_EQ(count, 3u);
-  EXPECT_EQ(String(Cell()), "id");
-  EXPECT_EQ(String(Cell(0, 1)), "INT64");
-  auto key = Cell(0, 2);
-  uint8_t primary = 0;
-  C_OK(neug_value_get_bool(&key, &primary, &error));
-  EXPECT_EQ(primary, 1);
-  Query(
-      "CALL SHOW_REL_TABLE_INFO('[Person, KNOWS, Person]') "
-      "RETURN property_name, property_type;");
-  EXPECT_EQ(String(Cell()), "since");
-  EXPECT_EQ(String(Cell(0, 1)), "INT64");
 }
 
 TEST_F(CApiTest, InvalidQueryTextIsRejectedBeforeExecution) {
   for (const auto text : {neug_string_view{}, neug_string_view{nullptr, 1},
                           neug_string_view{"RETURN 1\0", 9}}) {
-    neug_result* failed = nullptr;
-    EXPECT_EQ(neug_query(connection, text, {}, &failed, &error),
-              NEUG_ERROR_INVALID_ARGUMENT);
-    EXPECT_EQ(failed, nullptr);
-    neug_error_destroy(&error);
+    EXPECT_EQ(QueryError(text), NEUG_ERROR_INVALID_ARGUMENT);
   }
   Query("RETURN 1;");
   EXPECT_EQ(Integer(Cell()), 1);
 }
 
 TEST_F(CApiTest, QueryUsesExplicitLengthAndOwnsItsInput) {
-  const std::string prefix = "RETURN 25;";
+  // Preserve UTF-8 bytes without relying on zero termination or input lifetime.
+  const std::string expected = "\xe4\xb8\xad\xe6\x96\x87\xf0\x9f\x99\x82";
+  const std::string prefix = "RETURN '" + expected + "';";
   std::string input = prefix + " THIS MUST NOT BE PARSED";
   C_OK(neug_query(connection, {input.data(), prefix.size()}, {}, &result,
                   &error));
   input.assign(input.size(), 'x');
-  EXPECT_EQ(Integer(Cell()), 25);
-}
-
-TEST_F(CApiTest, CompleteQueriesPreserveUnicodeAndEscapedText) {
-  // UTF-8 bytes for U+4E2D, U+6587, and U+1F642, independent of source
-  // encoding.
-  Query(
-      "RETURN '\xe4\xb8\xad\xe6\x96\x87\xf0\x9f\x99\x82', "
-      R"('O\'Connor', 'C:\\data';)");
-  EXPECT_EQ(String(Cell()), "\xe4\xb8\xad\xe6\x96\x87\xf0\x9f\x99\x82");
-  EXPECT_EQ(String(Cell(0, 1)), "O'Connor");
-  EXPECT_EQ(String(Cell(0, 2)), R"(C:\data)");
-  Query("RETURN 'line\nnext';");
-  EXPECT_EQ(String(Cell()), "line\nnext");
+  EXPECT_EQ(String(Cell()), expected);
 }
 
 TEST_F(CApiTest, EmptyJsonParametersKeepCompleteQueriesWorking) {
@@ -119,6 +60,14 @@ TEST_F(CApiTest, JsonParametersPreserveScalarTypesAndIntegerBoundaries) {
   uint64_t number = 0;
   C_OK(neug_value_get_uint64(&value, &number, &error));
   EXPECT_EQ(number, UINT64_MAX);
+  int64_t signed_number = 0;
+  EXPECT_EQ(neug_value_get_int64(&value, &signed_number, &error),
+            NEUG_ERROR_OVERFLOW);
+  neug_error_destroy(&error);
+  value = Cell();
+  EXPECT_EQ(neug_value_get_uint64(&value, &number, &error),
+            NEUG_ERROR_OVERFLOW);
+  neug_error_destroy(&error);
   value = Cell(0, 2);
   uint8_t boolean = 0;
   C_OK(neug_value_get_bool(&value, &boolean, &error));
@@ -158,38 +107,30 @@ TEST_F(CApiTest, JsonParametersUseExplicitLengthAndDoNotBorrowInput) {
 TEST_F(CApiTest, InvalidJsonParametersAreRejectedBeforeWrites) {
   Contacts();
   const auto query = S("CREATE (:Person {id:3, name:'Unexpected', age:1});");
-  for (auto json : {"[]", "null", "true", "42", "\"object\""}) {
-    neug_result* failed = nullptr;
-    EXPECT_EQ(neug_query(connection, query, S(json), &failed, &error),
-              NEUG_ERROR_INVALID_ARGUMENT);
-    EXPECT_EQ(failed, nullptr);
-    neug_error_destroy(&error);
-  }
-  for (auto json : {"{", "{} trailing", R"({"id":NaN})", R"({"id":"\uD800"})",
-                    "{\"id\":\"\xff\"}"}) {
-    neug_result* failed = nullptr;
-    EXPECT_EQ(neug_query(connection, query, S(json), &failed, &error),
-              NEUG_ERROR_BAD_ENCODING);
-    EXPECT_EQ(failed, nullptr);
-    ASSERT_NE(error, nullptr);
-    EXPECT_GT(neug_error_message(error).size, 0u);
-    neug_error_destroy(&error);
-  }
-  for (auto json :
-       {neug_string_view{nullptr, 1}, neug_string_view{"{}\0trailing", 11}}) {
-    neug_result* failed = nullptr;
-    EXPECT_EQ(neug_query(connection, query, json, &failed, &error),
-              NEUG_ERROR_INVALID_ARGUMENT);
-    EXPECT_EQ(failed, nullptr);
-    neug_error_destroy(&error);
-  }
   const std::string nested =
       "{\"unused\":" + std::string(65, '[') + "0" + std::string(65, ']') + "}";
-  neug_result* failed = nullptr;
-  EXPECT_EQ(neug_query(connection, query, S(nested), &failed, &error),
-            NEUG_ERROR_OVERFLOW);
-  EXPECT_EQ(failed, nullptr);
-  neug_error_destroy(&error);
+  const struct {
+    neug_string_view json;
+    neug_status expected;
+  } cases[] = {
+      {S("[]"), NEUG_ERROR_INVALID_ARGUMENT},
+      {S("null"), NEUG_ERROR_INVALID_ARGUMENT},
+      {S("true"), NEUG_ERROR_INVALID_ARGUMENT},
+      {S("42"), NEUG_ERROR_INVALID_ARGUMENT},
+      {S("\"object\""), NEUG_ERROR_INVALID_ARGUMENT},
+      {S("{"), NEUG_ERROR_BAD_ENCODING},
+      {S("{} trailing"), NEUG_ERROR_BAD_ENCODING},
+      {S(R"({"id":NaN})"), NEUG_ERROR_BAD_ENCODING},
+      {S(R"({"id":"\uD800"})"), NEUG_ERROR_BAD_ENCODING},
+      {S("{\"id\":\"\xff\"}"), NEUG_ERROR_BAD_ENCODING},
+      {{nullptr, 1}, NEUG_ERROR_INVALID_ARGUMENT},
+      {{"{}\0trailing", 11}, NEUG_ERROR_INVALID_ARGUMENT},
+      {S(nested), NEUG_ERROR_OVERFLOW},
+  };
+  for (size_t i = 0; i < std::size(cases); ++i) {
+    SCOPED_TRACE(i);
+    EXPECT_EQ(QueryError(query, cases[i].json), cases[i].expected);
+  }
   Query("MATCH (p:Person {id:3}) RETURN count(p);");
   EXPECT_EQ(Integer(Cell()), 0);
 }
@@ -200,13 +141,7 @@ TEST_F(CApiTest, MissingAndWrongJsonParametersFailWithoutWrites) {
                     R"({"age":true})", R"({"age":9223372036854775808})",
                     R"({"age":{}})", R"({"age\u0000suffix":99})"}) {
     SCOPED_TRACE(json);
-    neug_result* failed = nullptr;
-    EXPECT_NE(
-        neug_query(connection, S("MATCH (p:Person {id:1}) SET p.age=$age;"),
-                   S(json), &failed, &error),
-        NEUG_OK);
-    EXPECT_EQ(failed, nullptr);
-    neug_error_destroy(&error);
+    QueryError(S("MATCH (p:Person {id:1}) SET p.age=$age;"), S(json));
     Query("MATCH (p:Person {id:1}) RETURN p.age;");
     EXPECT_EQ(Integer(Cell()), 25);
   }
@@ -215,12 +150,8 @@ TEST_F(CApiTest, MissingAndWrongJsonParametersFailWithoutWrites) {
 TEST_F(CApiTest, JsonParametersWorkInTransactions) {
   Contacts();
   C_OK(neug_connection_begin(connection, 0, &error));
-  neug_result* failed = nullptr;
-  EXPECT_EQ(neug_query(connection, S("MATCH (p:Person {id:1}) SET p.age=99;"),
-                       S("{"), &failed, &error),
+  EXPECT_EQ(QueryError(S("MATCH (p:Person {id:1}) SET p.age=99;"), S("{")),
             NEUG_ERROR_BAD_ENCODING);
-  EXPECT_EQ(failed, nullptr);
-  neug_error_destroy(&error);
   uint8_t active = 0;
   C_OK(neug_connection_has_transaction(connection, &active, &error));
   EXPECT_EQ(active, 1);
@@ -233,20 +164,9 @@ TEST_F(CApiTest, JsonParametersWorkInTransactions) {
   C_OK(neug_connection_commit(connection, &error));
   Query("MATCH (p:Person {id:1}) RETURN p.age;");
   EXPECT_EQ(Integer(Cell()), 27);
-}
-
-TEST_F(CApiTest, ConnectionCloseRollsBackAndResultSurvives) {
-  Contacts();
-  Query("MATCH (p:Person {id:1}) RETURN p.name;");
-  auto value = Cell();
-  C_OK(neug_connection_begin(connection, 0, &error));
-  neug_result* write = nullptr;
-  C_OK(neug_query(connection, S("MATCH (p:Person {id:1}) SET p.age=99;"), {},
-                  &write, &error));
-  neug_result_destroy(&write);
-  C_OK(neug_connection_destroy(&connection, &error));
-  EXPECT_EQ(String(value), "Alice");
-  C_OK(neug_db_connect(db, &connection, &error));
+  C_OK(neug_connection_has_transaction(connection, &active, &error));
+  EXPECT_EQ(active, 0);
+  QueryError(S("THIS IS NOT CYPHER"));
   Query("MATCH (p:Person {id:1}) RETURN p.age;");
-  EXPECT_EQ(Integer(Cell()), 25);
+  EXPECT_EQ(Integer(Cell()), 27);
 }

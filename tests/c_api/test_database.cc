@@ -15,11 +15,7 @@ TEST_F(CApiTest, ConfigurationAndCloseReopen) {
   uint8_t closed = 0;
   C_OK(neug_connection_is_closed(connection, &closed, &error));
   EXPECT_EQ(closed, 1);
-  neug_result* failed = nullptr;
-  EXPECT_EQ(neug_query(connection, S("RETURN 1"), {}, &failed, &error),
-            NEUG_ERROR_CONNECTION_CLOSED);
-  EXPECT_EQ(failed, nullptr);
-  neug_error_destroy(&error);
+  EXPECT_EQ(QueryError(S("RETURN 1")), NEUG_ERROR_CONNECTION_CLOSED);
   C_OK(neug_db_destroy(&db, &error));
   C_OK(neug_connection_destroy(&connection, &error));
   C_OK(neug_db_open(&options, &db, &error));
@@ -56,11 +52,7 @@ TEST(CApiValidation, NullArgumentsAndUninitializedOptions) {
 TEST_F(CApiTest, ReopenedDatabaseAcceptsInsertsWithListProperties) {
   Query("CREATE NODE TABLE Item(id INT64, values INT64[], PRIMARY KEY(id));");
   Query("CREATE (:Item {id:1, values:CAST([10,20],'INT64[]')});");
-  C_OK(neug_connection_destroy(&connection, &error));
-  C_OK(neug_db_close(db, &error));
-  C_OK(neug_db_destroy(&db, &error));
-  C_OK(neug_db_open(&options, &db, &error));
-  C_OK(neug_db_connect(db, &connection, &error));
+  ASSERT_NO_FATAL_FAILURE(Reopen());
 
   // Reloaded list storage must grow when a new nonempty value is inserted.
   Query("CREATE (:Item {id:$id, values:CAST($values,'INT64[]')});",
@@ -71,42 +63,24 @@ TEST_F(CApiTest, ReopenedDatabaseAcceptsInsertsWithListProperties) {
   EXPECT_EQ(Integer(Cell(1, 0)), 2);
   EXPECT_EQ(Integer(Child(Cell(1, 1), 2)), 50);
 
-  C_OK(neug_connection_destroy(&connection, &error));
-  C_OK(neug_db_close(db, &error));
-  C_OK(neug_db_destroy(&db, &error));
-  C_OK(neug_db_open(&options, &db, &error));
-  C_OK(neug_db_connect(db, &connection, &error));
+  ASSERT_NO_FATAL_FAILURE(Reopen());
   Query("MATCH (i:Item {id:2}) RETURN i.values;");
   EXPECT_EQ(Integer(Child(Cell(), 2)), 50);
 }
 
 TEST_F(CApiTest, ReadOnlyDatabaseRejectsWrites) {
   Contacts();
-  C_OK(neug_connection_destroy(&connection, &error));
-  C_OK(neug_db_close(db, &error));
-  C_OK(neug_db_destroy(&db, &error));
   options.read_only = 1;
-  C_OK(neug_db_open(&options, &db, &error));
-  C_OK(neug_db_connect(db, &connection, &error));
+  ASSERT_NO_FATAL_FAILURE(Reopen());
   Query("MATCH (p:Person) RETURN p.name ORDER BY p.id;");
   EXPECT_EQ(String(Cell()), "Alice");
-  neug_result* failed = nullptr;
-  EXPECT_NE(
-      neug_query(connection, S("CREATE (:Person {id:3, name:'X', age:1});"), {},
-                 &failed, &error),
-      NEUG_OK);
-  EXPECT_EQ(failed, nullptr);
-  neug_error_destroy(&error);
+  QueryError(S("CREATE (:Person {id:3, name:'X', age:1});"));
 }
 
 TEST_F(CApiTest, EmptyPathOpensAnIndependentTemporaryDatabase) {
   Contacts();
-  C_OK(neug_connection_destroy(&connection, &error));
-  C_OK(neug_db_close(db, &error));
-  C_OK(neug_db_destroy(&db, &error));
   options.path = {};
-  C_OK(neug_db_open(&options, &db, &error));
-  C_OK(neug_db_connect(db, &connection, &error));
+  ASSERT_NO_FATAL_FAILURE(Reopen());
   Query("CALL SHOW_NODE_TABLES() RETURN *;");
   uint64_t count = 1;
   C_OK(neug_result_row_count(result, &count, &error));

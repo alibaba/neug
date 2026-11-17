@@ -3,48 +3,6 @@
 
 #include <cmath>
 
-TEST_F(CApiTest, ScalarsStructsAndNestedValues) {
-  Query(
-      "RETURN CAST(18446744073709551615, 'UINT64'), true, 1.5, CAST(NULL, "
-      "'STRING');");
-  auto value = Cell();
-  uint64_t number = 0;
-  C_OK(neug_value_get_uint64(&value, &number, &error));
-  EXPECT_EQ(number, UINT64_MAX);
-  int64_t signed_number = 0;
-  EXPECT_EQ(neug_value_get_int64(&value, &signed_number, &error),
-            NEUG_ERROR_OVERFLOW);
-  neug_error_destroy(&error);
-  value = Cell(0, 1);
-  uint8_t boolean = 0;
-  C_OK(neug_value_get_bool(&value, &boolean, &error));
-  EXPECT_EQ(boolean, 1);
-  value = Cell(0, 2);
-  double floating = 0;
-  C_OK(neug_value_get_double(&value, &floating, &error));
-  EXPECT_DOUBLE_EQ(floating, 1.5);
-  value = Cell(0, 3);
-  C_OK(neug_value_is_null(&value, &boolean, &error));
-  EXPECT_EQ(boolean, 1);
-  Query(
-      "RETURN CAST({name:'Alice', ages:CAST([25,26], 'INT64[]')}, 'STRUCT(name "
-      "STRING, ages INT64[])');");
-  value = Cell();
-  neug_type type = NEUG_TYPE_UNKNOWN;
-  C_OK(neug_value_type(&value, &type, &error));
-  EXPECT_EQ(type, NEUG_TYPE_STRUCT);
-  EXPECT_EQ(String(Field(value, "name")), "Alice");
-  auto field = Field(value, "ages");
-  neug_value_view item{};
-  C_OK(neug_value_child(&field, 1, &item, &error));
-  EXPECT_EQ(Integer(item), 26);
-  Query("RETURN CAST(-1, 'INT64');");
-  value = Cell();
-  EXPECT_EQ(neug_value_get_uint64(&value, &number, &error),
-            NEUG_ERROR_OVERFLOW);
-  neug_error_destroy(&error);
-}
-
 TEST_F(CApiTest, TemporalAndIntervalValues) {
   Query(
       "RETURN date('1970-01-02'), timestamp('1970-01-01 00:00:01'), "
@@ -159,6 +117,10 @@ TEST_F(CApiTest, ViewsCanBeReusedForNestedChildReads) {
   Query(
       "RETURN CAST({ages:CAST([25,26], 'INT64[]')}, 'STRUCT(ages INT64[])');");
   auto value = Cell();
+  neug_type type = NEUG_TYPE_UNKNOWN;
+  C_OK(neug_value_type(&value, &type, &error));
+  EXPECT_EQ(type, NEUG_TYPE_STRUCT);
+  EXPECT_EQ(Integer(Child(Field(value, "ages"), 1)), 26);
   C_OK(neug_value_child(&value, 0, &value, &error));
   C_OK(neug_value_child(&value, 1, &value, &error));
   EXPECT_EQ(Integer(value), 26);

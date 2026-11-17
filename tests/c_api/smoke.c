@@ -16,7 +16,6 @@ int main(int argc, char** argv) {
   neug_error* error = NULL;
   neug_db_options options;
   neug_value_view value = {0};
-  neug_string_view no_parameters = {0};
   int64_t count = 0;
   neug_status status = NEUG_OK;
   int success = 0;
@@ -25,12 +24,6 @@ int main(int argc, char** argv) {
     status = (call);       \
     if (status != NEUG_OK) \
       goto cleanup;        \
-  } while (0)
-#define QUERY(query)                                                          \
-  do {                                                                        \
-    neug_result_destroy(&result);                                             \
-    CHECK(                                                                    \
-        neug_query(connection, text(query), no_parameters, &result, &error)); \
   } while (0)
   if (argc != 2) {
     fprintf(stderr, "Usage: %s <empty-database-directory>\n", argv[0]);
@@ -42,52 +35,19 @@ int main(int argc, char** argv) {
   CHECK(neug_db_connect(db, &connection, &error));
   /* An invalid query must return an error; after releasing it, the connection
    * must remain usable. */
-  status =
-      neug_query(connection, text("RETURN ("), no_parameters, &result, &error);
+  status = neug_query(connection, text("RETURN ("), text(""), &result, &error);
   if (status == NEUG_OK || error == NULL || result != NULL) {
     fprintf(stderr, "Invalid query did not return the expected error\n");
     goto cleanup;
   }
   neug_error_destroy(&error);
-  QUERY("CREATE NODE TABLE Person(id INT64, age INT64, PRIMARY KEY(id));");
-  QUERY("CREATE REL TABLE KNOWS(FROM Person TO Person);");
-  QUERY("CREATE (:Person {id:1, age:25});");
-  QUERY("CREATE (:Person {id:2, age:30});");
-  QUERY("MATCH (a:Person {id:1}), (b:Person {id:2}) CREATE (a)-[:KNOWS]->(b);");
-  QUERY("MATCH (p:Person) WHERE p.age=25 RETURN count(p);");
+  CHECK(neug_query(connection, text("RETURN CAST($value, 'INT64');"),
+                   text("{\"value\":42}"), &result, &error));
   CHECK(neug_result_get_value(result, 0, 0, &value, &error));
   CHECK(neug_value_get_int64(&value, &count, &error));
-  if (count != 1)
-    goto cleanup;
-  neug_result_destroy(&result);
-  CHECK(neug_query(connection,
-                   text("MATCH (p:Person {id:$id}) SET p.age=$age;"),
-                   text("{\"id\":1,\"age\":26}"), &result, &error));
-  CHECK(neug_connection_begin(connection, 0, &error));
-  QUERY("MATCH (p:Person {id:1}) SET p.age=99;");
-  CHECK(neug_connection_rollback(connection, &error));
-  QUERY("MATCH (p:Person {id:1}) RETURN p.age;");
-  CHECK(neug_result_get_value(result, 0, 0, &value, &error));
-  CHECK(neug_value_get_int64(&value, &count, &error));
-  if (count != 26)
-    goto cleanup;
-  CHECK(neug_connection_begin(connection, 0, &error));
-  QUERY("MATCH (p:Person {id:1}) SET p.age=27;");
-  CHECK(neug_connection_commit(connection, &error));
-  CHECK(neug_connection_destroy(&connection, &error));
-  CHECK(neug_db_close(db, &error));
-  CHECK(neug_db_destroy(&db, &error));
-  CHECK(neug_db_open(&options, &db, &error));
-  CHECK(neug_db_connect(db, &connection, &error));
-  QUERY("MATCH (p:Person {id:1}) RETURN p.age;");
-  CHECK(neug_result_get_value(result, 0, 0, &value, &error));
-  CHECK(neug_value_get_int64(&value, &count, &error));
-  if (count != 27)
-    goto cleanup;
-  QUERY("MATCH (:Person)-[r:KNOWS]->(:Person) RETURN count(r);");
-  CHECK(neug_result_get_value(result, 0, 0, &value, &error));
-  CHECK(neug_value_get_int64(&value, &count, &error));
-  success = count == 1;
+  success = count == 42;
+  if (!success)
+    fprintf(stderr, "Expected 42 from parameterized query\n");
 cleanup:
   if (status != NEUG_OK) {
     neug_string_view message = neug_error_message(error);

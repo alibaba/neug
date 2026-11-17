@@ -58,6 +58,25 @@ class CApiTest : public ::testing::Test {
     neug_result_destroy(&result);
     C_OK(neug_query(connection, S(text), S(parameters), &result, &error));
   }
+  neug_status QueryError(neug_string_view text,
+                         neug_string_view parameters = {}) {
+    neug_result* failed = nullptr;
+    const auto status =
+        neug_query(connection, text, parameters, &failed, &error);
+    EXPECT_NE(status, NEUG_OK);
+    EXPECT_EQ(failed, nullptr);
+    EXPECT_GT(neug_error_message(error).size, 0u);
+    neug_result_destroy(&failed);
+    neug_error_destroy(&error);
+    return status;
+  }
+  void Reopen() {
+    C_OK(neug_connection_destroy(&connection, &error));
+    C_OK(neug_db_close(db, &error));
+    C_OK(neug_db_destroy(&db, &error));
+    C_OK(neug_db_open(&options, &db, &error));
+    C_OK(neug_db_connect(db, &connection, &error));
+  }
   neug_value_view Cell(uint64_t row = 0, uint64_t column = 0) {
     neug_value_view value{};
     EXPECT_TRUE(
