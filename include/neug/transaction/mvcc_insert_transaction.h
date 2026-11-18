@@ -24,6 +24,10 @@
 #include <utility>
 #include <vector>
 
+#ifdef NEUG_BUILD_TEST
+#include <functional>
+#endif
+
 #include "neug/common/types/value.h"
 #include "neug/storages/allocators.h"
 #include "neug/storages/graph/graph_interface.h"
@@ -34,6 +38,12 @@
 #include "neug/utils/serialization/in_archive.h"
 
 namespace neug {
+
+#ifdef NEUG_BUILD_TEST
+// Invoked after applying insert WAL, before releasing the capacity reservation.
+// The callback must not throw; the WAL is already durable at this point.
+NEUG_API void SetInsertPostIngestHookForTest(std::function<void()> hook);
+#endif
 
 class ExecutionSlot;
 class PropertyGraph;

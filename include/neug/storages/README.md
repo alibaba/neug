@@ -147,8 +147,14 @@ The `insert_safe` parameter controls resize behavior, inherited from the `Column
 Checkpoint loading leaves no spare element capacity (`elements_tail_ == elements_->size()`).
 Insert transactions account for LIST elements and nested property buffers before appending
 WAL. If capacity is insufficient, query execution discards the buffered transaction,
-performs exclusive capacity growth, and retries the query once. A second capacity shortage
-returns an error; callers may retry the query.
+drains active inserters under exclusive maintenance, rechecks capacity, and grows storage
+when needed before retrying. A reservation failure can be temporary because a competing
+writer may have applied its rows without releasing its reservation yet; available capacity
+after draining does not by itself prove a persistent failure. Query execution allows up to
+eight capacity retries (nine execution attempts including the initial attempt). Exhaustion
+returns an error; callers may retry the query. Schema changes, unavailable maintenance,
+unsupported growth, allocation errors, or other query/commit errors may stop execution
+earlier. This retry limit bounds attempts, not time spent waiting for admission.
 
 The underlying `set_any(..., false)` still cannot resize. Concurrent inserts reserve
 non-overlapping element ranges using an atomic CAS on `elements_tail_`, including nested

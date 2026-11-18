@@ -742,18 +742,22 @@ Status ExecutionSlot::executeAutoCommitQuery(const std::string& query,
     } else if (access_mode == AccessMode::kInsert) {
       // A retry must release every borrowed view and insert admission before
       // waiting for the all-blocked maintenance phase.
-      constexpr size_t kCapacityRetries = 1;
+      // A reservation failure can be transient: applied rows may still have
+      // outstanding reservations until their writers leave insert admission.
+      // Recheck capacity after draining them, with a bound on total retry work.
+      constexpr size_t kCapacityRetries = 8;
       uint64_t retry_generation = 0;
       for (size_t attempt = 0; attempt <= kCapacityRetries; ++attempt) {
+        const bool retried = attempt != 0;
 #ifdef NEUG_BUILD_TEST
-        if (attempt != 0)
+        if (retried)
           InvokeInsertRetryHook(true);
 #endif
         InsertCapacityRequest request;
         uint64_t planning_generation = 0;
         {
           auto transaction = BeginMvccInsertTransaction();
-          if (attempt != 0 &&
+          if (retried &&
               snapshot_store_.CurrentPlanningGeneration() != retry_generation) {
             status =
                 Status::InternalError("Schema changed during insert retry");
@@ -798,6 +802,9 @@ Status ExecutionSlot::executeAutoCommitQuery(const std::string& query,
                 if (!request.Fits(graph)) {
                   candidate = graph.Clone();
                   request.Grow(*candidate);
+                  if (!request.Fits(*candidate))
+                    return Status::InternalError(
+                        "Insert capacity growth did not satisfy request");
                 }
                 return Status::OK();
               });
