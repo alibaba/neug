@@ -289,7 +289,7 @@ Status renameVertexIndex(PropertyGraph& graph, label_t label,
 
 Status addVertexIndexData(PropertyGraph& graph, label_t label, vid_t lid,
                           const Value& id, const std::vector<Value>& props,
-                          const IndexDetachFn& detach_index) {
+                          const IndexDetachFn& detach_index, bool insert_safe) {
   const auto& v_schema = graph.schema().get_vertex_schema(label);
   auto& index_manager = graph.mutable_index_manager();
 
@@ -317,7 +317,7 @@ Status addVertexIndexData(PropertyGraph& graph, label_t label, vid_t lid,
           std::distance(v_schema->property_names.begin(), it));
       values.push_back(pos < props.size() ? props[pos] : Value());
     }
-    RETURN_IF_NOT_OK(index->Upsert(lid, values));
+    RETURN_IF_NOT_OK(index->Upsert(lid, values, insert_safe));
   }
   return Status::OK();
 }

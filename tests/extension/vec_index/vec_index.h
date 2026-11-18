@@ -21,6 +21,7 @@
 #include <vector>
 
 #include "neug/storages/checkpoint_manifest.h"
+#include "neug/storages/graph/vertex_table.h"
 #include "neug/storages/index/storage_index.h"
 #include "neug/utils/property/vec_column.h"
 
@@ -139,7 +140,9 @@ class VecIndex final : public StorageIndex {
     index_id_t best_id = INVALID_INDEX_ID;
     double best_distance = std::numeric_limits<double>::max();
     for (index_id_t node_id = 0; node_id < source_->vector_count(); ++node_id) {
-      if (index_id_accessor_->GetVIDByIndexID(node_id) == INVALID_VID) {
+      const auto vid = index_id_accessor_->GetVIDByIndexID(node_id);
+      if (vid == INVALID_VID ||
+          (params.vertex_set && !params.vertex_set->valid(vid))) {
         continue;
       }
       const auto* vector =

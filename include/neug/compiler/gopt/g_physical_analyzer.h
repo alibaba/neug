@@ -172,31 +172,6 @@ class GPhysicalAnalyzer {
     }
   }
 
-  bool hasIndexedProperty(const planner::LogicalInsertInfo& info) const {
-    auto graphStats = metadataManager->getGraphStats();
-    if (!graphStats) {
-      return false;
-    }
-    // Edge indexes are not supported yet, so relationship inserts do not need
-    // index maintenance.
-    if (info.entryType != SchemaEntryType::NODE) {
-      return false;
-    }
-    auto entry =
-        info.pattern->ptrCast<binder::NodeExpression>()->getSingleEntry();
-    for (const auto& property : entry->get_properties()) {
-      auto indexes = graphStats->GetIndexesContainingProperty(
-          entry->get_entry_id(), property.getName());
-      if (!indexes) {
-        THROW_EXCEPTION_WITH_FILE_LINE(indexes.error().ToString());
-      }
-      if (!indexes->empty()) {
-        return true;
-      }
-    }
-    return false;
-  }
-
   void analyzeOperator(const planner::LogicalOperator& op,
                        std::vector<std::string>& skipScanNames) {
     switch (op.getOperatorType()) {
@@ -204,13 +179,6 @@ class GPhysicalAnalyzer {
       auto insertOp = op.constPtrCast<planner::LogicalInsert>();
       auto& infos = insertOp->getInfos();
       if (!infos.empty()) {
-        if (std::any_of(infos.begin(), infos.end(),
-                        [this](const planner::LogicalInsertInfo& info) {
-                          return hasIndexedProperty(info);
-                        })) {
-          flag.update = true;
-          break;
-        }
         // we assume that all info have the same table type
         auto tableType = infos[0].entryType;
         if (tableType == SchemaEntryType::NODE) {

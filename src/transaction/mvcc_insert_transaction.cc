@@ -25,10 +25,12 @@
 #include "neug/common/types/value.h"
 #include "neug/storages/allocators.h"
 #include "neug/storages/graph/schema.h"
+#include "neug/storages/index/storage_index_manager.h"
 #include "neug/transaction/transaction_utils.h"
 #include "neug/transaction/version_manager.h"
 #include "neug/transaction/wal/wal.h"
 #include "neug/utils/property/types.h"
+#include "neug/utils/property/vec_column.h"
 #include "neug/utils/serialization/out_archive.h"
 
 namespace neug {
@@ -154,6 +156,8 @@ Status MvccInsertTransaction::AddVertex(label_t label, const Value& id,
                         prop.type().ToString());
     }
   }
+  if (guard_.get().mutable_graph()->index_manager().HasPendingIndex(label))
+    return Status::RuntimeError("Insert requires all indexes to be active");
   create_id_indexer_if_not_exists(label);
   if (!GetVertexIndex(label, id, vid)) {
     added_vertices_[label]->_add(id);
@@ -327,6 +331,11 @@ void MvccInsertTransaction::ApplyInserts() {
       auto status =
           view_->AddVertex(label, redo.oid, redo.props, vid, timestamp_);
       THROW_STORAGE_EXCEPTION_STATUS("Failed to insert vertex", status);
+      // Keep index maintenance in the insert transaction so partial failures
+      // use the same undo journal as vertex/property writes.
+      status = addVertexIndexData(*guard_.get().mutable_graph(), label, vid,
+                                  redo.oid, redo.props, nullptr, false);
+      THROW_STORAGE_EXCEPTION_STATUS("Failed to append vertex indexes", status);
     } else if (op == OpType::kInsertEdge) {
       InsertEdgeRedo redo;
       arc >> redo;
@@ -370,6 +379,17 @@ void MvccInsertTransaction::RollbackInserts() noexcept {
     edge_undo_.clear();
     for (auto it = vertex_undo_.rbegin(); it != vertex_undo_.rend(); ++it) {
       if (it->vid != INVALID_VID) {
+        auto status = deleteVertexIndexData(graph, it->label, {it->vid});
+        THROW_STORAGE_EXCEPTION_STATUS("Failed to undo inserted indexes",
+                                       status);
+        auto& table = graph.get_vertex_table(it->label).get_table();
+        for (size_t i = 0; i < table.col_num(); ++i) {
+          if (auto* vec = dynamic_cast<VecColumn*>(table.get_column_by_id(i))) {
+            auto removed = vec->get_offset_accessor()->DeleteVID(it->vid);
+            THROW_STORAGE_EXCEPTION_STATUS("Failed to undo vector mapping",
+                                           removed);
+          }
+        }
         // Edges were already removed above; avoid graph-level cascade delete.
         graph.get_vertex_table(it->label).DeleteVertex(it->vid, timestamp_);
       }
