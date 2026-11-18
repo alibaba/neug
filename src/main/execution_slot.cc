@@ -745,10 +745,12 @@ Status ExecutionSlot::executeAutoCommitQuery(const std::string& query,
       // Keep one retry for a given capacity state. If another writer consumes
       // the space before that retry, grow again rather than failing a valid
       // insert solely because maintenance did not reserve its future space.
-      bool retried = false;
+      // Bound total work even if competing writes consume space on every retry.
+      constexpr size_t kCapacityRetries = 8;
       InsertCapacityRequest previous_request;
       uint64_t retry_generation = 0;
-      for (;;) {
+      for (size_t attempt = 0; attempt <= kCapacityRetries; ++attempt) {
+        const bool retried = attempt != 0;
 #ifdef NEUG_BUILD_TEST
         if (retried)
           InvokeInsertRetryHook(true);
@@ -772,6 +774,11 @@ Status ExecutionSlot::executeAutoCommitQuery(const std::string& query,
           retry_generation = planning_generation;
         }
         response.Clear();
+        if (attempt == kCapacityRetries) {
+          status =
+              Status::InternalError("Insert capacity retry limit exceeded");
+          break;
+        }
 #ifdef NEUG_BUILD_TEST
         InvokeInsertRetryHook(false);
         auto maintenance =
@@ -828,7 +835,6 @@ Status ExecutionSlot::executeAutoCommitQuery(const std::string& query,
         if (!status.ok())
           break;
         previous_request = std::move(request);
-        retried = true;
       }
     } else if (access_mode == AccessMode::kUpdate ||
                access_mode == AccessMode::kSchema) {

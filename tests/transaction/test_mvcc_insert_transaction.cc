@@ -886,6 +886,95 @@ TEST_F(MvccInsertTransactionTest, RetryAfterCompetingInsertsConsumeGrowth) {
   EXPECT_EQ(value.value().GetString(0), std::string(200, 'x'));
 }
 
+class InsertCapacityBudgetTest : public MvccInsertTransactionTest,
+                                 public ::testing::WithParamInterface<bool> {};
+
+TEST_P(InsertCapacityBudgetTest, CompetingGrowthStopsAtTotalRetryLimit) {
+  neug::NeugDB db;
+  neug::NeugDBConfig config(db_dir, 2);
+  config.checkpoint_on_close = false;
+  ASSERT_TRUE(db.Open(config));
+  auto conn = db.Connect();
+  ASSERT_TRUE(conn->Query(
+      "CREATE NODE TABLE RetryLimitItem(id INT64, PRIMARY KEY(id))"));
+  conn->Close();
+  db.PrepareForServing();
+  {
+    neug::NeugDBService svc(db);
+    auto slot = svc.AcquireExecutionSlot();
+    auto competitor = svc.AcquireExecutionSlot();
+    auto batch = [](int first, int count) {
+      std::string ids = "[";
+      for (int i = 0; i < count; ++i) {
+        if (i)
+          ids += ",";
+        ids += std::to_string(first + i);
+      }
+      return R"json({"query":"UNWIND CAST($ids, 'INT64[]') AS id CREATE (:RetryLimitItem {id:id})","access_mode":"insert","parameters":{"ids":)json" +
+             ids + "]}}";
+    };
+    auto seeded = slot->ExecuteTransactionalRequest(batch(10000, 3000));
+    ASSERT_TRUE(seeded) << seeded.error().ToString();
+    const auto label = db.schema().get_vertex_label_id("RetryLimitItem");
+    struct ResetHook {
+      ~ResetHook() { neug::SetInsertRetryHookForTest({}); }
+    } reset;
+    size_t retries = 0;
+    int next_id = 20000;
+    neug::SetInsertRetryHookForTest([&](bool retry) {
+      if (!retry)
+        return;
+      ++retries;
+      // Stop the competing workload after the expected limit so a broken,
+      // unbounded implementation fails this test instead of hanging it.
+      if (retries > 8) {
+        ADD_FAILURE() << "Insert exceeded the total retry budget";
+        return;
+      }
+      if (!GetParam() && retries == 8)
+        return;
+      const auto& table = db.graph().get_vertex_table(label);
+      const auto available = table.Capacity() - table.Size();
+      std::thread writer([&] {
+        auto inserted = competitor->ExecuteTransactionalRequest(
+            batch(next_id, static_cast<int>(available)));
+        EXPECT_TRUE(inserted) << inserted.error().ToString();
+      });
+      writer.join();
+      next_id += static_cast<int>(available);
+    });
+    auto result = slot->ExecuteTransactionalRequest(batch(13000, 1500));
+    if (GetParam()) {
+      ASSERT_FALSE(result);
+      EXPECT_EQ(result.error().error_message(),
+                "Insert capacity retry limit exceeded");
+    } else {
+      ASSERT_TRUE(result) << result.error().ToString();
+    }
+    EXPECT_EQ(retries, 8);
+    neug::SetInsertRetryHookForTest({});
+    auto count = slot->ExecuteTransactionalRequest(
+        R"json({"query":"MATCH (n:RetryLimitItem) WHERE n.id >= 13000 AND n.id < 14500 RETURN count(n)","access_mode":"read","parameters":{}})json");
+    ASSERT_TRUE(count);
+    EXPECT_EQ(neug::QueryResult::From(count.value()).GetInt64(0),
+              GetParam() ? 0 : 1500);
+    // The failed batch did not publish any rows, and its slot remains usable.
+    if (GetParam()) {
+      auto success = slot->ExecuteTransactionalRequest(batch(13000, 1500));
+      ASSERT_TRUE(success) << success.error().ToString();
+    }
+    EXPECT_EQ(db.graph().get_vertex_table(label).Size(),
+              static_cast<size_t>(3000 + next_id - 20000 + 1500));
+  }
+}
+
+INSTANTIATE_TEST_SUITE_P(InsertCapacity, InsertCapacityBudgetTest,
+                         ::testing::Values(false, true),
+                         [](const ::testing::TestParamInfo<bool>& info) {
+                           return info.param ? "RetryBudgetExhausted"
+                                             : "SuccessOnLastRetry";
+                         });
+
 TEST_F(MvccInsertTransactionTest, EdgeCapacityGrowthCoversRowsAndPayload) {
   neug::NeugDB db;
   db.Open(db_dir);
