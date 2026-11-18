@@ -22,10 +22,30 @@
 #include <utility>
 
 #include "neug/utils/exception/exception.h"
+#include "neug/utils/property/chunked_column.h"
 #include "neug/utils/property/column.h"
 #include "neug/utils/serialization/out_archive.h"
 
 namespace neug {
+namespace {
+
+template <typename T>
+bool IsLegacyColumn(const ColumnBase* column) {
+  return dynamic_cast<const TypedColumn<T>*>(column) != nullptr;
+}
+
+template <typename T>
+bool MigrateLegacyColumn(Checkpoint& ckp, MemoryLevel level,
+                         std::unique_ptr<ColumnBase>& column) {
+  auto* legacy = dynamic_cast<TypedColumn<T>*>(column.get());
+  if (legacy == nullptr) {
+    return false;
+  }
+  column = ChunkedColumn<T>::FromLegacy(ckp, level, *legacy);
+  return true;
+}
+
+}  // namespace
 
 Table::Table() {}
 Table::~Table() { close(); }
@@ -43,7 +63,7 @@ Table::Table(const std::vector<std::string>& col_names,
     col_id_map_.insert({col_names[i], col_id});
     col_names_.emplace_back(col_names[i]);
     assert(i < property_types.size());
-    columns_[col_id] = CreateColumn(property_types[i]);
+    columns_[col_id] = CreatePropertyColumn(property_types[i]);
   }
   columns_.resize(col_id_map_.size());
 }
@@ -87,6 +107,43 @@ void Table::SetColumn(int idx, std::unique_ptr<ColumnBase> col) {
   columns_[idx] = std::move(col);
 }
 
+bool Table::HasLegacyPropertyColumns() const {
+  for (const auto& column : columns_) {
+#define IS_LEGACY_COLUMN(enum_val, cpp_type)    \
+  if (IsLegacyColumn<cpp_type>(column.get())) { \
+    return true;                                \
+  }
+    FOR_EACH_DATA_TYPE_NO_STRING(IS_LEGACY_COLUMN)
+#undef IS_LEGACY_COLUMN
+  }
+  return false;
+}
+
+bool Table::MigrateLegacyPropertyColumns(Checkpoint& ckp, MemoryLevel level) {
+  bool migrated = false;
+  for (size_t i = 0; i < columns_.size(); ++i) {
+    migrated = MigrateLegacyPropertyColumn(i, ckp, level) || migrated;
+  }
+  return migrated;
+}
+
+bool Table::MigrateLegacyPropertyColumn(size_t index, Checkpoint& ckp,
+                                        MemoryLevel level) {
+  auto& column = columns_.at(index);
+#define MIGRATE_LEGACY_COLUMN(enum_val, cpp_type)        \
+  if (MigrateLegacyColumn<cpp_type>(ckp, level, column)) \
+    return true;
+  FOR_EACH_DATA_TYPE_NO_STRING(MIGRATE_LEGACY_COLUMN)
+#undef MIGRATE_LEGACY_COLUMN
+  return false;
+}
+
+void Table::RebindCheckpoint(Checkpoint& ckp) {
+  for (auto& column : columns_) {
+    column->RebindCheckpoint(ckp);
+  }
+}
+
 void Table::reset_header(const std::vector<std::string>& col_name) {
   std::unordered_map<std::string, int> new_col_id_map;
   size_t col_num = col_name.size();
@@ -121,7 +178,8 @@ void Table::add_columns(Checkpoint& ckp,
     int col_id = col_names_.size();
     col_id_map_.insert({col_names[i], col_id});
     col_names_.emplace_back(col_names[i]);
-    columns_[col_id] = std::unique_ptr<ColumnBase>(CreateColumn(col_types[i]));
+    columns_[col_id] =
+        std::unique_ptr<ColumnBase>(CreatePropertyColumn(col_types[i]));
   }
   for (size_t i = old_size; i < columns_.size(); ++i) {
     columns_[i]->Open(ckp, ModuleDescriptor(), memory_level);

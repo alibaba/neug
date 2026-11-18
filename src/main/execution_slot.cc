@@ -751,6 +751,7 @@ Status ExecutionSlot::executeAutoCommitQuery(const std::string& query,
 #endif
         InsertCapacityRequest request;
         uint64_t planning_generation = 0;
+        bool retry_cow = false;
         {
           auto transaction = BeginMvccInsertTransaction();
           if (attempt != 0 &&
@@ -761,13 +762,27 @@ Status ExecutionSlot::executeAutoCommitQuery(const std::string& query,
           }
           StorageTPInsertInterface storage(transaction);
           status = execute_and_commit(transaction, storage);
-          if (!transaction.RequiresCapacityRetry())
+          if (transaction.RequiresCowRetry()) {
+            // Reusing a deleted vertex key overwrites a retained snapshot, so
+            // the statement must be re-executed through the COW path. Release
+            // the insert lease, snapshot and borrowed execution context before
+            // acquiring COW admission; no WAL was written by this attempt.
+            retry_cow = true;
+          } else if (!transaction.RequiresCapacityRetry()) {
             break;
-          request = transaction.capacity_request();
-          planning_generation = snapshot_store_.CurrentPlanningGeneration();
-          retry_generation = planning_generation;
+          } else {
+            request = transaction.capacity_request();
+            planning_generation = snapshot_store_.CurrentPlanningGeneration();
+            retry_generation = planning_generation;
+          }
         }
         response.Clear();
+        if (retry_cow) {
+          auto transaction = BeginSnapshotCowWriteTransaction();
+          auto storage = transaction.OpenStorage();
+          status = execute_and_commit(transaction, storage);
+          break;
+        }
         if (attempt == kCapacityRetries) {
           status =
               Status::InternalError("Insert capacity retry limit exceeded");

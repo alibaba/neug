@@ -113,23 +113,15 @@ static void IngestWalRange(std::shared_ptr<PropertyGraph>& graph,
   if (from >= to) {
     return;
   }
-  // Build a single writable GraphView covering the whole replay range.
-  // read_ts = MAX_TIMESTAMP so vertices inserted earlier in the loop are
-  // visible to later edge-resolution lookups regardless of the per-unit
-  // commit timestamp.
-  auto view = std::make_unique<GraphView>(*graph);
+  // Recovery owns the graph exclusively. Legacy insert WALs may reuse a
+  // deleted VID, so use the covering-write replay path rather than the live
+  // MVCC insert path, which only permits writes to the prepared append area.
+  // ReplayCowGraphWal grows vertex-table capacity on demand, so the recovery
+  // path does not need the InsertCapacityRequest pre-growth used by the live
+  // MvccInsertTransaction::IngestWal path.
   for (size_t j = from; j < to; ++j) {
     const auto& unit = parser.get_insert_wal(j);
-    auto capacity = InsertCapacityRequest::FromWal(unit.ptr, unit.size);
-    if (!capacity.Fits(*graph)) {
-      auto candidate = graph->Clone();
-      capacity.Grow(*candidate);
-      view.reset();
-      graph = std::move(candidate);
-      view = std::make_unique<GraphView>(*graph);
-    }
-    MvccInsertTransaction::IngestWal(*view, j, unit.ptr, unit.size,
-                                     *allocators[0]);
+    ReplayCowGraphWal(*graph, j, unit.ptr, unit.size, *allocators[0]);
     if (j % 1000000 == 0) {
       LOG(INFO) << "Ingested " << j << " WALs";
     }

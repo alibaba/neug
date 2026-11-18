@@ -394,6 +394,8 @@ inline void OpenVertexTableLegacy(neug::VertexTable& vt,
   }
   vt.SetTable(std::move(table));
   vt.SetVertexTimestamp(store.TakeModule<neug::VertexTimestamp>(kVertexVTs));
+  for (size_t i = 0; i < vt.get_table().col_num(); ++i)
+    vt.get_table().get_column_by_id(i)->PrepareForInsert(vt.LidNum());
 }
 
 inline neug::CheckpointManifest DumpVertexTableLegacy(neug::VertexTable& vt,
@@ -416,6 +418,7 @@ inline neug::CheckpointManifest DumpVertexTableLegacy(neug::VertexTable& vt,
   store.SetModule(kVertexIndexerIndices, idx.TakeIndices());
   store.SetModule(kVertexVTs, vt.TakeVertexTimestamp());
   store.Dump(ckp, meta);
+  ckp.FinalizeObjectWriter(meta);
   return meta;
 }
 
@@ -453,6 +456,10 @@ inline void OpenEdgeTableLegacy(neug::EdgeTable& et,
     et.SetTableIdx(meta.GetScalarAs<uint64_t>(kEdgeTableIdx).value_or(0));
   }
   et.SetCapacity(meta.GetScalarAs<uint64_t>(kEdgeCapacity).value_or(0));
+  if (es && !es->is_bundled()) {
+    for (size_t i = 0; i < et.table()->col_num(); ++i)
+      et.table()->get_column_by_id(i)->PrepareForInsert(et.PropTableSize());
+  }
 }
 
 inline neug::CheckpointManifest DumpEdgeTableLegacy(neug::EdgeTable& et,
@@ -471,6 +478,7 @@ inline neug::CheckpointManifest DumpEdgeTableLegacy(neug::EdgeTable& et,
   store.SetModule(kEdgeOutCsr, et.TakeOutCsr());
   store.SetModule(kEdgeInCsr, et.TakeInCsr());
   store.Dump(ckp, meta);
+  ckp.FinalizeObjectWriter(meta);
   return meta;
 }
 
