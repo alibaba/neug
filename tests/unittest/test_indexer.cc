@@ -15,12 +15,14 @@
 
 #include <gtest/gtest.h>
 
+#include <atomic>
 #include <chrono>
 #include <cstdint>
 #include <filesystem>
 #include <limits>
 #include <memory>
 #include <string>
+#include <thread>
 #include <vector>
 
 #include "neug/common/extra_type_info.h"
@@ -89,7 +91,84 @@ class LFIndexerTest : public ::testing::Test {
   }
 
   std::string test_dir_;
+
+  template <typename INDEX_T>
+  void ExpectConcurrentStringPublication() {
+    CheckpointManager ws;
+    ws.Open(test_dir_);
+    auto ckp = make_checkpoint(ws);
+    LFIndexer<INDEX_T> indexer;
+    auto type_info = std::make_shared<StringTypeInfo>(256);
+    OpenIndexerLegacy(indexer, *ckp, DataType(DataTypeId::kVarchar, type_info),
+                      CheckpointManifest(), MemoryLevel::kInMemory);
+
+    constexpr size_t writers = 4;
+    constexpr size_t batch_size = 1500;
+    constexpr size_t count = writers * batch_size;
+    std::vector<Value> keys;
+    for (size_t i = 0; i < count; ++i) {
+      auto key = std::to_string(i) + "-" + std::string(100, 'k');
+      keys.push_back(Value::STRING(key));
+    }
+    // Concurrent insert(false) requires stable, preallocated buffers. Do not
+    // use a separate publication counter: readers must acquire keys from slots.
+    indexer.reserve(count);
+    std::atomic<bool> start{false};
+    std::atomic<size_t> remaining{writers};
+    std::atomic<bool> invalid{false};
+    std::vector<INDEX_T> inserted(count);
+    std::vector<std::thread> threads;
+    for (size_t reader = 0; reader < 2; ++reader) {
+      threads.emplace_back([&] {
+        while (!start.load(std::memory_order_acquire)) {
+          std::this_thread::yield();
+        }
+        do {
+          for (const auto& key : keys) {
+            INDEX_T id;
+            if (indexer.get_index(key, id) &&
+                (id >= count ||
+                 indexer.get_key(id).template GetValue<std::string>() !=
+                     key.GetValue<std::string>())) {
+              invalid.store(true, std::memory_order_relaxed);
+            }
+          }
+        } while (remaining.load(std::memory_order_relaxed) != 0);
+      });
+    }
+    for (size_t writer = 0; writer < writers; ++writer) {
+      threads.emplace_back([&, writer] {
+        while (!start.load(std::memory_order_acquire)) {
+          std::this_thread::yield();
+        }
+        for (size_t i = writer * batch_size; i < (writer + 1) * batch_size;
+             ++i) {
+          inserted[i] = indexer.insert(keys[i], false);
+        }
+        remaining.fetch_sub(1, std::memory_order_relaxed);
+      });
+    }
+    start.store(true, std::memory_order_release);
+    for (auto& thread : threads) {
+      thread.join();
+    }
+    EXPECT_FALSE(invalid.load());
+    ASSERT_EQ(indexer.size(), count);
+    for (size_t i = 0; i < count; ++i) {
+      EXPECT_EQ(indexer.get_index(keys[i]), inserted[i]);
+      EXPECT_EQ(indexer.get_key(inserted[i]).template GetValue<std::string>(),
+                keys[i].GetValue<std::string>());
+    }
+  }
 };
+
+TEST_F(LFIndexerTest, ConcurrentStringPublication32) {
+  ExpectConcurrentStringPublication<uint32_t>();
+}
+
+TEST_F(LFIndexerTest, ConcurrentStringPublication64) {
+  ExpectConcurrentStringPublication<uint64_t>();
+}
 
 TEST_F(LFIndexerTest, SupportsCoreMutableInterfacesInMemory) {
   CheckpointManager ws;

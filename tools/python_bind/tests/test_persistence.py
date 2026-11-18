@@ -20,6 +20,9 @@ import csv
 import json
 import logging
 import shutil
+import subprocess
+import sys
+import textwrap
 from contextlib import closing
 
 import pytest
@@ -683,3 +686,36 @@ def test_join_queries(modern_graph):
         """
     )
     assert res.__next__() == [1, None]
+
+
+@pytest.mark.parametrize(
+    "mode", ["STANDARD", "standard", "sTaNdArD", "FULL", "full", "fUlL"]
+)
+@pytest.mark.parametrize("checkpoint", [False, True])
+def test_wal_sync_crash_recovery(tmp_path, mode, checkpoint):
+    path = str(tmp_path / "db")
+    # Terminate without destructors or close-time checkpoints. Writes after an
+    # explicit checkpoint also exercise the replacement WAL writer timeline.
+    script = textwrap.dedent(
+        f"""
+        import os
+        from neug.database import Database
+        db = Database(
+            {path!r}, wal_sync_mode={mode!r}, checkpoint_on_close=False
+        )
+        conn = db.connect()
+        conn.execute("CREATE NODE TABLE item(id INT64, PRIMARY KEY(id))")
+        conn.execute("CREATE (:item {{id: 1}})")
+        if {checkpoint!r}:
+            conn.execute("CHECKPOINT")
+        conn.execute("CREATE (:item {{id: 2}})")
+        os._exit(0)
+    """
+    )
+    subprocess.run([sys.executable, "-c", script], check=True, timeout=120)
+    # The choice is per open and does not alter the persisted WAL format.
+    other_mode = "FULL" if mode.upper() == "STANDARD" else "STANDARD"
+    with closing(Database(path, wal_sync_mode=other_mode)) as db:
+        with closing(db.connect()) as conn:
+            rows = sorted(conn.execute("MATCH (n:item) RETURN n.id"))
+            assert rows == [[1], [2]]

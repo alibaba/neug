@@ -13,6 +13,7 @@
  * limitations under the License.
  */
 #pragma once
+#include "neug/transaction/insert_capacity.h"
 
 #include <stddef.h>
 #include <stdint.h>
@@ -172,6 +173,10 @@ class MvccInsertTransaction {
   bool Commit();
 
   void Abort();
+  bool RequiresCapacityRetry() const { return capacity_retry_; }
+  const InsertCapacityRequest& capacity_request() const {
+    return growth_request_;
+  }
 
   timestamp_t timestamp() const;
 
@@ -212,6 +217,11 @@ class MvccInsertTransaction {
 
   void clear();
 
+  InsertCapacityRequest capacity_;
+  InsertCapacityRequest growth_request_;
+  bool capacity_reserved_ = false;
+  void ReleaseCapacity() noexcept;
+  bool capacity_retry_ = false;
   InArchive arc_;
 
   std::vector<std::unique_ptr<neug::IdIndexerBase<vid_t>>> added_vertices_;

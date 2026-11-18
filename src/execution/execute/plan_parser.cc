@@ -544,6 +544,11 @@ static void parse_params_type_impl(const physical::PhysicalPlan& plan,
             path_expand_opr.base().edge_expand().params().predicate(),
             params_type);
       }
+      if (path_expand_opr.base().get_v().has_params() &&
+          path_expand_opr.base().get_v().params().has_predicate()) {
+        expression_parse(path_expand_opr.base().get_v().params().predicate(),
+                         params_type);
+      }
       break;
     }
     case physical::PhysicalOpr_Operator::OpKindCase::kJoin: {

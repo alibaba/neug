@@ -19,11 +19,14 @@
 
 #include <glog/logging.h>
 #include <chrono>
+#include <cstdlib>
+#include <exception>
+#include <iostream>
 #include "cxxopts/cxxopts.hpp"
 
 using namespace neug;
 
-int main(int argc, char** argv) {
+int main(int argc, char** argv) try {
   cxxopts::Options options("rt_server", "Real-time graph server for NeuG");
   options.add_options()("h,help", "Display help message")("v,version",
                                                           "Display version")(
@@ -42,6 +45,8 @@ int main(int argc, char** argv) {
       "auto-load-extension",
       "Automatically load installed extensions before opening indexes",
       cxxopts::value<bool>()->default_value("false"))(
+      "wal-sync-mode", "WAL synchronization policy (STANDARD or FULL)",
+      cxxopts::value<std::string>()->default_value("STANDARD"))(
       "host", "Host address", cxxopts::value<std::string>());
 
   google::InitGoogleLogging(argv[0]);
@@ -79,6 +84,8 @@ int main(int argc, char** argv) {
   neug::NeugDBConfig config(data_path, thread_num);
   config.memory_level = memory_level;
   config.auto_load_extension = vm["auto-load-extension"].as<bool>();
+  config.wal_sync_mode =
+      neug::ParseWalSyncMode(vm["wal-sync-mode"].as<std::string>());
   db.Open(config);
 
   auto end = std::chrono::high_resolution_clock::now();
@@ -99,4 +106,10 @@ int main(int argc, char** argv) {
   service.run_and_wait_for_exit();
 
   return 0;
+} catch (const std::exception& e) {
+  std::cerr << "rt_server: " << e.what() << std::endl;
+  return EXIT_FAILURE;
+} catch (...) {
+  std::cerr << "rt_server: unknown exception" << std::endl;
+  return EXIT_FAILURE;
 }

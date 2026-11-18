@@ -20,6 +20,7 @@ Built on this data foundation, NeuG is **the one data index for your agentic app
 
 ## News
 
+- **2026-11** — NeuG v0.3: [native Windows support](https://neug.io/docs/installation/installation/) (service mode and all six extensions on `win_x86_64` / `win_arm64`), [STRUCT property type](https://neug.io/docs/cypher_manual/data_types/#struct), and Parquet I/O switched to Carquet
 - **2026-09** — NeuG v0.2: [HNSW vector search](https://neug.io/docs/extensions/vector_search/), [BM25 full-text search](https://neug.io/docs/extensions/fts_search/) and [explicit transactions](https://neug.io/docs/transaction/transaction/)
 - **2026-07** — NeuG is listed in [Database of Databases](https://dbdb.io/db/neug)
 

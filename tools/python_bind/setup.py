@@ -177,7 +177,7 @@ class CMakeBuild(build_ext):
                 continue
             dst_dir = extdir / "extension" / name
             dst_dir.mkdir(parents=True, exist_ok=True)
-            for f in src_dir.iterdir():
+            for f in src_dir.glob("*.neug_extension"):
                 if f.is_file():
                     shutil.copy2(f, dst_dir, follow_symlinks=True)
             print(f"[CMakeBuild] copied extension/{name}/ -> {dst_dir}")
@@ -412,7 +412,7 @@ class InstallLib(_install_lib):
             for f in os.listdir(src):
                 s = os.path.join(src, f)
                 d = os.path.join(dst, f)
-                if os.path.isfile(s):
+                if f.endswith(".neug_extension") and os.path.isfile(s):
                     shutil.copy2(s, d)
             print(f"[InstallLib] Copied extension: {name} -> {dst}")
             sys.stdout.flush()

@@ -635,6 +635,57 @@ TYPED_TEST(MutableCsrTest, TestDumpAndOpen) {
                         MemoryLevel::kHugePagePreferred);
 }
 
+TYPED_TEST(MutableCsrTest, ResizeCloneWithoutDetach) {
+  {
+    MutableCsr<TypeParam> original;
+    this->load_csr_data(original, MemoryLevel::kInMemory);
+    const auto size = original.size();
+    const auto edge_count = original.edge_num();
+    auto module = original.Clone();
+    auto* clone = static_cast<MutableCsr<TypeParam>*>(module.get());
+    clone->resize(size + 4096);
+    EXPECT_EQ(original.size(), size);
+    EXPECT_EQ(original.edge_num(), edge_count);
+    EXPECT_EQ(clone->size(), size + 4096);
+    EXPECT_EQ(clone->edge_num(), edge_count);
+    for (vid_t vid = 0; vid < size; ++vid) {
+      auto old_edges = original.get_generic_view(0).get_edges(vid);
+      auto new_edges = clone->get_generic_view(0).get_edges(vid);
+      auto old_it = old_edges.begin();
+      auto new_it = new_edges.begin();
+      for (; old_it != old_edges.end() && new_it != new_edges.end();
+           ++old_it, ++new_it)
+        EXPECT_EQ(old_it.get_vertex(), new_it.get_vertex());
+      EXPECT_TRUE(old_it == old_edges.end());
+      EXPECT_TRUE(new_it == new_edges.end());
+    }
+  }
+  {
+    SingleMutableCsr<TypeParam> original;
+    this->load_single_csr_data(original, MemoryLevel::kInMemory);
+    const auto size = original.size();
+    const auto edge_count = original.edge_num();
+    auto module = original.Clone();
+    auto* clone = static_cast<SingleMutableCsr<TypeParam>*>(module.get());
+    clone->resize(size + 4096);
+    EXPECT_EQ(original.size(), size);
+    EXPECT_EQ(original.edge_num(), edge_count);
+    EXPECT_EQ(clone->size(), size + 4096);
+    EXPECT_EQ(clone->edge_num(), edge_count);
+    for (vid_t vid = 0; vid < size; ++vid) {
+      auto old_edges = original.get_generic_view(0).get_edges(vid);
+      auto new_edges = clone->get_generic_view(0).get_edges(vid);
+      auto old_it = old_edges.begin();
+      auto new_it = new_edges.begin();
+      for (; old_it != old_edges.end() && new_it != new_edges.end();
+           ++old_it, ++new_it)
+        EXPECT_EQ(old_it.get_vertex(), new_it.get_vertex());
+      EXPECT_TRUE(old_it == old_edges.end());
+      EXPECT_TRUE(new_it == new_edges.end());
+    }
+  }
+}
+
 TYPED_TEST(MutableCsrTest, TestResize) {
   MutableCsr<TypeParam> mutable_csr;
   this->load_csr_data(mutable_csr, MemoryLevel::kInMemory);

@@ -124,7 +124,7 @@ cmake --build build --target rt_server -j$(nproc)
 #### 2. Start the server
 
 ```bash
-./build/bin/rt_server --data-path /path/to/graph --http-port 10000 --host 0.0.0.0 --thread-num 0 --auto-load-extension=false
+./build/bin/rt_server --data-path /path/to/graph --http-port 10000 --host 0.0.0.0 --thread-num 0 --auto-load-extension=false --wal-sync-mode STANDARD
 ```
 
 Common options:
@@ -133,6 +133,9 @@ Common options:
   graph/index opening, default `false`. Set to `true` to enable it on the server.
   See [auto_load_extension configuration](../python_api/database.md)
   for directory resolution, failure handling and database mode behavior.
+- `--wal-sync-mode`: sets the server database's WAL synchronization policy for
+  Java writes. Accepts `STANDARD` (default) or `FULL`, case-insensitive.
+  See [WAL synchronization policy](../../transaction/checkpoint.md#wal-synchronization-policy).
 - `--data-path`: path to the NeuG data directory
 - `--http-port`: HTTP port for Java clients, default is `10000`
 - `--host`: bind address, default is `127.0.0.1`

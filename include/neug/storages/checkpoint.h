@@ -110,6 +110,11 @@ class NEUG_API Checkpoint {
     return file_mgr_->CreateRuntimeContainer(size, level);
   }
 
+  // Runtime allocations may outlive the manifest-specific Checkpoint object.
+  std::shared_ptr<CheckpointFileManager> runtime_allocator() const {
+    return file_mgr_;
+  }
+
   /// Consume @p buffer and publish it as an immutable object.
   std::string Commit(IDataContainer& buffer) {
     return file_mgr_->Commit(buffer);
@@ -190,7 +195,7 @@ class NEUG_API Checkpoint {
   std::string wal_dir_;
   uint64_t id_;
   CheckpointManifest manifest_;
-  std::unique_ptr<CheckpointFileManager> file_mgr_;
+  std::shared_ptr<CheckpointFileManager> file_mgr_;
   std::unique_ptr<ObjectWriter> object_writer_;
   std::vector<std::string> object_table_;
   std::vector<std::function<void(Checkpoint&, CheckpointManifest&)>>
