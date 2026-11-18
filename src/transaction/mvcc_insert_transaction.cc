@@ -33,6 +33,31 @@
 
 namespace neug {
 
+#ifdef NEUG_BUILD_TEST
+namespace {
+// A bthread may migrate while applying WAL. Copy the hook before that work,
+// using the same fenced TLS access pattern as the execution retry hook.
+#if defined(__GNUC__) || defined(__clang__)
+__attribute__((noinline))
+#elif defined(_MSC_VER)
+__declspec(noinline)
+#endif
+std::function<void()>&
+GetInsertPostIngestHook() {
+  static thread_local std::function<void()> hook;
+  auto* pointer = &hook;
+#if defined(__GNUC__) || defined(__clang__)
+  asm volatile("" : "+r"(pointer) : : "memory");
+#endif
+  return *pointer;
+}
+}  // namespace
+
+void SetInsertPostIngestHookForTest(std::function<void()> hook) {
+  GetInsertPostIngestHook() = std::move(hook);
+}
+#endif
+
 MvccInsertTransaction::MvccInsertTransaction(SnapshotGuard guard,
                                              Allocator& alloc,
                                              IWalWriter& wal_writer,
@@ -180,6 +205,9 @@ bool MvccInsertTransaction::Commit() {
   capacity_retry_ = !capacity_reserved_;
   if (capacity_retry_)
     return false;
+#ifdef NEUG_BUILD_TEST
+  const auto post_ingest_hook = GetInsertPostIngestHook();
+#endif
   auto* header = reinterpret_cast<WalHeader*>(arc_.GetBuffer());
   header->length = arc_.GetSize() - sizeof(WalHeader);
   header->type = 0;
@@ -201,6 +229,11 @@ bool MvccInsertTransaction::Commit() {
   // to be sufficient; the strict insert path will throw if exhausted.
   IngestWal(*view_, timestamp_, arc_.GetBuffer() + sizeof(WalHeader),
             header->length, alloc_);
+
+#ifdef NEUG_BUILD_TEST
+  if (post_ingest_hook)
+    post_ingest_hook();
+#endif
 
   ReleaseCapacity();
   view_ = nullptr;
