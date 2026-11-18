@@ -319,6 +319,33 @@ TEST_F(ARTAllocatorTest, IndependentBuffersRestoreDetachAndCleanup) {
   EXPECT_EQ(RuntimeFileCount(target), target_baseline);
 }
 
+TEST_F(ARTAllocatorTest, LoadRebindsRuntimeAllocatorForLaterBuffers) {
+  auto& source = *checkpoint_;
+  FixedSizeAllocator original(131072, source, MemoryLevel::kSyncToFile);
+  ASSERT_EQ(original.GetBufferCapacity(), 1);
+  auto first = original.New();
+  *original.Get<uint64_t>(first) = 123456;
+  auto metadata = original.Save(source);
+
+  CheckpointManager target_manager;
+  target_manager.Open((temp_dir_ / "target").string());
+  auto target_checkpoint = make_checkpoint(target_manager);
+  auto& target = *target_checkpoint;
+  ASSERT_NE(source.runtime_dir(), target.runtime_dir());
+  const auto source_baseline = RuntimeFileCount(source);
+  const auto target_baseline = RuntimeFileCount(target);
+
+  FixedSizeAllocator restored(131072, source, MemoryLevel::kSyncToFile);
+  restored.Load(target, metadata, 1);
+  EXPECT_EQ(RuntimeFileCount(source), source_baseline);
+  EXPECT_EQ(RuntimeFileCount(target), target_baseline + 1);
+  auto appended = restored.New();
+  EXPECT_NE(appended.GetBufferId(), first.GetBufferId());
+  EXPECT_EQ(RuntimeFileCount(source), source_baseline);
+  EXPECT_EQ(RuntimeFileCount(target), target_baseline + 2);
+  EXPECT_EQ(*restored.Get<uint64_t>(first), 123456);
+}
+
 TEST_F(ARTAllocatorTest, KeepsRuntimeAllocatorAliveForLaterBuffers) {
   auto path = temp_dir_ / "lifetime";
   std::weak_ptr<Checkpoint> checkpoint_lifetime;

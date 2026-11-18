@@ -287,6 +287,7 @@ void FixedSizeAllocator::Load(Checkpoint& checkpoint,
   NextBufferWithFreeSpace();
   if (total_segment_count != expected_segment_count)
     throw SerializationException("Invalid ART segment count");
+  runtime_allocator = checkpoint.runtime_allocator();
 }
 
 idx_t FixedSizeAllocator::GetAvailableBufferId() const {
