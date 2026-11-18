@@ -22,7 +22,8 @@
 #include "neug/storages/checkpoint_file_manager.h"
 namespace neug::art {
 SegmentHandle::SegmentHandle(FixedSizeBuffer& buffer, idx_t offset)
-    : ptr(static_cast<data_ptr_t>(buffer.container->GetData()) +
+    : buffer_ptr(&buffer),
+      ptr(static_cast<data_ptr_t>(buffer.container->GetData()) +
           FixedSizeBuffer::BUFFER_HEADER_SIZE + offset) {}
 
 constexpr idx_t FixedSizeBuffer::BASE[];
@@ -52,6 +53,7 @@ void FixedSizeBuffer::Detach(CheckpointFileManager& allocator,
 uint32_t FixedSizeBuffer::AllocateSegment(const idx_t bitmask_count,
                                           const idx_t available_segments) {
   D_ASSERT(segment_count < available_segments);
+  dirty = true;
 
   // Get a handle to the buffer's validity mask (offset 0).
   SegmentHandle handle(*this, 0);
@@ -120,6 +122,7 @@ void FixedSizeBuffer::FreeSegment(const idx_t offset,
   mask.SetValid(offset);
 
   segment_count--;
+  dirty = true;
 }
 
 }  // namespace neug::art

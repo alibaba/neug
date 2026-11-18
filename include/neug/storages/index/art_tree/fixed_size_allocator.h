@@ -23,12 +23,21 @@
 #include "neug/storages/index/art_tree/fixed_size_buffer.h"
 #include "neug/storages/index/art_tree/index_pointer.h"
 #include "neug/storages/index/art_tree/memory_usage.h"
+#include "neug/storages/module_descriptor.h"
+#include "neug/utils/md5_utils.h"
 namespace neug::art {
 struct ARTBufferMetadata {
   idx_t buffer_id;
   idx_t segment_count;
   string address;
+  // Offsets are relative to the object payload, after FileHeader.
+  idx_t offset;
+  idx_t length;
+  MD5Digest checksum;
 };
+using ARTBufferMetadataMap = std::unordered_map<
+    idx_t, ARTBufferMetadata, std::hash<idx_t>, std::equal_to<idx_t>,
+    CountingAllocator<std::pair<const idx_t, ARTBufferMetadata>>>;
 class ARTOptionalIdx {
  public:
   ARTOptionalIdx() = default;
@@ -52,11 +61,13 @@ class FixedSizeAllocator {
   IndexPointer New();
   void Free(const IndexPointer ptr);
   SegmentHandle GetHandle(const IndexPointer ptr);
+  // Legacy pointer access marks the buffer dirty by default. For read-only
+  // access use a const T with dirty=false, or a segment handle without marking.
   template <class T>
-  unsafe_optional_ptr<T> Get(const IndexPointer ptr) {
-    return reinterpret_cast<T*>(Get(ptr));
+  unsafe_optional_ptr<T> Get(const IndexPointer ptr, const bool dirty = true) {
+    return reinterpret_cast<T*>(Get(ptr, dirty));
   }
-  data_ptr_t Get(const IndexPointer ptr);
+  data_ptr_t Get(const IndexPointer ptr, const bool dirty = true);
   void Reset();
   idx_t GetSegmentSize() const;
   idx_t GetSegmentCount() const;
@@ -64,10 +75,13 @@ class FixedSizeAllocator {
   bool Empty() const;
   void RemoveEmptyBuffers();
   void VerifyBuffers() const;
-  // Save each container through Checkpoint and return metadata for restoration.
-  vector<ARTBufferMetadata> Save(Checkpoint& checkpoint);
-  void Load(Checkpoint& checkpoint,
-            const vector<ARTBufferMetadata>& buffer_metadata,
+  // Write dirty blocks to a checkpoint file and update checkpoint file
+  // references. Hold an exclusive lock during Save.
+  // Returns the allocator-owned directory, updated in place by subsequent
+  // saves.
+  const ARTBufferMetadataMap& Save(Checkpoint& checkpoint,
+                                   ModuleDescriptor& descriptor);
+  void Load(Checkpoint& checkpoint, const ARTBufferMetadataMap& saved_metadata,
             idx_t expected_segment_count);
   // Report memory requested by the ART index, excluding additional overhead
   // introduced by the underlying allocator's size-rounding policy.
@@ -81,6 +95,7 @@ class FixedSizeAllocator {
   idx_t bitmask_offset;
   idx_t available_segments_per_buffer;
   idx_t total_segment_count = 0;
+  ARTBufferMetadataMap buffer_metadata;
   using BufferEntry = std::pair<const idx_t, std::unique_ptr<FixedSizeBuffer>>;
   std::unordered_map<idx_t, std::unique_ptr<FixedSizeBuffer>, std::hash<idx_t>,
                      std::equal_to<idx_t>, CountingAllocator<BufferEntry>>

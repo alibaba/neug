@@ -19,8 +19,10 @@
  */
 
 #include "neug/storages/index/art_tree/fixed_size_allocator.h"
+
 #include "neug/storages/checkpoint.h"
 #include "neug/storages/container/anon_mmap_container.h"
+#include "neug/storages/index/art_tree/storage_manager.h"
 namespace neug::art {
 ARTOptionalIdx::ARTOptionalIdx(idx_t value) : value(value) {}
 ARTOptionalIdx& ARTOptionalIdx::operator=(idx_t index) {
@@ -51,8 +53,11 @@ SegmentHandle FixedSizeAllocator::GetHandle(const IndexPointer ptr) {
   auto offset = ptr.GetOffset() * segment_size + bitmask_offset;
   return SegmentHandle(*buffer_it->second, offset);
 }
-data_ptr_t FixedSizeAllocator::Get(const IndexPointer ptr) {
-  return GetHandle(ptr).GetPtr();
+data_ptr_t FixedSizeAllocator::Get(const IndexPointer ptr, const bool dirty) {
+  auto handle = GetHandle(ptr);
+  if (dirty)
+    handle.MarkModified();
+  return handle.GetPtr();
 }
 idx_t FixedSizeAllocator::GetSegmentSize() const { return segment_size; }
 idx_t FixedSizeAllocator::GetSegmentCount() const {
@@ -206,6 +211,7 @@ void FixedSizeAllocator::Detach(Checkpoint& target, MemoryLevel level) {
 
 void FixedSizeAllocator::Reset() {
   buffers.clear();
+  buffer_metadata.clear();
   buffers_with_free_space.clear();
   buffer_with_free_space.SetInvalid();
   total_segment_count = 0;
@@ -213,10 +219,10 @@ void FixedSizeAllocator::Reset() {
 
 MemoryUsage FixedSizeAllocator::GetMemoryUsage() const {
   MemoryUsage usage;
-  usage.directory_bytes = sizeof(FixedSizeAllocator) +
-                          buffers.get_allocator().Bytes() +
-                          buffers_with_free_space.get_allocator().Bytes() +
-                          2 * sizeof(std::atomic<size_t>);
+  usage.directory_bytes =
+      sizeof(FixedSizeAllocator) + buffers.get_allocator().Bytes() +
+      buffers_with_free_space.get_allocator().Bytes() +
+      buffer_metadata.get_allocator().Bytes() + 3 * sizeof(std::atomic<size_t>);
   usage.occupied_node_bytes = total_segment_count * segment_size;
   for (const auto& [id, buffer] : buffers) {
     // The bitmap is inside the allocation. Split it out without double
@@ -240,38 +246,105 @@ idx_t FixedSizeAllocator::GetUpperBoundBufferId() const {
   return upper_bound_id;
 }
 
-vector<ARTBufferMetadata> FixedSizeAllocator::Save(Checkpoint& checkpoint) {
-  vector<ARTBufferMetadata> buffer_metadata;
-  buffer_metadata.reserve(buffers.size());
+const ARTBufferMetadataMap& FixedSizeAllocator::Save(
+    Checkpoint& checkpoint, ModuleDescriptor& descriptor) {
+  // Keep the existing directory and collect only new or dirty buffers.
+  ARTBufferMetadataMap changed;
   for (auto& [id, buffer] : buffers) {
     if (!buffer->segment_count)
       continue;
-    // Commit consumes its argument and removes its runtime file. An anonymous
-    // snapshot preserves the live container, its addresses, and its backing
-    // file.
-    const auto size = buffer->container->GetDataSize();
-    auto snapshot =
-        checkpoint.CreateRuntimeContainer(size, MemoryLevel::kInMemory);
-    std::memcpy(snapshot->GetData(), buffer->container->GetData(), size);
-    auto address = checkpoint.Commit(*snapshot);
-    if (address.empty())
-      throw SerializationException("Empty ART buffer address");
-    buffer_metadata.push_back({id, buffer->segment_count, std::move(address)});
+    if (!buffer->dirty && buffer_metadata.contains(id))
+      continue;
+    changed.emplace(id, ARTBufferMetadata{id,
+                                          buffer->segment_count,
+                                          "",
+                                          0,
+                                          buffer->container->GetDataSize(),
+                                          {}});
   }
+
+  if (!changed.empty()) {
+    // The storage manager owns file creation, checksums and publication.
+    ARTStorageManager storage(checkpoint);
+    for (auto& [id, metadata] : changed) {
+      const auto* data = buffers.at(metadata.buffer_id)->container->GetData();
+      auto slice = storage.Append(data, metadata.length);
+      metadata.offset = slice.offset;
+      metadata.checksum = slice.checksum;
+    }
+    auto address = storage.Commit();
+    for (auto& [id, metadata] : changed) {
+      metadata.address = address;
+      buffer_metadata.insert_or_assign(id, std::move(metadata));
+    }
+  }
+
+  // Remove directory entries for buffers that have been emptied or freed.
+  for (auto it = buffer_metadata.begin(); it != buffer_metadata.end();) {
+    auto buffer = buffers.find(it->first);
+    if (buffer == buffers.end() || !buffer->second->segment_count)
+      it = buffer_metadata.erase(it);
+    else
+      ++it;
+  }
+
+  // Replace this allocator's roots, including removing objects whose last
+  // buffer was changed or freed. Older published manifests retain their roots.
+  auto next_descriptor = descriptor;
+  auto& paths = next_descriptor.mutable_paths();
+  for (auto it = paths.begin(); it != paths.end();) {
+    if (it->first.starts_with("art_buffer_"))
+      it = paths.erase(it);
+    else
+      ++it;
+  }
+  std::unordered_map<string, string> reused_objects;
+  for (auto& [id, metadata] : buffer_metadata) {
+    // Materialize each object once if saving into a different object store.
+    auto [it, added] = reused_objects.emplace(metadata.address, "");
+    if (added)
+      it->second = checkpoint.MaterializeObject(metadata.address);
+    if (metadata.address != it->second)
+      metadata.address = it->second;
+    next_descriptor.set_path("art_buffer_" + to_string(metadata.buffer_id),
+                             metadata.address);
+  }
+  descriptor = std::move(next_descriptor);
+  // Clear dirty flags only after a successful save.
+  for (const auto& [id, metadata] : changed)
+    buffers.at(id)->dirty = false;
   return buffer_metadata;
 }
 void FixedSizeAllocator::Load(Checkpoint& checkpoint,
-                              const vector<ARTBufferMetadata>& buffer_metadata,
+                              const ARTBufferMetadataMap& saved_metadata,
                               idx_t expected_segment_count) {
+  // Copy first: the caller may pass this allocator's own directory.
+  auto restored_metadata = saved_metadata;
   Reset();
-  for (const auto& metadata : buffer_metadata) {
-    if (metadata.buffer_id > std::numeric_limits<uint32_t>::max() ||
+  std::unordered_map<string, std::shared_ptr<IDataContainer>> objects;
+  for (const auto& [id, metadata] : restored_metadata) {
+    if (id != metadata.buffer_id ||
+        metadata.buffer_id > std::numeric_limits<uint32_t>::max() ||
         buffers.count(metadata.buffer_id) || metadata.address.empty() ||
+        metadata.length != FixedSizeBuffer::BUFFER_ALLOC_SIZE ||
         !metadata.segment_count ||
         metadata.segment_count > available_segments_per_buffer)
       throw SerializationException("Invalid ART buffer metadata");
+    auto& object = objects[metadata.address];
+    if (!object)
+      object = checkpoint.OpenFile(metadata.address, MemoryLevel::kInMemory);
+    if (metadata.offset > object->GetDataSize() ||
+        metadata.length > object->GetDataSize() - metadata.offset)
+      throw SerializationException("ART buffer is outside its object");
+    const auto* data =
+        static_cast<const char*>(object->GetData()) + metadata.offset;
+    if (ComputeMD5(data, metadata.length) != metadata.checksum)
+      throw SerializationException("ART buffer checksum mismatch");
+    // Runtime buffers stay independent, so growing/detaching one does not
+    // change addresses or retain an entire packed object mapping.
     auto buffer = std::make_unique<FixedSizeBuffer>(
-        checkpoint.OpenFile(metadata.address, memory_level));
+        *checkpoint.runtime_allocator(), memory_level);
+    std::memcpy(buffer->container->GetData(), data, metadata.length);
     SegmentHandle handle(*buffer, 0);
     ValidityMask free_mask(handle.GetPtr<validity_t>(),
                            available_segments_per_buffer);
@@ -279,6 +352,7 @@ void FixedSizeAllocator::Load(Checkpoint& checkpoint,
       buffer->segment_count += !free_mask.RowIsValid(slot);
     if (buffer->segment_count != metadata.segment_count)
       throw SerializationException("ART buffer occupancy mismatch");
+    buffer->dirty = false;
     total_segment_count += buffer->segment_count;
     if (buffer->segment_count < available_segments_per_buffer)
       buffers_with_free_space.insert(metadata.buffer_id);
@@ -287,6 +361,7 @@ void FixedSizeAllocator::Load(Checkpoint& checkpoint,
   NextBufferWithFreeSpace();
   if (total_segment_count != expected_segment_count)
     throw SerializationException("Invalid ART segment count");
+  buffer_metadata = std::move(restored_metadata);
   runtime_allocator = checkpoint.runtime_allocator();
 }
 

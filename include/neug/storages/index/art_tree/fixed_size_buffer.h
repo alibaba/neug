@@ -48,6 +48,7 @@ class FixedSizeBuffer {
   void FreeSegment(idx_t offset, idx_t available_segments);
   std::shared_ptr<IDataContainer> container;
   idx_t segment_count = 0;
+  bool dirty = true;
 };
 // IDataContainer remains resident; caller-held tree lock protects its lifetime.
 class SegmentHandle {
@@ -73,8 +74,12 @@ class SegmentHandle {
   const T* GetPtr() const {
     return reinterpret_cast<const T*>(ptr);
   }
+  // Call under the caller's write lock whenever modifying through this handle,
+  // including writes through a pointer retained across Save().
+  void MarkModified() { buffer_ptr->dirty = true; }
 
  private:
+  FixedSizeBuffer* buffer_ptr;
   data_ptr_t ptr;
 };
 }  // namespace neug::art
