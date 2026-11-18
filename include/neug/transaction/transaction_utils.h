@@ -91,7 +91,8 @@ Status renameVertexIndex(PropertyGraph& graph, label_t label,
                          const std::string& new_name);
 Status addVertexIndexData(PropertyGraph& graph, label_t label, vid_t lid,
                           const Value& id, const std::vector<Value>& props,
-                          const IndexDetachFn& detach_index = nullptr);
+                          const IndexDetachFn& detach_index = nullptr,
+                          bool insert_safe = true);
 Status updateVertexIndexData(PropertyGraph& graph, label_t label, vid_t lid,
                              int32_t col_id, const Value& value,
                              const IndexDetachFn& detach_index = nullptr);

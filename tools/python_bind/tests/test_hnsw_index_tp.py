@@ -587,9 +587,7 @@ def test_hnsw_index_tp_mutations(tmp_path, unused_tcp_port):
         create_indexed_item = (
             "CREATE (:Item {id: 4, name: 'four', " "embedding: [0.9, 0.0, 0.0, 0.0]});"
         )
-        with pytest.raises(Exception, match="Insert-only mode"):
-            session.execute(create_indexed_item, access_mode="insert")
-        session.execute(create_indexed_item)
+        session.execute(create_indexed_item, access_mode="insert")
         _check_search(
             failures,
             "search after insert",

@@ -306,6 +306,7 @@ StorageIndexManager::GetIndexesContainingPropertyForUpdate(
 
 neug::result<std::vector<StorageIndex*>>
 StorageIndexManager::GetIndexesForUpdate(label_t label_id) {
+  std::lock_guard<std::mutex> lock(insert_dirty_mutex_);
   std::vector<StorageIndex*> result;
   for (const auto& [name, pending] : pending_indexes_) {
     if (pending.meta.schema.label_id == label_id) {

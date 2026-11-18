@@ -391,8 +391,7 @@ class NEUG_API StorageReadInterface : virtual public IStorageInterface {
    * @return Vertex IDs matching the index query, or an error.
    */
   result<std::vector<SearchResult>> IndexSearch(
-      const std::string& unique_index_name,
-      const IndexQueryParams& params) const;
+      const std::string& unique_index_name, IndexQueryParams& params) const;
 
  protected:
   const GraphView& view_;

@@ -148,7 +148,8 @@ bool InsertCapacityRequest::ColumnFits(ColumnBase& col, size_t rows,
   if (auto* vec = dynamic_cast<VecColumn*>(&col)) {
     return rows <= vec->size() &&
            AddSize(vec->get_offset_accessor()->GetNextIndexID(), need.count) <=
-               vec->buffer_size();
+               std::min(vec->buffer_size(),
+                        vec->get_offset_accessor()->IndexCapacity());
   }
   if (rows > col.size())
     return false;
@@ -181,9 +182,18 @@ void InsertCapacityRequest::GrowColumn(ColumnBase& col, size_t rows,
                                        const ColumnNeed& need) {
   if (ColumnFits(col, rows, need))
     return;
-  if (dynamic_cast<VecColumn*>(&col))
-    THROW_STORAGE_EXCEPTION(
-        "Insert-only VecColumn growth is not supported; use update mode");
+  if (auto* vec = dynamic_cast<VecColumn*>(&col)) {
+    const auto required =
+        AddSize(vec->get_offset_accessor()->GetNextIndexID(), need.count);
+    if (required >= INVALID_INDEX_ID)
+      THROW_STORAGE_EXCEPTION("Vector index ID capacity overflow");
+    vec->get_offset_accessor()->Resize(
+        rows > vec->size() ? Target(rows) : vec->size(),
+        std::min(size_t(INVALID_INDEX_ID), Target(required)));
+    if (required > vec->buffer_size())
+      vec->resize(Target(required));
+    return;
+  }
   const auto target_rows = rows > col.size() ? Target(rows) : col.size();
   const ColumnNeed empty;
   const auto& child = need.children.empty() ? empty : need.children[0];
@@ -219,51 +229,7 @@ void InsertCapacityRequest::GrowColumn(ColumnBase& col, size_t rows,
     col.resize(target_rows);
   }
 }
-void InsertCapacityRequest::ValidateGrowthSupport(PropertyGraph& graph) const {
-  auto check_columns = [](Table& table, size_t rows, size_t count,
-                          bool table_grows) {
-    for (size_t i = 0; i < table.col_num(); ++i) {
-      auto* vec = dynamic_cast<VecColumn*>(table.get_column_by_id(i));
-      if (vec &&
-          (table_grows || !ColumnFits(*vec, rows, ColumnNeed{count, 0, {}})))
-        THROW_STORAGE_EXCEPTION(
-            "Insert-only VecColumn growth is not supported; use update mode");
-    }
-  };
-  const auto& schema = graph.schema();
-  for (const auto& [name, n] : vertices_) {
-    const auto label = schema.get_vertex_label_id(name);
-    auto& vt = graph.get_vertex_table(label);
-    const auto rows = AddSize(vt.Size(), n.rows);
-    check_columns(vt.get_table(), rows, n.rows, rows > vt.Capacity());
-    if (rows > vt.Capacity()) {
-      const auto& manager = graph.index_manager();
-      bool indexed = manager.HasPendingIndex(label);
-      auto indexes = manager.GetAllIndexes();
-      if (!indexes)
-        THROW_STORAGE_EXCEPTION(indexes.error().error_message());
-      for (const auto* index : indexes.value())
-        indexed |= index->GetMeta().schema.label_id == label;
-      if (indexed)
-        THROW_STORAGE_EXCEPTION(
-            "Insert-only indexed table growth is not supported; use update "
-            "mode");
-    }
-  }
-  for (const auto& [names, n] : edges_) {
-    const auto& [src, dst, edge] = names;
-    auto& et = graph.get_edge_table(schema.get_vertex_label_id(src),
-                                    schema.get_vertex_label_id(dst),
-                                    schema.get_edge_label_id(edge));
-    if (!et.meta()->is_bundled()) {
-      const auto rows = AddSize(et.PropTableSize(), n.rows);
-      check_columns(*et.table(), rows, n.rows, rows > et.Capacity());
-    }
-  }
-}
-
 bool InsertCapacityRequest::Fits(PropertyGraph& graph) const {
-  ValidateGrowthSupport(graph);
   const auto& schema = graph.schema();
   for (const auto& [name, n] : vertices_) {
     auto& vt = graph.get_vertex_table(schema.get_vertex_label_id(name));
@@ -277,6 +243,15 @@ bool InsertCapacityRequest::Fits(PropertyGraph& graph) const {
       return false;
     for (size_t i = 0; i < n.columns.size(); ++i)
       if (!ColumnFits(*table.get_column_by_id(i), rows, n.columns[i]))
+        return false;
+    auto indexes = graph.index_manager().GetAllIndexes();
+    if (!indexes)
+      THROW_STORAGE_EXCEPTION(indexes.error().error_message());
+    for (const auto* index : indexes.value())
+      if (index->GetMeta().schema.label_id ==
+              schema.get_vertex_label_id(name) &&
+          (rows > index->VertexCapacity() ||
+           AddSize(index->GetNextIndexID(), n.rows) > index->IndexCapacity()))
         return false;
   }
   for (const auto& [names, n] : edges_) {
@@ -297,8 +272,6 @@ bool InsertCapacityRequest::Fits(PropertyGraph& graph) const {
   return true;
 }
 void InsertCapacityRequest::Grow(PropertyGraph& graph) const {
-  // Reject unsupported requests before mutating any table or column.
-  ValidateGrowthSupport(graph);
   const auto& schema = graph.schema();
   for (const auto& [name, n] : vertices_) {
     auto label = schema.get_vertex_label_id(name);
@@ -313,6 +286,21 @@ void InsertCapacityRequest::Grow(PropertyGraph& graph) const {
                ColumnNeed{n.rows, n.key_bytes, {}});
     for (size_t i = 0; i < n.columns.size(); ++i)
       GrowColumn(*vt.get_table().get_column_by_id(i), rows, n.columns[i]);
+    auto indexes = graph.index_manager().GetAllIndexes();
+    if (!indexes)
+      THROW_STORAGE_EXCEPTION(indexes.error().error_message());
+    for (auto* index : indexes.value()) {
+      if (index->GetMeta().schema.label_id != label)
+        continue;
+      const auto required = AddSize(index->GetNextIndexID(), n.rows);
+      if (required > size_t(INVALID_INDEX_ID))
+        THROW_STORAGE_EXCEPTION("Index ID capacity overflow");
+      if (rows > index->VertexCapacity() || required > index->IndexCapacity()) {
+        const auto index_size =
+            std::min(size_t(INVALID_INDEX_ID), Target(required));
+        index->Resize(vt.Capacity(), static_cast<index_id_t>(index_size));
+      }
+    }
     graph.MarkVertexTableDirty(label);
   }
   for (const auto& [names, n] : edges_) {

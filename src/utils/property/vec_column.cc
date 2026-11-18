@@ -325,7 +325,7 @@ void VecColumn::Dump(Checkpoint& ckp, CheckpointManifest& meta,
 }
 
 size_t VecColumn::size() const {
-  return offset_accessor_ ? offset_accessor_->size() : 0;
+  return offset_accessor_ ? offset_accessor_->VertexCapacity() : 0;
 }
 
 size_t VecColumn::buffer_size() const { return size_; }
@@ -390,7 +390,7 @@ void VecColumn::set_any(size_t vid, const Value& value, bool insert_safe) {
       THROW_INVALID_ARGUMENT_EXCEPTION(status.ToString());
     }
   }
-  if (!insert_safe && vid >= offset_accessor_->size()) {
+  if (!insert_safe && vid >= offset_accessor_->VertexCapacity()) {
     THROW_STORAGE_EXCEPTION("VecColumn VID mapping capacity is insufficient");
   }
   index_id_t next_offset = offset_accessor_->GetNextIndexID();
@@ -403,7 +403,12 @@ void VecColumn::set_any(size_t vid, const Value& value, bool insert_safe) {
            default_value_);
   }
   assert(next_offset < size_);
-  auto offset = offset_accessor_->UpsertVID(static_cast<vid_t>(vid));
+  auto offset =
+      offset_accessor_->UpsertVID(static_cast<vid_t>(vid), insert_safe);
+  if (offset >= size_) {
+    THROW_STORAGE_EXCEPTION(
+        "VecColumn allocated offset exceeds reserved capacity");
+  }
   switch (ArrayType::GetChildType(array_type_).id()) {
 #define TYPE_DISPATCHER(enum_val, type)                            \
   case DataTypeId::enum_val:                                       \

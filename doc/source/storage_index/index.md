@@ -202,6 +202,45 @@ or an index lifecycle change without its associated transaction. For the
 general ACID and isolation model, see [Transaction
 Management](../transaction/transaction.mdx).
 
+### Concurrent Inserts with Indexes
+
+In Service mode, multiple sessions can concurrently create nodes in tables
+with HNSW or FTS indexes. Set `access_mode="insert"` for queries that only
+append new data. NeuG maintains the indexes automatically, and committed
+data is available to subsequent searches.
+
+Use a separate `Session` for each writer and distinct primary keys. For
+example, given an `Entity(id INT64 PRIMARY KEY, embedding FLOAT[3])` table with
+an active HNSW index on `embedding`, the following uses four concurrent writers:
+
+```python
+from concurrent.futures import ThreadPoolExecutor
+from neug import Session
+
+def append_vectors(worker_id):
+    session = Session.open("http://localhost:10000")
+    try:
+        for i in range(100):
+            session.execute(
+                "CREATE (:Entity {id: $id, "
+                "embedding: CAST($embedding, 'FLOAT[3]')})",
+                parameters={
+                    "id": worker_id * 100 + i,
+                    "embedding": [float(worker_id), float(i), 1.0],
+                },
+                access_mode="insert",
+            )
+    finally:
+        session.close()
+
+with ThreadPoolExecutor(max_workers=4) as pool:
+    list(pool.map(append_vectors, range(4)))
+```
+
+The example assumes IDs 0–399 are unused. Each `CREATE` commits independently;
+no explicit transaction is needed. The same session pattern applies to
+inserting text properties into a table with an FTS index.
+
 ## Persistence and Recovery
 
 Index metadata and data are stored with the database checkpoint. Committed

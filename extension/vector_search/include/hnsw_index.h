@@ -17,7 +17,6 @@
 
 #include <memory>
 #include <optional>
-#include <roaring.hh>
 #include <string>
 #include <vector>
 
@@ -35,6 +34,7 @@ namespace neug::vector_search_ext {
 
 struct HNSWIndexQueryParams final : IndexQueryParams {
   std::vector<vid_t> scalar_filter;
+  // Scalar VIDs must already be visible in the current query snapshot.
   bool use_scalar_filter{false};
   Value target_value;
   uint32_t topk{10};
@@ -125,8 +125,6 @@ class HNSWIndex final : public StorageIndex {
 
  private:
   void ParseOptions();
-  void InitializeVisibleIDs();
-  void ConsumeDeletedIDs();
   zvec::core_interface::DataType ResolveDataType() const;
 
   std::shared_ptr<zvec::core_interface::Index> zvec_index_;
@@ -137,11 +135,6 @@ class HNSWIndex final : public StorageIndex {
   size_t build_workers_{1};
   std::optional<index_id_t> flat_index_offset_;
   bool local_buffer_enabled_{true};
-  // Derived snapshot state, rebuilt on first bind rather than persisted.
-  roaring::Roaring hnsw_ids_;
-  roaring::Roaring flat_ids_;
-  // Next invalidation to consume from the bound column's snapshot-local log.
-  size_t deleted_cursor_{0};
   std::shared_ptr<CheckpointFileManager::RuntimeFileHandle> zvec_runtime_file_;
   std::string zvec_runtime_path_;
   int dimension_{0};
