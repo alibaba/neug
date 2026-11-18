@@ -589,8 +589,13 @@ void EdgeTable::BatchDeleteEdges(
 
 void EdgeTable::DeleteEdge(vid_t src_lid, vid_t dst_lid, int32_t oe_offset,
                            int32_t ie_offset, timestamp_t ts) {
-  out_csr_->delete_edge(src_lid, oe_offset, ts);
-  in_csr_->delete_edge(dst_lid, ie_offset, ts);
+  // Skip a direction that was not stored or not yet inserted.
+  if (oe_offset != INVALID_EDGE_OFFSET) {
+    out_csr_->delete_edge(src_lid, oe_offset, ts);
+  }
+  if (ie_offset != INVALID_EDGE_OFFSET) {
+    in_csr_->delete_edge(dst_lid, ie_offset, ts);
+  }
 }
 
 void EdgeTable::DeleteVertex(bool is_src, vid_t vid, timestamp_t ts) {
@@ -667,14 +672,15 @@ void EdgeTable::UpdateEdgeProperty(vid_t src_lid, vid_t dst_lid,
                                    timestamp_t ts) {
   auto accessor = get_edge_data_accessor(col_id);
   auto oe_edges = out_csr_->get_generic_view(ts).get_edges(src_lid);
-  auto oe_iter = oe_edges.begin();
+  // Raw-offset positioning must not scan a tombstone prefix via begin().
+  auto oe_iter = oe_edges.end();
   if (!position_iter_at_raw_slot(oe_iter, oe_edges, oe_offset)) {
     THROW_INVALID_ARGUMENT_EXCEPTION("invalid oe offset ");
   }
   accessor.set_data(oe_iter, prop, ts);
   if (meta_->is_bundled()) {
     auto ie_edges = in_csr_->get_generic_view(ts).get_edges(dst_lid);
-    auto ie_iter = ie_edges.begin();
+    auto ie_iter = ie_edges.end();
     if (!position_iter_at_raw_slot(ie_iter, ie_edges, ie_offset)) {
       THROW_INVALID_ARGUMENT_EXCEPTION("invalid ie offset ");
     }

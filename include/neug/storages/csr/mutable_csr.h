@@ -112,9 +112,9 @@ class MutableCsr : public TypedCsrBase<EDATA_T> {
                        const std::vector<EDATA_T>& data_list,
                        timestamp_t ts = 0) override;
 
-  std::pair<int32_t, const void*> put_edge(vid_t src, vid_t dst,
-                                           const EDATA_T& data, timestamp_t ts,
-                                           Allocator& alloc) override {
+  std::pair<int32_t, const void*> put_edge(
+      vid_t src, vid_t dst, const EDATA_T& data, timestamp_t ts,
+      Allocator& alloc, int32_t* inserted_offset = nullptr) override {
     if (src >= vertex_capacity()) {
       THROW_INVALID_ARGUMENT_EXCEPTION(
           "Source vertex id out of range: " + std::to_string(src) +
@@ -123,7 +123,7 @@ class MutableCsr : public TypedCsrBase<EDATA_T> {
     auto** buffers = reinterpret_cast<nbr_t**>(adj_list_buffer_->GetData());
     auto* sizes = reinterpret_cast<std::atomic<int>*>(degree_list_->GetData());
     auto* caps = reinterpret_cast<int*>(cap_list_->GetData());
-    locks_[src].lock();
+    std::lock_guard<SpinLock> lock(locks_[src]);
     int sz = sizes[src].load(std::memory_order_relaxed);
     int cap = caps[src];
     if (sz == cap) {  // including cap == 0
@@ -148,7 +148,10 @@ class MutableCsr : public TypedCsrBase<EDATA_T> {
     }
     const void* data_ptr = static_cast<const void*>(&nbr.data);
     sizes[src].store(sz + 1, std::memory_order_release);
-    locks_[src].unlock();
+    // No throwing operations between publication and recording the position.
+    if (inserted_offset) {
+      *inserted_offset = sz;
+    }
     return {sz, data_ptr};
   }
 
@@ -217,7 +220,7 @@ class MutableCsr : public TypedCsrBase<EDATA_T> {
     cow_clone->degree_list_ = degree_list_;
     cow_clone->cap_list_ = cap_list_;
     cow_clone->nbr_list_ = nbr_list_;
-    cow_clone->unsorted_since_ = unsorted_since_;
+    cow_clone->unsorted_since_ = unsorted_since_.load();
     cow_clone->edge_num_ = edge_num_.load();
     return cow_clone;
   }
@@ -246,7 +249,7 @@ class MutableCsr : public TypedCsrBase<EDATA_T> {
   std::shared_ptr<IDataContainer> degree_list_;
   std::shared_ptr<IDataContainer> cap_list_;
   std::shared_ptr<IDataContainer> nbr_list_;
-  timestamp_t unsorted_since_;
+  std::atomic<timestamp_t> unsorted_since_;
   std::atomic<uint64_t> edge_num_{0};
   CsrPrefetchPolicy prefetch_policy_;
 
@@ -323,20 +326,26 @@ class SingleMutableCsr : public TypedCsrBase<EDATA_T> {
                        const std::vector<EDATA_T>& data_list,
                        timestamp_t ts = 0) override;
 
-  std::pair<int32_t, const void*> put_edge(vid_t src, vid_t dst,
-                                           const EDATA_T& data, timestamp_t ts,
-                                           Allocator& alloc) override {
+  std::pair<int32_t, const void*> put_edge(
+      vid_t src, vid_t dst, const EDATA_T& data, timestamp_t ts,
+      Allocator& alloc, int32_t* inserted_offset = nullptr) override {
     if (src >= vertex_capacity()) {
       THROW_INVALID_ARGUMENT_EXCEPTION(
           "Source vertex id out of range: " + std::to_string(src) +
           " >= " + std::to_string(vertex_capacity()));
     }
+    std::lock_guard<SpinLock> lock(insert_lock_);
     auto* nbrs = reinterpret_cast<nbr_t*>(nbr_list_->GetData());
+    if (nbrs[src].timestamp.load() != std::numeric_limits<timestamp_t>::max()) {
+      THROW_INVALID_ARGUMENT_EXCEPTION("Single edge slot is already occupied");
+    }
     nbrs[src].neighbor = dst;
     nbrs[src].data = data;
-    CHECK_EQ(nbrs[src].timestamp, std::numeric_limits<timestamp_t>::max());
     nbrs[src].timestamp.store(ts);
     edge_num_.fetch_add(1, std::memory_order_relaxed);
+    if (inserted_offset) {
+      *inserted_offset = 0;
+    }
     return {0, static_cast<const void*>(&nbrs[src].data)};
   }
 
@@ -392,6 +401,7 @@ class SingleMutableCsr : public TypedCsrBase<EDATA_T> {
   }
 
  private:
+  SpinLock insert_lock_;
   std::shared_ptr<CheckpointFileManager> resize_allocator_;
   MemoryLevel level_ = MemoryLevel::kInMemory;
   std::shared_ptr<IDataContainer> nbr_list_;
@@ -468,9 +478,9 @@ class EmptyCsr : public TypedCsrBase<EDATA_T> {
 
   void DetachVertex(vid_t /*vid*/, Allocator& /*alloc*/) override {}
 
-  std::pair<int32_t, const void*> put_edge(vid_t src, vid_t dst,
-                                           const EDATA_T& data, timestamp_t ts,
-                                           Allocator&) override {
+  std::pair<int32_t, const void*> put_edge(
+      vid_t src, vid_t dst, const EDATA_T& data, timestamp_t ts, Allocator&,
+      int32_t* inserted_offset = nullptr) override {
     return {0, nullptr};
   }
 

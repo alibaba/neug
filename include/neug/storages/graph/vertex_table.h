@@ -14,6 +14,8 @@
  */
 #pragma once
 
+#include <functional>
+
 #include "neug/common/columns/value_columns.h"
 #include "neug/common/types/value.h"
 #include "neug/storages/graph/schema.h"
@@ -25,6 +27,10 @@
 #include "neug/utils/property/table.h"
 
 namespace neug {
+
+#ifdef NEUG_BUILD_TEST
+NEUG_API void SetBeforeVertexIndexInsertForTest(std::function<void()> hook);
+#endif
 
 class ModuleBroker;
 class CheckpointManifest;

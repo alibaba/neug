@@ -88,6 +88,13 @@ bool VertexTableView::get_lid(const Value& oid, vid_t& lid,
 
 vid_t VertexTableView::LidNum() const { return indexer_->size(); }
 
+bool VertexTableView::get_insert_lid(const Value& oid, vid_t& lid,
+                                     timestamp_t read_ts,
+                                     timestamp_t owner) const {
+  return indexer_->get_index(oid, lid) && (v_ts_->IsVertexValid(lid, read_ts) ||
+                                           v_ts_->IsInsertedBy(lid, owner));
+}
+
 size_t VertexTableView::VertexNum() const {
   return v_ts_->ValidVertexNum(MAX_TIMESTAMP, indexer_->size());
 }
@@ -199,10 +206,11 @@ EdgeDataAccessor EdgeTableView::GetDataAccessor(
 
 std::pair<int32_t, const void*> EdgeTableView::AddEdge(
     vid_t src_lid, vid_t dst_lid, const std::vector<Value>& properties,
-    timestamp_t ts, Allocator& alloc, bool insert_safe) {
+    timestamp_t ts, Allocator& alloc, bool insert_safe,
+    EdgeInsertOffsets* offsets) {
   return internal::insert_edge_into_csr_internal(
       *out_csr_, *in_csr_, view_, *table_idx_, *meta_, src_lid, dst_lid,
-      properties, ts, alloc, insert_safe);
+      properties, ts, alloc, insert_safe, offsets);
 }
 
 // ── GraphView ──
@@ -363,7 +371,7 @@ Status GraphView::AddEdge(label_t src_label, vid_t src_lid, label_t dst_label,
                           vid_t dst_lid, label_t edge_label,
                           const std::vector<Value>& properties, timestamp_t ts,
                           Allocator& alloc, int32_t& oe_offset,
-                          const void*& prop) {
+                          const void*& prop, EdgeInsertOffsets* offsets) {
   uint32_t index =
       schema_->generate_edge_label(src_label, dst_label, edge_label);
   auto it = edge_views_.find(index);
@@ -375,8 +383,8 @@ Status GraphView::AddEdge(label_t src_label, vid_t src_lid, label_t dst_label,
                       std::to_string(edge_label) + ">");
   }
   try {
-    auto ret =
-        it->second.AddEdge(src_lid, dst_lid, properties, ts, alloc, false);
+    auto ret = it->second.AddEdge(src_lid, dst_lid, properties, ts, alloc,
+                                  false, offsets);
     oe_offset = ret.first;
     prop = ret.second;
   } catch (const std::exception& e) {
