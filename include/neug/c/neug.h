@@ -9,7 +9,23 @@
 #include <stddef.h>
 #include <stdint.h>
 
-#include "neug/utils/api.h"
+/* Self-contained C/C++ header: no other NeuG headers are required.
+ * NeuG builds define NEUG_EXPORTS; shared-library consumers leave it unset.
+ * Define NEUG_STATIC_DEFINE only when linking a static NeuG library.
+ */
+#ifndef NEUG_C_API
+#if defined(NEUG_STATIC_DEFINE)
+#define NEUG_C_API
+#elif defined(_WIN32) || defined(__CYGWIN__)
+#if defined(NEUG_EXPORTS)
+#define NEUG_C_API __declspec(dllexport)
+#else
+#define NEUG_C_API __declspec(dllimport)
+#endif
+#else
+#define NEUG_C_API __attribute__((visibility("default")))
+#endif
+#endif
 
 #ifdef __cplusplus
 extern "C" {
@@ -119,41 +135,50 @@ typedef struct {
  * if not named above. Exceptions never escape this boundary. OUT_OF_MEMORY can
  * be returned without an error object.
  */
-NEUG_API const char* neug_version(void);
-NEUG_API neug_string_view neug_error_message(const neug_error* error);
-NEUG_API void neug_error_destroy(neug_error** error);
-NEUG_API void neug_db_options_init(neug_db_options* options);
-NEUG_API neug_status neug_db_open(const neug_db_options* options,
-                                  neug_database** out_db,
-                                  neug_error** out_error);
-NEUG_API neug_status neug_db_is_closed(const neug_database* db,
-                                       uint8_t* out_closed,
-                                       neug_error** out_error);
+NEUG_C_API const char* neug_version(void);
+NEUG_C_API neug_string_view neug_error_message(const neug_error* error);
+NEUG_C_API void neug_error_destroy(neug_error** error);
+NEUG_C_API void neug_db_options_init(neug_db_options* options);
+NEUG_C_API neug_status neug_db_open(const neug_db_options* options,
+                                    neug_database** out_db,
+                                    neug_error** out_error);
+NEUG_C_API neug_status neug_db_is_closed(const neug_database* db,
+                                         uint8_t* out_closed,
+                                         neug_error** out_error);
 /* Close also closes connections, rolls back unfinished transactions, and may
  * fail during checkpointing. The handle survives failure; inspect is_closed.
  * Closed connections do not become usable again if database close is retried.
  */
-NEUG_API neug_status neug_db_close(neug_database* db, neug_error** out_error);
+NEUG_C_API neug_status neug_db_close(neug_database* db, neug_error** out_error);
 /* Destroy refuses a still-open database. On success *db becomes NULL. */
-NEUG_API neug_status neug_db_destroy(neug_database** db,
-                                     neug_error** out_error);
-NEUG_API neug_status neug_db_connect(neug_database* db,
-                                     neug_connection** out_connection,
-                                     neug_error** out_error);
-NEUG_API neug_status
+NEUG_C_API neug_status neug_db_destroy(neug_database** db,
+                                       neug_error** out_error);
+NEUG_C_API neug_status neug_db_connect(neug_database* db,
+                                       neug_connection** out_connection,
+                                       neug_error** out_error);
+NEUG_C_API neug_status
 neug_connection_is_closed(const neug_connection* connection,
                           uint8_t* out_closed, neug_error** out_error);
 /* Closes the connection, rolls back any active transaction, and sets NULL. */
-NEUG_API neug_status neug_connection_destroy(neug_connection** connection,
+NEUG_C_API neug_status neug_connection_destroy(neug_connection** connection,
+                                               neug_error** out_error);
+/* begin starts an explicit transaction; nested transactions are unsupported.
+ * An engine query failure or a failed write-transaction commit leaves the
+ * transaction rollback-only: query, begin and commit cannot continue until
+ * rollback succeeds. Alternatively, destroy the connection to roll it back.
+ * C API input validation failures before engine execution do not change the
+ * transaction state. Always check commit/rollback status and report failures.
+ */
+NEUG_C_API neug_status neug_connection_begin(neug_connection* connection,
+                                             uint8_t read_only,
                                              neug_error** out_error);
-NEUG_API neug_status neug_connection_begin(neug_connection* connection,
-                                           uint8_t read_only,
-                                           neug_error** out_error);
-NEUG_API neug_status neug_connection_commit(neug_connection* connection,
-                                            neug_error** out_error);
-NEUG_API neug_status neug_connection_rollback(neug_connection* connection,
+NEUG_C_API neug_status neug_connection_commit(neug_connection* connection,
                                               neug_error** out_error);
-NEUG_API neug_status
+NEUG_C_API neug_status neug_connection_rollback(neug_connection* connection,
+                                                neug_error** out_error);
+/* True for both usable and rollback-only transactions; not a readiness check.
+ */
+NEUG_C_API neug_status
 neug_connection_has_transaction(const neug_connection* connection,
                                 uint8_t* out_active, neug_error** out_error);
 /* query may contain $name placeholders. parameters_json is a UTF-8 JSON
@@ -161,66 +186,96 @@ neug_connection_has_transaction(const neug_connection* connection,
  * means no parameters. Both inputs are copied during this synchronous call.
  * Invalid JSON, a non-object root, or nesting deeper than 64 is rejected
  * before query execution. Values are converted using the engine's parameter
- * types; unused parameters are ignored.
+ * types; unused parameters are ignored. Supply every referenced parameter.
+ * Use CAST($name, 'TYPE') when the query does not determine its type.
+ * JSON null produces a typed NULL. Non-null inputs support BOOL, INT32/UINT32,
+ * INT64/UINT64, FLOAT/DOUBLE, STRING, DATE, TIMESTAMP, INTERVAL, LIST and
+ * ARRAY; STRUCT and graph-object parameters are unsupported. Integer inputs
+ * must fit the target signed/unsigned width (no fractional or string inputs).
+ * DATE/TIMESTAMP accept signed epoch-millisecond integers or date/time strings;
+ * INTERVAL accepts a string. LIST/ARRAY accept JSON arrays, converting each
+ * element to the declared child type; ARRAY also requires the declared length.
  * The engine infers the access mode from the query.
  * Inspect schema with ordinary queries, e.g. CALL SHOW_NODE_TABLES() RETURN *.
  */
-NEUG_API neug_status neug_query(neug_connection* connection,
-                                neug_string_view query,
-                                neug_string_view parameters_json,
-                                neug_result** out_result,
-                                neug_error** out_error);
+NEUG_C_API neug_status neug_query(neug_connection* connection,
+                                  neug_string_view query,
+                                  neug_string_view parameters_json,
+                                  neug_result** out_result,
+                                  neug_error** out_error);
 
-NEUG_API void neug_result_destroy(neug_result** result);
-NEUG_API neug_status neug_result_row_count(const neug_result* result,
-                                           uint64_t* out_count,
-                                           neug_error** out_error);
-NEUG_API neug_status neug_result_column_count(const neug_result* result,
-                                              uint64_t* out_count,
-                                              neug_error** out_error);
-NEUG_API neug_status neug_result_column_name(const neug_result* result,
-                                             uint64_t column,
-                                             neug_string_view* out_name,
+NEUG_C_API void neug_result_destroy(neug_result** result);
+NEUG_C_API neug_status neug_result_row_count(const neug_result* result,
+                                             uint64_t* out_count,
                                              neug_error** out_error);
+NEUG_C_API neug_status neug_result_column_count(const neug_result* result,
+                                                uint64_t* out_count,
+                                                neug_error** out_error);
+NEUG_C_API neug_status neug_result_column_name(const neug_result* result,
+                                               uint64_t column,
+                                               neug_string_view* out_name,
+                                               neug_error** out_error);
 /* Column type is available even for an empty result. */
-NEUG_API neug_status neug_result_column_type(const neug_result* result,
-                                             uint64_t column,
-                                             neug_type* out_type,
-                                             neug_error** out_error);
+NEUG_C_API neug_status neug_result_column_type(const neug_result* result,
+                                               uint64_t column,
+                                               neug_type* out_type,
+                                               neug_error** out_error);
 /* Row and column indexes are zero-based. */
-NEUG_API neug_status neug_result_get_value(const neug_result* result,
-                                           uint64_t row, uint64_t column,
-                                           neug_value_view* out_value,
+NEUG_C_API neug_status neug_result_get_value(const neug_result* result,
+                                             uint64_t row, uint64_t column,
+                                             neug_value_view* out_value,
+                                             neug_error** out_error);
+NEUG_C_API neug_status neug_value_type(const neug_value_view* value,
+                                       neug_type* out_type,
+                                       neug_error** out_error);
+NEUG_C_API neug_status neug_value_is_null(const neug_value_view* value,
+                                          uint8_t* out_null,
+                                          neug_error** out_error);
+/* Result reader guide (check is_null first; type alone does not identify NULL):
+ * BOOL                         get_bool (0 or 1)
+ * INT32, INT64                 get_int64
+ * UINT32, UINT64               get_uint64
+ * FLOAT, DOUBLE                get_double
+ * STRING, INTERVAL             get_string (borrowed UTF-8 bytes)
+ * DATE, TIMESTAMP              get_int64 (epoch milliseconds)
+ * LIST, TUPLE                  size + child
+ * STRUCT, OBJECT, NODE,
+ * RELATIONSHIP, PATH           size + field_name + child
+ * NULL                         no scalar getter; use is_null
+ * UNKNOWN                      no generic decoding contract
+ * Fixed-size arrays are exposed as LIST. Recursively inspect child values.
+ * Scalar getters and container reads reject NULL or incompatible types with
+ * NEUG_ERROR_TYPE. Integer range failures return NEUG_ERROR_OVERFLOW; row,
+ * column and child indexes outside their valid range return NEUG_ERROR_INDEX.
+ */
+NEUG_C_API neug_status neug_value_get_bool(const neug_value_view* value,
+                                           uint8_t* out_value,
                                            neug_error** out_error);
-NEUG_API neug_status neug_value_type(const neug_value_view* value,
-                                     neug_type* out_type,
-                                     neug_error** out_error);
-NEUG_API neug_status neug_value_is_null(const neug_value_view* value,
-                                        uint8_t* out_null,
-                                        neug_error** out_error);
-NEUG_API neug_status neug_value_get_bool(const neug_value_view* value,
-                                         uint8_t* out_value,
-                                         neug_error** out_error);
 /* Integer getters widen without loss and check range; never pass through a
  * double. DATE/TIMESTAMP get_int64 returns epoch milliseconds. */
-NEUG_API neug_status neug_value_get_int64(const neug_value_view* value,
-                                          int64_t* out_value,
-                                          neug_error** out_error);
-NEUG_API neug_status neug_value_get_uint64(const neug_value_view* value,
-                                           uint64_t* out_value,
-                                           neug_error** out_error);
-NEUG_API neug_status neug_value_get_double(const neug_value_view* value,
-                                           double* out_value,
-                                           neug_error** out_error);
-NEUG_API neug_status neug_value_get_string(const neug_value_view* value,
-                                           neug_string_view* out_value,
-                                           neug_error** out_error);
-NEUG_API neug_status neug_value_size(const neug_value_view* value,
-                                     uint64_t* out_size,
-                                     neug_error** out_error);
+NEUG_C_API neug_status neug_value_get_int64(const neug_value_view* value,
+                                            int64_t* out_value,
+                                            neug_error** out_error);
+NEUG_C_API neug_status neug_value_get_uint64(const neug_value_view* value,
+                                             uint64_t* out_value,
+                                             neug_error** out_error);
+/* Also accepts integers, but conversion may round values outside [-2^53, 2^53]
+ * without an error. Use integer getters to preserve all 64 bits. Rejects
+ * DATE/TIMESTAMP; read those with get_int64 instead.
+ */
+NEUG_C_API neug_status neug_value_get_double(const neug_value_view* value,
+                                             double* out_value,
+                                             neug_error** out_error);
+NEUG_C_API neug_status neug_value_get_string(const neug_value_view* value,
+                                             neug_string_view* out_value,
+                                             neug_error** out_error);
+NEUG_C_API neug_status neug_value_size(const neug_value_view* value,
+                                       uint64_t* out_size,
+                                       neug_error** out_error);
 /* size/child inspect lists, tuples, structs and objects; indexes are
  * zero-based. Use field_name with child to enumerate named struct and object
- * fields, including graph values.
+ * fields, including graph values. field_name returns an empty view for tuple
+ * fields; lists have no field names and are rejected.
  *
  * Graph fields include metadata and properties:
  * - NODE: _ID (integer), _LABEL (string), followed by properties.
@@ -231,14 +286,14 @@ NEUG_API neug_status neug_value_size(const neug_value_view* value,
  * Internal IDs are not durable business keys. Graph property values follow
  * the core's JSON representation (e.g. date/time properties are strings).
  */
-NEUG_API neug_status neug_value_child(const neug_value_view* value,
-                                      uint64_t index,
-                                      neug_value_view* out_child,
-                                      neug_error** out_error);
-NEUG_API neug_status neug_value_field_name(const neug_value_view* value,
-                                           uint64_t index,
-                                           neug_string_view* out_name,
-                                           neug_error** out_error);
+NEUG_C_API neug_status neug_value_child(const neug_value_view* value,
+                                        uint64_t index,
+                                        neug_value_view* out_child,
+                                        neug_error** out_error);
+NEUG_C_API neug_status neug_value_field_name(const neug_value_view* value,
+                                             uint64_t index,
+                                             neug_string_view* out_name,
+                                             neug_error** out_error);
 
 #ifdef __cplusplus
 }
