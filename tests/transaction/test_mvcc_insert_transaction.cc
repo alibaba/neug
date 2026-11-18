@@ -46,6 +46,7 @@
 #include <filesystem>
 #include <fstream>
 #include <functional>
+#include <future>
 #include <stdexcept>
 #include <string>
 #include <thread>
@@ -1989,7 +1990,7 @@ TEST_F(MvccInsertTransactionTest, CapacityRetryLimitLeavesSlotUsable) {
   struct ResetInjection {
     ~ResetInjection() { neug::SetInsertReservationFailuresForTest(0); }
   } reset;
-  neug::SetInsertReservationFailuresForTest(2);
+  neug::SetInsertReservationFailuresForTest(9);
   const std::string query =
       R"json({"query":"CREATE (:person {id: 100, name: ')json" +
       std::string(1 << 20, 'x') +
@@ -2006,6 +2007,241 @@ TEST_F(MvccInsertTransactionTest, CapacityRetryLimitLeavesSlotUsable) {
   EXPECT_TRUE(slot->ExecuteTransactionalRequest(
       R"json({"query":"MATCH (n:person) RETURN count(n)","access_mode":"read","parameters":{}})json"));
 }
+
+TEST_F(MvccInsertTransactionTest, RetryAfterCompetingInsertsConsumeGrowth) {
+  neug::NeugDB db;
+  neug::NeugDBConfig config(db_dir, 2);
+  config.checkpoint_on_close = false;
+  ASSERT_TRUE(db.Open(config));
+  auto conn = db.Connect();
+  ASSERT_TRUE(conn->Query(
+      "CREATE NODE TABLE RetryItem(id STRING, value STRING, PRIMARY KEY(id))"));
+  conn->Close();
+  db.PrepareForServing();
+  {
+    neug::NeugDBService svc(db);
+    auto slot = svc.AcquireExecutionSlot();
+    auto competitor = svc.AcquireExecutionSlot();
+    auto batch = [](int first, int last) {
+      std::string ids = "[";
+      for (int i = first; i <= last; ++i) {
+        if (i != first)
+          ids += ",";
+        ids += "\"" + std::to_string(i) + std::string(100, 'k') + "\"";
+      }
+      ids += "]";
+      return R"json({"query":"UNWIND CAST($ids, 'STRING[]') AS id CREATE (:RetryItem {id:id,value:$v})","access_mode":"insert","parameters":{"ids":)json" +
+             ids + R"json(,"v":")json" + std::string(200, 'x') + "\"}}";
+    };
+    auto seeded = slot->ExecuteTransactionalRequest(batch(10000, 12999));
+    ASSERT_TRUE(seeded) << seeded.error().ToString();
+
+    struct ResetHook {
+      ~ResetHook() { neug::SetInsertRetryHookForTest({}); }
+    } reset;
+    size_t retries = 0;
+    neug::SetInsertRetryHookForTest([&](bool retry) {
+      if (!retry)
+        return;
+      ++retries;
+      // Run a competing request after maintenance releases admission, before
+      // the original request can reserve the newly available row/key/payload
+      // space. No timing assumptions or injected reservation failures.
+      if (retries <= 2) {
+        // A separate worker also keeps its test-hook TLS independent.
+        std::thread writer([&] {
+          auto inserted = competitor->ExecuteTransactionalRequest(
+              retries == 1 ? batch(14500, 15999) : batch(16000, 18999));
+          EXPECT_TRUE(inserted) << inserted.error().ToString();
+        });
+        writer.join();
+      }
+    });
+    auto inserted = slot->ExecuteTransactionalRequest(batch(13000, 14499));
+    ASSERT_TRUE(inserted) << inserted.error().ToString();
+    EXPECT_EQ(retries, 3);
+    neug::SetInsertRetryHookForTest({});
+    auto count = slot->ExecuteTransactionalRequest(
+        R"json({"query":"MATCH (n:RetryItem) RETURN count(n)","access_mode":"read","parameters":{}})json");
+    ASSERT_TRUE(count);
+    EXPECT_EQ(neug::QueryResult::From(count.value()).GetInt64(0), 9000);
+  }
+  db.Close();
+  // All four successful batches must survive WAL recovery exactly once.
+  ASSERT_TRUE(db.Open(config));
+  auto recovered = db.Connect();
+  auto count = recovered->Query("MATCH (n:RetryItem) RETURN count(n)");
+  ASSERT_TRUE(count);
+  EXPECT_EQ(count.value().GetInt64(0), 9000);
+  auto value = recovered->Query("MATCH (n:RetryItem) WHERE n.id = '13000" +
+                                std::string(100, 'k') + "' RETURN n.value");
+  ASSERT_TRUE(value);
+  EXPECT_EQ(value.value().GetString(0), std::string(200, 'x'));
+}
+
+TEST_F(MvccInsertTransactionTest, RetryWhileAppliedRowsRemainReserved) {
+  neug::NeugDB db;
+  neug::NeugDBConfig config(db_dir, 2);
+  config.checkpoint_on_close = false;
+  ASSERT_TRUE(db.Open(config));
+  auto conn = db.Connect();
+  ASSERT_TRUE(conn->Query(
+      "CREATE NODE TABLE ReservationWindow(id INT64, PRIMARY KEY(id))"));
+  conn->Close();
+  db.PrepareForServing();
+  neug::NeugDBService svc(db);
+  auto slot = svc.AcquireExecutionSlot();
+  auto competitor = svc.AcquireExecutionSlot();
+  auto batch = [](int first, int count) {
+    std::string ids = "[";
+    for (int i = 0; i < count; ++i) {
+      if (i)
+        ids += ",";
+      ids += std::to_string(first + i);
+    }
+    return R"json({"query":"UNWIND CAST($ids, 'INT64[]') AS id CREATE (:ReservationWindow {id:id})","access_mode":"insert","parameters":{"ids":)json" +
+           ids + "]}}";
+  };
+  auto seeded = slot->ExecuteTransactionalRequest(batch(1, 4000));
+  ASSERT_TRUE(seeded) << seeded.error().ToString();
+  std::promise<void> written, release;
+  auto applied = written.get_future();
+  auto released = release.get_future();
+  std::thread writer;
+  auto finish_writer = [&] {
+    if (writer.joinable()) {
+      release.set_value();
+      writer.join();
+    }
+  };
+  struct ResetHook {
+    std::function<void()> finish;
+    ~ResetHook() {
+      finish();
+      neug::SetInsertRetryHookForTest({});
+    }
+  } reset{finish_writer};
+  size_t retries = 0;
+  neug::SetInsertRetryHookForTest([&](bool retry) {
+    if (!retry) {
+      // A has failed reservation while B's applied rows were double-counted.
+      // Let B release its reservation before A enters exclusive maintenance.
+      finish_writer();
+      return;
+    }
+    if (++retries != 1)
+      return;
+    writer = std::thread([&] {
+      neug::SetInsertPostIngestHookForTest([&] {
+        written.set_value();
+        released.wait();
+      });
+      auto inserted =
+          competitor->ExecuteTransactionalRequest(batch(10001, 600));
+      neug::SetInsertPostIngestHookForTest({});
+      EXPECT_TRUE(inserted) << inserted.error().ToString();
+    });
+    EXPECT_EQ(applied.wait_for(std::chrono::seconds(5)),
+              std::future_status::ready);
+  });
+  auto inserted = slot->ExecuteTransactionalRequest(batch(4001, 100));
+  ASSERT_TRUE(inserted) << inserted.error().ToString();
+  EXPECT_EQ(retries, 2);
+  neug::SetInsertRetryHookForTest({});
+  auto count = slot->ExecuteTransactionalRequest(
+      R"json({"query":"MATCH (n:ReservationWindow) RETURN count(n)","access_mode":"read","parameters":{}})json");
+  ASSERT_TRUE(count);
+  EXPECT_EQ(neug::QueryResult::From(count.value()).GetInt64(0), 4700);
+}
+
+class InsertCapacityBudgetTest : public MvccInsertTransactionTest,
+                                 public ::testing::WithParamInterface<bool> {};
+
+TEST_P(InsertCapacityBudgetTest, CompetingGrowthStopsAtTotalRetryLimit) {
+  neug::NeugDB db;
+  neug::NeugDBConfig config(db_dir, 2);
+  config.checkpoint_on_close = false;
+  ASSERT_TRUE(db.Open(config));
+  auto conn = db.Connect();
+  ASSERT_TRUE(conn->Query(
+      "CREATE NODE TABLE RetryLimitItem(id INT64, PRIMARY KEY(id))"));
+  conn->Close();
+  db.PrepareForServing();
+  {
+    neug::NeugDBService svc(db);
+    auto slot = svc.AcquireExecutionSlot();
+    auto competitor = svc.AcquireExecutionSlot();
+    auto batch = [](int first, int count) {
+      std::string ids = "[";
+      for (int i = 0; i < count; ++i) {
+        if (i)
+          ids += ",";
+        ids += std::to_string(first + i);
+      }
+      return R"json({"query":"UNWIND CAST($ids, 'INT64[]') AS id CREATE (:RetryLimitItem {id:id})","access_mode":"insert","parameters":{"ids":)json" +
+             ids + "]}}";
+    };
+    auto seeded = slot->ExecuteTransactionalRequest(batch(10000, 3000));
+    ASSERT_TRUE(seeded) << seeded.error().ToString();
+    const auto label = db.schema().get_vertex_label_id("RetryLimitItem");
+    struct ResetHook {
+      ~ResetHook() { neug::SetInsertRetryHookForTest({}); }
+    } reset;
+    size_t retries = 0;
+    int next_id = 20000;
+    neug::SetInsertRetryHookForTest([&](bool retry) {
+      if (!retry)
+        return;
+      ++retries;
+      // Stop the competing workload after the expected limit so a broken,
+      // unbounded implementation fails this test instead of hanging it.
+      if (retries > 8) {
+        ADD_FAILURE() << "Insert exceeded the total retry budget";
+        return;
+      }
+      if (!GetParam() && retries == 8)
+        return;
+      const auto& table = db.graph().get_vertex_table(label);
+      const auto available = table.Capacity() - table.Size();
+      std::thread writer([&] {
+        auto inserted = competitor->ExecuteTransactionalRequest(
+            batch(next_id, static_cast<int>(available)));
+        EXPECT_TRUE(inserted) << inserted.error().ToString();
+      });
+      writer.join();
+      next_id += static_cast<int>(available);
+    });
+    auto result = slot->ExecuteTransactionalRequest(batch(13000, 1500));
+    if (GetParam()) {
+      ASSERT_FALSE(result);
+      EXPECT_EQ(result.error().error_message(),
+                "Insert capacity retry limit exceeded");
+    } else {
+      ASSERT_TRUE(result) << result.error().ToString();
+    }
+    EXPECT_EQ(retries, 8);
+    neug::SetInsertRetryHookForTest({});
+    auto count = slot->ExecuteTransactionalRequest(
+        R"json({"query":"MATCH (n:RetryLimitItem) WHERE n.id >= 13000 AND n.id < 14500 RETURN count(n)","access_mode":"read","parameters":{}})json");
+    ASSERT_TRUE(count);
+    EXPECT_EQ(neug::QueryResult::From(count.value()).GetInt64(0),
+              GetParam() ? 0 : 1500);
+    // The failed batch did not publish any rows, and its slot remains usable.
+    if (GetParam()) {
+      auto success = slot->ExecuteTransactionalRequest(batch(13000, 1500));
+      ASSERT_TRUE(success) << success.error().ToString();
+    }
+    EXPECT_EQ(db.graph().get_vertex_table(label).Size(),
+              static_cast<size_t>(3000 + next_id - 20000 + 1500));
+  }
+}
+
+INSTANTIATE_TEST_SUITE_P(InsertCapacity, InsertCapacityBudgetTest,
+                         ::testing::Values(false, true),
+                         [](const ::testing::TestParamInfo<bool>& info) {
+                           return info.param ? "RetryBudgetExhausted"
+                                             : "SuccessOnLastRetry";
+                         });
 
 TEST_F(MvccInsertTransactionTest, EdgeCapacityGrowthCoversRowsAndPayload) {
   neug::NeugDB db;

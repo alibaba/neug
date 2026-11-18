@@ -39,6 +39,9 @@ namespace neug {
 #ifdef NEUG_BUILD_TEST
 // One-shot, thread-local fault injection after capacity reservation succeeds.
 NEUG_API void SetBeforeInsertApplyForTest(std::function<void()> hook);
+// Invoked after applying insert WAL, before releasing the capacity reservation.
+// The callback must not throw; the WAL is already durable at this point.
+NEUG_API void SetInsertPostIngestHookForTest(std::function<void()> hook);
 #endif
 
 class ExecutionSlot;
