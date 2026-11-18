@@ -51,9 +51,29 @@ GetBeforeInsertApplyHook() {
 #endif
   return *pointer;
 }
+// Keep the two hooks independent. Copy the post-ingest hook before applying
+// inserts, since a bthread can migrate during that work.
+#if defined(__GNUC__) || defined(__clang__)
+__attribute__((noinline))
+#elif defined(_MSC_VER)
+__declspec(noinline)
+#endif
+std::function<void()>&
+GetInsertPostIngestHook() {
+  static thread_local std::function<void()> hook;
+  auto* pointer = &hook;
+#if defined(__GNUC__) || defined(__clang__)
+  asm volatile("" : "+r"(pointer) : : "memory");
+#endif
+  return *pointer;
+}
 }  // namespace
 void SetBeforeInsertApplyForTest(std::function<void()> hook) {
   GetBeforeInsertApplyHook() = std::move(hook);
+}
+
+void SetInsertPostIngestHookForTest(std::function<void()> hook) {
+  GetInsertPostIngestHook() = std::move(hook);
 }
 #endif
 
@@ -207,6 +227,9 @@ bool MvccInsertTransaction::Commit() {
   capacity_retry_ = !capacity_reserved_;
   if (capacity_retry_)
     return false;
+#ifdef NEUG_BUILD_TEST
+  const auto post_ingest_hook = GetInsertPostIngestHook();
+#endif
   auto* header = reinterpret_cast<WalHeader*>(arc_.GetBuffer());
   header->length = arc_.GetSize() - sizeof(WalHeader);
   header->type = 0;
@@ -245,6 +268,11 @@ bool MvccInsertTransaction::Commit() {
   // Durable WAL is the commit decision. Nothing after this point may undo it.
   vertex_undo_.clear();
   edge_undo_.clear();
+
+#ifdef NEUG_BUILD_TEST
+  if (post_ingest_hook)
+    post_ingest_hook();
+#endif
 
   ReleaseCapacity();
   view_ = nullptr;
