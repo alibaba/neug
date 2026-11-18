@@ -59,7 +59,7 @@ jobs:
           nohup python3 benchmark/interactive/serve_ldbc.py > ${{ github.workspace }}/serve.log 2>&1 &
           echo $! > ${{ github.workspace }}/serve.pid
           for i in $(seq 1 2700); do
-            if grep -q "Brpc server started on : 0.0.0.0:57380" ${{ github.workspace }}/serve.log 2>/dev/null; then
+            if grep -Fq "BRPC server started at http://0.0.0.0:57380" ${{ github.workspace }}/serve.log 2>/dev/null; then
               echo "::notice::NeuG server started (PID $(cat ${{ github.workspace }}/serve.pid))"
               break
             fi
@@ -70,7 +70,7 @@ jobs:
             fi
             sleep 1
           done
-          if ! grep -q "Brpc server started on : 0.0.0.0:57380" ${{ github.workspace }}/serve.log 2>/dev/null; then
+          if ! grep -Fq "BRPC server started at http://0.0.0.0:57380" ${{ github.workspace }}/serve.log 2>/dev/null; then
             echo "::error::NeuG server did not start within 2700 seconds"
             cat ${{ github.workspace }}/serve.log
             exit 1
