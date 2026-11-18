@@ -590,6 +590,7 @@ timestamp_t NeugDB::openGraphAndIngestWals() {
 timestamp_t NeugDB::ingestWals(IWalParser& parser,
                                std::shared_ptr<PropertyGraph>& graph,
                                timestamp_t base_timestamp) {
+  RecoveryEdgeIndex edge_index;
   uint32_t from_ts = base_timestamp + 1;
   LOG(INFO) << "Ingesting update wals size: "
             << parser.get_update_wals().size();
@@ -606,10 +607,11 @@ timestamp_t NeugDB::ingestWals(IWalParser& parser,
       IngestWalRange(graph, allocators_, parser, from_ts, to_ts);
     }
     if (update_wal.size == 0) {
+      edge_index.Clear();
       graph->Compact();
     } else {
       ReplayCowGraphWal(*graph, to_ts, update_wal.ptr, update_wal.size,
-                        *allocators_[0]);
+                        *allocators_[0], &edge_index);
     }
     from_ts = to_ts + 1;
   }

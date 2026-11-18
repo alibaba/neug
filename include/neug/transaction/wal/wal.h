@@ -337,7 +337,8 @@ struct UpdateEdgePropRedo {
                         const Value& src, const std::string& dst_type,
                         const Value& dst, const std::string& edge_type,
                         int32_t oe_offset, int32_t ie_offset, int prop_id,
-                        const Value& value);
+                        const Value& value,
+                        const std::vector<Value>* before = nullptr);
   static void Deserialize(OutArchive& arc, UpdateEdgePropRedo& redo);
 };
 
@@ -361,7 +362,8 @@ struct RemoveEdgeRedo {
   static void Serialize(InArchive& arc, const std::string& src_type,
                         const Value& src, const std::string& dst_type,
                         const Value& dst, const std::string& edge_type,
-                        int32_t oe_offset, int32_t ie_offset);
+                        int32_t oe_offset, int32_t ie_offset,
+                        const std::vector<Value>* before = nullptr);
   static void Deserialize(OutArchive& arc, RemoveEdgeRedo& redo);
 };
 
