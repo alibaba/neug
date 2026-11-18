@@ -20,6 +20,8 @@
 #include "neug/storages/csr/csr_view_utils.h"
 #include "neug/storages/graph/graph_interface.h"
 #include "neug/transaction/mvcc_insert_transaction.h"
+#include "neug/transaction/transaction_utils.h"
+#include "neug/transaction/version_manager.h"
 #include "neug/transaction/wal/local_wal_parser.h"
 #include "neug/transaction/wal/local_wal_writer.h"
 #include "neug/transaction/wal/wal.h"
@@ -37,12 +39,15 @@
 #include <process.h>
 #define getpid _getpid
 #endif
+#include <atomic>
 #include <chrono>
+#include <cstdlib>
 #include <cstring>
 #include <filesystem>
 #include <fstream>
 #include <functional>
 #include <future>
+#include <stdexcept>
 #include <string>
 #include <thread>
 #include <vector>
@@ -131,6 +136,7 @@ class MvccInsertTransactionTest : public ::testing::Test {
   }
 
   void TearDown() override {
+    neug::SetBeforeInsertApplyForTest({});
     if (std::filesystem::exists(db_dir)) {
       std::filesystem::remove_all(db_dir);
     }
@@ -144,6 +150,239 @@ class MvccInsertTransactionTest : public ::testing::Test {
     return vertex_count;
   }
 };
+
+TEST_F(MvccInsertTransactionTest, ReplayEdgeIndexVisitsGrowLinearlyAcrossWals) {
+  using namespace neug;
+  NeugDB db;
+  db.Open(db_dir);
+  SnapshotGuard snapshot(db.graph_snapshot_store());
+  Allocator alloc(MemoryLevel::kInMemory, "");
+  auto graph = snapshot.get().mutable_graph()->Clone();
+  timestamp_t ts = 1;
+  int scenario = 0;
+  for (bool bundled : {false, true}) {
+    for (bool parallel : {false, true}) {
+      for (int n : {64, 256}) {
+        SCOPED_TRACE(::testing::Message()
+                     << "bundled=" << bundled << " parallel=" << parallel
+                     << " n=" << n);
+        RecoveryEdgeIndex index;
+        ++scenario;
+        auto replay = [&](InArchive& arc) {
+          ReplayCowGraphWal(*graph, ts++, arc.GetBuffer(), arc.GetSize(), alloc,
+                            &index);
+          arc.Clear();
+        };
+        const std::string dst_type = bundled ? "person" : "software";
+        const std::string edge_type = bundled ? "knows" : "created";
+        auto props = [&](double weight) {
+          std::vector<Value> values{Value::DOUBLE(weight)};
+          if (!bundled)
+            values.push_back(Value::INT64(2024));
+          return values;
+        };
+        auto dst_oid = [&](int i) {
+          return Value::INT64(scenario * 1000 + (parallel ? 0 : i));
+        };
+        const auto source = Value::INT64(100000 + scenario);
+        InArchive arc;
+        InsertVertexRedo::Serialize(
+            arc, "person", source, {Value::STRING("source"), Value::INT64(20)});
+        for (int i = 0; i < (parallel ? 1 : n); ++i) {
+          std::vector<Value> values{Value::STRING("target")};
+          values.push_back(bundled ? Value::INT64(20) : Value::STRING("C++"));
+          InsertVertexRedo::Serialize(arc, dst_type, dst_oid(i), values);
+        }
+        for (int i = 0; i < n; ++i) {
+          InsertEdgeRedo::Serialize(arc, "person", source, dst_type, dst_oid(i),
+                                    edge_type, props(0));
+        }
+        replay(arc);
+        auto update = [&](int i, double before_value, double after_value) {
+          auto before = props(before_value);
+          // Deliberately invalid persisted offsets: replay must resolve its
+          // own slots, and retain every identical parallel-edge candidate.
+          UpdateEdgePropRedo::Serialize(arc, "person", source, dst_type,
+                                        dst_oid(i), edge_type, 999999, 999999,
+                                        0, Value::DOUBLE(after_value), &before);
+        };
+        for (int i = 0; i < n; ++i) {
+          update(i, 0, 1);
+          // Cover both a batch in one WAL and repeated single-operation WALs.
+          if (i >= n / 2)
+            replay(arc);
+        }
+        EXPECT_LE(index.GetSlotVisitsForTest(), 4u * n);
+        for (int i = 0; i < n; ++i) {
+          auto before = props(1);
+          RemoveEdgeRedo::Serialize(arc, "person", source, dst_type, dst_oid(i),
+                                    edge_type, 999999, 999999, &before);
+          replay(arc);
+        }
+        EXPECT_LE(index.GetSlotVisitsForTest(), 6u * n);
+
+        // Clone/grow between replay calls must not retain stale graph pointers.
+        graph = graph->Clone();
+        auto person = graph->schema().get_vertex_label_id("person");
+        ASSERT_TRUE(graph->EnsureCapacity(person, 8192).ok());
+        for (int i = 0; i < n; ++i) {
+          InsertEdgeRedo::Serialize(arc, "person", source, dst_type, dst_oid(i),
+                                    edge_type, props(2));
+          // Exercise the separate insert-WAL ingestion path between updates.
+          GraphView view(*graph);
+          MvccInsertTransaction::IngestWal(view, ts++, arc.GetBuffer(),
+                                           arc.GetSize(), alloc);
+          arc.Clear();
+          update(i, 2, 3);
+          replay(arc);
+        }
+        // A tombstone prefix must not be scanned again by begin()/iteration.
+        EXPECT_LE(index.GetSlotVisitsForTest(), 10u * n);
+        auto dst_label = graph->schema().get_vertex_label_id(dst_type);
+        auto edge = graph->schema().get_edge_label_id(edge_type);
+        const auto& table = graph->get_edge_table(person, dst_label, edge);
+        vid_t src;
+        ASSERT_TRUE(graph->get_lid(person, source, src, MAX_TIMESTAMP));
+        size_t count = 0;
+        for (auto it : table.get_outgoing_view(MAX_TIMESTAMP).get_edges(src)) {
+          (void) it;
+          ++count;
+        }
+        EXPECT_EQ(count, static_cast<size_t>(n));
+        for (int i = 0; i < (parallel ? 1 : n); ++i) {
+          vid_t dst;
+          ASSERT_TRUE(
+              graph->get_lid(dst_label, dst_oid(i), dst, MAX_TIMESTAMP));
+          auto edges = table.get_incoming_view(MAX_TIMESTAMP).get_edges(dst);
+          size_t incoming = 0;
+          for (auto it = edges.begin(); it != edges.end(); ++it) {
+            EXPECT_EQ(it.get_vertex(), src);
+            EXPECT_EQ(
+                table.get_edge_data_accessor(0).get_data(it).GetValue<double>(),
+                3);
+            ++incoming;
+          }
+          EXPECT_EQ(incoming, static_cast<size_t>(parallel ? n : 1));
+        }
+      }
+    }
+  }
+  snapshot.release();
+  db.Close();
+}
+
+TEST_F(MvccInsertTransactionTest,
+       ReplayEdgeIndexTracksSchemaAndCascadeChanges) {
+  using namespace neug;
+  NeugDB db;
+  db.Open(db_dir);
+  SnapshotGuard snapshot(db.graph_snapshot_store());
+  auto graph = snapshot.get().mutable_graph()->Clone();
+  Allocator alloc(MemoryLevel::kInMemory, "");
+  RecoveryEdgeIndex index;
+  timestamp_t ts = 1;
+  InArchive arc;
+  auto replay = [&] {
+    ReplayCowGraphWal(*graph, ts++, arc.GetBuffer(), arc.GetSize(), alloc,
+                      &index);
+    arc.Clear();
+  };
+  auto update = [&](int64_t endpoint, int column,
+                    const std::vector<Value>& before, const Value& value) {
+    UpdateEdgePropRedo::Serialize(arc, "person", Value::INT64(endpoint),
+                                  "software", Value::INT64(endpoint), "created",
+                                  999999, 999999, column, value, &before);
+    replay();
+  };
+  update(1, 0, {Value::DOUBLE(0.8), Value::INT64(2021)}, Value::DOUBLE(1));
+  // Legacy WAL mutations must refresh an index built by newer WAL records.
+  UpdateEdgePropRedo::Serialize(arc, "person", Value::INT64(1), "software",
+                                Value::INT64(1), "created", 0, 0, 0,
+                                Value::DOUBLE(2));
+  replay();
+  update(1, 0, {Value::DOUBLE(2), Value::INT64(2021)}, Value::DOUBLE(3));
+  AddEdgePropertiesParamBuilder add;
+  AddEdgePropertiesRedo::Serialize(
+      arc, "person", "software", "created",
+      add.Properties({{"extra", Value::INT64(7)}}).Build());
+  replay();
+  update(1, 2, {Value::DOUBLE(3), Value::INT64(2021), Value::INT64(7)},
+         Value::INT64(8));
+  DeleteEdgePropertiesParamBuilder drop;
+  DeleteEdgePropertiesRedo::Serialize(arc, "person", "software", "created",
+                                      drop.DeleteProperties({"since"}).Build());
+  replay();
+  update(1, 0, {Value::DOUBLE(3), Value::INT64(8)}, Value::DOUBLE(4));
+  // Removing a vertex also deletes incident edges outside the edge-WAL path.
+  RemoveVertexRedo::Serialize(arc, "software", Value::INT64(1));
+  replay();
+  InsertVertexRedo::Serialize(
+      arc, "software", Value::INT64(1),
+      {Value::STRING("replacement"), Value::STRING("C++")});
+  replay();
+  InsertEdgeRedo::Serialize(arc, "person", Value::INT64(1), "software",
+                            Value::INT64(1), "created",
+                            {Value::DOUBLE(5), Value::INT64(9)});
+  replay();
+  update(1, 0, {Value::DOUBLE(5), Value::INT64(9)}, Value::DOUBLE(6));
+  index.Clear();  // Same boundary used by NeugDB::ingestWals.
+  graph->Compact();
+  update(1, 1, {Value::DOUBLE(6), Value::INT64(9)}, Value::INT64(10));
+  update(2, 0, {Value::DOUBLE(0.7), Value::INT64(7)}, Value::DOUBLE(11));
+  snapshot.release();
+  db.Close();
+}
+
+TEST_F(MvccInsertTransactionTest,
+       ReplayEdgeIndexHandlesSingleSlotReuseAndOneDirection) {
+  using namespace neug;
+  NeugDB db;
+  db.Open(db_dir);
+  SnapshotGuard snapshot(db.graph_snapshot_store());
+  Allocator alloc(MemoryLevel::kInMemory, "");
+  for (bool incoming_only : {false, true}) {
+    auto graph = snapshot.get().mutable_graph()->Clone();
+    RecoveryEdgeIndex index;
+    timestamp_t ts = 1;
+    InArchive arc;
+    auto replay = [&] {
+      ReplayCowGraphWal(*graph, ts++, arc.GetBuffer(), arc.GetSize(), alloc,
+                        &index);
+      arc.Clear();
+    };
+    CreateEdgeTypeParamBuilder builder;
+    CreateEdgeTypeRedo::Serialize(
+        arc, builder.SrcLabel("person")
+                 .DstLabel("software")
+                 .EdgeLabel("single")
+                 .Properties({{"weight", Value::DOUBLE(0)}})
+                 .OEEdgeStrategy(incoming_only ? EdgeStrategy::kNone
+                                               : EdgeStrategy::kSingle)
+                 .IEEdgeStrategy(EdgeStrategy::kSingle)
+                 .Build());
+    replay();
+    for (int i = 0; i < 32; ++i) {
+      InsertEdgeRedo::Serialize(arc, "person", Value::INT64(1), "software",
+                                Value::INT64(1), "single", {Value::DOUBLE(i)});
+      replay();
+      std::vector<Value> before{Value::DOUBLE(i)};
+      if (!incoming_only) {
+        UpdateEdgePropRedo::Serialize(
+            arc, "person", Value::INT64(1), "software", Value::INT64(1),
+            "single", 999999, 999999, 0, Value::DOUBLE(i + 100), &before);
+        replay();
+        before = {Value::DOUBLE(i + 100)};
+      }
+      RemoveEdgeRedo::Serialize(arc, "person", Value::INT64(1), "software",
+                                Value::INT64(1), "single", 999999, 999999,
+                                &before);
+      replay();
+    }
+    EXPECT_LE(index.GetSlotVisitsForTest(), 8u * 32);
+  }
+  snapshot.release();
+  db.Close();
+}
 
 TEST_F(MvccInsertTransactionTest, MvccInsertTransactionBasic) {
   neug::NeugDB db;
@@ -258,6 +497,957 @@ TEST_F(MvccInsertTransactionTest, TestUnsupportedInterface) {
     EXPECT_EQ(interface.BatchAddEdges(0, 0, 0, nullptr).error_code(),
               neug::StatusCode::ERR_NOT_SUPPORTED);
   }
+}
+
+namespace {
+class InsertTestWalWriter : public neug::IWalWriter {
+ public:
+  std::function<bool()> on_append = [] { return true; };
+  size_t calls = 0;
+  std::string type() const override { return "insert-test"; }
+  void open(const std::string&) override {}
+  void close() override {}
+  bool append(const char*, size_t) override {
+    ++calls;
+    return on_append();
+  }
+};
+
+#if GTEST_HAS_DEATH_TEST
+class CrashInsertWalWriter : public neug::IWalWriter {
+ public:
+  CrashInsertWalWriter(const std::string& dir, bool persist)
+      : writer_(dir, 123), persist_(persist) {
+    writer_.open(dir);
+  }
+  std::string type() const override { return "crash-insert-test"; }
+  void open(const std::string&) override {}
+  void close() override { writer_.close(); }
+  bool append(const char* data, size_t size) override {
+    if (persist_ && !writer_.append(data, size)) {
+      std::_Exit(2);
+    }
+    // Neither destructors nor shutdown checkpointing may run.
+    std::_Exit(0);
+  }
+
+ private:
+  neug::LocalWalWriter writer_;
+  bool persist_;
+};
+#endif
+}  // namespace
+
+#if GTEST_HAS_DEATH_TEST
+TEST_F(MvccInsertTransactionTest, CrashBeforeWalDoesNotPersistAppliedVertex) {
+  using namespace neug;
+  for (auto level : {MemoryLevel::kInMemory, MemoryLevel::kSyncToFile}) {
+    ASSERT_EXIT(
+        {
+          NeugDB db;
+          NeugDBConfig config(db_dir);
+          config.memory_level = level;
+          config.checkpoint_on_close = false;
+          db.Open(config);
+          VersionManager vm;
+          vm.init_ts({0, 0}, 4);
+          Allocator alloc(MemoryLevel::kInMemory, "");
+          CrashInsertWalWriter writer(db.graph().checkpoint().wal_dir(), false);
+          MvccInsertTransaction txn(SnapshotGuard(db.graph_snapshot_store()),
+                                    alloc, writer, vm,
+                                    vm.acquire_insert_timestamp());
+          vid_t lid;
+          auto person = txn.schema().get_vertex_label_id("person");
+          if (!txn.AddVertex(person, Value::INT64(3),
+                             {Value::STRING("uncommitted"), Value::INT64(20)},
+                             lid)) {
+            std::_Exit(3);
+          }
+          txn.Commit();
+          std::_Exit(4);
+        },
+        ::testing::ExitedWithCode(0), ".*");
+    NeugDB reopened;
+    NeugDBConfig config(db_dir);
+    config.memory_level = level;
+    config.checkpoint_on_close = false;
+    reopened.Open(config);
+    SnapshotGuard guard(reopened.graph_snapshot_store());
+    const auto& view = guard.get().view();
+    vid_t lid;
+    EXPECT_FALSE(view.get_lid(view.schema().get_vertex_label_id("person"),
+                              Value::INT64(3), lid, MAX_TIMESTAMP));
+  }
+}
+
+TEST_F(MvccInsertTransactionTest,
+       CrashAfterWalRecoversBeforeVisibilityRelease) {
+  using namespace neug;
+  ASSERT_EXIT(
+      {
+        NeugDB db;
+        NeugDBConfig config(db_dir);
+        config.memory_level = MemoryLevel::kSyncToFile;
+        config.checkpoint_on_close = false;
+        db.Open(config);
+        VersionManager vm;
+        vm.init_ts({0, 0}, 4);
+        Allocator alloc(MemoryLevel::kInMemory, "");
+        CrashInsertWalWriter writer(db.graph().checkpoint().wal_dir(), true);
+        MvccInsertTransaction txn(SnapshotGuard(db.graph_snapshot_store()),
+                                  alloc, writer, vm,
+                                  vm.acquire_insert_timestamp());
+        vid_t lid;
+        auto person = txn.schema().get_vertex_label_id("person");
+        if (!txn.AddVertex(person, Value::INT64(3),
+                           {Value::STRING("committed"), Value::INT64(20)},
+                           lid)) {
+          std::_Exit(3);
+        }
+        txn.Commit();
+        std::_Exit(4);
+      },
+      ::testing::ExitedWithCode(0), ".*");
+  NeugDB reopened;
+  reopened.Open(db_dir);
+  SnapshotGuard guard(reopened.graph_snapshot_store());
+  const auto& view = guard.get().view();
+  vid_t lid;
+  EXPECT_TRUE(view.get_lid(view.schema().get_vertex_label_id("person"),
+                           Value::INT64(3), lid, MAX_TIMESTAMP));
+}
+
+TEST_F(MvccInsertTransactionTest, CrashRecoversEdgeUpdatesAfterUndoHoles) {
+  using namespace neug;
+  ASSERT_EXIT(
+      ([&] {
+        NeugDB db;
+        NeugDBConfig config(db_dir);
+        config.memory_level = MemoryLevel::kSyncToFile;
+        config.max_thread_num = 1;
+        config.checkpoint_on_close = false;
+        db.Open(config);
+        Allocator alloc(MemoryLevel::kInMemory, "");
+        VersionManager vm;
+        vm.init_ts({0, 0}, 4);
+        InsertTestWalWriter reject;
+        reject.on_append = [] { return false; };
+        {
+          MvccInsertTransaction txn(SnapshotGuard(db.graph_snapshot_store()),
+                                    alloc, reject, vm,
+                                    vm.acquire_insert_timestamp());
+          const auto person = txn.schema().get_vertex_label_id("person");
+          const auto software = txn.schema().get_vertex_label_id("software");
+          vid_t src, dst, sw;
+          txn.GetVertexIndex(person, Value::INT64(1), src);
+          txn.GetVertexIndex(person, Value::INT64(2), dst);
+          txn.GetVertexIndex(software, Value::INT64(1), sw);
+          const void* prop = nullptr;
+          if (!txn.AddEdge(person, src, person, dst,
+                           txn.schema().get_edge_label_id("knows"),
+                           {Value::DOUBLE(99)}, prop) ||
+              !txn.AddEdge(person, src, software, sw,
+                           txn.schema().get_edge_label_id("created"),
+                           {Value::DOUBLE(99), Value::INT64(2024)}, prop) ||
+              txn.Commit() || reject.calls != 1) {
+            std::_Exit(2);
+          }
+        }
+        auto conn = db.Connect();
+        for (int weight : {42, 42, 43, 44}) {
+          if (!conn->Query("MATCH (a:person {id:1}), (b:person {id:2}) "
+                           "CREATE (a)-[:knows {closeness:" +
+                           std::to_string(weight) + ".0}]->(b)") ||
+              !conn->Query("MATCH (a:person {id:1}), (b:software {id:1}) "
+                           "CREATE (a)-[:created {weight:" +
+                           std::to_string(weight) + ".0, since:2024}]->(b)")) {
+            std::_Exit(3);
+          }
+        }
+        for (const std::string query :
+             {"MATCH ()-[r:knows]->() WHERE r.closeness=42.0 SET "
+              "r.closeness=52.0",
+              "MATCH ()-[r:created]->() WHERE r.weight=42.0 SET r.weight=52.0, "
+              "r.since=2025",
+              "MATCH ()-[r:knows]->() WHERE r.closeness=43.0 DELETE r",
+              "MATCH ()-[r:created]->() WHERE r.weight=43.0 DELETE r"}) {
+          if (!conn->Query(query)) {
+            std::_Exit(4);
+          }
+        }
+        // No destructors or checkpoint: recovery must reconstruct successful
+        // inserts without the physical slots left by the failed transaction.
+        std::_Exit(0);
+      }()),
+      ::testing::ExitedWithCode(0), ".*");
+  NeugDB reopened;
+  NeugDBConfig config(db_dir);
+  config.checkpoint_on_close = false;
+  reopened.Open(config);
+  SnapshotGuard observer(reopened.graph_snapshot_store());
+  auto& graph = *observer.get().mutable_graph();
+  const auto person = graph.schema().get_vertex_label_id("person");
+  vid_t src;
+  ASSERT_TRUE(graph.get_lid(person, Value::INT64(1), src, MAX_TIMESTAMP));
+  for (bool bundled : {false, true}) {
+    auto dst_label =
+        bundled ? person : graph.schema().get_vertex_label_id("software");
+    auto edge = graph.schema().get_edge_label_id(bundled ? "knows" : "created");
+    auto index = graph.schema().generate_edge_label(person, dst_label, edge);
+    const auto& table = graph.get_edge_table_by_index(index);
+    vid_t dst;
+    ASSERT_TRUE(graph.get_lid(dst_label, Value::INT64(bundled ? 2 : 1), dst,
+                              MAX_TIMESTAMP));
+    for (bool incoming : {false, true}) {
+      auto edges = incoming
+                       ? table.get_incoming_view(MAX_TIMESTAMP).get_edges(dst)
+                       : table.get_outgoing_view(MAX_TIMESTAMP).get_edges(src);
+      size_t updated = 0, untouched = 0;
+      for (auto it = edges.begin(); it != edges.end(); ++it) {
+        const auto weight =
+            table.get_edge_data_accessor(0).get_data(it).GetValue<double>();
+        updated += weight == 52;
+        untouched += weight == 44;
+        if (!bundled && weight == 52) {
+          EXPECT_EQ(
+              table.get_edge_data_accessor(1).get_data(it).GetValue<int64_t>(),
+              2025);
+        }
+        EXPECT_NE(weight, 42);
+        EXPECT_NE(weight, 43);
+        EXPECT_NE(weight, 99);
+      }
+      EXPECT_EQ(updated, 2u);
+      EXPECT_EQ(untouched, 1u);
+    }
+  }
+}
+#endif
+
+TEST_F(MvccInsertTransactionTest, WalRejectionUndoesParallelEdgesThenVertices) {
+  using namespace neug;
+  NeugDB db;
+  NeugDBConfig config(db_dir);
+  config.memory_level = MemoryLevel::kInMemory;
+  db.Open(config);
+  VersionManager vm;
+  vm.init_ts({0, 0}, 4);
+  Allocator alloc(MemoryLevel::kInMemory, "");
+  InsertTestWalWriter writer;
+  SnapshotGuard observer(db.graph_snapshot_store());
+  auto& view = observer.get().mutable_view();
+  const auto person = view.schema().get_vertex_label_id("person");
+  const auto knows = view.schema().get_edge_label_id("knows");
+  const auto initial_edges = view.EdgeNum(person, person, knows);
+  const auto ts = vm.acquire_insert_timestamp();
+  MvccInsertTransaction txn(SnapshotGuard(db.graph_snapshot_store()), alloc,
+                            writer, vm, ts);
+  vid_t added, existing;
+  ASSERT_TRUE(txn.AddVertex(person, Value::INT64(3),
+                            {Value::STRING("new"), Value::INT64(20)}, added));
+  ASSERT_TRUE(txn.GetVertexIndex(person, Value::INT64(1), existing));
+  const void* prop = nullptr;
+  for (int i = 0; i < 3; ++i) {
+    ASSERT_TRUE(txn.AddEdge(person, added, person, existing, knows,
+                            {Value::DOUBLE(0.5)}, prop));
+    ASSERT_TRUE(txn.AddEdge(person, existing, person, existing, knows,
+                            {Value::DOUBLE(0.5)}, prop));
+  }
+  writer.on_append = [&] {
+    vid_t physical;
+    EXPECT_TRUE(view.get_lid(person, Value::INT64(3), physical, ts));
+    EXPECT_FALSE(view.get_lid(person, Value::INT64(3), physical, 0));
+    EXPECT_EQ(view.EdgeNum(person, person, knows), initial_edges + 6);
+    EXPECT_EQ(vm.insert_read_timestamp(), 0u);
+    return false;
+  };
+  EXPECT_FALSE(txn.Commit());
+  EXPECT_EQ(writer.calls, 1u);
+  EXPECT_EQ(view.VertexNum(person), 2u);
+  EXPECT_EQ(view.EdgeNum(person, person, knows), initial_edges);
+  auto incoming = view.GetGenericIncomingView(person, person, knows,
+                                              vm.insert_read_timestamp());
+  size_t incoming_count = 0;
+  for (auto lid : view.GetVertexSet(person, vm.insert_read_timestamp())) {
+    for (auto it = incoming.get_edges(lid).begin();
+         it != incoming.get_edges(lid).end(); ++it) {
+      ++incoming_count;
+    }
+  }
+  EXPECT_EQ(incoming_count, initial_edges);
+  txn.Abort();
+  writer.on_append = [] { return true; };
+  const auto next_ts = vm.acquire_insert_timestamp();
+  MvccInsertTransaction next(SnapshotGuard(db.graph_snapshot_store()), alloc,
+                             writer, vm, next_ts);
+  ASSERT_TRUE(next.AddVertex(person, Value::INT64(3),
+                             {Value::STRING("replacement"), Value::INT64(30)},
+                             added));
+  ASSERT_TRUE(next.Commit());
+  // Repeated transaction Abort has no remaining journal entries, even after
+  // another transaction has reused the VID.
+  txn.Abort();
+  EXPECT_TRUE(view.get_lid(person, Value::INT64(3), added, next_ts));
+  EXPECT_EQ(view.VertexNum(person), 3u);
+  observer.release();
+  db.Close();  // CSR allocation buffers must outlive shutdown checkpointing.
+}
+
+TEST_F(MvccInsertTransactionTest,
+       RepeatedAbortPreservesVidReusedByEarlierTimestamp) {
+  using namespace neug;
+  NeugDB db;
+  NeugDBConfig config(db_dir);
+  config.memory_level = MemoryLevel::kInMemory;
+  db.Open(config);
+  VersionManager vm;
+  vm.init_ts({0, 0}, 4);
+  Allocator alloc(MemoryLevel::kInMemory, "");
+  InsertTestWalWriter replacement_writer, failed_writer;
+  SnapshotGuard observer(db.graph_snapshot_store());
+  auto& view = observer.get().mutable_view();
+  const auto person = view.schema().get_vertex_label_id("person");
+  const auto initial_count = view.VertexNum(person);
+  const auto initial_slots = view.LidNum(person);
+
+  // Reservation order differs from apply order. A stale delete using <= ts
+  // would accept the replacement's earlier timestamp.
+  const auto replacement_ts = vm.acquire_insert_timestamp();
+  MvccInsertTransaction replacement(SnapshotGuard(db.graph_snapshot_store()),
+                                    alloc, replacement_writer, vm,
+                                    replacement_ts);
+  const auto failed_ts = vm.acquire_insert_timestamp();
+  MvccInsertTransaction failed(SnapshotGuard(db.graph_snapshot_store()), alloc,
+                               failed_writer, vm, failed_ts);
+  ASSERT_LT(replacement_ts, failed_ts);
+  vid_t provisional;
+  ASSERT_TRUE(replacement.AddVertex(
+      person, Value::INT64(100),
+      {Value::STRING("replacement"), Value::INT64(30)}, provisional));
+  ASSERT_TRUE(failed.AddVertex(person, Value::INT64(100),
+                               {Value::STRING("failed"), Value::INT64(20)},
+                               provisional));
+  vid_t failed_vid = INVALID_VID;
+  failed_writer.on_append = [&] {
+    EXPECT_TRUE(view.get_lid(person, Value::INT64(100), failed_vid, failed_ts));
+    EXPECT_EQ(view.VertexNum(person), initial_count + 1);
+    return false;
+  };
+  ASSERT_FALSE(failed.Commit());
+  ASSERT_EQ(failed_writer.calls,
+            1u);  // The insertion actually reached storage.
+  ASSERT_NE(failed_vid, INVALID_VID);
+  ASSERT_EQ(view.VertexNum(person), initial_count);
+  EXPECT_EQ(vm.insert_read_timestamp(), 0u);
+
+  ASSERT_TRUE(replacement.Commit());
+  ASSERT_EQ(replacement_writer.calls, 1u);
+  vid_t replacement_vid = INVALID_VID;
+  ASSERT_TRUE(
+      view.get_lid(person, Value::INT64(100), replacement_vid, replacement_ts));
+  ASSERT_EQ(replacement_vid, failed_vid);  // Real reuse, not another VID.
+  ASSERT_EQ(view.LidNum(person), initial_slots + 1);
+  for (int i = 0; i < 3; ++i) {
+    failed.Abort();
+  }
+  EXPECT_TRUE(view.IsValidLid(person, replacement_vid, replacement_ts));
+  EXPECT_EQ(view.VertexNum(person), initial_count + 1);
+  EXPECT_EQ(view.GetVertexPropertyColumn(person, 0)
+                ->get_any(replacement_vid)
+                .GetValue<std::string>(),
+            "replacement");
+  size_t visible = 0;
+  for (auto vid : view.GetVertexSet(person, vm.insert_read_timestamp())) {
+    (void) vid;
+    ++visible;
+  }
+  EXPECT_EQ(visible, initial_count + 1);
+  observer.release();
+  db.Close();
+}
+
+TEST_F(MvccInsertTransactionTest, RepeatedAbortPreservesReusedSingleEdgeSlots) {
+  using namespace neug;
+  NeugDB db;
+  NeugDBConfig config(db_dir);
+  config.memory_level = MemoryLevel::kInMemory;
+  config.checkpoint_on_close = true;
+  db.Open(config);
+  {
+    auto svc = std::make_shared<NeugDBService>(db);
+    auto slot = svc->AcquireExecutionSlot();
+    auto txn = slot->BeginSnapshotCowWriteTransaction();
+    auto storage = txn.OpenStorage();
+    ASSERT_TRUE(
+        storage.CreateEdgeType(CreateEdgeTypeParamBuilder()
+                                   .SrcLabel("person")
+                                   .DstLabel("person")
+                                   .EdgeLabel("single_link")
+                                   .Properties({{"weight", Value::DOUBLE(0)}})
+                                   .OEEdgeStrategy(EdgeStrategy::kSingle)
+                                   .IEEdgeStrategy(EdgeStrategy::kSingle)
+                                   .Build()));
+    ASSERT_TRUE(txn.Commit());
+  }
+  db.Close();
+  db.Open(config);
+  VersionManager vm;
+  vm.init_ts({0, 0}, 4);
+  Allocator alloc(MemoryLevel::kInMemory, "");
+  InsertTestWalWriter replacement_writer, failed_writer;
+  SnapshotGuard observer(db.graph_snapshot_store());
+  auto& view = observer.get().mutable_view();
+  const auto person = view.schema().get_vertex_label_id("person");
+  const auto edge = view.schema().get_edge_label_id("single_link");
+  auto& table =
+      observer.get().mutable_graph()->get_edge_table(person, person, edge);
+  const auto replacement_ts = vm.acquire_insert_timestamp();
+  MvccInsertTransaction replacement(SnapshotGuard(db.graph_snapshot_store()),
+                                    alloc, replacement_writer, vm,
+                                    replacement_ts);
+  const auto failed_ts = vm.acquire_insert_timestamp();
+  MvccInsertTransaction failed(SnapshotGuard(db.graph_snapshot_store()), alloc,
+                               failed_writer, vm, failed_ts);
+  ASSERT_LT(replacement_ts, failed_ts);
+  vid_t src, dst;
+  ASSERT_TRUE(failed.GetVertexIndex(person, Value::INT64(1), src));
+  ASSERT_TRUE(failed.GetVertexIndex(person, Value::INT64(2), dst));
+  const void* prop = nullptr;
+  ASSERT_TRUE(replacement.AddEdge(person, src, person, dst, edge,
+                                  {Value::DOUBLE(20)}, prop));
+  ASSERT_TRUE(failed.AddEdge(person, src, person, dst, edge,
+                             {Value::DOUBLE(10)}, prop));
+  auto check_edge = [&](timestamp_t ts, double weight) {
+    EXPECT_EQ(table.EdgeNum(), 1u);
+    for (bool incoming : {false, true}) {
+      auto edges = incoming ? table.get_incoming_view(ts).get_edges(dst)
+                            : table.get_outgoing_view(ts).get_edges(src);
+      auto it = edges.begin();
+      ASSERT_TRUE(it != edges.end());
+      // Both single CSRs use offset zero, including after reuse.
+      EXPECT_EQ(it.cur, edges.start_ptr);
+      EXPECT_EQ(it.get_vertex(), incoming ? src : dst);
+      EXPECT_EQ(it.get_timestamp(), ts);
+      EXPECT_EQ(table.get_edge_data_accessor(0).get_data(it).GetValue<double>(),
+                weight);
+      ++it;
+      EXPECT_TRUE(it == edges.end());
+    }
+  };
+  failed_writer.on_append = [&] {
+    check_edge(failed_ts, 10);
+    return false;
+  };
+  ASSERT_FALSE(failed.Commit());
+  ASSERT_EQ(failed_writer.calls, 1u);
+  ASSERT_EQ(table.EdgeNum(), 0u);
+  for (bool incoming : {false, true}) {
+    auto edges = incoming ? table.get_incoming_view(failed_ts).get_edges(dst)
+                          : table.get_outgoing_view(failed_ts).get_edges(src);
+    EXPECT_TRUE(edges.begin() == edges.end());
+  }
+  ASSERT_TRUE(replacement.Commit());
+  ASSERT_EQ(replacement_writer.calls, 1u);
+  check_edge(replacement_ts, 20);
+  for (int i = 0; i < 3; ++i) {
+    failed.Abort();
+    check_edge(replacement_ts, 20);
+  }
+  observer.release();
+  db.Close();
+}
+
+TEST_F(MvccInsertTransactionTest, EdgeUndoVisitsOnlyInsertedSlots) {
+  using namespace neug;
+  for (bool parallel : {false, true}) {
+    for (int n : {32, 256, 1024}) {
+      SCOPED_TRACE(parallel ? "parallel" : "star");
+      SCOPED_TRACE(n);
+      NeugDB db;
+      db.Open(db_dir);
+      VersionManager vm;
+      vm.init_ts({0, 0}, 4);
+      Allocator alloc(MemoryLevel::kInMemory, "");
+      InsertTestWalWriter writer;
+      SnapshotGuard observer(db.graph_snapshot_store());
+      auto& view = observer.get().mutable_view();
+      const auto person = view.schema().get_vertex_label_id("person");
+      const auto knows = view.schema().get_edge_label_id("knows");
+      const auto initial_edges = view.EdgeNum(person, person, knows);
+      MvccInsertTransaction txn(SnapshotGuard(db.graph_snapshot_store()), alloc,
+                                writer, vm, vm.acquire_insert_timestamp());
+      vid_t src, dst;
+      ASSERT_TRUE(txn.GetVertexIndex(person, Value::INT64(1), src));
+      ASSERT_TRUE(txn.GetVertexIndex(person, Value::INT64(2), dst));
+      const void* prop = nullptr;
+      for (int i = 0; i < n; ++i) {
+        if (!parallel) {
+          ASSERT_TRUE(txn.AddVertex(person, Value::INT64(i + 100),
+                                    {Value::STRING("target"), Value::INT64(20)},
+                                    dst));
+        }
+        ASSERT_TRUE(txn.AddEdge(person, src, person, dst, knows,
+                                {Value::DOUBLE(0.5)}, prop));
+      }
+      writer.on_append = [&] {
+        EXPECT_EQ(view.EdgeNum(person, person, knows), initial_edges + n);
+        ResetDeleteEdgeSlotVisitsForTest();
+        return false;
+      };
+      EXPECT_FALSE(txn.Commit());
+      ASSERT_EQ(writer.calls, 1u);  // Must reach apply, not capacity retry.
+      EXPECT_EQ(DeleteEdgeSlotVisitsForTest(), 2u * n);
+      EXPECT_EQ(view.EdgeNum(person, person, knows), initial_edges);
+      EXPECT_EQ(view.VertexNum(person), 2u);
+      for (bool incoming : {false, true}) {
+        auto csr = incoming
+                       ? view.GetGenericIncomingView(person, person, knows, 1)
+                       : view.GetGenericOutgoingView(person, person, knows, 1);
+        size_t seen = 0;
+        for (auto lid : view.GetVertexSet(person, 1)) {
+          auto edges = csr.get_edges(lid);
+          for (auto it = edges.begin(); it != edges.end(); ++it) {
+            ++seen;
+          }
+        }
+        EXPECT_EQ(seen, initial_edges);
+      }
+      observer.release();
+      db.Close();
+    }
+  }
+}
+
+TEST_F(MvccInsertTransactionTest, ApplyConflictRollsBackEarlierVertexAndEdges) {
+  using namespace neug;
+  NeugDB db;
+  db.Open(db_dir);
+  VersionManager vm;
+  vm.init_ts({0, 0}, 4);
+  Allocator alloc(MemoryLevel::kInMemory, "");
+  InsertTestWalWriter writer;
+  SnapshotGuard observer(db.graph_snapshot_store());
+  auto& view = observer.get().mutable_view();
+  auto person = view.schema().get_vertex_label_id("person");
+  auto knows = view.schema().get_edge_label_id("knows");
+  const auto count = view.EdgeNum(person, person, knows);
+  MvccInsertTransaction loser(SnapshotGuard(db.graph_snapshot_store()), alloc,
+                              writer, vm, vm.acquire_insert_timestamp());
+  vid_t lid, existing;
+  ASSERT_TRUE(loser.AddVertex(person, Value::INT64(3),
+                              {Value::STRING("loser"), Value::INT64(20)}, lid));
+  ASSERT_TRUE(loser.GetVertexIndex(person, Value::INT64(1), existing));
+  const void* prop = nullptr;
+  ASSERT_TRUE(loser.AddEdge(person, lid, person, existing, knows,
+                            {Value::DOUBLE(0.5)}, prop));
+  ASSERT_TRUE(loser.AddVertex(person, Value::INT64(4),
+                              {Value::STRING("conflict"), Value::INT64(20)},
+                              lid));
+  MvccInsertTransaction winner(SnapshotGuard(db.graph_snapshot_store()), alloc,
+                               writer, vm, vm.acquire_insert_timestamp());
+  ASSERT_TRUE(winner.AddVertex(person, Value::INT64(4),
+                               {Value::STRING("winner"), Value::INT64(30)},
+                               lid));
+  ASSERT_TRUE(winner.Commit());
+  EXPECT_FALSE(loser.Commit());
+  loser.Abort();  // Caller cleanup after failed Commit must be idempotent.
+  EXPECT_EQ(writer.calls, 1u);  // Failed apply never reaches WAL append.
+  EXPECT_FALSE(view.get_lid(person, Value::INT64(3), lid, 2));
+  EXPECT_TRUE(view.get_lid(person, Value::INT64(4), lid, 2));
+  EXPECT_EQ(view.EdgeNum(person, person, knows), count);
+  observer.release();
+  db.Close();
+}
+
+// Regression for https://github.com/alibaba/neug/issues/315: overlapping
+// transactions with ordered commits must not leak the failed apply prefix.
+TEST_F(MvccInsertTransactionTest, CommitConflictMustNotLeavePartialVertices) {
+  using namespace neug;
+  NeugDB db;
+  NeugDBConfig config(db_dir);
+  config.max_thread_num = 2;
+  config.memory_level = MemoryLevel::kInMemory;
+  db.Open(config);
+  auto svc = std::make_shared<NeugDBService>(db);
+  {
+    auto winner_slot = svc->AcquireExecutionSlot();
+    auto loser_slot = svc->AcquireExecutionSlot();
+    auto winner = winner_slot->BeginMvccInsertTransaction();
+    auto loser = loser_slot->BeginMvccInsertTransaction();
+    ASSERT_LT(winner.timestamp(), loser.timestamp());
+    const auto label = winner.schema().get_vertex_label_id("person");
+    vid_t vid;
+    auto add = [&](MvccInsertTransaction& txn, int64_t id) {
+      return txn.AddVertex(label, Value::INT64(id),
+                           {Value::STRING("reproducer"), Value::INT64(28)},
+                           vid);
+    };
+    // Both stage the same PK before either commits. The loser writes 101
+    // before conflicting on 100; its trailing vertex 102 is never applied.
+    ASSERT_TRUE(add(winner, 100));
+    ASSERT_TRUE(add(loser, 101));
+    ASSERT_TRUE(add(loser, 100));
+    ASSERT_TRUE(add(loser, 102));
+    ASSERT_TRUE(winner.Commit());
+    EXPECT_FALSE(loser.Commit());
+    loser.Abort();
+  }
+  {
+    auto slot = svc->AcquireExecutionSlot();
+    auto txn = slot->BeginSnapshotReadTransaction();
+    StorageReadInterface gi(txn.view(), txn.timestamp());
+    const auto label = gi.schema().get_vertex_label_id("person");
+    vid_t vid;
+    for (int64_t id : {1, 2, 100}) {
+      EXPECT_TRUE(gi.GetVertexIndex(label, Value::INT64(id), vid));
+    }
+    EXPECT_FALSE(gi.GetVertexIndex(label, Value::INT64(101), vid))
+        << "Failed transaction leaked its applied prefix after Abort";
+    EXPECT_FALSE(gi.GetVertexIndex(label, Value::INT64(102), vid));
+    EXPECT_EQ(count_vertices(gi, label), 3u);
+  }
+  svc.reset();
+  db.Close();
+}
+
+TEST_F(MvccInsertTransactionTest, PropertyFailureAlsoUndoesCurrentVertex) {
+  using namespace neug;
+  NeugDB db;
+  db.Open(db_dir);
+  VersionManager vm;
+  vm.init_ts({0, 0}, 4);
+  Allocator alloc(MemoryLevel::kInMemory, "");
+  InsertTestWalWriter writer;
+  SnapshotGuard observer(db.graph_snapshot_store());
+  auto& view = observer.get().mutable_view();
+  auto person = view.schema().get_vertex_label_id("person");
+  // Deliberately damage a single column's capacity to inject a deterministic
+  // failure after the second vertex's PK/timestamp and first property are set.
+  auto* age = observer.get()
+                  .mutable_graph()
+                  ->get_vertex_table(person)
+                  .get_table()
+                  .get_column_by_id(1);
+  const auto capacity = age->size();
+  const auto base = view.LidNum(person);
+  MvccInsertTransaction txn(SnapshotGuard(db.graph_snapshot_store()), alloc,
+                            writer, vm, vm.acquire_insert_timestamp());
+  vid_t lid;
+  for (int id : {3, 4}) {
+    ASSERT_TRUE(txn.AddVertex(person, Value::INT64(id),
+                              {Value::STRING("partial"), Value::INT64(20)},
+                              lid));
+  }
+  SetBeforeInsertApplyForTest([&] { age->resize(base + 1); });
+  EXPECT_FALSE(txn.Commit());
+  EXPECT_FALSE(txn.RequiresCapacityRetry());
+  EXPECT_EQ(writer.calls, 0u);
+  EXPECT_FALSE(view.get_lid(person, Value::INT64(3), lid, 1));
+  EXPECT_FALSE(view.get_lid(person, Value::INT64(4), lid, 1));
+  EXPECT_EQ(view.VertexNum(person), 2u);
+  EXPECT_EQ(view.LidNum(person),
+            base + 2);  // Tombstones retain physical slots.
+  age->resize(capacity);
+  observer.release();
+  db.Close();
+}
+
+TEST_F(MvccInsertTransactionTest, DuplicatePrimaryKeyPartialWriteUndoesOwnVid) {
+  using namespace neug;
+  NeugDB db;
+  db.Open(db_dir);
+  VersionManager vm;
+  vm.init_ts({0, 0}, 4);
+  Allocator alloc_a(MemoryLevel::kInMemory, "");
+  Allocator alloc_b(MemoryLevel::kInMemory, "");
+  InsertTestWalWriter writer_a, writer_b;
+  SnapshotGuard observer(db.graph_snapshot_store());
+  auto& view = observer.get().mutable_view();
+  auto person = view.schema().get_vertex_label_id("person");
+  auto* age = observer.get()
+                  .mutable_graph()
+                  ->get_vertex_table(person)
+                  .get_table()
+                  .get_column_by_id(1);
+  const auto capacity = age->size();
+  const auto base = view.LidNum(person);
+  MvccInsertTransaction a(SnapshotGuard(db.graph_snapshot_store()), alloc_a,
+                          writer_a, vm, vm.acquire_insert_timestamp());
+  MvccInsertTransaction b(SnapshotGuard(db.graph_snapshot_store()), alloc_b,
+                          writer_b, vm, vm.acquire_insert_timestamp());
+  vid_t vid;
+  for (auto* txn : {&a, &b}) {
+    ASSERT_TRUE(txn->AddVertex(person, Value::INT64(100),
+                               {Value::STRING("duplicate"), Value::INT64(20)},
+                               vid));
+  }
+  std::atomic<bool> b_looked_up{false}, a_done{false};
+  bool a_committed = false, b_committed = false;
+  // Fail the test instead of hanging CI if a commit fails before its hook.
+  auto wait_for = [](const std::atomic<bool>& flag) {
+    const auto deadline =
+        std::chrono::steady_clock::now() + std::chrono::seconds(30);
+    while (!flag.load()) {
+      if (std::chrono::steady_clock::now() >= deadline) {
+        throw std::runtime_error(
+            "Timed out waiting for vertex insert test hook");
+      }
+      std::this_thread::yield();
+    }
+  };
+  std::thread first([&] {
+    SetBeforeVertexIndexInsertForTest([&] { wait_for(b_looked_up); });
+    a_committed = a.Commit();
+    a_done.store(true);
+  });
+  std::thread second([&] {
+    SetBeforeVertexIndexInsertForTest([&] {
+      b_looked_up.store(true);
+      wait_for(a_done);
+      // B has already observed K as absent. Its distinct VID is acquired,
+      // then the property write fails; PK lookup still returns A's VID.
+      age->resize(base + 1);
+    });
+    b_committed = b.Commit();
+  });
+  first.join();
+  second.join();
+  age->resize(capacity);
+  ASSERT_TRUE(a_committed);
+  EXPECT_FALSE(b_committed);
+  EXPECT_EQ(writer_b.calls, 0u);
+  EXPECT_EQ(view.LidNum(person), base + 2);
+  EXPECT_TRUE(view.get_lid(person, Value::INT64(100), vid, MAX_TIMESTAMP));
+  EXPECT_EQ(vid, base);
+  EXPECT_EQ(view.VertexNum(person), 3u);
+  size_t visible = 0;
+  for (auto ignored : view.GetVertexSet(person, MAX_TIMESTAMP)) {
+    (void) ignored;
+    ++visible;
+  }
+  EXPECT_EQ(visible, 3u);
+  b.Abort();  // Repeated undo must preserve A.
+  observer.release();
+  db.Close();
+}
+
+TEST_F(MvccInsertTransactionTest,
+       EdgePropertyFailureUndoesBothDirectionsAndPoint) {
+  using namespace neug;
+  NeugDB db;
+  db.Open(db_dir);
+  VersionManager vm;
+  vm.init_ts({0, 0}, 4);
+  Allocator alloc(MemoryLevel::kInMemory, "");
+  InsertTestWalWriter writer;
+  SnapshotGuard observer(db.graph_snapshot_store());
+  auto& view = observer.get().mutable_view();
+  auto person = view.schema().get_vertex_label_id("person");
+  auto software = view.schema().get_vertex_label_id("software");
+  auto created = view.schema().get_edge_label_id("created");
+  auto& table =
+      observer.get().mutable_graph()->get_edge_table(person, software, created);
+  const auto count = table.EdgeNum();
+  auto* since = table.table()->get_column_by_id(1);
+  const auto capacity = since->size();
+  // Fail after both CSR records and the first property have been appended.
+  MvccInsertTransaction txn(SnapshotGuard(db.graph_snapshot_store()), alloc,
+                            writer, vm, vm.acquire_insert_timestamp());
+  vid_t src, dst;
+  ASSERT_TRUE(txn.AddVertex(person, Value::INT64(3),
+                            {Value::STRING("partial"), Value::INT64(20)}, src));
+  ASSERT_TRUE(txn.GetVertexIndex(software, Value::INT64(1), dst));
+  const void* prop = nullptr;
+  ASSERT_TRUE(txn.AddEdge(person, src, software, dst, created,
+                          {Value::DOUBLE(0.2), Value::INT64(2026)}, prop));
+  SetBeforeInsertApplyForTest([&] { since->resize(table.PropTableSize()); });
+  EXPECT_FALSE(txn.Commit());
+  EXPECT_FALSE(txn.RequiresCapacityRetry());
+  EXPECT_EQ(writer.calls, 0u);
+  EXPECT_FALSE(view.get_lid(person, Value::INT64(3), src, 1));
+  EXPECT_EQ(table.EdgeNum(), count);
+  auto incoming = view.GetGenericIncomingView(person, software, created, 1);
+  size_t seen = 0;
+  for (auto lid : view.GetVertexSet(software, 1)) {
+    auto edges = incoming.get_edges(lid);
+    for (auto it = edges.begin(); it != edges.end(); ++it) {
+      ++seen;
+    }
+  }
+  EXPECT_EQ(seen, count);
+  since->resize(capacity);
+  observer.release();
+  db.Close();
+}
+
+TEST_F(MvccInsertTransactionTest,
+       EdgePropertyTombstonesStayInvisibleAcrossCheckpoints) {
+  using namespace neug;
+  for (auto level : {MemoryLevel::kInMemory, MemoryLevel::kSyncToFile}) {
+    SCOPED_TRACE(static_cast<int>(level));
+    // Start each storage mode from the same committed fixture.
+    SetUp();
+    NeugDBConfig config(db_dir);
+    config.memory_level = level;
+    config.checkpoint_on_close = true;
+    NeugDB db;
+    db.Open(config);
+    auto svc = std::make_shared<NeugDBService>(db);
+    auto verify = [&](bool replacement) {
+      auto slot = svc->AcquireExecutionSlot();
+      auto txn = slot->BeginSnapshotReadTransaction();
+      StorageReadInterface gi(txn.view(), txn.timestamp());
+      const auto person = gi.schema().get_vertex_label_id("person");
+      const auto software = gi.schema().get_vertex_label_id("software");
+      const auto created = gi.schema().get_edge_label_id("created");
+      auto weight = gi.GetEdgeDataAccessor(person, software, created, 0);
+      auto since = gi.GetEdgeDataAccessor(person, software, created, 1);
+      for (bool incoming : {false, true}) {
+        auto edges =
+            incoming
+                ? gi.GetGenericIncomingGraphView(software, person, created)
+                : gi.GetGenericOutgoingGraphView(person, software, created);
+        size_t seen = 0;
+        for (auto lid : gi.GetVertexSet(incoming ? software : person)) {
+          auto adjacency = edges.get_edges(lid);
+          for (auto it = adjacency.begin(); it != adjacency.end(); ++it) {
+            const auto src =
+                gi.GetVertexId(person, incoming ? it.get_vertex() : lid)
+                    .GetValue<int64_t>();
+            const auto dst =
+                gi.GetVertexId(software, incoming ? lid : it.get_vertex())
+                    .GetValue<int64_t>();
+            if (src == 1 && dst == 1) {
+              EXPECT_DOUBLE_EQ(weight.get_data(it).GetValue<double>(), 0.8);
+              EXPECT_EQ(since.get_data(it).GetValue<int64_t>(), 2021);
+            } else if (src == 2 && dst == 2) {
+              EXPECT_DOUBLE_EQ(weight.get_data(it).GetValue<double>(), 0.7);
+              EXPECT_EQ(since.get_data(it).GetValue<int64_t>(), 2020);
+            } else {
+              EXPECT_TRUE(replacement);
+              EXPECT_EQ(src, 1);
+              EXPECT_EQ(dst, 2);
+              EXPECT_DOUBLE_EQ(weight.get_data(it).GetValue<double>(), 0.9);
+              EXPECT_EQ(since.get_data(it).GetValue<int64_t>(), 2030);
+            }
+            ++seen;
+          }
+        }
+        EXPECT_EQ(seen, replacement ? 3u : 2u);
+      }
+    };
+    size_t retained_rows;
+    {
+      SnapshotGuard observer(db.graph_snapshot_store());
+      auto& graph = *observer.get().mutable_graph();
+      const auto person = graph.schema().get_vertex_label_id("person");
+      const auto software = graph.schema().get_vertex_label_id("software");
+      const auto created = graph.schema().get_edge_label_id("created");
+      auto& table = graph.get_edge_table(person, software, created);
+      const auto initial_rows = table.PropTableSize();
+      auto* since = table.table()->get_column_by_id(1);
+      const auto capacity = since->size();
+      for (int i = 0; i < 3; ++i) {
+        auto slot = svc->AcquireExecutionSlot();
+        auto txn = slot->BeginMvccInsertTransaction();
+        vid_t src, dst;
+        ASSERT_TRUE(txn.GetVertexIndex(person, Value::INT64(1), src));
+        ASSERT_TRUE(txn.GetVertexIndex(software, Value::INT64(2), dst));
+        // Both endpoints survive: a leaked edge cannot hide behind a deleted
+        // vertex. Fail only after the CSR entries and weight are written.
+        const void* prop = nullptr;
+        ASSERT_TRUE(txn.AddEdge(person, src, software, dst, created,
+                                {Value::DOUBLE(0.2), Value::INT64(2026)},
+                                prop));
+        SetBeforeInsertApplyForTest(
+            [&] { since->resize(table.PropTableSize()); });
+        EXPECT_FALSE(txn.Commit());
+        EXPECT_FALSE(txn.RequiresCapacityRetry());
+        txn.Abort();
+        // Restore the injected capacity restriction before checkpointing.
+        since->resize(capacity);
+        EXPECT_EQ(table.PropTableSize(), initial_rows + i + 1);
+        EXPECT_EQ(table.EdgeNum(), 2u);
+      }
+      retained_rows = table.PropTableSize();
+    }
+    verify(false);
+    svc.reset();
+    db.Close();  // Publish a checkpoint containing the unreachable rows.
+    db.Open(config);
+    svc = std::make_shared<NeugDBService>(db);
+    verify(false);
+    {
+      auto slot = svc->AcquireExecutionSlot();
+      auto txn = slot->BeginMvccInsertTransaction();
+      const auto person = txn.schema().get_vertex_label_id("person");
+      const auto software = txn.schema().get_vertex_label_id("software");
+      const auto created = txn.schema().get_edge_label_id("created");
+      EXPECT_EQ(
+          db.graph().get_edge_table(person, software, created).PropTableSize(),
+          retained_rows);
+      vid_t src, dst;
+      ASSERT_TRUE(txn.GetVertexIndex(person, Value::INT64(1), src));
+      ASSERT_TRUE(txn.GetVertexIndex(software, Value::INT64(2), dst));
+      const void* prop = nullptr;
+      ASSERT_TRUE(txn.AddEdge(person, src, software, dst, created,
+                              {Value::DOUBLE(0.9), Value::INT64(2030)}, prop));
+      ASSERT_TRUE(txn.Commit());
+      EXPECT_EQ(
+          db.graph().get_edge_table(person, software, created).PropTableSize(),
+          retained_rows + 1);
+    }
+    verify(true);
+    svc.reset();
+    db.Close();
+    db.Open(config);
+    svc = std::make_shared<NeugDBService>(db);
+    verify(true);
+    svc.reset();
+    db.Close();
+  }
+}
+
+TEST_F(MvccInsertTransactionTest, InsertCannotUseAnotherUnpublishedVertex) {
+  using namespace neug;
+  NeugDB db;
+  db.Open(db_dir);
+  VersionManager vm;
+  vm.init_ts({0, 0}, 4);
+  Allocator alloc(MemoryLevel::kInMemory, "");
+  InsertTestWalWriter writer;
+  SnapshotGuard observer(db.graph_snapshot_store());
+  auto& view = observer.get().mutable_view();
+  auto person = view.schema().get_vertex_label_id("person");
+  auto knows = view.schema().get_edge_label_id("knows");
+  MvccInsertTransaction first(SnapshotGuard(db.graph_snapshot_store()), alloc,
+                              writer, vm, vm.acquire_insert_timestamp());
+  vid_t lid;
+  ASSERT_TRUE(first.AddVertex(person, Value::INT64(3),
+                              {Value::STRING("pending"), Value::INT64(20)},
+                              lid));
+  writer.on_append = [&] {
+    // Interleave a second insert after apply, before WAL/publication.
+    InsertTestWalWriter second_writer;
+    MvccInsertTransaction second(SnapshotGuard(db.graph_snapshot_store()),
+                                 alloc, second_writer, vm,
+                                 vm.acquire_insert_timestamp());
+    vid_t physical, existing;
+    EXPECT_TRUE(view.get_lid(person, Value::INT64(3), physical, 1));
+    EXPECT_FALSE(second.GetVertexIndex(person, Value::INT64(3), lid));
+    EXPECT_FALSE(view.GetInsertEndpoint(person, Value::INT64(3), lid, 0, 2));
+    EXPECT_TRUE(second.GetVertexIndex(person, Value::INT64(1), existing));
+    const void* prop = nullptr;
+    EXPECT_THROW(second.AddEdge(person, physical, person, existing, knows,
+                                {Value::DOUBLE(0.5)}, prop),
+                 std::exception);
+    EXPECT_EQ(second_writer.calls, 0u);
+    return false;
+  };
+  EXPECT_FALSE(first.Commit());
+  EXPECT_FALSE(view.get_lid(person, Value::INT64(3), lid, 2));
+  observer.release();
+  db.Close();
 }
 
 class LocalWalParserTest : public ::testing::Test {

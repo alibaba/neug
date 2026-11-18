@@ -62,6 +62,8 @@ class NEUG_API VertexTableView {
   explicit VertexTableView(VertexTable& table);
 
   bool get_lid(const Value& oid, vid_t& lid, timestamp_t ts) const;
+  bool get_insert_lid(const Value& oid, vid_t& lid, timestamp_t read_ts,
+                      timestamp_t owner) const;
   vid_t LidNum() const;
   // Returns the latest storage cardinality for statistics/planning, not the
   // number of vertices visible at a specific MVCC timestamp.
@@ -100,7 +102,8 @@ class EdgeTableView {
   std::pair<int32_t, const void*> AddEdge(vid_t src_lid, vid_t dst_lid,
                                           const std::vector<Value>& properties,
                                           timestamp_t ts, Allocator& alloc,
-                                          bool insert_safe);
+                                          bool insert_safe,
+                                          EdgeInsertOffsets* offsets = nullptr);
 
  private:
   std::shared_ptr<const EdgeSchema> meta_;
@@ -113,6 +116,10 @@ class EdgeTableView {
 
 class NEUG_API GraphView {
  public:
+  bool GetInsertEndpoint(label_t label, const Value& oid, vid_t& lid,
+                         timestamp_t read_ts, timestamp_t owner) const {
+    return vertex_views_.at(label).get_insert_lid(oid, lid, read_ts, owner);
+  }
   explicit GraphView(PropertyGraph& storage);
 
   GraphView() = default;
@@ -194,7 +201,8 @@ class NEUG_API GraphView {
   Status AddEdge(label_t src_label, vid_t src_lid, label_t dst_label,
                  vid_t dst_lid, label_t edge_label,
                  const std::vector<Value>& properties, timestamp_t ts,
-                 Allocator& alloc, int32_t& oe_offset, const void*& prop);
+                 Allocator& alloc, int32_t& oe_offset, const void*& prop,
+                 EdgeInsertOffsets* offsets = nullptr);
 
   void Rebuild(PropertyGraph& pg);
 

@@ -829,14 +829,15 @@ Status CowGraphStorage::DeleteEdgesImpl(label_t src_label, vid_t src_lid,
     auto ie_edges =
         GetGenericIncomingGraphView(dst_label, src_label, edge_label)
             .get_edges(dst_lid);
-    int32_t oe_offset = 0;
     for (auto it = oe_edges.begin(); it != oe_edges.end(); ++it) {
       if (it.get_vertex() == dst_lid) {
         auto ie_offset = fuzzy_search_offset_from_nbr_list(
             ie_edges, src_lid, it.get_data_ptr(), search_edge_prop_type);
+        const auto oe_offset = (static_cast<const char*>(it.cur) -
+                                static_cast<const char*>(oe_edges.start_ptr)) /
+                               oe_edges.cfg.stride;
         matched_offsets.emplace_back(oe_offset, ie_offset);
       }
-      ++oe_offset;
     }
   }
 
@@ -857,10 +858,14 @@ Status CowGraphStorage::DeleteEdgesImpl(label_t src_label, vid_t src_lid,
   }
   for (const auto& [oe_offset, ie_offset] : matched_offsets) {
     if (!is_temporary) {
+      auto before =
+          EdgeBeforeImage(graph_.get_edge_table_by_index(edge_idx), src_lid,
+                          dst_lid, oe_offset, ie_offset, write_ts_);
       logical_redo_.LogRemoveEdge(
           schema.get_vertex_label_name(src_label), src_id,
           schema.get_vertex_label_name(dst_label), dst_id,
-          schema.get_edge_label_name(edge_label), oe_offset, ie_offset);
+          schema.get_edge_label_name(edge_label), oe_offset, ie_offset,
+          &before);
     }
     auto status =
         graph_.DeleteEdge(src_label, src_lid, dst_label, dst_lid, edge_label,
@@ -894,12 +899,15 @@ Status CowGraphStorage::DeleteEdgeImpl(label_t src_label, vid_t src_lid,
   if (schema.is_edge_triplet_temporary(src_label, dst_label, edge_label)) {
     workspace_.MarkTransientMutation();
   } else {
+    auto before =
+        EdgeBeforeImage(graph_.get_edge_table_by_index(edge_idx), src_lid,
+                        dst_lid, oe_offset, ie_offset, write_ts_);
     logical_redo_.LogRemoveEdge(schema.get_vertex_label_name(src_label),
                                 GetVertexId(src_label, src_lid),
                                 schema.get_vertex_label_name(dst_label),
                                 GetVertexId(dst_label, dst_lid),
                                 schema.get_edge_label_name(edge_label),
-                                oe_offset, ie_offset);
+                                oe_offset, ie_offset, &before);
   }
 
   return graph_.DeleteEdge(src_label, src_lid, dst_label, dst_lid, edge_label,
@@ -973,11 +981,13 @@ Status CowGraphStorage::UpdateEdgePropertyImpl(
   if (schema.is_edge_triplet_temporary(src_label, dst_label, edge_label)) {
     workspace_.MarkTransientMutation();
   } else {
+    auto before = EdgeBeforeImage(graph_.get_edge_table_by_index(edge_idx), src,
+                                  dst, oe_offset, ie_offset, write_ts_);
     logical_redo_.LogUpdateEdgeProp(
         schema.get_vertex_label_name(src_label), GetVertexId(src_label, src),
         schema.get_vertex_label_name(dst_label), GetVertexId(dst_label, dst),
         schema.get_edge_label_name(edge_label), oe_offset, ie_offset, col_id,
-        value);
+        value, &before);
   }
   return graph_.UpdateEdgeProperty(src_label, src, dst_label, dst, edge_label,
                                    oe_offset, ie_offset, col_id, value,
