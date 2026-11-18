@@ -83,6 +83,8 @@ class TypedColumn : public ColumnBase {
 
   void Open(Checkpoint& ckp, const ModuleDescriptor& desc,
             MemoryLevel level) override {
+    resize_allocator_ = ckp.runtime_allocator();
+    level_ = level;
     assert(desc.module_type.empty() || desc.module_type == ModuleTypeName());
     buffer_ = ckp.OpenFile(
         desc.get_path(ModuleDescriptor::kDataPath).value_or(""), level);
@@ -102,8 +104,10 @@ class TypedColumn : public ColumnBase {
   size_t size() const override { return size_; }
 
   void resize(size_t size) override {
+    auto replacement = ResizeContainerCopy(resize_allocator_, level_, buffer_,
+                                           size * sizeof(T));
+    buffer_ = std::move(replacement);
     size_ = size;
-    buffer_->Resize(size_ * sizeof(T));
   }
 
   // Assume it is safe to insert the default value even if it is reserving,
@@ -113,12 +117,15 @@ class TypedColumn : public ColumnBase {
       THROW_RUNTIME_ERROR("Default value type does not match column type");
     }
     size_t old_size = size_;
-    size_ = size;
-    buffer_->Resize(size_ * sizeof(T));
     auto default_typed_value = default_value.GetValue<T>();
-    for (size_t i = old_size; i < size_; ++i) {
-      set_value(i, default_typed_value);
+    auto replacement = ResizeContainerCopy(resize_allocator_, level_, buffer_,
+                                           size * sizeof(T));
+    auto* data = static_cast<T*>(replacement->GetData());
+    for (size_t i = old_size; i < size; ++i) {
+      data[i] = default_typed_value;
     }
+    buffer_ = std::move(replacement);
+    size_ = size;
   }
 
   DataTypeId type() const override { return ValueConverter<T>::type().id(); }
@@ -162,6 +169,8 @@ class TypedColumn : public ColumnBase {
 
   std::unique_ptr<Module> Clone() const override {
     auto new_col = std::make_unique<TypedColumn<T>>();
+    new_col->resize_allocator_ = resize_allocator_;
+    new_col->level_ = level_;
     new_col->buffer_ = buffer_;
     new_col->size_ = size_;
     return new_col;
@@ -169,6 +178,8 @@ class TypedColumn : public ColumnBase {
 
   void Detach(Checkpoint& ckp, MemoryLevel level) override {
     buffer_ = buffer_->Fork(ckp, level);
+    resize_allocator_ = ckp.runtime_allocator();
+    level_ = level;
   }
 
   std::string ModuleTypeName() const override { return type_name(); }
@@ -178,6 +189,8 @@ class TypedColumn : public ColumnBase {
   }
 
  private:
+  std::shared_ptr<CheckpointFileManager> resize_allocator_;
+  MemoryLevel level_ = MemoryLevel::kInMemory;
   std::shared_ptr<IDataContainer> buffer_;
   size_t size_;
 };
@@ -248,6 +261,8 @@ class TypedColumn<std::string_view> : public ColumnBase {
   explicit TypedColumn()
       : size_(0), pos_(0), width_(STRING_DEFAULT_MAX_LENGTH) {}
   TypedColumn(TypedColumn<std::string_view>&& rhs) {
+    resize_allocator_ = std::move(rhs.resize_allocator_);
+    level_ = rhs.level_;
     items_buffer_ = std::move(rhs.items_buffer_);
     data_buffer_ = std::move(rhs.data_buffer_);
     size_ = rhs.size_;
@@ -259,6 +274,8 @@ class TypedColumn<std::string_view> : public ColumnBase {
 
   void Open(Checkpoint& ckp, const ModuleDescriptor& desc,
             MemoryLevel level) override {
+    resize_allocator_ = ckp.runtime_allocator();
+    level_ = level;
     if (auto width = desc.get("width")) {
       width_ = static_cast<uint16_t>(std::stoul(*width));
     }
@@ -398,27 +415,29 @@ class TypedColumn<std::string_view> : public ColumnBase {
   size_t size() const override { return size_; }
 
   void resize(size_t size) override {
-    if (items_buffer_->GetDataSize() == 0) {
-      items_buffer_->Resize(size * sizeof(string_item));
-      data_buffer_->Resize(
-          std::max(size * static_cast<size_t>(width_), pos_.load()));
-    } else {
-      size_t avg_size = string_avg_size() > 0 ? string_avg_size() : width_;
-      items_buffer_->Resize(size * sizeof(string_item));
-      data_buffer_->Resize(std::max(size * avg_size, pos_.load()));
+    size_t avg_size =
+        items_buffer_->GetDataSize() == 0 ? width_ : string_avg_size();
+    if (avg_size == 0) {
+      avg_size = width_;
     }
+    auto items = ResizeContainerCopy(resize_allocator_, level_, items_buffer_,
+                                     size * sizeof(string_item));
+    auto data = ResizeContainerCopy(resize_allocator_, level_, data_buffer_,
+                                    std::max(size * avg_size, pos_.load()));
+    items_buffer_ = std::move(items);
+    data_buffer_ = std::move(data);
     size_ = size;
   }
 
   void resize(size_t size, size_t data_size) {
-    size_t item_bytes = size * sizeof(string_item);
-    if (item_bytes > items_buffer_->GetDataSize()) {
-      items_buffer_->Resize(item_bytes);
-    }
-    size_t data_bytes = pos_.load() + data_size;
-    if (data_bytes > data_buffer_->GetDataSize()) {
-      data_buffer_->Resize(data_bytes);
-    }
+    auto items = ResizeContainerCopy(
+        resize_allocator_, level_, items_buffer_,
+        std::max(items_buffer_->GetDataSize(), size * sizeof(string_item)));
+    auto data = ResizeContainerCopy(
+        resize_allocator_, level_, data_buffer_,
+        std::max(data_buffer_->GetDataSize(), pos_.load() + data_size));
+    items_buffer_ = std::move(items);
+    data_buffer_ = std::move(data);
     size_ = std::max(size_, size);
   }
 
@@ -426,27 +445,31 @@ class TypedColumn<std::string_view> : public ColumnBase {
     if (default_value.type().id() != type()) {
       THROW_RUNTIME_ERROR("Default value type does not match column type");
     }
-    size_t old_size = size_;
-    size_ = size;
     auto default_str = default_value.GetValue<std::string>();
     default_str = truncate_utf8(default_str, width_);
-
-    size_t new_items = (size > old_size) ? (size - old_size) : 0;
-    items_buffer_->Resize(size * sizeof(string_item));
-    size_t needed = pos_.load() + new_items * static_cast<size_t>(width_);
-    data_buffer_->Resize(std::max(needed, size * string_avg_size()));
-
-    if (default_str.size() == 0) {
-      return;
-    }
-
-    if (old_size < size_) {
-      set_value(old_size, default_str);
-      const auto& string_item = get_string_item(old_size);
-      for (size_t i = old_size + 1; i < size_; ++i) {
-        set_string_item(i, string_item);
+    const size_t new_items = size > size_ ? size - size_ : 0;
+    const size_t tail = pos_.load();
+    auto items = ResizeContainerCopy(resize_allocator_, level_, items_buffer_,
+                                     size * sizeof(string_item));
+    auto data = ResizeContainerCopy(
+        resize_allocator_, level_, data_buffer_,
+        std::max(tail + new_items * static_cast<size_t>(width_),
+                 size * string_avg_size()),
+        new_items != 0 && !default_str.empty() && data_buffer_.use_count() > 1);
+    if (new_items && !default_str.empty()) {
+      std::memcpy(static_cast<char*>(data->GetData()) + tail,
+                  default_str.data(), default_str.size());
+      auto* entries = static_cast<string_item*>(items->GetData());
+      for (size_t i = size_; i < size; ++i) {
+        entries[i] = {tail, static_cast<uint32_t>(default_str.size())};
       }
     }
+    items_buffer_ = std::move(items);
+    data_buffer_ = std::move(data);
+    if (new_items && !default_str.empty()) {
+      pos_.store(tail + default_str.size());
+    }
+    size_ = size;
   }
 
   DataTypeId type() const override { return DataTypeId::kVarchar; }
@@ -523,6 +546,8 @@ class TypedColumn<std::string_view> : public ColumnBase {
 
   std::unique_ptr<Module> Clone() const override {
     auto new_col = std::make_unique<TypedColumn<std::string_view>>(width_);
+    new_col->resize_allocator_ = resize_allocator_;
+    new_col->level_ = level_;
     new_col->items_buffer_ = items_buffer_;
     new_col->data_buffer_ = data_buffer_;
     new_col->size_ = size_;
@@ -532,9 +557,13 @@ class TypedColumn<std::string_view> : public ColumnBase {
 
   // DeepCopy:
   void Detach(Checkpoint& ckp, MemoryLevel level) override {
+    resize_allocator_ = ckp.runtime_allocator();
+    level_ = level;
     items_buffer_ = items_buffer_->Fork(ckp, level);
     data_buffer_ = data_buffer_->Fork(ckp, level);
   }
+
+  size_t data_capacity() const { return data_buffer_->GetDataSize(); }
 
   size_t available_space() const {
     if (!data_buffer_) {
@@ -563,6 +592,8 @@ class TypedColumn<std::string_view> : public ColumnBase {
   static std::string type_name() { return "column<string>"; }
 
  private:
+  std::shared_ptr<CheckpointFileManager> resize_allocator_;
+  MemoryLevel level_ = MemoryLevel::kInMemory;
   inline string_item get_string_item(size_t idx) const {
     assert(idx < size_);
     auto raw_items =

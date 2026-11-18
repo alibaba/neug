@@ -62,7 +62,8 @@ def __init__(db_path: str = None,
              max_thread_num: int = 0,
              checkpoint_on_close: bool = True,
              buffer_strategy: str = "M_FULL",
-             auto_load_extension: bool = False)
+             auto_load_extension: bool = False,
+             wal_sync_mode: str = "STANDARD")
 ```
 
 Open a database.
@@ -85,6 +86,10 @@ Open a database.
   - `checkpoint_on_close` (bool)
     Whether to automatically create a checkpoint when the database is closed. Default is True.
     If False, no checkpoint is created automatically when close the database.
+  - `wal_sync_mode` (str)
+    STANDARD (default) or FULL, case-insensitive. Sets the WAL synchronization
+    policy for this database, including service writes. Specify on each open.
+    See [WAL synchronization policy](../../transaction/checkpoint.md#wal-synchronization-policy).
   - `buffer_strategy` (str)
     Buffer strategy to use for the database, could be 'InMemory' (or 'M_FULL'), 'SyncToFile' (or 'M_LAZY')
     or 'HugePagePreferred' (or 'M_HUGE'). Default is 'M_FULL'. This setting controls how graph data is

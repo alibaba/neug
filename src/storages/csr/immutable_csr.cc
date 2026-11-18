@@ -40,6 +40,8 @@ namespace neug {
 template <typename EDATA_T>
 void ImmutableCsr<EDATA_T>::Open(Checkpoint& ckp, const ModuleDescriptor& desc,
                                  MemoryLevel memory_level) {
+  resize_allocator_ = ckp.runtime_allocator();
+  level_ = memory_level;
   unsorted_since_ = std::stoull(desc.get("unsorted_since").value_or("0"));
   edge_num_.store(std::stoull(desc.get("edge_num").value_or("0")));
   degree_list_buffer_ = ckp.OpenFile(
@@ -130,21 +132,21 @@ void ImmutableCsr<EDATA_T>::compact() {
 template <typename EDATA_T>
 void ImmutableCsr<EDATA_T>::resize(vid_t vnum) {
   auto old_v_cap = size();
-  auto** adj_arr = reinterpret_cast<nbr_t**>(adj_list_buffer_->GetData());
-  auto* deg_arr = reinterpret_cast<int*>(degree_list_buffer_->GetData());
-  if (vnum > old_v_cap) {
-    adj_list_buffer_->Resize(vnum * sizeof(nbr_t*));
-    degree_list_buffer_->Resize(vnum * sizeof(int));
-    adj_arr = reinterpret_cast<nbr_t**>(adj_list_buffer_->GetData());
-    deg_arr = reinterpret_cast<int*>(degree_list_buffer_->GetData());
-    for (vid_t i = old_v_cap; i < vnum; ++i) {
-      adj_arr[i] = NULL;
-      deg_arr[i] = 0;
-    }
-  } else {
-    adj_list_buffer_->Resize(vnum * sizeof(nbr_t*));
-    degree_list_buffer_->Resize(vnum * sizeof(int));
+  if (vnum == old_v_cap) {
+    return;
   }
+  auto adj = ResizeContainerCopy(resize_allocator_, level_, adj_list_buffer_,
+                                 vnum * sizeof(nbr_t*));
+  auto degrees = ResizeContainerCopy(resize_allocator_, level_,
+                                     degree_list_buffer_, vnum * sizeof(int));
+  auto** adj_arr = reinterpret_cast<nbr_t**>(adj->GetData());
+  auto* deg_arr = reinterpret_cast<int*>(degrees->GetData());
+  for (vid_t i = old_v_cap; i < vnum; ++i) {
+    adj_arr[i] = nullptr;
+    deg_arr[i] = 0;
+  }
+  adj_list_buffer_ = std::move(adj);
+  degree_list_buffer_ = std::move(degrees);
   refresh_prefetch_policy();
 }
 
@@ -382,6 +384,8 @@ template <typename EDATA_T>
 void SingleImmutableCsr<EDATA_T>::Open(Checkpoint& ckp,
                                        const ModuleDescriptor& descriptor,
                                        MemoryLevel memory_level) {
+  resize_allocator_ = ckp.runtime_allocator();
+  level_ = memory_level;
   nbr_list_buffer_ = ckp.OpenFile(
       descriptor.get_path(ModuleDescriptor::kNbrListPath).value_or(""),
       memory_level);
@@ -413,14 +417,18 @@ void SingleImmutableCsr<EDATA_T>::compact() {}
 
 template <typename EDATA_T>
 void SingleImmutableCsr<EDATA_T>::resize(vid_t vnum) {
-  auto old_size = size();
-  nbr_list_buffer_->Resize(vnum * sizeof(nbr_t));
-  if (vnum > old_size) {
-    auto* nbr_arr = reinterpret_cast<nbr_t*>(nbr_list_buffer_->GetData());
-    for (size_t k = old_size; k != vnum; ++k) {
-      nbr_arr[k].neighbor = std::numeric_limits<vid_t>::max();
-    }
+  const auto old_size = size();
+  if (vnum == old_size) {
+    return;
   }
+  auto replacement = ResizeContainerCopy(
+      resize_allocator_, level_, nbr_list_buffer_, vnum * sizeof(nbr_t));
+  auto* data = static_cast<nbr_t*>(replacement->GetData());
+  for (vid_t i = old_size; i < vnum; ++i) {
+    data[i].neighbor = std::numeric_limits<vid_t>::max();
+  }
+  nbr_list_buffer_ = std::move(replacement);
+  refresh_prefetch_policy();
 }
 
 template <typename EDATA_T>

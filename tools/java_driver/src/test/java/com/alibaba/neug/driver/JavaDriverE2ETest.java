@@ -83,6 +83,23 @@ public class JavaDriverE2ETest {
     }
 
     @Test
+    public void testCommittedWriteUsesServerWalPolicy() {
+        try (Driver driver = GraphDatabase.driver(requireE2EUri());
+                Session session = driver.session()) {
+            try (ResultSet ignored =
+                    session.run("CREATE (:person {id: 2, name: 'java-wal', age: 42})")) {
+                // The server acknowledges this write only after committing it.
+            }
+            try (ResultSet result = session.run("MATCH (p:person {id: 2}) RETURN p.name, p.age")) {
+                assertTrue(result.next());
+                assertEquals("java-wal", result.getString(0));
+                assertEquals(42, result.getInt(1));
+                assertFalse(result.next());
+            }
+        }
+    }
+
+    @Test
     public void testDriverCanRunExplicitReadOnlyTransaction() {
         String uri = requireE2EUri();
 

@@ -209,6 +209,8 @@ class MutableCsr : public TypedCsrBase<EDATA_T> {
 
   std::unique_ptr<Module> Clone() const override {
     auto cow_clone = std::make_unique<MutableCsr<EDATA_T>>();
+    cow_clone->resize_allocator_ = resize_allocator_;
+    cow_clone->level_ = level_;
     auto v_cap = vertex_capacity();
     cow_clone->locks_ = std::make_unique<SpinLock[]>(v_cap);
     cow_clone->adj_list_buffer_ = adj_list_buffer_;
@@ -222,6 +224,8 @@ class MutableCsr : public TypedCsrBase<EDATA_T> {
 
   // Detach shared buffers for COW writes.
   void Detach(Checkpoint& ckp, MemoryLevel level) override {
+    resize_allocator_ = ckp.runtime_allocator();
+    level_ = level;
     adj_list_buffer_ = adj_list_buffer_->Fork(ckp, level);
     degree_list_ = degree_list_->Fork(ckp, level);
     cap_list_ = cap_list_->Fork(ckp, level);
@@ -235,6 +239,8 @@ class MutableCsr : public TypedCsrBase<EDATA_T> {
   }
 
  private:
+  std::shared_ptr<CheckpointFileManager> resize_allocator_;
+  MemoryLevel level_ = MemoryLevel::kInMemory;
   std::unique_ptr<SpinLock[]> locks_;
   std::shared_ptr<IDataContainer> adj_list_buffer_;
   std::shared_ptr<IDataContainer> degree_list_;
@@ -365,6 +371,8 @@ class SingleMutableCsr : public TypedCsrBase<EDATA_T> {
 
   std::unique_ptr<Module> Clone() const override {
     auto cow_clone = std::make_unique<SingleMutableCsr<EDATA_T>>();
+    cow_clone->resize_allocator_ = resize_allocator_;
+    cow_clone->level_ = level_;
     cow_clone->nbr_list_ = nbr_list_;
     cow_clone->edge_num_ = edge_num_.load();
     return cow_clone;
@@ -372,6 +380,8 @@ class SingleMutableCsr : public TypedCsrBase<EDATA_T> {
 
   // Detach shared buffers for COW writes.
   void Detach(Checkpoint& ckp, MemoryLevel level) override {
+    resize_allocator_ = ckp.runtime_allocator();
+    level_ = level;
     nbr_list_ = nbr_list_->Fork(ckp, level);
   }
 
@@ -382,6 +392,8 @@ class SingleMutableCsr : public TypedCsrBase<EDATA_T> {
   }
 
  private:
+  std::shared_ptr<CheckpointFileManager> resize_allocator_;
+  MemoryLevel level_ = MemoryLevel::kInMemory;
   std::shared_ptr<IDataContainer> nbr_list_;
   std::atomic<uint64_t> edge_num_{0};
   CsrPrefetchPolicy prefetch_policy_;

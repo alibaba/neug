@@ -193,10 +193,14 @@ class NEUG_API NeugDB {
    * config.mode = neug::DBMode::READ_WRITE;
    * config.memory_level = 1;  // Use memory-mapped virtual memory
    * config.auto_load_extension = false;  // Disabled by default
+   * config.wal_sync_mode = neug::WalSyncMode::STANDARD;  // Default; or FULL
    *
    * neug::NeugDB db;
    * db.Open(config);
    * @endcode
+   *
+   * See <a href="../../transaction/checkpoint.md#wal-synchronization-policy">
+   * WAL synchronization policy</a> for the meaning of `wal_sync_mode`.
    *
    * @param config Configuration object with all database settings.
    * config.auto_load_extension (bool, default false) controls automatic loading
@@ -374,7 +378,8 @@ class NEUG_API NeugDB {
   void initAllocators(const std::string& allocator_dir);
   void reopenAllocators(const std::string& allocator_dir);
   timestamp_t openGraphAndIngestWals();
-  timestamp_t ingestWals(IWalParser& parser, PropertyGraph& graph,
+  timestamp_t ingestWals(IWalParser& parser,
+                         std::shared_ptr<PropertyGraph>& graph,
                          timestamp_t base_timestamp);
   void initPlanner();
   void initQueryRuntime();

@@ -321,14 +321,14 @@ jobs:
         artifact_platform: linux-${{ matrix.arch }}
         upload_artifacts: 'true'
 
-    - name: Restore Workspace and npm Cache Ownership
+    - name: Restore Mounted Directory Ownership
       if: always()
       shell: bash
       run: |
-        chown -R neug:neug "$GITHUB_WORKSPACE"
-        if [ -d "$HOME/.npm" ]; then
-          chown -R neug:neug "$HOME/.npm"
-        fi
+        set -euo pipefail
+        # The image runs as root, so restore mounted directory ownership after use.
+        # TODO: Switch to the neug user when updating the image in the future.
+        chown -R neug:neug /__w
 
   # ========================================
   # For MacOS, package directly in the development environment through OSX.yml.

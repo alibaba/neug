@@ -24,6 +24,7 @@
 #include "algorithm/hnsw/hnsw_context.h"
 #include "hnsw_index.h"
 #include "neug/storages/checkpoint_manager.h"
+#include "neug/storages/graph/vertex_table.h"
 
 namespace neug::vector_search_ext {
 namespace {
@@ -73,6 +74,35 @@ class HNSWVecSourceTest : public ::testing::Test {
   }
   void CheckSnapshotSearch(uint32_t capacity, uint32_t count);
 
+  std::unique_ptr<HNSWIndex> MakeIndex(size_t workers = 4) {
+    IndexMeta meta;
+    meta.name = "parallel_test";
+    meta.type = "hnsw";
+    meta.schema.columns.push_back({"v", type_});
+    meta.options["m"] = "16";
+    meta.options["ef_construction"] = "100";
+    meta.options["concurrency"] = std::to_string(workers);
+    ModuleDescriptor descriptor;
+    descriptor.set("index_meta", meta.ToJsonString());
+    descriptor.set("flat_index_offset", "0");
+    auto index = std::make_unique<HNSWIndex>();
+    index->Open(*checkpoint_, descriptor, MemoryLevel::kInMemory);
+    EXPECT_TRUE(index->Rebind({{column_.get()}}).ok());
+    return index;
+  }
+
+  void ExpectNearest(HNSWIndex& index, vid_t id) {
+    HNSWIndexQueryParams query;
+    query.target_value = MakeVector(static_cast<float>(id));
+    query.topk = 1;
+    query.ef_search = 100;
+    auto result = index.Search(query);
+    ASSERT_TRUE(result.has_value());
+    ASSERT_EQ(result->size(), 1);
+    EXPECT_EQ(result->front().vid, id);
+    EXPECT_FLOAT_EQ(result->front().score, 0);
+  }
+
   DataType type_ = DataType::Array(DataType::FLOAT, 2);
   std::filesystem::path path_;
   CheckpointManager manager_;
@@ -90,6 +120,150 @@ TEST_F(HNSWVecSourceTest, NormalizationOptInFollowsColumnRepresentation) {
   EXPECT_FLOAT_EQ(static_cast<const float*>(source.get_vector(0))[0], 0);
   TrackingSource raw_source(column_.get());
   EXPECT_FALSE(raw_source.is_l2_normalized());
+}
+
+TEST_F(HNSWVecSourceTest, ParallelBuildAndOptimizePreserveSnapshots) {
+  constexpr vid_t count = 256;
+  for (vid_t i = 1; i < count; ++i)
+    column_->set_any(i, MakeVector(i), true);
+  auto index = MakeIndex();
+  VertexTimestamp timestamps;
+  timestamps.Init(count, count);
+  ASSERT_TRUE(index->BulkBuild(VertexSet(count, timestamps, 0)).ok());
+  for (vid_t id : {0u, 63u, 127u, 255u})
+    ExpectNearest(*index, id);
+  auto old_column = column_->Clone();
+  auto old_index = index->Clone();
+  auto* snapshot = static_cast<HNSWIndex*>(old_index.get());
+  ASSERT_TRUE(
+      snapshot->Rebind({{static_cast<VecColumn*>(old_column.get())}}).ok());
+  for (vid_t i = count; i < 2 * count; ++i) {
+    column_->set_any(i, MakeVector(i), true);
+    ASSERT_TRUE(index->Upsert(i, {0, MakeVector(i)}).ok());
+  }
+  // A retry snapshot retains the old logical offset but shares physical HNSW.
+  auto retry_module = index->Clone();
+  auto* retry = static_cast<HNSWIndex*>(retry_module.get());
+  auto optimized = index->Optimize();
+  ASSERT_TRUE(optimized.has_value());
+  EXPECT_EQ(optimized->indexed_count, count);
+  auto duplicate_retry = retry->Optimize();
+  ASSERT_TRUE(duplicate_retry.has_value());
+  EXPECT_EQ(duplicate_retry->indexed_count, 0);
+  EXPECT_EQ(duplicate_retry->skipped_count, count);
+  EXPECT_TRUE(optimized->changed);
+  EXPECT_EQ(index->Show()->buffered_count.value(), 0);
+  for (vid_t id : {0u, 127u, 255u, 256u, 383u, 511u})
+    ExpectNearest(*index, id);
+  ExpectNearest(*snapshot, 255);
+  EXPECT_FALSE(index->Optimize()->changed);
+}
+
+TEST_F(HNSWVecSourceTest, ExtremeConcurrencyHandlesEmptyAndChunkBoundaries) {
+  for (size_t workers : {size_t{0}, size_t{2147483647}}) {
+    for (vid_t count : {0u, 1u, 64u, 65u, 129u}) {
+      SCOPED_TRACE(::testing::Message()
+                   << "workers=" << workers << ", count=" << count);
+      for (vid_t i = 0; i < count; ++i)
+        column_->set_any(i, MakeVector(i), true);
+      auto index = MakeIndex(workers);
+      VertexTimestamp timestamps;
+      timestamps.Init(count, count);
+      ASSERT_TRUE(index->BulkBuild(VertexSet(count, timestamps, 0)).ok());
+      EXPECT_EQ(index->Show()->buffered_count.value(), 0);
+      EXPECT_FALSE(index->Optimize()->changed);
+      if (count != 0)
+        ExpectNearest(*index, count - 1);
+      // Grow by each boundary size to exercise Optimize's offset-based range.
+      const auto first = column_->get_offset_accessor()->GetVisibleLimit();
+      for (vid_t i = first; i < first + count; ++i) {
+        column_->set_any(i, MakeVector(i), true);
+        ASSERT_TRUE(index->Upsert(i, {0, MakeVector(i)}).ok());
+      }
+      auto optimized = index->Optimize();
+      ASSERT_TRUE(optimized.has_value());
+      EXPECT_EQ(optimized->indexed_count, count);
+      EXPECT_EQ(optimized->skipped_count, 0);
+      EXPECT_EQ(index->Show()->buffered_count.value(), 0);
+      if (count != 0)
+        ExpectNearest(*index, first + count - 1);
+    }
+  }
+}
+
+TEST_F(HNSWVecSourceTest, SerialAndParallelBuildPreserveIDsAndRecall) {
+  // Exceed ZVec's default brute-force threshold to exercise HNSW traversal.
+  constexpr vid_t count = 2048;
+  for (vid_t i = 1; i < count; ++i)
+    column_->set_any(i, MakeVector(i), true);
+  auto serial = MakeIndex(1);
+  auto parallel = MakeIndex(4);
+  VertexTimestamp timestamps;
+  timestamps.Init(count, count);
+  VertexSet vertices(count, timestamps, 0);
+  ASSERT_TRUE(serial->BulkBuild(vertices).ok());
+  ASSERT_TRUE(parallel->BulkBuild(vertices).ok());
+  for (vid_t id = 0; id < count; id += 31) {
+    ExpectNearest(*serial, id);
+    ExpectNearest(*parallel, id);
+  }
+  HNSWIndexQueryParams query;
+  query.target_value = MakeVector(0);
+  query.topk = count;
+  query.ef_search = count;
+  auto serial_results = serial->Search(query);
+  auto parallel_results = parallel->Search(query);
+  ASSERT_TRUE(serial_results);
+  ASSERT_TRUE(parallel_results);
+  ASSERT_EQ(serial_results->size(), count);
+  ASSERT_EQ(parallel_results->size(), count);
+  for (vid_t id = 0; id < count; ++id) {
+    EXPECT_EQ((*serial_results)[id].vid, id);
+    EXPECT_EQ((*parallel_results)[id].vid, id);
+  }
+  // Retrying all existing IDs must still publish the complete visible bitmap.
+  ASSERT_TRUE(parallel->BulkBuild(vertices).ok());
+  EXPECT_EQ(parallel->Show()->buffered_count.value(), 0);
+  ExpectNearest(*parallel, count - 1);
+}
+
+TEST_F(HNSWVecSourceTest, FailedParallelOperationsLeaveOriginalIndexRetryable) {
+  constexpr vid_t count = 256;
+  for (vid_t i = 1; i < count; ++i)
+    column_->set_any(i, MakeVector(i), true);
+  auto index = MakeIndex();
+  VertexTimestamp timestamps;
+  timestamps.Init(2 * count + 1, 2 * count + 1);
+  ASSERT_TRUE(index->BulkBuild(VertexSet(count, timestamps, 0)).ok());
+  for (vid_t i = count; i < 2 * count; ++i) {
+    column_->set_any(i, MakeVector(i), true);
+    ASSERT_TRUE(index->Upsert(i, {0, MakeVector(i)}).ok());
+  }
+  // Fault injection: publish a mapping without allocating its vector payload.
+  // Valid tasks precede this ID, so failure can occur after partial insertion.
+  auto* accessor = column_->get_offset_accessor();
+  while (accessor->UpsertVID(2 * count) < column_->buffer_size()) {}
+  const auto buffered = index->Show()->buffered_count;
+  EXPECT_FALSE(index->Optimize().has_value());
+  EXPECT_EQ(index->Show()->buffered_count, buffered);
+  EXPECT_FALSE(index->BulkBuild(VertexSet(2 * count + 1, timestamps, 0)).ok());
+  EXPECT_EQ(index->Show()->buffered_count, buffered);
+  // Repair the deliberately inconsistent source before testing normal reads.
+  column_->set_any(2 * count, MakeVector(2 * count), true);
+  ASSERT_TRUE(accessor->DeleteVID(2 * count).ok());
+  ExpectNearest(*index, 127);
+  const auto pending = index->Show()->buffered_count.value();
+  auto retried = index->Optimize();
+  ASSERT_TRUE(retried.has_value());
+  // Already inserted IDs survive failure and are skipped on retry. The number
+  // inserted before cancellation depends on worker scheduling.
+  EXPECT_LE(retried->indexed_count, count);
+  EXPECT_EQ(retried->indexed_count + retried->skipped_count, pending);
+  EXPECT_EQ(index->Show()->buffered_count.value(), 0);
+  ExpectNearest(*index, 511);
+  ASSERT_TRUE(index->BulkBuild(VertexSet(2 * count, timestamps, 0)).ok());
+  ExpectNearest(*index, 127);
+  ExpectNearest(*index, 511);
 }
 
 TEST_F(HNSWVecSourceTest, ReadsNewIDWithinSnapshotCapacity) {

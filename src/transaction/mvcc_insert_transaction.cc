@@ -112,6 +112,8 @@ Status MvccInsertTransaction::AddVertex(label_t label, const Value& id,
     added_vertices_[label]->_add(id);
     vid = vertex_nums_[label] + added_vertices_base_[label];
     vertex_nums_[label]++;
+    capacity_.AddVertex(view_->schema().get_vertex_label_name(label), id,
+                        props);
     InsertVertexRedo::Serialize(
         arc_, view_->schema().get_vertex_label_name(label), id, props);
   }
@@ -150,6 +152,9 @@ Status MvccInsertTransaction::AddEdge(label_t src_label, vid_t src_vid,
     }
   }
   const auto& schema = view_->schema();
+  capacity_.AddEdge(schema.get_vertex_label_name(src_label),
+                    schema.get_vertex_label_name(dst_label),
+                    schema.get_edge_label_name(edge_label), properties);
   InsertEdgeRedo::Serialize(arc_, schema.get_vertex_label_name(src_label), src,
                             schema.get_vertex_label_name(dst_label), dst,
                             schema.get_edge_label_name(edge_label), properties);
@@ -168,6 +173,13 @@ bool MvccInsertTransaction::Commit() {
     clear();
     return true;
   }
+  if (!capacity_reserved_) {
+    capacity_reserved_ = vm_.insert_capacity_reservations().TryReserve(
+        *guard_.get().mutable_graph(), capacity_, growth_request_);
+  }
+  capacity_retry_ = !capacity_reserved_;
+  if (capacity_retry_)
+    return false;
   auto* header = reinterpret_cast<WalHeader*>(arc_.GetBuffer());
   header->length = arc_.GetSize() - sizeof(WalHeader);
   header->type = 0;
@@ -190,6 +202,7 @@ bool MvccInsertTransaction::Commit() {
   IngestWal(*view_, timestamp_, arc_.GetBuffer() + sizeof(WalHeader),
             header->length, alloc_);
 
+  ReleaseCapacity();
   view_ = nullptr;
   guard_.release();
   vm_.release_insert_timestamp(timestamp_);
@@ -197,9 +210,22 @@ bool MvccInsertTransaction::Commit() {
   return true;
 }
 
+void MvccInsertTransaction::ReleaseCapacity() noexcept {
+  if (capacity_reserved_) {
+    vm_.insert_capacity_reservations().Release(capacity_);
+    capacity_reserved_ = false;
+  }
+}
+
 void MvccInsertTransaction::Abort() {
+  ReleaseCapacity();
   if (timestamp_ != INVALID_TIMESTAMP) {
-    LOG(ERROR) << "aborting " << timestamp_ << "-th transaction (insert)";
+    if (capacity_retry_) {
+      VLOG(1) << "Retrying insert transaction " << timestamp_
+              << " after capacity growth";
+    } else {
+      LOG(ERROR) << "aborting " << timestamp_ << "-th transaction (insert)";
+    }
     view_ = nullptr;
     guard_.release();
     vm_.release_insert_timestamp(timestamp_);
@@ -257,6 +283,9 @@ void MvccInsertTransaction::IngestWal(GraphView& view, uint32_t timestamp,
 }
 
 void MvccInsertTransaction::clear() {
+  capacity_ = {};
+  growth_request_ = {};
+  capacity_retry_ = false;
   arc_.Clear();
   added_vertices_.clear();
   added_vertices_base_.clear();

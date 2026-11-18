@@ -311,6 +311,57 @@ TYPED_TEST(IMMutableCsrTest, TestDumpAndOpen) {
   EXPECT_EQ(hugepage_single_immutable_csr.edge_num(), 500);
 }
 
+TYPED_TEST(IMMutableCsrTest, ResizeCloneWithoutDetach) {
+  {
+    ImmutableCsr<TypeParam> original;
+    this->load_csr_data(original);
+    const auto size = original.size();
+    const auto edge_count = original.edge_num();
+    auto module = original.Clone();
+    auto* clone = static_cast<ImmutableCsr<TypeParam>*>(module.get());
+    clone->resize(size + 4096);
+    EXPECT_EQ(original.size(), size);
+    EXPECT_EQ(original.edge_num(), edge_count);
+    EXPECT_EQ(clone->size(), size + 4096);
+    EXPECT_EQ(clone->edge_num(), edge_count);
+    for (vid_t vid = 0; vid < size; ++vid) {
+      auto old_edges = original.get_generic_view(0).get_edges(vid);
+      auto new_edges = clone->get_generic_view(0).get_edges(vid);
+      auto old_it = old_edges.begin();
+      auto new_it = new_edges.begin();
+      for (; old_it != old_edges.end() && new_it != new_edges.end();
+           ++old_it, ++new_it)
+        EXPECT_EQ(old_it.get_vertex(), new_it.get_vertex());
+      EXPECT_TRUE(old_it == old_edges.end());
+      EXPECT_TRUE(new_it == new_edges.end());
+    }
+  }
+  {
+    SingleImmutableCsr<TypeParam> original;
+    this->load_single_csr_data(original);
+    const auto size = original.size();
+    const auto edge_count = original.edge_num();
+    auto module = original.Clone();
+    auto* clone = static_cast<SingleImmutableCsr<TypeParam>*>(module.get());
+    clone->resize(size + 4096);
+    EXPECT_EQ(original.size(), size);
+    EXPECT_EQ(original.edge_num(), edge_count);
+    EXPECT_EQ(clone->size(), size + 4096);
+    EXPECT_EQ(clone->edge_num(), edge_count);
+    for (vid_t vid = 0; vid < size; ++vid) {
+      auto old_edges = original.get_generic_view(0).get_edges(vid);
+      auto new_edges = clone->get_generic_view(0).get_edges(vid);
+      auto old_it = old_edges.begin();
+      auto new_it = new_edges.begin();
+      for (; old_it != old_edges.end() && new_it != new_edges.end();
+           ++old_it, ++new_it)
+        EXPECT_EQ(old_it.get_vertex(), new_it.get_vertex());
+      EXPECT_TRUE(old_it == old_edges.end());
+      EXPECT_TRUE(new_it == new_edges.end());
+    }
+  }
+}
+
 TYPED_TEST(IMMutableCsrTest, TestResize) {
   ImmutableCsr<TypeParam> immutable_csr;
   this->load_csr_data(immutable_csr);

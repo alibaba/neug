@@ -24,18 +24,21 @@ namespace neug {
 
 class LocalWalWriter : public IWalWriter {
  public:
-  static std::unique_ptr<IWalWriter> Make(const std::string& wal_uri,
-                                          int slot_id);
+  static std::unique_ptr<IWalWriter> Make(
+      const std::string& wal_uri, int slot_id,
+      WalSyncMode sync_mode = WalSyncMode::STANDARD);
 
   static constexpr size_t TRUNC_SIZE = 1ul << 30;
-  LocalWalWriter(const std::string& wal_uri, int slot_id)
+  LocalWalWriter(const std::string& wal_uri, int slot_id,
+                 WalSyncMode sync_mode = WalSyncMode::STANDARD)
       : wal_uri_(wal_uri),
         slot_id_(slot_id),
         fd_(-1),
         file_size_(0),
         file_used_(0),
         opened_(false),
-        poisoned_(false) {}
+        poisoned_(false),
+        sync_mode_(sync_mode) {}
   ~LocalWalWriter() noexcept override;
 
   // The caller owns directory creation and durability (normally checkpoint
@@ -59,6 +62,7 @@ class LocalWalWriter : public IWalWriter {
   size_t file_used_;
   bool opened_;
   bool poisoned_;
+  WalSyncMode sync_mode_;
 
   static const bool registered_;
 };
