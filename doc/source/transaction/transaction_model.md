@@ -79,10 +79,15 @@ transaction-local offsets under the adjacency locks instead of scanning for
 matching edges. Append growth preserves offsets; insert admission prevents
 slot reordering until commit or rollback finishes.
 
-An insert may reference only vertices visible at its captured committed read
-timestamp or vertices created by that same transaction. Another transaction may
-still be uncommitted even if it has a smaller timestamp, so its vertices are not
-necessarily visible to this insert transaction.
+An insert may reference committed vertices and vertices created by that same
+transaction. It checks completion separately for an earlier insert
+whose timestamp is above the captured reader watermark. This lets successive
+requests create vertices and then edges even while an unrelated, older insert
+holds back that watermark. Pending and rolled-back vertices remain unavailable,
+and vertices from later timestamps do not enter an earlier insert.
+
+Ordinary snapshot readers still use the contiguous committed watermark. They
+see the dependent vertices and edges only after all earlier timestamps finish.
 
 Each successful ordinary write is recorded in the WAL. Service-mode checkpoint
 maintenance waits for in-flight work, temporarily prevents new transactions

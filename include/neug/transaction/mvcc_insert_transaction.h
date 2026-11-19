@@ -82,6 +82,8 @@ class IWalWriter;
  * - Vertex insertion with property validation
  * - Edge insertion with vertex existence checking (including just-added
  *   vertices via added_vertices_ side table)
+ * - Endpoint lookup accepts completed earlier inserts above the reader
+ *   watermark without exposing pending inserts or changing snapshot reads
  * - Validates property types against schema
  *
  * @since v0.1.0
@@ -237,6 +239,9 @@ class MvccInsertTransaction {
   void RollbackInserts() noexcept;
 
   Value get_vertex_id(label_t label, vid_t lid) const;
+  bool IsCommittedVertex(label_t label, vid_t lid) const;
+  bool GetCommittedVertexIndex(label_t label, const Value& id,
+                               vid_t& lid) const;
 
   void create_id_indexer_if_not_exists(label_t label);
 

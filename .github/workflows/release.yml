@@ -313,15 +313,70 @@ jobs:
         echo '::error::Timed out waiting for Maven Central publication'
         exit 1
 
+  publish_c_api:
+    name: Publish Lite C API
+    needs: [ci-plan, resolve-reuse, package]
+    if: >-
+      !cancelled() && needs.ci-plan.result == 'success' &&
+      github.repository == 'alibaba/neug' &&
+      github.event_name == 'release' && github.event.action == 'published' &&
+      (needs.package.result == 'success' || needs.package.result == 'skipped')
+    runs-on: ubuntu-22.04
+    permissions:
+      contents: write
+      actions: read
+    steps:
+    - uses: actions/checkout@v4
+    - uses: actions/setup-python@v5
+      with:
+        python-version: '3.11'
+    - uses: actions/download-artifact@v4
+      with:
+        pattern: c-api-*-${{ needs.resolve-reuse.outputs.reuse_run_id || github.run_id }}
+        path: downloaded-c-api
+        merge-multiple: false
+        github-token: ${{ secrets.GITHUB_TOKEN }}
+        run-id: ${{ needs.resolve-reuse.outputs.reuse_run_id || github.run_id }}
+    - name: Select Release Assets
+      env:
+        C_API_PLATFORMS: ${{ join(fromJSON(needs.ci-plan.outputs.plan).c_api_matrix.*.platform, ',') }}
+        PACKAGE_RUN_ID: ${{ needs.resolve-reuse.outputs.reuse_run_id || github.run_id }}
+      run: |
+        python - <<'PYTHON'
+        import os, shutil
+        from pathlib import Path
+        output = Path('c-api-assets')
+        output.mkdir()
+        for platform in os.environ['C_API_PLATFORMS'].split(','):
+            artifact = Path('downloaded-c-api') / f"c-api-{platform}-{os.environ['PACKAGE_RUN_ID']}"
+            if not artifact.is_dir():
+                raise RuntimeError(f'Missing package artifact: {artifact}')
+            for file in artifact.iterdir():
+                if (output / file.name).exists():
+                    raise RuntimeError(f'Duplicate release asset: {file.name}')
+                shutil.copyfile(file, output / file.name)
+        PYTHON
+    - name: Publish Verified C API Assets
+      env:
+        GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        RELEASE_TAG: ${{ github.event.release.tag_name }}
+        C_API_PLATFORMS: ${{ join(fromJSON(needs.ci-plan.outputs.plan).c_api_matrix.*.platform, ',') }}
+      run: |
+        python scripts/release_c_api.py publish \
+          --repo "$GITHUB_REPOSITORY" --version "$RELEASE_TAG" \
+          --platforms "$C_API_PLATFORMS" --directory c-api-assets \
+          --commit "$(git rev-parse HEAD)"
+
   verify_published:
-    needs: [ci-plan, package, publish_wheel, publish_npm, publish_extension, publish_java]
+    needs: [ci-plan, package, publish_wheel, publish_npm, publish_extension, publish_java, publish_c_api]
     if: >-
       !cancelled() &&
       (needs.package.result == 'success' || needs.package.result == 'skipped') &&
       needs.publish_wheel.result == 'success' &&
       needs.publish_npm.result == 'success' &&
       needs.publish_extension.result == 'success' &&
-      needs.publish_java.result == 'success'
+      needs.publish_java.result == 'success' &&
+      needs.publish_c_api.result == 'success'
     uses: ./.github/workflows/verify-published.yml
     with:
       version: ${{ github.event.release.tag_name }}
@@ -337,6 +392,7 @@ jobs:
       - publish_npm
       - publish_extension
       - publish_java
+      - publish_c_api
       - verify_published
     runs-on: ubuntu-22.04
     steps:
@@ -366,13 +422,14 @@ jobs:
         STATUS_NPM="${{ needs.publish_npm.result }}"
         STATUS_EXTENSION="${{ needs.publish_extension.result }}"
         STATUS_JAVA="${{ needs.publish_java.result }}"
+        STATUS_C_API="${{ needs.publish_c_api.result }}"
         STATUS_VERIFY="${{ needs.verify_published.result }}"
         # A release passes unless a stage actually failed or was cancelled; a
         # legitimately skipped stage (e.g. package when reusing dry-run
         # artifacts) must not be reported as a failure. ci-plan is included so
         # that a plan failure cascading every downstream stage to skipped is
         # still surfaced as Failed instead of a bogus Passed.
-        STATUSES=" $STATUS_PLAN $STATUS_PACKAGE $STATUS_WHEEL $STATUS_NPM $STATUS_EXTENSION $STATUS_JAVA $STATUS_VERIFY "
+        STATUSES=" $STATUS_PLAN $STATUS_PACKAGE $STATUS_WHEEL $STATUS_NPM $STATUS_EXTENSION $STATUS_JAVA $STATUS_C_API $STATUS_VERIFY "
         if [[ "$STATUSES" == *" failure "* || "$STATUSES" == *" cancelled "* ]]; then
           TITLE="[Release Report] NeuG $TAG Failed"
         else
@@ -384,7 +441,7 @@ jobs:
             \"msgtype\": \"markdown\",
             \"markdown\": {
               \"title\": \"$TITLE\",
-              \"text\": \"## $TITLE\\n\\n- **ci-plan**: ${STATUS_PLAN}\\n- **package**: ${STATUS_PACKAGE}\\n- **publish_wheel**: ${STATUS_WHEEL}\\n- **publish_npm**: ${STATUS_NPM}\\n- **publish_extension**: ${STATUS_EXTENSION}\\n- **publish_java**: ${STATUS_JAVA}\\n- **verify_published**: ${STATUS_VERIFY}\\n- **Repo**: ${{ github.repository }}\\n- **Branch**: ${{ github.ref_name }}\\n- **Commit**: ${{ github.sha }}\\n- [View Run](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})\"
+              \"text\": \"## $TITLE\\n\\n- **ci-plan**: ${STATUS_PLAN}\\n- **package**: ${STATUS_PACKAGE}\\n- **publish_wheel**: ${STATUS_WHEEL}\\n- **publish_npm**: ${STATUS_NPM}\\n- **publish_extension**: ${STATUS_EXTENSION}\\n- **publish_java**: ${STATUS_JAVA}\\n- **publish_c_api**: ${STATUS_C_API}\\n- **verify_published**: ${STATUS_VERIFY}\\n- **Repo**: ${{ github.repository }}\\n- **Branch**: ${{ github.ref_name }}\\n- **Commit**: ${{ github.sha }}\\n- [View Run](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})\"
             }
           }")
         echo "DingTalk response: $RESP"

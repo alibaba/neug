@@ -179,6 +179,20 @@ void VersionManager::release_insert_timestamp(uint32_t ts) {
   gate_.release_inserter();
 }
 
+bool VersionManager::is_insert_timestamp_completed(uint32_t ts) const {
+  // Serialize with frontier advancement: it clears the completion slot before
+  // publishing read_ts, so separate lock-free loads could miss both states.
+  std::unique_lock lock(lock_, std::defer_lock);
+  if (!lock.try_lock()) {
+    auto wait = make_runtime_backoff();
+    do {
+      wait();
+    } while (!lock.try_lock());
+  }
+  return ts <= read_ts_.load(std::memory_order_relaxed) ||
+         ts_window_.is_completed(ts);
+}
+
 void VersionManager::complete_write_timestamp(uint32_t ts) {
   // Mark completion (lock-free atomic operation)
   ts_window_.mark_completed(ts);

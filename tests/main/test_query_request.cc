@@ -83,5 +83,23 @@ TYPED_TEST(QueryRequestSerializerTypedTest, RoundTripParameters) {
   EXPECT_EQ(params, std::get<2>(request));
 }
 
+TEST(QueryParameters, EmbeddedZeroInNameDoesNotAliasAnotherParameter) {
+  rapidjson::Document document;
+  document.Parse(R"({"id\u0000suffix":1,"id":2})");
+  ASSERT_FALSE(document.HasParseError());
+  const execution::ParamsMetaMap types = {{"id", DataType::INT64}};
+  const auto params = execution::parseJsonParameters(types, document);
+  ASSERT_TRUE(params.has_value());
+  EXPECT_EQ(params.value().at("id").GetValue<int64_t>(), 2);
+}
+
+TEST(QueryParameters, MissingDeclaredParameterIsRejected) {
+  rapidjson::Document document(rapidjson::kObjectType);
+  const execution::ParamsMetaMap types = {{"id", DataType::INT64}};
+  const auto params = execution::parseJsonParameters(types, document);
+  ASSERT_FALSE(params.has_value());
+  EXPECT_EQ(params.error().error_code(), StatusCode::ERR_INVALID_ARGUMENT);
+}
+
 }  // namespace test
 }  // namespace neug

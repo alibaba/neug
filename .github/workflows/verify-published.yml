@@ -49,6 +49,7 @@ env:
 
 permissions:
   contents: read
+  actions: read
 
 jobs:
   ci-plan:
@@ -57,6 +58,14 @@ jobs:
       plan: ${{ inputs.plan || '' }}
       platforms: ${{ inputs.platforms || 'all' }}
       python_versions: ${{ inputs.python_versions || 'all' }}
+
+  c-api:
+    needs: ci-plan
+    if: fromJSON(needs.ci-plan.outputs.plan).c_api_matrix[0] != null
+    uses: ./.github/workflows/verify-c-api.yml
+    with:
+      plan: ${{ needs.ci-plan.outputs.plan }}
+      release_version: ${{ inputs.version }}
 
   # ========================================
   # Verify published wheel, npm, and extension packages in independent environments.
