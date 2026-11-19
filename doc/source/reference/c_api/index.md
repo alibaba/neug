@@ -13,36 +13,38 @@ C / Rust / Dart / Swift
 - **API reference:** [neug.h](https://github.com/alibaba/neug/blob/main/include/neug/c/neug.h)
 - **Complete example:** [basic.c](https://github.com/alibaba/neug/blob/main/examples/c/basic.c) (queries, transactions, and cleanup)
 
-## Use an installed library
+## Use a binary package
 
-A downloadable Lite C API package is planned but not yet provided. For now, build and install from source below, or use a matching installation supplied by your library maintainer.
+Download a matching `neug-c-api-<version>-lite-<platform>.tar.gz` and its `.sha256`
+file from [GitHub Releases](https://github.com/alibaba/neug/releases). The first
+supported platforms are Linux x86_64, macOS ARM64 and Windows x86_64. These are
+desktop packages, not Android or iOS libraries.
 
-The installation must match your OS, CPU architecture and NeuG release. Keep its directory layout and runtime dependencies intact:
+The package includes a self-contained `include/neug/c/neug.h`, a shared library,
+and C/C++ examples. Third-party code, including protobuf, is built into the
+library; no separate protobuf installation is needed. Operating-system libraries
+are still required. Windows also includes `neug.lib` for linking with MSVC.
 
-```text
-<prefix>/
-  include/neug/c/neug.h       Self-contained C API header
-  lib/                       NeuG shared library and bundled dependencies
-  bin/                       Runtime DLLs on Windows
-  share/neug/examples/c/      Standalone C example and CMakeLists.txt
-```
-
-`neug.h` requires only standard C headers; no other NeuG headers are needed. Both C and C++ applications can include it and link to the same library. The examples use `<neug/c/neug.h>`; if you distribute it as a flat file, use `<neug.h>` and adjust the include path.
-
-Build and run the installed example from your working directory. This compiles only the C example and does not require a NeuG source checkout:
+Check the SHA256 as described in the package README, extract the archive, then
+run from the extracted directory with CMake and a C compiler installed:
 
 ```sh
-export NEUG_PREFIX=/absolute/path/to/neug-install
+cmake -S examples -B example-build -DCMAKE_PREFIX_PATH="$PWD"
 
-cmake -S "$NEUG_PREFIX/share/neug/examples/c" -B build/c-api-example \
-  -DCMAKE_BUILD_TYPE=Release -DCMAKE_PREFIX_PATH="$NEUG_PREFIX"
+cmake --build example-build --config Release
 
-cmake --build build/c-api-example --config Release
-
-./build/c-api-example/neug_c_example
+./example-build/neug_c_example
 ```
 
-CMake finds the headers and library and normally adds the library directory to the example's runtime search path on Linux/macOS. If the loader cannot find a dependency, add its directory to `LD_LIBRARY_PATH` (Linux), `DYLD_LIBRARY_PATH` (macOS), or `PATH` (Windows). On Windows, use `<prefix>/bin` and run `build/c-api-example/Release/neug_c_example.exe` for a multi-configuration build. Do not mix headers and libraries from different releases.
+On Windows, use a Visual Studio developer PowerShell and run
+`.\example-build\Release\neug_c_example.exe`. CMake copies `neug.dll` beside the
+executable. The example prints `1 | O'Connor`.
+
+For your application, add `include` to the header search path and link against
+`neug` in `lib`. Deploy the shared library with your app and keep the header and
+library from the same release. See the package README for runtime search paths
+and `manifest.json` for system dependencies and minimum glibc/macOS settings.
+C++ applications can use the same C header and library.
 
 ## Build and try
 
@@ -61,11 +63,31 @@ cmake --build build --config Release --parallel 2
 cmake --install build --config Release --prefix "$PWD/build/c-api-install"
 ```
 
-The example uses a temporary database and prints `1 | O'Connor`. With multi-configuration generators, the executable is under `Release/`. On Windows, skip the in-tree example command: the core build disables in-tree examples. After installation, build the standalone example above using an MSVC developer shell.
+The example uses a temporary database and prints `1 | O'Connor`. With multi-configuration generators, the executable is under `Release/`. On Windows, skip the in-tree example command: the core build disables in-tree examples. After installation, build the example from `build/c-api-install/share/neug/examples/c` using an MSVC developer shell and `-DCMAKE_PREFIX_PATH` pointing to the installation.
 
 - **Lite:** add `-DNEUG_LITE=ON`. It retains the embedded query engine, storage, transactions and C API, and excludes the HTTP server and core OpenSSL linkage. Python/Node bindings and optional extensions have separate build options; extensions may add dependencies.
 - **C API:** included whenever `BUILD_COMPILER=ON`, in both standard and Lite builds. Lite does not select a target OS or perform cross-compilation by itself.
-- **Try the installed example:** set `NEUG_PREFIX="$PWD/build/c-api-install"` and follow the commands above.
+- **Source installations:** the standalone example is in `<prefix>/share/neug/examples/c`; binary archives place it in `examples`. Source builds may retain dependencies that the Lite packaging script removes.
+
+### Build a Lite binary package
+
+Use CMake, Python 3 and a native C/C++ toolchain: GCC and binutils on Linux, Xcode Command Line Tools on macOS, or an MSVC developer shell with Ninja on Windows:
+
+```sh
+python3 scripts/package_c_api.py build --jobs 2
+```
+
+This reconfigures the shared `build/` directory for Lite Release, disables language bindings and optional dependencies, builds the library, and verifies the extracted package before placing the archive and SHA256 file in `build/c-api-dist/`. The package includes one public header, one library, examples, a README, a license and a manifest. Only operating-system dynamic dependencies are allowed. Windows also includes an MSVC import library (`neug.lib`) for linking. Build and verification logs are retained under the same output directory.
+
+To check an existing archive independently:
+
+```sh
+python3 scripts/package_c_api.py verify /path/to/package.tar.gz
+```
+
+Keep its adjacent `.tar.gz.sha256` file. Verification builds the packaged C example and runs the transaction/persistence example as both C and C++. This entry builds for the current machine; it does not cross-compile or publish a release. Linux CI uses Ubuntu 22.04 and records the binary's minimum glibc version. Windows packages statically link the C/C++ runtime.
+
+For a CI trial, run the **package** GitHub Actions workflow on your branch with **c_api_only** enabled. Choose `linux-x86_64`, `osx-arm64`, `windows-x86_64`, or `all`. Each selected package is downloaded and verified on a separate runner; normal package runs also include these C API artifacts. Download `c-api-<platform>-<run_id>` from the run's **Artifacts** section; it contains the `.tar.gz` and `.sha256` files. Build and verification logs are separate artifacts, retained for seven days. These are CI artifacts, not published GitHub Release assets.
 
 ## Call sequence
 

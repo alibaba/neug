@@ -82,6 +82,11 @@ def resolve(platforms="all", python_versions="all"):
     return dict(
         platforms=[r["platform"] for r in rows],
         matrix=rows,
+        c_api_matrix=[
+            {"platform": r["platform"], "runner": r["runner"]}
+            for r in rows
+            if r["platform"] in ("linux-x86_64", "osx-arm64", "windows-x86_64")
+        ],
         linux=[r for r in rows if r["platform"].startswith("linux-")],
         linux_architectures=[
             r["arch"] for r in rows if r["platform"].startswith("linux-")
