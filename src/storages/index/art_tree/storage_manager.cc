@@ -47,9 +47,23 @@ ARTStorageSlice ARTStorageManager::Append(const void* data, idx_t length) {
   return slice;
 }
 
+void ARTStorageManager::Append(
+    const void* data, idx_t length,
+    std::function<void(const string&, const ARTStorageSlice&)> on_commit) {
+  const auto slice = Append(data, length);
+  callbacks_.emplace_back(
+      [slice, callback = std::move(on_commit)](const string& address) {
+        callback(address, slice);
+      });
+}
+
 string ARTStorageManager::Commit() {
   if (!output_)
     throw InternalException("ART object is already committed");
+  if (!offset_) {
+    output_.reset();
+    return {};
+  }
   // Finalize the header and close the file before publishing the object.
   FileHeader header{};
   checksum_.MD5Final(header.data_md5);
@@ -58,7 +72,11 @@ string ARTStorageManager::Commit() {
   Write(&header, sizeof(header));
   if (fclose(output_.release()) != 0)
     THROW_IO_EXCEPTION("Cannot close ART object: " + file_.path());
-  return checkpoint_.CommitRuntimeFile(std::move(file_));
+  const auto address = checkpoint_.CommitRuntimeFile(std::move(file_));
+  for (const auto& callback : callbacks_)
+    callback(address);
+  callbacks_.clear();
+  return address;
 }
 
 }  // namespace neug::art

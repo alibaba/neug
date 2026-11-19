@@ -16,7 +16,9 @@
 #pragma once
 
 #include <cstdio>
+#include <functional>
 #include <memory>
+#include <vector>
 
 #include "neug/storages/checkpoint.h"
 #include "neug/storages/index/art_tree/common.h"
@@ -32,8 +34,8 @@ struct ARTStorageSlice {
 };
 
 // Writes buffers into one checkpoint object without consuming their containers.
-// The owner commits after all buffers have been appended, then records the
-// returned object address alongside each slice in its metadata.
+// The owner commits after all buffers have been appended. Completion callbacks
+// run synchronously after the object is committed, under the caller's lock.
 class ARTStorageManager {
  public:
   explicit ARTStorageManager(Checkpoint& checkpoint);
@@ -41,6 +43,9 @@ class ARTStorageManager {
   ARTStorageManager& operator=(const ARTStorageManager&) = delete;
 
   ARTStorageSlice Append(const void* data, idx_t length);
+  void Append(
+      const void* data, idx_t length,
+      std::function<void(const string&, const ARTStorageSlice&)> on_commit);
   string Commit();
 
  private:
@@ -52,6 +57,7 @@ class ARTStorageManager {
   std::unique_ptr<FILE, decltype(&fclose)> output_;
   MD5 checksum_;
   idx_t offset_ = 0;
+  std::vector<std::function<void(const string&)>> callbacks_;
 };
 
 }  // namespace neug::art

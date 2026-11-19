@@ -312,6 +312,42 @@ TEST_F(ARTAllocatorTest, StorageManagerRemovesUncommittedFile) {
   EXPECT_EQ(RuntimeFileCount(objects), objects_baseline);
 }
 
+TEST_F(ARTAllocatorTest, SharedWriterDefersAddressesUntilCommitAndAllowsRetry) {
+  auto& checkpoint = *checkpoint_;
+  FixedSizeAllocator first(8, checkpoint), second(8, checkpoint);
+  const auto first_node = first.New();
+  const auto second_node = second.New();
+  *first.Get<uint64_t>(first_node) = 123;
+  *second.Get<uint64_t>(second_node) = 456;
+  {
+    ARTStorageManager abandoned(checkpoint);
+    first.Save(abandoned);
+    second.Save(abandoned);
+    EXPECT_TRUE(first.SaveMetadata(descriptor_, "first_").empty());
+    EXPECT_TRUE(second.SaveMetadata(descriptor_, "second_").empty());
+  }
+
+  ARTStorageManager storage(checkpoint);
+  first.Save(storage);
+  second.Save(storage);
+  const auto address = storage.Commit();
+  const auto& first_saved = first.SaveMetadata(descriptor_, "first_");
+  const auto& second_saved = second.SaveMetadata(descriptor_, "second_");
+  ASSERT_EQ(first_saved.size(), 1);
+  ASSERT_EQ(second_saved.size(), 1);
+  EXPECT_EQ(first_saved.at(0).address, address);
+  EXPECT_EQ(second_saved.at(0).address, address);
+  EXPECT_NE(first_saved.at(0).offset, second_saved.at(0).offset);
+  FixedSizeAllocator restored(8, checkpoint);
+  restored.Load(checkpoint, second_saved, 1);
+  EXPECT_EQ(*restored.Get<const uint64_t>(second_node, false), 456);
+
+  ARTStorageManager unchanged(checkpoint);
+  first.Save(unchanged);
+  second.Save(unchanged);
+  EXPECT_TRUE(unchanged.Commit().empty());
+}
+
 TEST_F(ARTAllocatorTest, IndependentBuffersRestoreDetachAndCleanup) {
   auto& checkpoint = *checkpoint_;
   const auto baseline = RuntimeFileCount(checkpoint);

@@ -26,6 +26,8 @@
 #include "neug/storages/module_descriptor.h"
 #include "neug/utils/md5_utils.h"
 namespace neug::art {
+class ARTStorageManager;
+struct ARTStorageSlice;
 struct ARTBufferMetadata {
   idx_t buffer_id;
   idx_t segment_count;
@@ -54,6 +56,9 @@ class FixedSizeAllocator {
  public:
   explicit FixedSizeAllocator(idx_t segment_size, Checkpoint& checkpoint,
                               MemoryLevel level = MemoryLevel::kInMemory);
+  // Save a single allocator and record its references in the target checkpoint.
+  const ARTBufferMetadataMap& Save(Checkpoint& checkpoint,
+                                   ModuleDescriptor& descriptor);
   void Detach(Checkpoint& checkpoint, MemoryLevel level);
   idx_t GetCapacity() const;
   idx_t GetBufferCapacity() const;
@@ -75,12 +80,12 @@ class FixedSizeAllocator {
   bool Empty() const;
   void RemoveEmptyBuffers();
   void VerifyBuffers() const;
-  // Write dirty blocks to a checkpoint file and update checkpoint file
-  // references. Hold an exclusive lock during Save.
-  // Returns the allocator-owned directory, updated in place by subsequent
-  // saves.
-  const ARTBufferMetadataMap& Save(Checkpoint& checkpoint,
-                                   ModuleDescriptor& descriptor);
+  // Keep this allocator alive and hold its write lock through storage.Commit().
+  // Uncommitted buffers remain dirty for retry.
+  void Save(ARTStorageManager& storage);
+  // Serialize object references after a successful storage.Commit().
+  const ARTBufferMetadataMap& SaveMetadata(ModuleDescriptor& descriptor,
+                                           const string& buffer_prefix);
   void Load(Checkpoint& checkpoint, const ARTBufferMetadataMap& saved_metadata,
             idx_t expected_segment_count);
   // Report memory requested by the ART index, excluding additional overhead
@@ -88,6 +93,17 @@ class FixedSizeAllocator {
   MemoryUsage GetMemoryUsage() const;
 
  private:
+  struct SaveCallback {
+    // The shared writer commits after all allocators have appended their data.
+    // Its final object address is available only after Commit() succeeds; this
+    // callback then records the slice location and clears the buffer's dirty
+    // flag.
+    FixedSizeAllocator& allocator;
+    idx_t buffer_id;
+    idx_t segment_count;
+
+    void operator()(const string& address, const ARTStorageSlice& slice) const;
+  };
   std::shared_ptr<CheckpointFileManager> runtime_allocator;
   MemoryLevel memory_level;
   idx_t segment_size;

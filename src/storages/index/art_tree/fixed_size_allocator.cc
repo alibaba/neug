@@ -246,39 +246,28 @@ idx_t FixedSizeAllocator::GetUpperBoundBufferId() const {
   return upper_bound_id;
 }
 
-const ARTBufferMetadataMap& FixedSizeAllocator::Save(
-    Checkpoint& checkpoint, ModuleDescriptor& descriptor) {
-  // Keep the existing directory and collect only new or dirty buffers.
-  ARTBufferMetadataMap changed;
-  for (auto& [id, buffer] : buffers) {
+void FixedSizeAllocator::Save(ARTStorageManager& storage) {
+  for (const auto& [id, buffer] : buffers) {
     if (!buffer->segment_count)
       continue;
     if (!buffer->dirty && buffer_metadata.contains(id))
       continue;
-    changed.emplace(id, ARTBufferMetadata{id,
-                                          buffer->segment_count,
-                                          "",
-                                          0,
-                                          buffer->container->GetDataSize(),
-                                          {}});
+    storage.Append(buffer->container->GetData(),
+                   buffer->container->GetDataSize(),
+                   SaveCallback{*this, id, buffer->segment_count});
   }
+}
 
-  if (!changed.empty()) {
-    // The storage manager owns file creation, checksums and publication.
-    ARTStorageManager storage(checkpoint);
-    for (auto& [id, metadata] : changed) {
-      const auto* data = buffers.at(metadata.buffer_id)->container->GetData();
-      auto slice = storage.Append(data, metadata.length);
-      metadata.offset = slice.offset;
-      metadata.checksum = slice.checksum;
-    }
-    auto address = storage.Commit();
-    for (auto& [id, metadata] : changed) {
-      metadata.address = address;
-      buffer_metadata.insert_or_assign(id, std::move(metadata));
-    }
-  }
+void FixedSizeAllocator::SaveCallback::operator()(
+    const string& address, const ARTStorageSlice& slice) const {
+  allocator.buffer_metadata.insert_or_assign(
+      buffer_id, ARTBufferMetadata{buffer_id, segment_count, address,
+                                   slice.offset, slice.length, slice.checksum});
+  allocator.buffers.at(buffer_id)->dirty = false;
+}
 
+const ARTBufferMetadataMap& FixedSizeAllocator::SaveMetadata(
+    ModuleDescriptor& descriptor, const string& buffer_prefix) {
   // Remove directory entries for buffers that have been emptied or freed.
   for (auto it = buffer_metadata.begin(); it != buffer_metadata.end();) {
     auto buffer = buffers.find(it->first);
@@ -290,29 +279,17 @@ const ARTBufferMetadataMap& FixedSizeAllocator::Save(
 
   // Replace this allocator's roots, including removing objects whose last
   // buffer was changed or freed. Older published manifests retain their roots.
-  auto next_descriptor = descriptor;
-  auto& paths = next_descriptor.mutable_paths();
+  auto paths = descriptor.paths();
   for (auto it = paths.begin(); it != paths.end();) {
-    if (it->first.starts_with("art_buffer_"))
+    if (it->first.starts_with(buffer_prefix))
       it = paths.erase(it);
     else
       ++it;
   }
-  std::unordered_map<string, string> reused_objects;
-  for (auto& [id, metadata] : buffer_metadata) {
-    // Materialize each object once if saving into a different object store.
-    auto [it, added] = reused_objects.emplace(metadata.address, "");
-    if (added)
-      it->second = checkpoint.MaterializeObject(metadata.address);
-    if (metadata.address != it->second)
-      metadata.address = it->second;
-    next_descriptor.set_path("art_buffer_" + to_string(metadata.buffer_id),
-                             metadata.address);
+  for (const auto& [id, metadata] : buffer_metadata) {
+    paths.insert_or_assign(buffer_prefix + to_string(id), metadata.address);
   }
-  descriptor = std::move(next_descriptor);
-  // Clear dirty flags only after a successful save.
-  for (const auto& [id, metadata] : changed)
-    buffers.at(id)->dirty = false;
+  descriptor.mutable_paths() = std::move(paths);
   return buffer_metadata;
 }
 void FixedSizeAllocator::Load(Checkpoint& checkpoint,
@@ -409,6 +386,30 @@ void FixedSizeAllocator::NextBufferWithFreeSpace() {
     return;
   }
   buffer_with_free_space.SetInvalid();
+}
+
+const ARTBufferMetadataMap& FixedSizeAllocator::Save(
+    Checkpoint& checkpoint, ModuleDescriptor& descriptor) {
+  ARTStorageManager storage(checkpoint);
+  Save(storage);
+  storage.Commit();
+
+  const string prefix = "art_buffer_";
+  auto next_descriptor = descriptor;
+  SaveMetadata(next_descriptor, prefix);
+  std::unordered_map<string, string> reused_objects;
+  for (auto& [id, metadata] : buffer_metadata) {
+    // Materialize each object once if saving into a different object store.
+    auto [it, added] = reused_objects.emplace(metadata.address, "");
+    if (added)
+      it->second = checkpoint.MaterializeObject(metadata.address);
+    if (metadata.address != it->second) {
+      metadata.address = it->second;
+      next_descriptor.set_path(prefix + to_string(id), metadata.address);
+    }
+  }
+  descriptor = std::move(next_descriptor);
+  return buffer_metadata;
 }
 
 }  // namespace neug::art
