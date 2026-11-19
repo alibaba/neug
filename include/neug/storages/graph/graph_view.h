@@ -69,6 +69,7 @@ class NEUG_API VertexTableView {
   // number of vertices visible at a specific MVCC timestamp.
   size_t VertexNum() const;
   bool IsValidLid(vid_t lid, timestamp_t ts) const;
+  timestamp_t GetInsertTimestamp(vid_t lid) const;
   Value GetOid(vid_t lid, timestamp_t ts) const;
   VertexSet GetVertexSet(timestamp_t ts) const;
   std::shared_ptr<RefColumnBase> GetPropertyColumn(int col_id) const;
@@ -168,6 +169,9 @@ class NEUG_API GraphView {
   vid_t VertexNum(label_t label) const;
   inline bool IsValidLid(label_t label, vid_t lid, timestamp_t ts) const {
     return vertex_views_[label].IsValidLid(lid, ts);
+  }
+  timestamp_t GetVertexInsertTimestamp(label_t label, vid_t lid) const {
+    return vertex_views_.at(label).GetInsertTimestamp(lid);
   }
   inline std::shared_ptr<RefColumnBase> GetVertexPropertyColumn(
       label_t label, const std::string& prop) const {

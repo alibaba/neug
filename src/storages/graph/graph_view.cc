@@ -103,6 +103,10 @@ bool VertexTableView::IsValidLid(vid_t lid, timestamp_t ts) const {
   return lid < indexer_->size() && v_ts_->IsVertexValid(lid, ts);
 }
 
+timestamp_t VertexTableView::GetInsertTimestamp(vid_t lid) const {
+  return v_ts_->GetInsertTimestamp(lid);
+}
+
 Value VertexTableView::GetOid(vid_t lid, timestamp_t ts) const {
   if (NEUG_UNLIKELY(lid >= indexer_->size())) {
     THROW_INVALID_ARGUMENT_EXCEPTION("Lid " + std::to_string(lid) +
