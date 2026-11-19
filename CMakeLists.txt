@@ -136,9 +136,9 @@ if(WIN32)
     set(BUILD_EXAMPLES OFF CACHE BOOL "Examples are disabled on Windows core build" FORCE)
     set(NEUG_NATIVE_ARCH OFF CACHE BOOL "Native architecture tuning is not supported on Windows" FORCE)
     set(ENABLE_BACKTRACES OFF CACHE BOOL "Backtraces are not supported on Windows yet" FORCE)
-    # Use dynamic C runtime (/MD) consistently across all targets and third-party
-    # dependencies to match vcpkg's x64-windows-static-md triplet.
-    set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreadedDLL" CACHE STRING "" FORCE)
+    # Default to /MD for vcpkg's static-md packages. Standalone Lite packages
+    # can select /MT; all bundled dependencies must use the same runtime.
+    set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreadedDLL" CACHE STRING "MSVC runtime library")
     # Windows headers define an ERROR macro which conflicts with glog's ERROR
     # severity level. Disable abbreviated severity macros on Windows.
     add_compile_definitions(GLOG_NO_ABBREVIATED_SEVERITIES)
@@ -231,7 +231,8 @@ if (APPLE)
 elseif(NOT WIN32)
     if (CMAKE_CXX_COMPILER_ID MATCHES "Clang")
         set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -lopen-pal")
-    else ()
+    elseif(NOT CMAKE_SKIP_RPATH)
+        # Honor the no-RPATH setting used by standalone binary packages.
         set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wl,-rpath,$ORIGIN")
     endif ()
 endif ()
@@ -887,6 +888,7 @@ file(GLOB_RECURSE FILES_NEED_FORMAT
         "src/**/*.cc"
         "src/**/*.cpp"
         "tests/**/*.h"
+        "tests/c_api/*.c"
         "tests/**/*.cc"
         "tests/**/*.cpp"
         "tools/**/*.h"

@@ -10,6 +10,7 @@ This section contains the complete API reference for NeuG.
    Python API <python_api/index>
    Node.js API <nodejs_api/index>
    Java API <java_api/index>
+   C API <c_api/index>
    C++ API <cpp_api/index>
 
 Python API

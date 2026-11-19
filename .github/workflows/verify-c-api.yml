@@ -1,0 +1,96 @@
+name: Verify Lite C API
+
+on:
+  workflow_call:
+    inputs:
+      plan:
+        type: string
+        required: true
+      artifact_run_id:
+        description: Artifact source run; empty uses the current run.
+        type: string
+        default: ''
+      release_version:
+        description: Public release tag (or latest); empty verifies Actions artifacts.
+        type: string
+        default: ''
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  verify:
+    name: ${{ inputs.release_version != '' && 'Published' || 'Installed' }} Lite C API (${{ matrix.platform }})
+    strategy:
+      fail-fast: false
+      matrix:
+        include: ${{ fromJSON(inputs.plan).c_api_matrix }}
+    runs-on: ${{ matrix.runner }}
+    container: ${{ startsWith(matrix.platform, 'linux-') && 'ubuntu:22.04' || '' }}
+    defaults:
+      run:
+        shell: bash
+    timeout-minutes: 15
+    steps:
+    # No submodules or NeuG build dependencies: consume only the downloaded package.
+    - name: Prepare Independent Linux Image
+      if: runner.os == 'Linux'
+      run: |
+        apt-get update
+        apt-get install -y git ca-certificates python3 python-is-python3 cmake build-essential binutils
+    - uses: actions/checkout@v4
+    - uses: actions/setup-python@v5
+      if: runner.os != 'Linux'
+      with:
+        python-version: '3.11'
+    - name: Setup MSVC
+      if: runner.os == 'Windows'
+      uses: ilammy/msvc-dev-cmd@v1
+      with:
+        arch: x64
+    - name: Download C API Package
+      if: inputs.release_version == ''
+      uses: actions/download-artifact@v4
+      with:
+        name: c-api-${{ matrix.platform }}-${{ inputs.artifact_run_id || github.run_id }}
+        run-id: ${{ inputs.artifact_run_id || github.run_id }}
+        github-token: ${{ github.token }}
+        path: build/c-api-download
+    - name: Download Published C API Package
+      if: inputs.release_version != ''
+      env:
+        RELEASE_VERSION: ${{ inputs.release_version }}
+        PACKAGE_PLATFORM: ${{ matrix.platform }}
+      run: |
+        python scripts/release_c_api.py download \
+          --repo "$GITHUB_REPOSITORY" --version "$RELEASE_VERSION" \
+          --platforms "$PACKAGE_PLATFORM" --directory build/c-api-download
+    - name: Verify Extracted C API Package
+      shell: bash
+      run: |
+        set -euo pipefail
+        archives=(build/c-api-download/*.tar.gz)
+        test "${#archives[@]}" -eq 1
+        python scripts/package_c_api.py verify "${archives[0]}"
+    - name: Summarize Verification
+      run: |
+        python - <<'PY'
+        import json, os
+        from pathlib import Path
+        report, = Path('build/c-api-dist').glob('verify-*/verification.json')
+        with open(os.environ['GITHUB_STEP_SUMMARY'], 'a') as summary:
+            summary.write('## Lite C API package verification\n```json\n')
+            summary.write(json.dumps(json.loads(report.read_text()), indent=2))
+            summary.write('\n```\n')
+        PY
+    - name: Upload Verification Diagnostics
+      if: always()
+      uses: actions/upload-artifact@v4
+      with:
+        name: c-api-${{ inputs.release_version != '' && 'published' || 'verify' }}-logs-${{ matrix.platform }}-${{ github.run_id }}
+        path: |
+          build/c-api-dist/**/*.log
+          build/c-api-dist/**/verification.json
+        if-no-files-found: ignore
+        retention-days: 7
