@@ -90,6 +90,9 @@ class NEUG_API CheckpointObjectWriter {
   /// Write a nonempty fragment and register its required completion callback.
   void Append(const void* data, size_t length, CommitCallback on_commit);
 
+  /// Reuse a local object or copy a foreign object once per writer.
+  std::string MaterializeObject(const std::string& address);
+
   /// Publish the object and return its path. An empty writer returns an empty
   /// path. Callbacks run synchronously in append order after object
   /// publication. A callback exception propagates after publication and skips
@@ -112,6 +115,7 @@ class NEUG_API CheckpointObjectWriter {
   MD5 checksum_;
   size_t offset_ = 0;
   std::vector<PendingFragment> fragments_;
+  std::unordered_map<std::string, std::string> materialized_objects_;
 };
 
 }  // namespace neug

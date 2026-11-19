@@ -407,6 +407,67 @@ TEST_F(ARTAllocatorTest, SharedWriterDefersAddressesUntilCommitAndAllowsRetry) {
   EXPECT_TRUE(unchanged.Commit().empty());
 }
 
+TEST_F(ARTAllocatorTest, SharedWriterMigratesCleanBuffersAcrossObjectStores) {
+  auto source = checkpoint_mgr_.CreateStaging();
+  FixedSizeAllocator first(8, *source.checkpoint());
+  FixedSizeAllocator second(8, *source.checkpoint());
+  const auto first_node = first.New();
+  const auto second_node = second.New();
+  *first.Get<uint64_t>(first_node) = 123;
+  *second.Get<uint64_t>(second_node) = 456;
+
+  auto source_writer = source.checkpoint()->CreateObjectWriter();
+  first.Save(source_writer);
+  second.Save(source_writer);
+  const auto source_object = source_writer.Commit();
+  ModuleDescriptor source_descriptor;
+  first.SaveMetadata(source_descriptor, "first_");
+  second.SaveMetadata(source_descriptor, "second_");
+  auto published_source = PublishART(source, source_descriptor);
+  auto source_reader = published_source->CreateObjectReader();
+  first.Load(*published_source, source_reader, source_descriptor, "first_");
+  second.Load(*published_source, source_reader, source_descriptor, "second_");
+
+  const auto target_path = (temp_dir_ / "target").string();
+  {
+    CheckpointManager target_manager;
+    target_manager.Open(target_path);
+    auto target = target_manager.CreateStaging();
+    auto target_checkpoint = target.checkpoint();
+    first.Detach(*target_checkpoint, MemoryLevel::kSyncToFile);
+    second.Detach(*target_checkpoint, MemoryLevel::kSyncToFile);
+
+    auto target_writer = target_checkpoint->CreateObjectWriter();
+    first.Save(target_writer);
+    second.Save(target_writer);
+    EXPECT_TRUE(target_writer.Commit().empty());
+    ModuleDescriptor target_descriptor;
+    first.SaveMetadata(target_descriptor, "first_");
+    second.SaveMetadata(target_descriptor, "second_");
+    PublishART(target, target_descriptor);
+    const auto first_object = target_descriptor.get_path("first_0");
+    ASSERT_TRUE(first_object.has_value());
+    EXPECT_NE(*first_object, source_object);
+    EXPECT_EQ(target_descriptor.get_path("second_0"), first_object);
+    const auto target_objects = temp_dir_ / "target" / "checkpoint" / "objects";
+    EXPECT_EQ(RuntimeFileCount(target_objects.string()), 1);
+  }
+
+  CheckpointManager reopened;
+  reopened.Open(target_path, false);
+  auto checkpoint = reopened.Current();
+  ASSERT_NE(checkpoint, nullptr);
+  const auto* descriptor = checkpoint->manifest().FindModule("art_allocator");
+  ASSERT_NE(descriptor, nullptr);
+  auto reader = checkpoint->CreateObjectReader();
+  FixedSizeAllocator restored_first(8, *checkpoint);
+  FixedSizeAllocator restored_second(8, *checkpoint);
+  restored_first.Load(*checkpoint, reader, *descriptor, "first_");
+  restored_second.Load(*checkpoint, reader, *descriptor, "second_");
+  EXPECT_EQ(*restored_first.Get<const uint64_t>(first_node, false), 123);
+  EXPECT_EQ(*restored_second.Get<const uint64_t>(second_node, false), 456);
+}
+
 TEST_F(ARTAllocatorTest, IndependentBuffersRestoreDetachAndCleanup) {
   auto& checkpoint = *checkpoint_;
   const auto baseline = RuntimeFileCount(checkpoint);

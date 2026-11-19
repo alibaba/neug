@@ -267,8 +267,19 @@ void FixedSizeAllocator::Save(CheckpointObjectWriter& writer) {
   for (const auto& [id, buffer] : buffers) {
     if (!buffer->segment_count)
       continue;
-    if (!buffer->dirty && buffer_metadata.contains(id))
+    auto saved = buffer_metadata.find(id);
+    if (!buffer->dirty && saved != buffer_metadata.end()) {
+      auto address = writer.MaterializeObject(saved->second.address);
+      if (address != saved->second.address) {
+        // The object has already been copied to disk, so this save only
+        // updates its path for the manifest. If the checkpoint fails and GC
+        // removes the copy, the dirty flag makes the next save rewrite the
+        // buffer from memory.
+        buffer->dirty = true;
+        saved->second.address = std::move(address);
+      }
       continue;
+    }
     writer.Append(buffer->container->GetData(),
                   buffer->container->GetDataSize(), SaveCallback{*this, id});
   }

@@ -89,6 +89,19 @@ void CheckpointObjectWriter::Append(const void* data, size_t length,
   offset_ += length;
 }
 
+std::string CheckpointObjectWriter::MaterializeObject(
+    const std::string& address) {
+  if (!output_)
+    THROW_INTERNAL_EXCEPTION("Checkpoint object writer is closed");
+  const auto materialized = materialized_objects_.find(address);
+  if (materialized != materialized_objects_.end())
+    return materialized->second;
+
+  auto target = checkpoint_.MaterializeObject(address);
+  materialized_objects_.emplace(address, target);
+  return target;
+}
+
 std::string CheckpointObjectWriter::Commit() {
   if (!output_)
     THROW_INTERNAL_EXCEPTION("Checkpoint object writer is closed");
