@@ -279,7 +279,6 @@ void FixedSizeAllocator::SaveCallback::operator()(
   allocator.buffer_metadata.insert_or_assign(
       buffer_id,
       ARTBufferMetadata{buffer_id, address, slice.offset, slice.length});
-  allocator.buffers.at(buffer_id)->dirty = false;
 }
 
 const ARTBufferMetadataMap& FixedSizeAllocator::SaveMetadata(
@@ -393,30 +392,6 @@ void FixedSizeAllocator::NextBufferWithFreeSpace() {
     return;
   }
   buffer_with_free_space.SetInvalid();
-}
-
-const ARTBufferMetadataMap& FixedSizeAllocator::Save(
-    Checkpoint& checkpoint, ModuleDescriptor& descriptor) {
-  auto writer = checkpoint.CreateObjectWriter();
-  Save(writer);
-  writer.Commit();
-
-  const string prefix = "art_buffer_";
-  auto next_descriptor = descriptor;
-  SaveMetadata(next_descriptor, prefix);
-  std::unordered_map<string, string> reused_objects;
-  for (auto& [id, metadata] : buffer_metadata) {
-    // Materialize each object once if saving into a different object store.
-    auto [it, added] = reused_objects.emplace(metadata.address, "");
-    if (added)
-      it->second = checkpoint.MaterializeObject(metadata.address);
-    if (metadata.address != it->second) {
-      metadata.address = it->second;
-      next_descriptor.set_path(prefix + to_string(id), metadata.address);
-    }
-  }
-  descriptor = std::move(next_descriptor);
-  return buffer_metadata;
 }
 
 }  // namespace neug::art

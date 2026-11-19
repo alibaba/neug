@@ -53,6 +53,25 @@ class ARTAllocatorTest : public ::testing::Test {
     std::filesystem::remove_all(temp_dir_);
   }
 
+  const ARTBufferMetadataMap& SaveBuffers(FixedSizeAllocator& allocator,
+                                          Checkpoint& checkpoint,
+                                          ModuleDescriptor& descriptor) {
+    auto writer = checkpoint.CreateObjectWriter();
+    allocator.Save(writer);
+    writer.Commit();
+    return allocator.SaveMetadata(descriptor, "art_buffer_");
+  }
+
+  std::shared_ptr<Checkpoint> PublishART(
+      CheckpointManager::StagingCheckpoint& staging,
+      const ModuleDescriptor& descriptor) {
+    CheckpointManifest manifest;
+    manifest.SetSchema(Schema());
+    manifest.SetModule("art_allocator", descriptor);
+    staging.checkpoint()->SetManifest(std::move(manifest));
+    return staging.Publish();
+  }
+
   std::filesystem::path temp_dir_;
   CheckpointManager checkpoint_mgr_;
   std::shared_ptr<Checkpoint> checkpoint_;
@@ -214,7 +233,7 @@ TEST_F(ARTAllocatorTest, FixedBuffersRoundTripAndAppend) {
     nodes.push_back(node);
   }
   allocator.Free(nodes[3]);
-  allocator.Save(checkpoint, descriptor_);
+  SaveBuffers(allocator, checkpoint, descriptor_);
   FixedSizeAllocator loaded(8, checkpoint);
   auto reader = checkpoint.CreateObjectReader();
   loaded.Load(checkpoint, reader, descriptor_, "art_buffer_");
@@ -238,7 +257,7 @@ TEST_F(ARTAllocatorTest, FixedBuffersRoundTripAndAppend) {
 TEST_F(ARTAllocatorTest, EmptyRoundTrip) {
   auto& checkpoint = *checkpoint_;
   FixedSizeAllocator allocator(8, checkpoint);
-  allocator.Save(checkpoint, descriptor_);
+  SaveBuffers(allocator, checkpoint, descriptor_);
   FixedSizeAllocator loaded(8, checkpoint);
   auto reader = checkpoint.CreateObjectReader();
   loaded.Load(checkpoint, reader, descriptor_, "art_buffer_");
@@ -246,7 +265,7 @@ TEST_F(ARTAllocatorTest, EmptyRoundTrip) {
 
   auto node = allocator.New();
   allocator.Free(node);
-  allocator.Save(checkpoint, descriptor_);
+  SaveBuffers(allocator, checkpoint, descriptor_);
   loaded.Load(checkpoint, reader, descriptor_, "art_buffer_");
   EXPECT_EQ(loaded.GetCapacity(), 0);
   EXPECT_EQ(loaded.GetCapacity(loaded.New()), loaded.GetBufferCapacity());
@@ -359,7 +378,8 @@ TEST_F(ARTAllocatorTest, SharedWriterDefersAddressesUntilCommitAndAllowsRetry) {
     EXPECT_TRUE(second.SaveMetadata(descriptor_, "second_").empty());
   }
 
-  auto writer = checkpoint.CreateObjectWriter();
+  auto staging = checkpoint_mgr_.CreateStaging();
+  auto writer = staging.checkpoint()->CreateObjectWriter();
   first.Save(writer);
   second.Save(writer);
   const auto address = writer.Commit();
@@ -370,17 +390,20 @@ TEST_F(ARTAllocatorTest, SharedWriterDefersAddressesUntilCommitAndAllowsRetry) {
   EXPECT_EQ(first_saved.at(0).address, address);
   EXPECT_EQ(second_saved.at(0).address, address);
   EXPECT_NE(first_saved.at(0).offset, second_saved.at(0).offset);
-  auto reader = checkpoint.CreateObjectReader();
-  FixedSizeAllocator restored_first(8, checkpoint);
-  FixedSizeAllocator restored_second(8, checkpoint);
-  restored_first.Load(checkpoint, reader, descriptor_, "first_");
-  restored_second.Load(checkpoint, reader, descriptor_, "second_");
+  auto published = PublishART(staging, descriptor_);
+  const auto* descriptor = published->manifest().FindModule("art_allocator");
+  ASSERT_NE(descriptor, nullptr);
+  auto reader = published->CreateObjectReader();
+  FixedSizeAllocator restored_first(8, *published);
+  FixedSizeAllocator restored_second(8, *published);
+  restored_first.Load(*published, reader, *descriptor, "first_");
+  restored_second.Load(*published, reader, *descriptor, "second_");
   EXPECT_EQ(*restored_first.Get<const uint64_t>(first_node, false), 123);
   EXPECT_EQ(*restored_second.Get<const uint64_t>(second_node, false), 456);
 
-  auto unchanged = checkpoint.CreateObjectWriter();
-  first.Save(unchanged);
-  second.Save(unchanged);
+  auto unchanged = published->CreateObjectWriter();
+  restored_first.Save(unchanged);
+  restored_second.Save(unchanged);
   EXPECT_TRUE(unchanged.Commit().empty());
 }
 
@@ -398,7 +421,7 @@ TEST_F(ARTAllocatorTest, IndependentBuffersRestoreDetachAndCleanup) {
   EXPECT_EQ(allocator.Get<uint64_t>(first).get(), first_address);
   EXPECT_EQ(*first_address, 123456);
 
-  allocator.Save(checkpoint, descriptor_);
+  SaveBuffers(allocator, checkpoint, descriptor_);
   EXPECT_EQ(RuntimeFileCount(checkpoint), baseline + 3);
   EXPECT_EQ(allocator.Get<uint64_t>(first).get(), first_address);
   *first_address = 999;
@@ -441,7 +464,7 @@ TEST_F(ARTAllocatorTest, LoadRebindsRuntimeAllocatorForLaterBuffers) {
   ASSERT_EQ(original.GetBufferCapacity(), 1);
   auto first = original.New();
   *original.Get<uint64_t>(first) = 123456;
-  original.Save(source, descriptor_);
+  SaveBuffers(original, source, descriptor_);
 
   CheckpointManager target_manager;
   target_manager.Open((temp_dir_ / "target").string());
@@ -506,7 +529,7 @@ TEST_F(ARTAllocatorTest, AllocatorPacksBuffersAndPreservesHandles) {
   *address = 123456;
   for (idx_t i = 1; i <= 2 * capacity; ++i)
     allocator.New();
-  auto buffer_metadata = allocator.Save(checkpoint, descriptor_);
+  auto buffer_metadata = SaveBuffers(allocator, checkpoint, descriptor_);
   ASSERT_EQ(buffer_metadata.size(), 3);
   std::set<string> addresses;
   std::set<idx_t> offsets;
@@ -545,15 +568,21 @@ TEST_F(ARTAllocatorTest, PackedSaveReusesCleanBuffersAndPersistsMarkedWrites) {
     *allocator.Get<uint64_t>(node) = i + 100;
     nodes.push_back(node);
   }
-  auto retained_handle = allocator.GetHandle(nodes[0]);
-  auto* retained_pointer = retained_handle.GetPtr<uint64_t>();
   const auto objects = (temp_dir_ / "checkpoint" / "objects").string();
-  const auto& directory = allocator.Save(checkpoint, descriptor_);
-  auto first = directory;
-  const auto* clean_record = &directory.at(nodes[1].GetBufferId());
+  auto save_and_reopen = [&]() {
+    auto staging = checkpoint_mgr_.CreateStaging();
+    descriptor_ = ModuleDescriptor{};
+    auto saved = SaveBuffers(allocator, *staging.checkpoint(), descriptor_);
+    auto published = PublishART(staging, descriptor_);
+    auto reader = published->CreateObjectReader();
+    allocator.Load(*published, reader,
+                   *published->manifest().FindModule("art_allocator"),
+                   "art_buffer_");
+    return saved;
+  };
+  auto first = save_and_reopen();
   ASSERT_EQ(RuntimeFileCount(objects), 1);
-  auto unchanged = allocator.Save(checkpoint, descriptor_);
-  EXPECT_EQ(&directory.at(nodes[1].GetBufferId()), clean_record);
+  auto unchanged = save_and_reopen();
   EXPECT_EQ(RuntimeFileCount(objects), 1);
   for (size_t i = 0; i < first.size(); ++i) {
     EXPECT_EQ(unchanged[i].address, first[i].address);
@@ -561,11 +590,12 @@ TEST_F(ARTAllocatorTest, PackedSaveReusesCleanBuffersAndPersistsMarkedWrites) {
   }
 
   // A retained handle must explicitly mark writes after the previous save.
+  auto retained_handle = allocator.GetHandle(nodes[0]);
+  auto* retained_pointer = retained_handle.GetPtr<uint64_t>();
   retained_handle.MarkModified();
   *retained_pointer = 999;
-  auto changed = allocator.Save(checkpoint, descriptor_);
+  auto changed = save_and_reopen();
   EXPECT_EQ(RuntimeFileCount(objects), 2);
-  EXPECT_EQ(&directory.at(nodes[1].GetBufferId()), clean_record);
   for (const auto& [id, metadata] : changed) {
     if (metadata.buffer_id == nodes[0].GetBufferId()) {
       EXPECT_NE(metadata.address, first[0].address);
@@ -580,7 +610,7 @@ TEST_F(ARTAllocatorTest, PackedSaveReusesCleanBuffersAndPersistsMarkedWrites) {
   restored.Load(checkpoint, reader, descriptor_, "art_buffer_");
   EXPECT_EQ(*restored.Get<const uint64_t>(nodes[0], false), 999);
   EXPECT_EQ(*restored.Get<const uint64_t>(nodes[1], false), 101);
-  auto restored_metadata = restored.Save(checkpoint, descriptor_);
+  auto restored_metadata = SaveBuffers(restored, checkpoint, descriptor_);
   EXPECT_EQ(RuntimeFileCount(objects), 2);
   EXPECT_EQ(restored_metadata.size(), changed.size());
   for (const auto& [id, metadata] : changed) {
@@ -589,7 +619,7 @@ TEST_F(ARTAllocatorTest, PackedSaveReusesCleanBuffersAndPersistsMarkedWrites) {
   }
   // Legacy writable access marks the buffer without a separate MarkModified.
   *restored.Get<uint64_t>(nodes[1]) = 888;
-  restored.Save(checkpoint, descriptor_);
+  SaveBuffers(restored, checkpoint, descriptor_);
   EXPECT_EQ(RuntimeFileCount(objects), 3);
   FixedSizeAllocator reloaded(131072, checkpoint);
   reloaded.Load(checkpoint, reader, descriptor_, "art_buffer_");
@@ -597,7 +627,7 @@ TEST_F(ARTAllocatorTest, PackedSaveReusesCleanBuffersAndPersistsMarkedWrites) {
 
   allocator.Free(nodes[0]);
   ModuleDescriptor next_descriptor;
-  auto after_free = allocator.Save(checkpoint, next_descriptor);
+  auto after_free = SaveBuffers(allocator, checkpoint, next_descriptor);
   EXPECT_EQ(after_free.size(), 2);
   EXPECT_EQ(next_descriptor.paths().size(), 2);
   EXPECT_FALSE(next_descriptor.has_path("art_buffer_0"));
@@ -612,7 +642,7 @@ TEST_F(ARTAllocatorTest, PackedLoadRejectsInvalidSlicesAndCorruptedObjects) {
   FixedSizeAllocator allocator(131072, checkpoint);
   allocator.New();
   allocator.New();
-  auto metadata = allocator.Save(checkpoint, descriptor_);
+  auto metadata = SaveBuffers(allocator, checkpoint, descriptor_);
   FixedSizeAllocator restored(131072, checkpoint);
   {
     auto reader = checkpoint.CreateObjectReader();
@@ -656,17 +686,17 @@ TEST_F(ARTAllocatorTest, PackedSavePersistsAllocationAndFreeChanges) {
   auto first = allocator.New();
   auto second = allocator.New();
   *allocator.Get<uint64_t>(second) = 123456;
-  auto original = allocator.Save(checkpoint, descriptor_);
+  auto original = SaveBuffers(allocator, checkpoint, descriptor_);
 
   allocator.Free(first);
-  auto freed = allocator.Save(checkpoint, descriptor_);
+  auto freed = SaveBuffers(allocator, checkpoint, descriptor_);
   EXPECT_NE(freed[0].address, original[0].address);
   FixedSizeAllocator restored(131063, checkpoint);
   auto reader = checkpoint.CreateObjectReader();
   restored.Load(checkpoint, reader, descriptor_, "art_buffer_");
   EXPECT_EQ(*restored.Get<const uint64_t>(second, false), 123456);
   EXPECT_EQ(restored.New(), first);
-  auto allocated = restored.Save(checkpoint, descriptor_);
+  auto allocated = SaveBuffers(restored, checkpoint, descriptor_);
   EXPECT_NE(allocated[0].address, freed[0].address);
   allocator.Load(checkpoint, reader, descriptor_, "art_buffer_");
   EXPECT_EQ(*allocator.Get<const uint64_t>(second, false), 123456);
@@ -676,34 +706,31 @@ TEST_F(ARTAllocatorTest, PackedObjectRootsRetainAndCollectOldSnapshots) {
   FixedSizeAllocator allocator(131072, *checkpoint_);
   auto first = allocator.New();
   auto second = allocator.New();
-  auto* first_value = allocator.Get<uint64_t>(first).get();
-  auto* second_value = allocator.Get<uint64_t>(second).get();
-  *first_value = 100;
-  *second_value = 200;
+  *allocator.Get<uint64_t>(first) = 100;
+  *allocator.Get<uint64_t>(second) = 200;
   ARTBufferMetadataMap metadata;
   auto publish = [&]() {
     auto staging = checkpoint_mgr_.CreateStaging();
     auto checkpoint = staging.checkpoint();
     descriptor_ = ModuleDescriptor{};
-    metadata = allocator.Save(*checkpoint, descriptor_);
-    CheckpointManifest manifest;
-    manifest.SetSchema(Schema());
-    manifest.SetModule("art_allocator", descriptor_);
-    checkpoint->SetManifest(std::move(manifest));
-    return staging.Publish();
+    metadata = SaveBuffers(allocator, *checkpoint, descriptor_);
+    auto published = PublishART(staging, descriptor_);
+    auto reader = published->CreateObjectReader();
+    allocator.Load(*published, reader,
+                   *published->manifest().FindModule("art_allocator"),
+                   "art_buffer_");
+    return published;
   };
   auto oldest = publish();
   const auto old_object = metadata[0].address;
-  allocator.GetHandle(first).MarkModified();
-  *first_value = 101;
+  *allocator.Get<uint64_t>(first) = 101;
   auto middle = publish();
   oldest.reset();
   checkpoint_mgr_.CollectGarbage();
   EXPECT_TRUE(std::filesystem::exists(old_object));
 
   // Keep the middle snapshot alive after its last buffer moves to a new object.
-  allocator.GetHandle(second).MarkModified();
-  *second_value = 201;
+  *allocator.Get<uint64_t>(second) = 201;
   auto latest = publish();
   for (const auto& [key, path] : descriptor_.paths())
     EXPECT_NE(path, old_object);
@@ -721,6 +748,34 @@ TEST_F(ARTAllocatorTest, PackedObjectRootsRetainAndCollectOldSnapshots) {
   restored.Load(*latest, reader, *descriptor, "art_buffer_");
   EXPECT_EQ(*restored.Get<uint64_t>(first), 101);
   EXPECT_EQ(*restored.Get<uint64_t>(second), 201);
+}
+
+TEST_F(ARTAllocatorTest, RewritesObjectsCollectedAfterDiscard) {
+  FixedSizeAllocator allocator(131072, *checkpoint_);
+  const auto node = allocator.New();
+  *allocator.Get<uint64_t>(node) = 123;
+  auto abandoned = checkpoint_mgr_.CreateStaging();
+  ModuleDescriptor abandoned_descriptor;
+  const auto abandoned_object =
+      SaveBuffers(allocator, *abandoned.checkpoint(), abandoned_descriptor)
+          .at(node.GetBufferId())
+          .address;
+  ASSERT_TRUE(std::filesystem::exists(abandoned_object));
+  abandoned.Discard();
+  checkpoint_mgr_.CollectGarbage();
+  ASSERT_FALSE(std::filesystem::exists(abandoned_object));
+
+  auto retry = checkpoint_mgr_.CreateStaging();
+  ModuleDescriptor descriptor;
+  const auto& saved = SaveBuffers(allocator, *retry.checkpoint(), descriptor);
+  EXPECT_NE(saved.at(node.GetBufferId()).address, abandoned_object);
+  auto published = PublishART(retry, descriptor);
+  auto reader = published->CreateObjectReader();
+  FixedSizeAllocator restored(131072, *published);
+  restored.Load(*published, reader,
+                *published->manifest().FindModule("art_allocator"),
+                "art_buffer_");
+  EXPECT_EQ(*restored.Get<const uint64_t>(node, false), 123);
 }
 
 TEST_F(ARTAllocatorTest, ReopensPackedAndIncrementalBuffersFromManifest) {
@@ -742,14 +797,10 @@ TEST_F(ARTAllocatorTest, ReopensPackedAndIncrementalBuffersFromManifest) {
     auto publish = [&]() {
       auto staging = manager.CreateStaging();
       ModuleDescriptor descriptor;
-      allocator.Save(*staging.checkpoint(), descriptor);
+      SaveBuffers(allocator, *staging.checkpoint(), descriptor);
       descriptor.set_path("whole_object",
                           descriptor.paths().at("art_buffer_0"));
-      CheckpointManifest manifest;
-      manifest.SetSchema(Schema());
-      manifest.SetModule("art_allocator", std::move(descriptor));
-      staging.checkpoint()->SetManifest(std::move(manifest));
-      return staging.Publish();
+      return PublishART(staging, descriptor);
     };
 
     auto initial = publish();
@@ -761,6 +812,8 @@ TEST_F(ARTAllocatorTest, ReopensPackedAndIncrementalBuffersFromManifest) {
     EXPECT_EQ(initial_descriptor->get_path("art_buffer_1"), shared_object);
     EXPECT_EQ(initial_descriptor->get_path("art_buffer_2"), shared_object);
 
+    auto reader = initial->CreateObjectReader();
+    allocator.Load(*initial, reader, *initial_descriptor, "art_buffer_");
     *allocator.Get<uint64_t>(first) = 101;
     auto incremental = publish();
     const auto* descriptor =

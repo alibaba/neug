@@ -57,9 +57,6 @@ class FixedSizeAllocator {
  public:
   explicit FixedSizeAllocator(idx_t segment_size, Checkpoint& checkpoint,
                               MemoryLevel level = MemoryLevel::kInMemory);
-  // Save a single allocator into a descriptor for the new checkpoint.
-  const ARTBufferMetadataMap& Save(Checkpoint& checkpoint,
-                                   ModuleDescriptor& descriptor);
   void Detach(Checkpoint& checkpoint, MemoryLevel level);
   idx_t GetCapacity() const;
   idx_t GetBufferCapacity() const;
@@ -81,8 +78,7 @@ class FixedSizeAllocator {
   bool Empty() const;
   void RemoveEmptyBuffers();
   void VerifyBuffers() const;
-  // Keep this allocator alive and hold its write lock through writer.Commit().
-  // Uncommitted buffers remain dirty for retry.
+  // Keep this allocator alive and serialize mutations through writer.Commit().
   void Save(CheckpointObjectWriter& writer);
   // After writer.Commit(), write this allocator's directory into the new
   // checkpoint descriptor. Allocators sharing it use distinct prefixes.
@@ -100,8 +96,7 @@ class FixedSizeAllocator {
   struct SaveCallback {
     // The shared writer commits after all allocators have appended their data.
     // Its final object address is available only after Commit() succeeds; this
-    // callback then records the slice location and clears the buffer's dirty
-    // flag.
+    // callback records the slice location. Load marks restored buffers clean.
     FixedSizeAllocator& allocator;
     idx_t buffer_id;
 
