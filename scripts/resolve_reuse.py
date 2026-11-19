@@ -43,7 +43,7 @@ def wheel_prefix(platform):
     return f"wheels-{platform}-"
 
 
-def is_complete(names, platforms, verify_java):
+def is_complete(names, platforms, verify_java, c_api_platforms=()):
     """True when a run's artifacts cover every part of the release plan."""
 
     def has(prefix):
@@ -51,6 +51,7 @@ def is_complete(names, platforms, verify_java):
 
     return (
         all(has(wheel_prefix(p)) for p in platforms)
+        and all(has(f"c-api-{p}-") for p in c_api_platforms)
         and has("nodejs-main-")
         and all(has(f"nodejs-{p}-") for p in platforms)
         and all(has(f"extension-packages-{p}-") for p in platforms)
@@ -97,6 +98,7 @@ def find_reusable_run():
     platforms = plan["platforms"]
     verify_java = bool(plan.get("verify_java"))
     python_versions = set(plan.get("python_versions", []))
+    c_api_platforms = [row["platform"] for row in plan["c_api_matrix"]]
 
     runs = gh(
         f"repos/{repo}/actions/workflows/package.yml/runs",
@@ -124,9 +126,13 @@ def find_reusable_run():
         arts = gh(f"repos/{repo}/actions/runs/{run_id}/artifacts", ("per_page", "200"))
         if arts.returncode != 0:
             continue
-        artifacts = json.loads(arts.stdout).get("artifacts", [])
+        artifacts = [
+            a
+            for a in json.loads(arts.stdout).get("artifacts", [])
+            if not a.get("expired")
+        ]
         names = [a["name"] for a in artifacts]
-        if not is_complete(names, platforms, verify_java):
+        if not is_complete(names, platforms, verify_java, c_api_platforms):
             continue
         # Artifact names carry no Python version, so a dry-run dispatched with a
         # narrowed python_versions still looks complete by name. Require the
