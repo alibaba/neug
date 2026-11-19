@@ -44,7 +44,7 @@
 namespace neug {
 #ifdef NEUG_BUILD_TEST
 // Called without insert admission or maintenance ownership. false: before
-// maintenance; true: before the second execution attempt.
+// maintenance; true: before each retry execution attempt.
 NEUG_API void SetInsertRetryHookForTest(std::function<void(bool)> hook,
                                         bool maintenance_unavailable = false);
 #endif

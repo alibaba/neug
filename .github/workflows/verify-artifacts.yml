@@ -3,6 +3,18 @@ name: Verify Artifacts
 on:
   workflow_call:
     inputs:
+      c_api_only:
+        description: Skip wheel, extension, npm and Java artifact verification.
+        type: boolean
+        default: false
+      verify_c_api:
+        description: Verify the selected Lite C API artifacts.
+        type: boolean
+        default: false
+      c_api_run_id:
+        description: Download C API artifacts from this earlier run; empty uses the current run.
+        type: string
+        default: ''
       plan:
         type: string
         default: ''
@@ -31,12 +43,20 @@ jobs:
       platforms: ${{ inputs.plan == '' && inputs.verify_java && format('{0},java', join(fromJSON(inputs.platforms), ',')) || inputs.platforms }}
       python_versions: ${{ inputs.python_versions }}
 
+  c-api:
+    needs: ci-plan
+    if: inputs.verify_c_api && fromJSON(needs.ci-plan.outputs.plan).c_api_matrix[0] != null
+    uses: ./.github/workflows/verify-c-api.yml
+    with:
+      plan: ${{ needs.ci-plan.outputs.plan }}
+      artifact_run_id: ${{ inputs.c_api_run_id }}
+
   # ========================================
   # Verify wheel, extension, and npm artifacts in one independent environment per platform.
   # ========================================
   verify:
     needs: ci-plan
-    if: fromJSON(needs.ci-plan.outputs.plan).platforms[0] != null
+    if: ${{ !inputs.c_api_only && fromJSON(needs.ci-plan.outputs.plan).platforms[0] != null }}
     name: Installed Packages / ${{ matrix.platform }}
     strategy:
       fail-fast: false
@@ -241,7 +261,7 @@ jobs:
   java:
     # Native-platform-only package runs do not produce a Java artifact.
     needs: ci-plan
-    if: inputs.verify_java && fromJSON(needs.ci-plan.outputs.plan).verify_java
+    if: ${{ !inputs.c_api_only && inputs.verify_java && fromJSON(needs.ci-plan.outputs.plan).verify_java }}
     name: Installed Java Artifact
     runs-on: ubuntu-22.04
     container: ubuntu:22.04

@@ -121,6 +121,23 @@ class NEUG_API VertexTimestamp : public Module {
 
   timestamp_t RemoveVertex(vid_t v);
 
+  bool IsInsertedBy(vid_t v, timestamp_t owner) const {
+    return v >= init_vertex_num_ && v < max_vertex_num_ &&
+           inserted_vertices_[v - init_vertex_num_].load() == owner;
+  }
+
+  // Raw ownership timestamp, not a commit decision. Invalid/tombstoned slots
+  // return DELETED_TIMESTAMP; compacted live rows belong to timestamp zero.
+  timestamp_t GetInsertTimestamp(vid_t v) const {
+    if (v >= max_vertex_num_) {
+      return DELETED_TIMESTAMP;
+    }
+    if (v >= init_vertex_num_) {
+      return inserted_vertices_[v - init_vertex_num_].load();
+    }
+    return IsVertexValid(v, 0) ? 0 : DELETED_TIMESTAMP;
+  }
+
   void RevertRemoveVertex(vid_t v, timestamp_t old_ts);
 
   bool IsRemoved(vid_t v) const {

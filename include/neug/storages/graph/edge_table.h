@@ -165,6 +165,7 @@ class NEUG_API EdgeTable {
   void DeleteProperties(Checkpoint& ckp,
                         const std::vector<std::string>& col_names);
 
+  // INVALID_EDGE_OFFSET skips a direction not stored or not yet inserted.
   void DeleteEdge(vid_t src_lid, vid_t dst_lid, int32_t oe_offset,
                   int32_t ie_offset, timestamp_t ts);
 
@@ -221,7 +222,7 @@ std::pair<int32_t, const void*> insert_edge_into_csr_internal(
     CsrBase& out_csr, CsrBase& in_csr, TABLE& table,
     std::atomic<uint64_t>& table_idx, const EdgeSchema& meta, vid_t src_lid,
     vid_t dst_lid, const std::vector<Value>& properties, timestamp_t ts,
-    Allocator& alloc, bool insert_safe) {
+    Allocator& alloc, bool insert_safe, EdgeInsertOffsets* offsets = nullptr) {
   int32_t oe_offset;
   const void* data_ptr = nullptr;
   if (meta.is_bundled()) {
@@ -231,9 +232,11 @@ std::pair<int32_t, const void*> insert_edge_into_csr_internal(
                                     meta.properties[0] == DataTypeId::kEmpty)));
     Value bundled_data =
         properties.empty() ? Value(DataType::EMPTY) : properties[0];
-    in_csr.put_generic_edge(dst_lid, src_lid, bundled_data, ts, alloc);
+    in_csr.put_generic_edge(dst_lid, src_lid, bundled_data, ts, alloc,
+                            offsets ? &offsets->incoming : nullptr);
     auto out_ret =
-        out_csr.put_generic_edge(src_lid, dst_lid, bundled_data, ts, alloc);
+        out_csr.put_generic_edge(src_lid, dst_lid, bundled_data, ts, alloc,
+                                 offsets ? &offsets->outgoing : nullptr);
     oe_offset = out_ret.first;
     data_ptr = out_ret.second;
   } else {
@@ -243,8 +246,11 @@ std::pair<int32_t, const void*> insert_edge_into_csr_internal(
     }
     size_t row_id = table_idx.fetch_add(1);
     Value prop = Value::UINT64(row_id);
-    in_csr.put_generic_edge(dst_lid, src_lid, prop, ts, alloc);
-    auto out_ret = out_csr.put_generic_edge(src_lid, dst_lid, prop, ts, alloc);
+    in_csr.put_generic_edge(dst_lid, src_lid, prop, ts, alloc,
+                            offsets ? &offsets->incoming : nullptr);
+    auto out_ret =
+        out_csr.put_generic_edge(src_lid, dst_lid, prop, ts, alloc,
+                                 offsets ? &offsets->outgoing : nullptr);
     oe_offset = out_ret.first;
     data_ptr = out_ret.second;
     table.insert(row_id, properties, insert_safe);

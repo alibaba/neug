@@ -707,6 +707,9 @@ Value Value::FromJson(const rapidjson::Value& json_value,
     if (json_value.IsInt()) {
       return Value::BOOLEAN(json_value.GetInt() != 0);
     }
+    if (!json_value.IsBool()) {
+      THROW_INVALID_ARGUMENT_EXCEPTION("Expected a boolean or int32 value");
+    }
     return Value::BOOLEAN(json_value.GetBool());
   }
   case DataTypeId::kDate: {
@@ -720,12 +723,21 @@ Value Value::FromJson(const rapidjson::Value& json_value,
     }
   }
   case DataTypeId::kDouble: {
+    if (!json_value.IsNumber()) {
+      THROW_INVALID_ARGUMENT_EXCEPTION("Expected a numeric value");
+    }
     return Value::DOUBLE(json_value.GetDouble());
   }
   case DataTypeId::kFloat: {
+    if (!json_value.IsNumber()) {
+      THROW_INVALID_ARGUMENT_EXCEPTION("Expected a numeric value");
+    }
     return Value::FLOAT(json_value.GetFloat());
   }
   case DataTypeId::kInt32: {
+    if (!json_value.IsInt()) {
+      THROW_INVALID_ARGUMENT_EXCEPTION("Expected an int32 value");
+    }
     return Value::INT32(json_value.GetInt());
   }
   case DataTypeId::kInt64: {
@@ -735,13 +747,23 @@ Value Value::FromJson(const rapidjson::Value& json_value,
     return Value::INT64(json_value.GetInt64());
   }
   case DataTypeId::kUInt32: {
+    if (!json_value.IsUint()) {
+      THROW_INVALID_ARGUMENT_EXCEPTION("Expected a uint32 value");
+    }
     return Value::UINT32(json_value.GetUint());
   }
   case DataTypeId::kUInt64: {
+    if (!json_value.IsUint64()) {
+      THROW_INVALID_ARGUMENT_EXCEPTION("Expected a uint64 value");
+    }
     return Value::UINT64(json_value.GetUint64());
   }
   case DataTypeId::kVarchar: {
-    return Value::STRING(json_value.GetString());
+    if (!json_value.IsString()) {
+      THROW_INVALID_ARGUMENT_EXCEPTION("Expected a string value");
+    }
+    return Value::STRING(
+        std::string(json_value.GetString(), json_value.GetStringLength()));
   }
   case DataTypeId::kTimestampMs: {
     if (json_value.IsInt64()) {
@@ -757,12 +779,13 @@ Value Value::FromJson(const rapidjson::Value& json_value,
     if (!json_value.IsString()) {
       THROW_INVALID_ARGUMENT_EXCEPTION("Expected a string for Interval type");
     }
-    return Value::INTERVAL(Interval(std::string(json_value.GetString())));
+    return Value::INTERVAL(Interval(
+        std::string(json_value.GetString(), json_value.GetStringLength())));
   }
   case DataTypeId::kList: {
     std::vector<Value> values;
     if (!json_value.IsArray()) {
-      return Value::LIST(DataType::UNKNOWN, std::move(values));
+      THROW_INVALID_ARGUMENT_EXCEPTION("Expected an array for LIST type");
     }
     const auto list = json_value.GetArray();
     auto child_type = ListType::GetChildType(type);

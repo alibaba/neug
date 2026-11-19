@@ -27,6 +27,29 @@
 
 namespace neug {
 
+#ifdef NEUG_BUILD_TEST
+namespace {
+// Match the execution-slot TLS accessor: bthreads may change pthreads.
+#if defined(__GNUC__) || defined(__clang__)
+__attribute__((noinline))
+#elif defined(_MSC_VER)
+__declspec(noinline)
+#endif
+std::function<void()>&
+VertexIndexInsertHook() {
+  static thread_local std::function<void()> hook;
+  auto* pointer = &hook;
+#if defined(__GNUC__) || defined(__clang__)
+  asm volatile("" : "+r"(pointer) : : "memory");
+#endif
+  return *pointer;
+}
+}  // namespace
+void SetBeforeVertexIndexInsertForTest(std::function<void()> hook) {
+  VertexIndexInsertHook() = std::move(hook);
+}
+#endif
+
 void VertexTable::SetColumn(size_t col, std::unique_ptr<ColumnBase> column) {
   table_->SetColumn(static_cast<int>(col), std::move(column));
 }
@@ -182,6 +205,12 @@ vid_t internal::insert_vertex_pk_internal(IndexerType& indexer,
                                        std::to_string(vid));
     }
   } else {
+#ifdef NEUG_BUILD_TEST
+    auto hook = std::exchange(VertexIndexInsertHook(), {});
+    if (hook) {
+      hook();
+    }
+#endif
     vid = indexer.insert(id, insert_safe);
   }
   v_ts.InsertVertex(vid, ts);
