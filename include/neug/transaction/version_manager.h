@@ -101,6 +101,11 @@ class IVersionManager {
   // Caller must already hold insert admission, which pins the snapshot
   // generation.
   virtual uint32_t insert_read_timestamp() const = 0;
+  // Insert endpoints may belong to a completed write above the contiguous
+  // reader watermark. Aborted writes have already tombstoned their records.
+  virtual bool is_insert_timestamp_completed(uint32_t ts) const {
+    return ts <= insert_read_timestamp();
+  }
   virtual void release_insert_timestamp(uint32_t ts) = 0;
   // Waiters directly contend the admission phase. Acquisition order is
   // intentionally unspecified; the successful phase CAS linearizes ownership.
@@ -213,6 +218,7 @@ class VersionManager : public IVersionManager {
         .visibility_ts;
   }
   void release_insert_timestamp(uint32_t ts) override;
+  bool is_insert_timestamp_completed(uint32_t ts) const override;
   uint32_t acquire_update_timestamp() override;
   void begin_update_commit(uint32_t ts) override;
   void drain_readers() override;
@@ -244,7 +250,7 @@ class VersionManager : public IVersionManager {
 
   TimestampWindow ts_window_;
 
-  SpinLock lock_;
+  mutable SpinLock lock_;
 };
 
 }  // namespace neug

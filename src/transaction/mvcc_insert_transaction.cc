@@ -96,7 +96,7 @@ MvccInsertTransaction::~MvccInsertTransaction() { Abort(); }
 
 bool MvccInsertTransaction::GetVertexIndex(label_t label, const Value& id,
                                            vid_t& index) const {
-  if (view_->get_lid(label, id, index, read_timestamp_)) {
+  if (GetCommittedVertexIndex(label, id, index)) {
     return true;
   }
   if (added_vertices_.size() > label && added_vertices_[label] != nullptr &&
@@ -107,20 +107,42 @@ bool MvccInsertTransaction::GetVertexIndex(label_t label, const Value& id,
   return false;
 }
 
-Value MvccInsertTransaction::get_vertex_id(label_t label, vid_t lid) const {
-  if (added_vertices_.size() <= label || added_vertices_[label] == nullptr) {
-    return view_->GetOid(label, lid, read_timestamp_);
+bool MvccInsertTransaction::IsCommittedVertex(label_t label, vid_t lid) const {
+  const auto ts = view_->GetVertexInsertTimestamp(label, lid);
+  if (ts <= read_timestamp_) {
+    return true;
   }
-  vid_t base = added_vertices_base_[label];
-  if (lid >= base) {
+  // A prior Commit can return while an older insert still holds back the
+  // reader watermark. Accept that completed insert, but never a pending one.
+  // Recheck ownership after completion in case an abort reused the slot.
+  return ts < timestamp_ && vm_.is_insert_timestamp_completed(ts) &&
+         view_->GetVertexInsertTimestamp(label, lid) == ts;
+}
+
+bool MvccInsertTransaction::GetCommittedVertexIndex(label_t label,
+                                                    const Value& id,
+                                                    vid_t& lid) const {
+  if (view_->get_lid(label, id, lid, read_timestamp_)) {
+    return true;
+  }
+  return view_->get_lid(label, id, lid, timestamp_ - 1) &&
+         IsCommittedVertex(label, lid);
+}
+
+Value MvccInsertTransaction::get_vertex_id(label_t label, vid_t lid) const {
+  if (added_vertices_.size() > label && added_vertices_[label] != nullptr &&
+      lid >= added_vertices_base_[label]) {
+    vid_t base = added_vertices_base_[label];
     Value ret{DataType{DataTypeId::kNull}};
     if (!added_vertices_[label]->get_key(lid - base, ret)) {
       THROW_STORAGE_EXCEPTION("Insert edge endpoint is not visible");
     }
     return ret;
-  } else {
-    return view_->GetOid(label, lid, read_timestamp_);
   }
+  if (!IsCommittedVertex(label, lid)) {
+    THROW_INVALID_ARGUMENT_EXCEPTION("Insert edge endpoint is not committed");
+  }
+  return view_->GetOid(label, lid, timestamp_ - 1);
 }
 
 Status MvccInsertTransaction::AddVertex(label_t label, const Value& id,
@@ -156,6 +178,9 @@ Status MvccInsertTransaction::AddVertex(label_t label, const Value& id,
   }
   create_id_indexer_if_not_exists(label);
   if (!GetVertexIndex(label, id, vid)) {
+    if (vertex_nums_[label] >= INVALID_VID - added_vertices_base_[label]) {
+      THROW_STORAGE_EXCEPTION("Temporary VID capacity exhausted");
+    }
     added_vertices_[label]->_add(id);
     vid = vertex_nums_[label] + added_vertices_base_[label];
     vertex_nums_[label]++;
@@ -335,10 +360,13 @@ void MvccInsertTransaction::ApplyInserts() {
       auto dst_label = schema.get_vertex_label_id(redo.dst_type);
       auto edge_label = schema.get_edge_label_id(redo.edge_type);
       vid_t src, dst;
-      if (!view_->GetInsertEndpoint(src_label, redo.src, src, read_timestamp_,
-                                    timestamp_) ||
-          !view_->GetInsertEndpoint(dst_label, redo.dst, dst, read_timestamp_,
-                                    timestamp_)) {
+      auto endpoint = [&](label_t label, const Value& id, vid_t& lid) {
+        return view_->GetInsertEndpoint(label, id, lid, read_timestamp_,
+                                        timestamp_) ||
+               GetCommittedVertexIndex(label, id, lid);
+      };
+      if (!endpoint(src_label, redo.src, src) ||
+          !endpoint(dst_label, redo.dst, dst)) {
         THROW_STORAGE_EXCEPTION("Insert edge endpoint is not visible");
       }
       edge_undo_.push_back({src_label, dst_label, edge_label, src, dst});
@@ -469,7 +497,15 @@ void MvccInsertTransaction::create_id_indexer_if_not_exists(label_t label) {
           "got: " +
           std::to_string(type));
     }
-    added_vertices_base_[label] = view_->LidNum(label);
+    // Concurrent inserts can acquire real VIDs above the current LidNum.
+    // Capacity cannot grow while this transaction holds insert admission,
+    // so transaction-local VIDs start outside the entire real-VID range.
+    const auto capacity =
+        guard_.get().mutable_graph()->get_vertex_table(label).Capacity();
+    if (capacity > INVALID_VID) {
+      THROW_STORAGE_EXCEPTION("Temporary VID capacity exhausted");
+    }
+    added_vertices_base_[label] = static_cast<vid_t>(capacity);
   }
 }
 
