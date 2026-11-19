@@ -24,18 +24,19 @@
 #include "neug/storages/index/art_tree/index_pointer.h"
 #include "neug/storages/index/art_tree/memory_usage.h"
 #include "neug/storages/module_descriptor.h"
-#include "neug/utils/md5_utils.h"
+namespace neug {
+class CheckpointObjectReader;
+class CheckpointObjectWriter;
+struct CheckpointObjectSlice;
+}  // namespace neug
+
 namespace neug::art {
-class ARTStorageManager;
-struct ARTStorageSlice;
 struct ARTBufferMetadata {
   idx_t buffer_id;
-  idx_t segment_count;
   string address;
   // Offsets are relative to the object payload, after FileHeader.
   idx_t offset;
   idx_t length;
-  MD5Digest checksum;
 };
 using ARTBufferMetadataMap = std::unordered_map<
     idx_t, ARTBufferMetadata, std::hash<idx_t>, std::equal_to<idx_t>,
@@ -80,13 +81,16 @@ class FixedSizeAllocator {
   bool Empty() const;
   void RemoveEmptyBuffers();
   void VerifyBuffers() const;
-  // Keep this allocator alive and hold its write lock through storage.Commit().
+  // Keep this allocator alive and hold its write lock through writer.Commit().
   // Uncommitted buffers remain dirty for retry.
-  void Save(ARTStorageManager& storage);
-  // Serialize object references after a successful storage.Commit().
+  void Save(CheckpointObjectWriter& writer);
+  // Serialize object references after a successful writer.Commit().
   const ARTBufferMetadataMap& SaveMetadata(ModuleDescriptor& descriptor,
                                            const string& buffer_prefix);
-  void Load(Checkpoint& checkpoint, const ARTBufferMetadataMap& saved_metadata,
+  // Allocate buffers from checkpoint and read object slices through reader.
+  // Allocators in the same tree can share the reader.
+  void Load(Checkpoint& checkpoint, CheckpointObjectReader& reader,
+            const ARTBufferMetadataMap& saved_metadata,
             idx_t expected_segment_count);
   // Report memory requested by the ART index, excluding additional overhead
   // introduced by the underlying allocator's size-rounding policy.
@@ -100,9 +104,9 @@ class FixedSizeAllocator {
     // flag.
     FixedSizeAllocator& allocator;
     idx_t buffer_id;
-    idx_t segment_count;
 
-    void operator()(const string& address, const ARTStorageSlice& slice) const;
+    void operator()(const string& address,
+                    const CheckpointObjectSlice& slice) const;
   };
   std::shared_ptr<CheckpointFileManager> runtime_allocator;
   MemoryLevel memory_level;

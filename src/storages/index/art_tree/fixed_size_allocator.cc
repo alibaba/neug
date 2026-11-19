@@ -22,7 +22,7 @@
 
 #include "neug/storages/checkpoint.h"
 #include "neug/storages/container/anon_mmap_container.h"
-#include "neug/storages/index/art_tree/storage_manager.h"
+#include "neug/utils/exception/exception.h"
 namespace neug::art {
 ARTOptionalIdx::ARTOptionalIdx(idx_t value) : value(value) {}
 ARTOptionalIdx& ARTOptionalIdx::operator=(idx_t index) {
@@ -246,23 +246,22 @@ idx_t FixedSizeAllocator::GetUpperBoundBufferId() const {
   return upper_bound_id;
 }
 
-void FixedSizeAllocator::Save(ARTStorageManager& storage) {
+void FixedSizeAllocator::Save(CheckpointObjectWriter& writer) {
   for (const auto& [id, buffer] : buffers) {
     if (!buffer->segment_count)
       continue;
     if (!buffer->dirty && buffer_metadata.contains(id))
       continue;
-    storage.Append(buffer->container->GetData(),
-                   buffer->container->GetDataSize(),
-                   SaveCallback{*this, id, buffer->segment_count});
+    writer.Append(buffer->container->GetData(),
+                  buffer->container->GetDataSize(), SaveCallback{*this, id});
   }
 }
 
 void FixedSizeAllocator::SaveCallback::operator()(
-    const string& address, const ARTStorageSlice& slice) const {
+    const string& address, const CheckpointObjectSlice& slice) const {
   allocator.buffer_metadata.insert_or_assign(
-      buffer_id, ARTBufferMetadata{buffer_id, segment_count, address,
-                                   slice.offset, slice.length, slice.checksum});
+      buffer_id,
+      ARTBufferMetadata{buffer_id, address, slice.offset, slice.length});
   allocator.buffers.at(buffer_id)->dirty = false;
 }
 
@@ -293,30 +292,24 @@ const ARTBufferMetadataMap& FixedSizeAllocator::SaveMetadata(
   return buffer_metadata;
 }
 void FixedSizeAllocator::Load(Checkpoint& checkpoint,
+                              CheckpointObjectReader& reader,
                               const ARTBufferMetadataMap& saved_metadata,
                               idx_t expected_segment_count) {
   // Copy first: the caller may pass this allocator's own directory.
   auto restored_metadata = saved_metadata;
   Reset();
-  std::unordered_map<string, std::shared_ptr<IDataContainer>> objects;
   for (const auto& [id, metadata] : restored_metadata) {
     if (id != metadata.buffer_id ||
         metadata.buffer_id > std::numeric_limits<uint32_t>::max() ||
         buffers.count(metadata.buffer_id) || metadata.address.empty() ||
-        metadata.length != FixedSizeBuffer::BUFFER_ALLOC_SIZE ||
-        !metadata.segment_count ||
-        metadata.segment_count > available_segments_per_buffer)
+        metadata.length != FixedSizeBuffer::BUFFER_ALLOC_SIZE)
       throw SerializationException("Invalid ART buffer metadata");
-    auto& object = objects[metadata.address];
-    if (!object)
-      object = checkpoint.OpenFile(metadata.address, MemoryLevel::kInMemory);
-    if (metadata.offset > object->GetDataSize() ||
-        metadata.length > object->GetDataSize() - metadata.offset)
-      throw SerializationException("ART buffer is outside its object");
-    const auto* data =
-        static_cast<const char*>(object->GetData()) + metadata.offset;
-    if (ComputeMD5(data, metadata.length) != metadata.checksum)
-      throw SerializationException("ART buffer checksum mismatch");
+    const void* data;
+    try {
+      data = reader.Get(metadata.address, {metadata.offset, metadata.length});
+    } catch (const exception::CheckpointException& error) {
+      throw SerializationException(string(error.what()));
+    }
     // Runtime buffers stay independent, so growing/detaching one does not
     // change addresses or retain an entire packed object mapping.
     auto buffer = std::make_unique<FixedSizeBuffer>(
@@ -327,8 +320,8 @@ void FixedSizeAllocator::Load(Checkpoint& checkpoint,
                            available_segments_per_buffer);
     for (idx_t slot = 0; slot < available_segments_per_buffer; ++slot)
       buffer->segment_count += !free_mask.RowIsValid(slot);
-    if (buffer->segment_count != metadata.segment_count)
-      throw SerializationException("ART buffer occupancy mismatch");
+    if (!buffer->segment_count)
+      throw SerializationException("Empty ART buffer in checkpoint");
     buffer->dirty = false;
     total_segment_count += buffer->segment_count;
     if (buffer->segment_count < available_segments_per_buffer)
@@ -390,9 +383,9 @@ void FixedSizeAllocator::NextBufferWithFreeSpace() {
 
 const ARTBufferMetadataMap& FixedSizeAllocator::Save(
     Checkpoint& checkpoint, ModuleDescriptor& descriptor) {
-  ARTStorageManager storage(checkpoint);
-  Save(storage);
-  storage.Commit();
+  auto writer = checkpoint.CreateObjectWriter();
+  Save(writer);
+  writer.Commit();
 
   const string prefix = "art_buffer_";
   auto next_descriptor = descriptor;

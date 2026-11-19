@@ -22,12 +22,12 @@
 #include <chrono>
 #include <cstring>
 #include <filesystem>
+#include <fstream>
 #include <memory>
 #include <set>
 #include <vector>
 #include "neug/storages/container/file_header.h"
 #include "neug/storages/index/art_tree/fixed_size_allocator.h"
-#include "neug/storages/index/art_tree/storage_manager.h"
 #include "unittest/utils.h"
 
 namespace neug::art {
@@ -216,7 +216,8 @@ TEST_F(ARTAllocatorTest, FixedBuffersRoundTripAndAppend) {
   allocator.Free(nodes[3]);
   auto buffer_metadata = allocator.Save(checkpoint, descriptor_);
   FixedSizeAllocator loaded(8, checkpoint);
-  loaded.Load(checkpoint, buffer_metadata, allocator.GetSegmentCount());
+  auto reader = checkpoint.CreateObjectReader();
+  loaded.Load(checkpoint, reader, buffer_metadata, allocator.GetSegmentCount());
   EXPECT_EQ(loaded.GetCapacity(), slots * 2);
   EXPECT_EQ(loaded.GetMemoryUsage().node_buffer_bytes,
             allocator.GetMemoryUsage().node_buffer_bytes);
@@ -239,13 +240,14 @@ TEST_F(ARTAllocatorTest, EmptyRoundTrip) {
   FixedSizeAllocator allocator(8, checkpoint);
   auto buffer_metadata = allocator.Save(checkpoint, descriptor_);
   FixedSizeAllocator loaded(8, checkpoint);
-  loaded.Load(checkpoint, buffer_metadata, allocator.GetSegmentCount());
+  auto reader = checkpoint.CreateObjectReader();
+  loaded.Load(checkpoint, reader, buffer_metadata, allocator.GetSegmentCount());
   EXPECT_EQ(loaded.GetCapacity(), 0);
 
   auto node = allocator.New();
   allocator.Free(node);
   buffer_metadata = allocator.Save(checkpoint, descriptor_);
-  loaded.Load(checkpoint, buffer_metadata, allocator.GetSegmentCount());
+  loaded.Load(checkpoint, reader, buffer_metadata, allocator.GetSegmentCount());
   EXPECT_EQ(loaded.GetCapacity(), 0);
   EXPECT_EQ(loaded.GetCapacity(loaded.New()), loaded.GetBufferCapacity());
 }
@@ -272,40 +274,57 @@ size_t RuntimeFileCount(Checkpoint& checkpoint) {
 }
 }  // namespace
 
-TEST_F(ARTAllocatorTest, StorageManagerSharesOneFileAcrossBatches) {
+TEST_F(ARTAllocatorTest, ObjectWriterPublishesFragmentsInAppendOrder) {
   auto& checkpoint = *checkpoint_;
   const auto baseline = RuntimeFileCount(checkpoint);
   const uint64_t first[] = {123, 456};
   const uint64_t second[] = {789, 1000, 2000};
-  ARTStorageManager storage(checkpoint);
-  auto first_slice = storage.Append(first, sizeof(first));
-  auto second_slice = storage.Append(second, sizeof(second));
+  auto writer = checkpoint.CreateObjectWriter();
+  std::vector<CheckpointObjectSlice> slices;
+  std::vector<std::string> addresses;
+  auto record = [&](const std::string& address,
+                    const CheckpointObjectSlice& slice) {
+    EXPECT_TRUE(std::filesystem::exists(address));
+    addresses.push_back(address);
+    slices.push_back(slice);
+  };
+  writer.Append(first, sizeof(first), record);
+  writer.Append(second, sizeof(second), record);
+  EXPECT_TRUE(slices.empty());
   EXPECT_EQ(RuntimeFileCount(checkpoint), baseline + 1);
-  auto address = storage.Commit();
+  auto address = writer.Commit();
   EXPECT_EQ(RuntimeFileCount(checkpoint), baseline);
-  auto object = checkpoint.OpenFile(address, MemoryLevel::kInMemory);
-  EXPECT_EQ(object->GetDataSize(), sizeof(first) + sizeof(second));
-  EXPECT_FALSE(object->IsDirty());
+  ASSERT_EQ(slices.size(), 2);
+  EXPECT_EQ(addresses, (std::vector<std::string>{address, address}));
+  const auto& first_slice = slices[0];
+  const auto& second_slice = slices[1];
+  EXPECT_EQ(std::filesystem::file_size(address),
+            sizeof(FileHeader) + sizeof(first) + sizeof(second));
   EXPECT_EQ(first_slice.offset, 0);
   EXPECT_EQ(second_slice.offset, sizeof(first));
-  const auto* data = static_cast<const char*>(object->GetData());
-  EXPECT_EQ(std::memcmp(data + first_slice.offset, first, first_slice.length),
-            0);
-  EXPECT_EQ(
-      std::memcmp(data + second_slice.offset, second, second_slice.length), 0);
-  EXPECT_EQ(first_slice.checksum, ComputeMD5(first, sizeof(first)));
-  EXPECT_EQ(second_slice.checksum, ComputeMD5(second, sizeof(second)));
+  ASSERT_EQ(first_slice.length, sizeof(first));
+  ASSERT_EQ(second_slice.length, sizeof(second));
+  auto reader = checkpoint.CreateObjectReader();
+  const auto* first_data =
+      static_cast<const char*>(reader.Get(address, first_slice));
+  const auto* second_data = reader.Get(address, second_slice);
+  EXPECT_EQ(second_data, first_data + sizeof(first));
+  EXPECT_EQ(std::memcmp(first_data, first, first_slice.length), 0);
+  EXPECT_EQ(std::memcmp(second_data, second, second_slice.length), 0);
 }
 
-TEST_F(ARTAllocatorTest, StorageManagerRemovesUncommittedFile) {
+TEST_F(ARTAllocatorTest, ObjectWriterRemovesUncommittedFile) {
   auto& checkpoint = *checkpoint_;
   const auto baseline = RuntimeFileCount(checkpoint);
   const auto objects = (temp_dir_ / "checkpoint" / "objects").string();
   const auto objects_baseline = RuntimeFileCount(objects);
   {
-    ARTStorageManager storage(checkpoint);
+    auto writer = checkpoint.CreateObjectWriter();
     const uint64_t data = 123456;
-    storage.Append(&data, sizeof(data));
+    writer.Append(&data, sizeof(data),
+                  [](const std::string&, const CheckpointObjectSlice&) {
+                    ADD_FAILURE() << "Uncommitted fragment callback ran";
+                  });
     EXPECT_EQ(RuntimeFileCount(checkpoint), baseline + 1);
   }
   EXPECT_EQ(RuntimeFileCount(checkpoint), baseline);
@@ -320,17 +339,17 @@ TEST_F(ARTAllocatorTest, SharedWriterDefersAddressesUntilCommitAndAllowsRetry) {
   *first.Get<uint64_t>(first_node) = 123;
   *second.Get<uint64_t>(second_node) = 456;
   {
-    ARTStorageManager abandoned(checkpoint);
+    auto abandoned = checkpoint.CreateObjectWriter();
     first.Save(abandoned);
     second.Save(abandoned);
     EXPECT_TRUE(first.SaveMetadata(descriptor_, "first_").empty());
     EXPECT_TRUE(second.SaveMetadata(descriptor_, "second_").empty());
   }
 
-  ARTStorageManager storage(checkpoint);
-  first.Save(storage);
-  second.Save(storage);
-  const auto address = storage.Commit();
+  auto writer = checkpoint.CreateObjectWriter();
+  first.Save(writer);
+  second.Save(writer);
+  const auto address = writer.Commit();
   const auto& first_saved = first.SaveMetadata(descriptor_, "first_");
   const auto& second_saved = second.SaveMetadata(descriptor_, "second_");
   ASSERT_EQ(first_saved.size(), 1);
@@ -338,11 +357,15 @@ TEST_F(ARTAllocatorTest, SharedWriterDefersAddressesUntilCommitAndAllowsRetry) {
   EXPECT_EQ(first_saved.at(0).address, address);
   EXPECT_EQ(second_saved.at(0).address, address);
   EXPECT_NE(first_saved.at(0).offset, second_saved.at(0).offset);
-  FixedSizeAllocator restored(8, checkpoint);
-  restored.Load(checkpoint, second_saved, 1);
-  EXPECT_EQ(*restored.Get<const uint64_t>(second_node, false), 456);
+  auto reader = checkpoint.CreateObjectReader();
+  FixedSizeAllocator restored_first(8, checkpoint);
+  FixedSizeAllocator restored_second(8, checkpoint);
+  restored_first.Load(checkpoint, reader, first_saved, 1);
+  restored_second.Load(checkpoint, reader, second_saved, 1);
+  EXPECT_EQ(*restored_first.Get<const uint64_t>(first_node, false), 123);
+  EXPECT_EQ(*restored_second.Get<const uint64_t>(second_node, false), 456);
 
-  ARTStorageManager unchanged(checkpoint);
+  auto unchanged = checkpoint.CreateObjectWriter();
   first.Save(unchanged);
   second.Save(unchanged);
   EXPECT_TRUE(unchanged.Commit().empty());
@@ -367,7 +390,9 @@ TEST_F(ARTAllocatorTest, IndependentBuffersRestoreDetachAndCleanup) {
   EXPECT_EQ(allocator.Get<uint64_t>(first).get(), first_address);
   *first_address = 999;
   FixedSizeAllocator restored(2056, checkpoint, MemoryLevel::kSyncToFile);
-  restored.Load(checkpoint, buffer_metadata, allocator.GetSegmentCount());
+  auto reader = checkpoint.CreateObjectReader();
+  restored.Load(checkpoint, reader, buffer_metadata,
+                allocator.GetSegmentCount());
   EXPECT_EQ(RuntimeFileCount(checkpoint), baseline + 6);
   EXPECT_EQ(*restored.Get<uint64_t>(first), 123456);
   EXPECT_EQ(*first_address, 999);
@@ -415,7 +440,8 @@ TEST_F(ARTAllocatorTest, LoadRebindsRuntimeAllocatorForLaterBuffers) {
   const auto target_baseline = RuntimeFileCount(target);
 
   FixedSizeAllocator restored(131072, source, MemoryLevel::kSyncToFile);
-  restored.Load(target, metadata, 1);
+  auto reader = source.CreateObjectReader();
+  restored.Load(target, reader, metadata, 1);
   EXPECT_EQ(RuntimeFileCount(source), source_baseline);
   EXPECT_EQ(RuntimeFileCount(target), target_baseline + 1);
   auto appended = restored.New();
@@ -480,7 +506,6 @@ TEST_F(ARTAllocatorTest, AllocatorPacksBuffersAndPreservesHandles) {
         checkpoint.OpenFile(metadata.address, MemoryLevel::kInMemory);
     EXPECT_EQ(container->GetDataSize(), 3 * FixedSizeBuffer::BUFFER_ALLOC_SIZE);
     EXPECT_FALSE(container->IsDirty());
-    EXPECT_EQ(metadata.segment_count, metadata.buffer_id == 2 ? 1 : capacity);
   }
   EXPECT_EQ(addresses.size(), 1);
   EXPECT_EQ(descriptor_.paths().size(), 3);
@@ -489,17 +514,18 @@ TEST_F(ARTAllocatorTest, AllocatorPacksBuffersAndPreservesHandles) {
   handle.MarkModified();
   *address = 999;
   FixedSizeAllocator restored(2056, checkpoint);
-  restored.Load(checkpoint, buffer_metadata, allocator.GetSegmentCount());
+  auto reader = checkpoint.CreateObjectReader();
+  restored.Load(checkpoint, reader, buffer_metadata,
+                allocator.GetSegmentCount());
+  EXPECT_EQ(restored.GetSegmentCount(), allocator.GetSegmentCount());
   EXPECT_EQ(*restored.Get<uint64_t>(first), 123456);
   EXPECT_EQ(*allocator.Get<uint64_t>(first), 999);
   auto appended = restored.New();
   EXPECT_EQ(appended.GetBufferId(), 2);
   EXPECT_EQ(appended.GetOffset(), 1);
-  auto wrong_count = buffer_metadata;
-  ++wrong_count[0].segment_count;
-  EXPECT_THROW(
-      restored.Load(checkpoint, wrong_count, allocator.GetSegmentCount()),
-      SerializationException);
+  EXPECT_THROW(restored.Load(checkpoint, reader, buffer_metadata,
+                             allocator.GetSegmentCount() + 1),
+               SerializationException);
 }
 
 TEST_F(ARTAllocatorTest, PackedSaveReusesCleanBuffersAndPersistsMarkedWrites) {
@@ -542,7 +568,8 @@ TEST_F(ARTAllocatorTest, PackedSaveReusesCleanBuffersAndPersistsMarkedWrites) {
     }
   }
   FixedSizeAllocator restored(131072, checkpoint);
-  restored.Load(checkpoint, changed, 3);
+  auto reader = checkpoint.CreateObjectReader();
+  restored.Load(checkpoint, reader, changed, 3);
   EXPECT_EQ(*restored.Get<const uint64_t>(nodes[0], false), 999);
   EXPECT_EQ(*restored.Get<const uint64_t>(nodes[1], false), 101);
   auto restored_metadata = restored.Save(checkpoint, descriptor_);
@@ -551,18 +578,17 @@ TEST_F(ARTAllocatorTest, PackedSaveReusesCleanBuffersAndPersistsMarkedWrites) {
   for (const auto& [id, metadata] : changed) {
     EXPECT_EQ(restored_metadata.at(id).address, metadata.address);
     EXPECT_EQ(restored_metadata.at(id).offset, metadata.offset);
-    EXPECT_EQ(restored_metadata.at(id).checksum, metadata.checksum);
   }
   // Save returns the owned directory; Load must also accept that same
   // directory.
-  restored.Load(checkpoint, restored.Save(checkpoint, descriptor_), 3);
+  restored.Load(checkpoint, reader, restored.Save(checkpoint, descriptor_), 3);
 
   // Legacy writable access marks the buffer without a separate MarkModified.
   *restored.Get<uint64_t>(nodes[1]) = 888;
   auto legacy_write = restored.Save(checkpoint, descriptor_);
   EXPECT_EQ(RuntimeFileCount(objects), 3);
   FixedSizeAllocator reloaded(131072, checkpoint);
-  reloaded.Load(checkpoint, legacy_write, 3);
+  reloaded.Load(checkpoint, reader, legacy_write, 3);
   EXPECT_EQ(*reloaded.Get<const uint64_t>(nodes[1], false), 888);
 
   allocator.Free(nodes[0]);
@@ -573,22 +599,40 @@ TEST_F(ARTAllocatorTest, PackedSaveReusesCleanBuffersAndPersistsMarkedWrites) {
     EXPECT_EQ(path, first[0].address);
 }
 
-TEST_F(ARTAllocatorTest, PackedLoadRejectsInvalidSlices) {
+TEST_F(ARTAllocatorTest, PackedLoadRejectsInvalidSlicesAndCorruptedObjects) {
   auto& checkpoint = *checkpoint_;
   FixedSizeAllocator allocator(131072, checkpoint);
   allocator.New();
   allocator.New();
   auto metadata = allocator.Save(checkpoint, descriptor_);
   FixedSizeAllocator restored(131072, checkpoint);
-  auto invalid = metadata;
-  invalid[0].offset = 2 * FixedSizeBuffer::BUFFER_ALLOC_SIZE;
-  EXPECT_THROW(restored.Load(checkpoint, invalid, 2), SerializationException);
-  invalid = metadata;
-  --invalid[0].length;
-  EXPECT_THROW(restored.Load(checkpoint, invalid, 2), SerializationException);
-  invalid = metadata;
-  invalid[0].checksum[0] ^= 1;
-  EXPECT_THROW(restored.Load(checkpoint, invalid, 2), SerializationException);
+  {
+    auto reader = checkpoint.CreateObjectReader();
+    auto invalid = metadata;
+    invalid[0].offset = 2 * FixedSizeBuffer::BUFFER_ALLOC_SIZE;
+    EXPECT_THROW(restored.Load(checkpoint, reader, invalid, 2),
+                 SerializationException);
+    invalid = metadata;
+    --invalid[0].length;
+    EXPECT_THROW(restored.Load(checkpoint, reader, invalid, 2),
+                 SerializationException);
+  }
+  const auto& slice = metadata.at(0);
+  std::fstream object(slice.address,
+                      std::ios::in | std::ios::out | std::ios::binary);
+  ASSERT_TRUE(object);
+  const auto payload_tail =
+      sizeof(FileHeader) + slice.offset + slice.length - 1;
+  char byte;
+  object.seekg(payload_tail);
+  ASSERT_TRUE(object.get(byte));
+  object.seekp(payload_tail);
+  object.put(static_cast<char>(byte ^ 1));
+  object.close();
+  ASSERT_TRUE(object);
+  auto reader = checkpoint.CreateObjectReader();
+  EXPECT_THROW(restored.Load(checkpoint, reader, metadata, 2),
+               SerializationException);
 }
 
 TEST_F(ARTAllocatorTest, PackedSavePersistsAllocationAndFreeChanges) {
@@ -604,12 +648,13 @@ TEST_F(ARTAllocatorTest, PackedSavePersistsAllocationAndFreeChanges) {
   auto freed = allocator.Save(checkpoint, descriptor_);
   EXPECT_NE(freed[0].address, original[0].address);
   FixedSizeAllocator restored(131063, checkpoint);
-  restored.Load(checkpoint, freed, 1);
+  auto reader = checkpoint.CreateObjectReader();
+  restored.Load(checkpoint, reader, freed, 1);
   EXPECT_EQ(*restored.Get<const uint64_t>(second, false), 123456);
   EXPECT_EQ(restored.New(), first);
   auto allocated = restored.Save(checkpoint, descriptor_);
   EXPECT_NE(allocated[0].address, freed[0].address);
-  allocator.Load(checkpoint, allocated, 2);
+  allocator.Load(checkpoint, reader, allocated, 2);
   EXPECT_EQ(*allocator.Get<const uint64_t>(second, false), 123456);
 }
 
@@ -661,7 +706,8 @@ TEST_F(ARTAllocatorTest, PackedObjectRootsRetainAndCollectOldSnapshots) {
     buffer.address =
         *descriptor->get_path("art_buffer_" + std::to_string(buffer.buffer_id));
   FixedSizeAllocator restored(131072, *latest);
-  restored.Load(*latest, metadata, 2);
+  auto reader = latest->CreateObjectReader();
+  restored.Load(*latest, reader, metadata, 2);
   EXPECT_EQ(*restored.Get<uint64_t>(first), 101);
   EXPECT_EQ(*restored.Get<uint64_t>(second), 201);
 }
