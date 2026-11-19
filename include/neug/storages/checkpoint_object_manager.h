@@ -39,11 +39,18 @@ namespace neug {
 // alive for the duration of the reader to avoid reopening the same object.
 
 class Checkpoint;
+struct ModuleDescriptor;
 
 struct CheckpointObjectSlice {
   // Relative to the object payload, after FileHeader.
   size_t offset;
   size_t length;
+};
+
+struct CheckpointObjectView {
+  const void* data;
+  size_t length;
+  size_t offset;
 };
 
 /// Reuses verified object mappings for a group of checkpoint reads.
@@ -53,10 +60,10 @@ class NEUG_API CheckpointObjectReader {
   CheckpointObjectReader(const CheckpointObjectReader&) = delete;
   CheckpointObjectReader& operator=(const CheckpointObjectReader&) = delete;
 
-  /// Return a pointer to a nonempty payload slice, valid while the reader
-  /// lives.
-  const void* Get(const std::string& address,
-                  const CheckpointObjectSlice& slice);
+  /// Read a named object or slice. Whole objects start at payload offset zero.
+  /// The view is valid for the lifetime of the reader.
+  CheckpointObjectView Get(const ModuleDescriptor& descriptor,
+                           const std::string& name);
 
  private:
   friend class Checkpoint;

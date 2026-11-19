@@ -24,26 +24,36 @@
 
 namespace neug {
 
-const void* CheckpointObjectReader::Get(const std::string& address,
-                                        const CheckpointObjectSlice& slice) {
-  auto entry = objects_.find(address);
+CheckpointObjectView CheckpointObjectReader::Get(
+    const ModuleDescriptor& descriptor, const std::string& name) {
+  const auto address = descriptor.get_path(name);
+  if (!address || address->empty())
+    THROW_CHECKPOINT_EXCEPTION("Missing checkpoint object path: " + name);
+
+  auto entry = objects_.find(*address);
   if (entry == objects_.end()) {
-    auto object = checkpoint_.OpenFile(address, MemoryLevel::kInMemory);
-    if (!object->GetDataSize())
-      THROW_CHECKPOINT_EXCEPTION("Checkpoint object has no payload: " +
-                                 address);
+    auto object = checkpoint_.OpenFile(*address, MemoryLevel::kInMemory);
+    if (object->GetPath().empty())
+      THROW_CHECKPOINT_EXCEPTION("Checkpoint object cannot be opened: " +
+                                 *address);
     if (object->IsDirty())
       THROW_CHECKPOINT_EXCEPTION("Checkpoint object checksum mismatch: " +
-                                 address);
-    entry = objects_.emplace(address, std::move(object)).first;
+                                 *address);
+    entry = objects_.emplace(*address, std::move(object)).first;
   }
-  const auto& object = entry->second;
-  const auto size = object->GetDataSize();
-  if (!slice.length || slice.offset > size ||
-      slice.length > size - slice.offset)
+
+  const auto& object = *entry->second;
+  const auto size = object.GetDataSize();
+  const auto slice = descriptor.get_slice(name);
+  if (!slice)
+    return {object.GetData(), size, 0};
+
+  const auto offset = slice->offset;
+  const auto length = slice->length;
+  if (!length || offset > size || length > size - offset)
     THROW_CHECKPOINT_EXCEPTION("Slice is outside checkpoint object: " +
-                               address);
-  return static_cast<const char*>(object->GetData()) + slice.offset;
+                               *address);
+  return {static_cast<const char*>(object.GetData()) + offset, length, offset};
 }
 
 CheckpointObjectWriter::CheckpointObjectWriter(Checkpoint& checkpoint)

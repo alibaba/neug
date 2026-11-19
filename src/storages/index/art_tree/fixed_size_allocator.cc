@@ -20,10 +20,27 @@
 
 #include "neug/storages/index/art_tree/fixed_size_allocator.h"
 
+#include <charconv>
+#include <string_view>
+
 #include "neug/storages/checkpoint.h"
 #include "neug/storages/container/anon_mmap_container.h"
 #include "neug/utils/exception/exception.h"
 namespace neug::art {
+namespace {
+
+idx_t ParseBufferID(std::string_view value) {
+  idx_t result = 0;
+  const auto* end = value.data() + value.size();
+  const auto [ptr, error] = std::from_chars(value.data(), end, result);
+  if (error != std::errc{} || ptr != end)
+    throw SerializationException("Invalid ART metadata integer: " +
+                                 string(value));
+  return result;
+}
+
+}  // namespace
+
 ARTOptionalIdx::ARTOptionalIdx(idx_t value) : value(value) {}
 ARTOptionalIdx& ARTOptionalIdx::operator=(idx_t index) {
   value = index;
@@ -276,45 +293,42 @@ const ARTBufferMetadataMap& FixedSizeAllocator::SaveMetadata(
       ++it;
   }
 
-  // Replace this allocator's roots, including removing objects whose last
-  // buffer was changed or freed. Older published manifests retain their roots.
-  auto paths = descriptor.paths();
-  for (auto it = paths.begin(); it != paths.end();) {
-    if (it->first.starts_with(buffer_prefix))
-      it = paths.erase(it);
-    else
-      ++it;
-  }
   for (const auto& [id, metadata] : buffer_metadata) {
-    paths.insert_or_assign(buffer_prefix + to_string(id), metadata.address);
+    const auto key = buffer_prefix + to_string(id);
+    descriptor.set_path(key, metadata.address);
+    descriptor.set_slice(key, {metadata.offset, metadata.length});
   }
-  descriptor.mutable_paths() = std::move(paths);
   return buffer_metadata;
 }
+
 void FixedSizeAllocator::Load(Checkpoint& checkpoint,
                               CheckpointObjectReader& reader,
-                              const ARTBufferMetadataMap& saved_metadata,
-                              idx_t expected_segment_count) {
-  // Copy first: the caller may pass this allocator's own directory.
-  auto restored_metadata = saved_metadata;
+                              const ModuleDescriptor& descriptor,
+                              const string& buffer_prefix) {
+  ARTBufferMetadataMap restored_metadata;
   Reset();
-  for (const auto& [id, metadata] : restored_metadata) {
-    if (id != metadata.buffer_id ||
-        metadata.buffer_id > std::numeric_limits<uint32_t>::max() ||
-        buffers.count(metadata.buffer_id) || metadata.address.empty() ||
-        metadata.length != FixedSizeBuffer::BUFFER_ALLOC_SIZE)
+  for (const auto& [key, address] : descriptor.paths()) {
+    if (!key.starts_with(buffer_prefix))
+      continue;
+    const auto id =
+        ParseBufferID(std::string_view(key).substr(buffer_prefix.size()));
+    if (id > std::numeric_limits<uint32_t>::max() || address.empty())
       throw SerializationException("Invalid ART buffer metadata");
-    const void* data;
+    if (restored_metadata.contains(id))
+      throw SerializationException("Duplicate ART buffer ID");
+    CheckpointObjectView view;
     try {
-      data = reader.Get(metadata.address, {metadata.offset, metadata.length});
+      view = reader.Get(descriptor, key);
     } catch (const exception::CheckpointException& error) {
       throw SerializationException(string(error.what()));
     }
+    if (view.length != FixedSizeBuffer::BUFFER_ALLOC_SIZE)
+      throw SerializationException("Invalid ART buffer length: " + key);
     // Runtime buffers stay independent, so growing/detaching one does not
     // change addresses or retain an entire packed object mapping.
     auto buffer = std::make_unique<FixedSizeBuffer>(
         *checkpoint.runtime_allocator(), memory_level);
-    std::memcpy(buffer->container->GetData(), data, metadata.length);
+    std::memcpy(buffer->container->GetData(), view.data, view.length);
     SegmentHandle handle(*buffer, 0);
     ValidityMask free_mask(handle.GetPtr<validity_t>(),
                            available_segments_per_buffer);
@@ -325,12 +339,12 @@ void FixedSizeAllocator::Load(Checkpoint& checkpoint,
     buffer->dirty = false;
     total_segment_count += buffer->segment_count;
     if (buffer->segment_count < available_segments_per_buffer)
-      buffers_with_free_space.insert(metadata.buffer_id);
-    buffers.emplace(metadata.buffer_id, std::move(buffer));
+      buffers_with_free_space.insert(id);
+    buffers.emplace(id, std::move(buffer));
+    restored_metadata.emplace(
+        id, ARTBufferMetadata{id, address, view.offset, view.length});
   }
   NextBufferWithFreeSpace();
-  if (total_segment_count != expected_segment_count)
-    throw SerializationException("Invalid ART segment count");
   buffer_metadata = std::move(restored_metadata);
   runtime_allocator = checkpoint.runtime_allocator();
 }

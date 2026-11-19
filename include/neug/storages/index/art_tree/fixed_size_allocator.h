@@ -57,7 +57,7 @@ class FixedSizeAllocator {
  public:
   explicit FixedSizeAllocator(idx_t segment_size, Checkpoint& checkpoint,
                               MemoryLevel level = MemoryLevel::kInMemory);
-  // Save a single allocator and record its references in the target checkpoint.
+  // Save a single allocator into a descriptor for the new checkpoint.
   const ARTBufferMetadataMap& Save(Checkpoint& checkpoint,
                                    ModuleDescriptor& descriptor);
   void Detach(Checkpoint& checkpoint, MemoryLevel level);
@@ -84,14 +84,14 @@ class FixedSizeAllocator {
   // Keep this allocator alive and hold its write lock through writer.Commit().
   // Uncommitted buffers remain dirty for retry.
   void Save(CheckpointObjectWriter& writer);
-  // Serialize object references after a successful writer.Commit().
+  // After writer.Commit(), write this allocator's directory into the new
+  // checkpoint descriptor. Allocators sharing it use distinct prefixes.
   const ARTBufferMetadataMap& SaveMetadata(ModuleDescriptor& descriptor,
                                            const string& buffer_prefix);
   // Allocate buffers from checkpoint and read object slices through reader.
   // Allocators in the same tree can share the reader.
   void Load(Checkpoint& checkpoint, CheckpointObjectReader& reader,
-            const ARTBufferMetadataMap& saved_metadata,
-            idx_t expected_segment_count);
+            const ModuleDescriptor& descriptor, const string& buffer_prefix);
   // Report memory requested by the ART index, excluding additional overhead
   // introduced by the underlying allocator's size-rounding policy.
   MemoryUsage GetMemoryUsage() const;
