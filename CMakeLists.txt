@@ -887,6 +887,7 @@ file(GLOB_RECURSE FILES_NEED_FORMAT
         "src/**/*.cc"
         "src/**/*.cpp"
         "tests/**/*.h"
+        "tests/c_api/*.c"
         "tests/**/*.cc"
         "tests/**/*.cpp"
         "tools/**/*.h"

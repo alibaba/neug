@@ -403,6 +403,35 @@ TEST_F(ValueTest, JsonDeserialization) {
   EXPECT_THROW(Value::FromJson("[1, 2, 3]", array_type), std::exception);
 }
 
+TEST_F(ValueTest, JsonDeserializationPreservesEmbeddedZero) {
+  const auto value = Value::FromJson(R"("a\u0000b")", DataType::VARCHAR);
+  EXPECT_EQ(StringValue::Get(value), std::string("a\0b", 3));
+}
+
+TEST_F(ValueTest, JsonDeserializationRejectsWrongTypesAndIntegerRanges) {
+  const std::vector<std::pair<std::string, DataType>> invalid = {
+      {"\"true\"", DataType::BOOLEAN},
+      {"2147483648", DataType::BOOLEAN},
+      {"true", DataType::DOUBLE},
+      {"\"1.0\"", DataType::FLOAT},
+      {"1.5", DataType::INT32},
+      {"2147483648", DataType::INT32},
+      {"-2147483649", DataType::INT32},
+      {"9223372036854775808", DataType::INT64},
+      {"-1", DataType::UINT32},
+      {"4294967296", DataType::UINT32},
+      {"-1", DataType::UINT64},
+      {"1.5", DataType::UINT64},
+      {"42", DataType::VARCHAR},
+      {"{}", DataType::List(DataType::INT32)},
+      {"[\"wrong\"]", DataType::List(DataType::INT32)},
+  };
+  for (const auto& [json, type] : invalid) {
+    SCOPED_TRACE(json);
+    EXPECT_THROW(Value::FromJson(json, type), std::exception);
+  }
+}
+
 TEST_F(ValueTest, CopyAndMoveSemantics) {
   Value original = Value::INT32(42);
 
