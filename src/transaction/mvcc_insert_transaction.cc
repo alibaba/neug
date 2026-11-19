@@ -178,6 +178,9 @@ Status MvccInsertTransaction::AddVertex(label_t label, const Value& id,
   }
   create_id_indexer_if_not_exists(label);
   if (!GetVertexIndex(label, id, vid)) {
+    if (vertex_nums_[label] >= INVALID_VID - added_vertices_base_[label]) {
+      THROW_STORAGE_EXCEPTION("Temporary VID capacity exhausted");
+    }
     added_vertices_[label]->_add(id);
     vid = vertex_nums_[label] + added_vertices_base_[label];
     vertex_nums_[label]++;
@@ -494,7 +497,15 @@ void MvccInsertTransaction::create_id_indexer_if_not_exists(label_t label) {
           "got: " +
           std::to_string(type));
     }
-    added_vertices_base_[label] = view_->LidNum(label);
+    // Concurrent inserts can acquire real VIDs above the current LidNum.
+    // Capacity cannot grow while this transaction holds insert admission,
+    // so transaction-local VIDs start outside the entire real-VID range.
+    const auto capacity =
+        guard_.get().mutable_graph()->get_vertex_table(label).Capacity();
+    if (capacity > INVALID_VID) {
+      THROW_STORAGE_EXCEPTION("Temporary VID capacity exhausted");
+    }
+    added_vertices_base_[label] = static_cast<vid_t>(capacity);
   }
 }
 

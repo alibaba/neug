@@ -190,5 +190,46 @@ TEST_F(InsertVisibilityTest, LaterTimestampDoesNotEnterEarlierInsert) {
   EXPECT_TRUE(next.GetVertexIndex(0, Value::INT64(1), lid));
 }
 
+TEST_F(InsertVisibilityTest, BufferedVertexDoesNotAliasEarlierCommit) {
+  VisibilityWalWriter writer;
+  auto gap = Begin(writer);
+  auto earlier = Begin(writer);
+  AddPair(earlier);
+
+  auto mixed = Begin(writer);
+  vid_t temporary;
+  ASSERT_TRUE(mixed.AddVertex(0, Value::INT64(3), {}, temporary).ok());
+  // The earlier insert acquires real VIDs only after mixed has allocated its
+  // transaction-local VID. Its commit is still above the reader watermark.
+  ASSERT_TRUE(earlier.Commit());
+  ASSERT_EQ(vm_.insert_read_timestamp(), 0u);
+  vid_t src, dst, buffered;
+  ASSERT_TRUE(mixed.GetVertexIndex(0, Value::INT64(1), src));
+  ASSERT_TRUE(mixed.GetVertexIndex(0, Value::INT64(2), dst));
+  ASSERT_TRUE(mixed.GetVertexIndex(0, Value::INT64(3), buffered));
+  EXPECT_EQ(buffered, temporary);
+  EXPECT_NE(src, temporary);
+  EXPECT_NE(dst, temporary);
+  const void* prop = nullptr;
+  EXPECT_NO_THROW(
+      EXPECT_TRUE(mixed.AddEdge(0, src, 0, temporary, 0, {}, prop).ok()));
+  EXPECT_NO_THROW(
+      EXPECT_TRUE(mixed.AddEdge(0, temporary, 0, dst, 0, {}, prop).ok()));
+  ASSERT_TRUE(mixed.Commit());
+  gap.Abort();
+
+  SnapshotGuard snapshot(*store_);
+  const auto& view = snapshot.get().view();
+  const auto ts = vm_.insert_read_timestamp();
+  ASSERT_TRUE(view.get_lid(0, Value::INT64(3), buffered, ts));
+  auto outgoing = view.GetGenericOutgoingView(0, 0, 0, ts).get_edges(src);
+  ASSERT_NE(outgoing.begin(), outgoing.end());
+  EXPECT_EQ(outgoing.begin().get_vertex(), buffered);
+  auto incoming = view.GetGenericIncomingView(0, 0, 0, ts).get_edges(dst);
+  ASSERT_NE(incoming.begin(), incoming.end());
+  EXPECT_EQ(incoming.begin().get_vertex(), buffered);
+  EXPECT_EQ(view.EdgeNum(0, 0, 0), 2u);
+}
+
 }  // namespace
 }  // namespace neug
