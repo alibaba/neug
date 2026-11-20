@@ -78,6 +78,7 @@ class FixedSizeAllocator {
   bool Empty() const;
   void RemoveEmptyBuffers();
   void VerifyBuffers() const;
+  void VerifyReference(const IndexPointer ptr) const;
   // Keep this allocator alive and serialize mutations through writer.Commit().
   void Save(CheckpointObjectWriter& writer);
   // After writer.Commit(), write this allocator's directory into the new
