@@ -25,6 +25,7 @@
 #include "neug/storages/checkpoint.h"
 #include "neug/storages/index/art_tree/art_builder.h"
 #include "neug/storages/index/art_tree/art_operator.h"
+#include "neug/storages/index/art_tree/art_scanner.h"
 #include "neug/storages/index/art_tree/base_leaf.h"
 #include "neug/storages/index/art_tree/base_node.h"
 #include "neug/storages/index/art_tree/iterator.h"
@@ -149,6 +150,7 @@ std::unique_ptr<ArtTree> ArtTree::Load(const ModuleDescriptor& descriptor,
     throw SerializationException("Invalid ART prefix size");
   auto result = std::make_unique<ArtTree>(checkpoint, level, prefix_count);
   auto reader = checkpoint.CreateObjectReader();
+  idx_t total_nodes = 0;
   for (idx_t i = 0; i < ALLOCATOR_COUNT; ++i) {
     auto& allocator = *(*result->allocators)[i];
     const auto prefix = ALLOCATOR_PREFIX + std::to_string(i) + "_";
@@ -168,9 +170,32 @@ std::unique_ptr<ArtTree> ArtTree::Load(const ModuleDescriptor& descriptor,
     if (allocator.GetSegmentCount() !=
         ReadMetadata(descriptor, prefix + "segment_count"))
       throw SerializationException("ART segment count mismatch");
+    total_nodes += allocator.GetSegmentCount();
   }
   result->tree.Set(ReadMetadata(descriptor, "art_root"));
-  result->Verify();
+  if (result->tree.Get() != 0) {
+    idx_t visited_nodes = 0;
+    // The scanner calls this before dereferencing each node.
+    ARTConstScanPreorder(
+        *result, result->tree, [&](const NodePtr& node) -> OptionalNodePtr {
+          const auto type = node.GetType();
+          if (type == NType::LEAF_INLINED)
+            return {};
+
+          NodePtr::GetAllocator(*result, type).VerifyReference(node);
+          if (++visited_nodes > total_nodes)
+            throw SerializationException(
+                "ART traversal exceeds allocated nodes");
+
+          if (type == NType::PREFIX) {
+            const ConstNodeHandle handle(*result, node);
+            const auto length = handle.GetPtr()[prefix_count];
+            if (length == 0 || length > prefix_count)
+              throw SerializationException("Invalid ART prefix length");
+          }
+          return node;
+        });
+  }
   return result;
 }
 

@@ -149,6 +149,69 @@ TEST_F(ARTTreeTest, RejectTruncatedAndMissingBuffer) {
   invalid.mutable_paths().erase(key);
   EXPECT_THROW(ArtTree::Load(invalid, checkpoint), std::exception);
 }
+
+TEST_F(ARTTreeTest, RejectInvalidRootReference) {
+  auto& checkpoint = *checkpoint_;
+  ArtTree tree(checkpoint);
+  ASSERT_TRUE(tree.Insert(Value::STRING("key"), 1));
+  ModuleDescriptor saved;
+  tree.Save(checkpoint, saved);
+
+  ASSERT_EQ(saved.get("art_allocator_0_segment_count"), "1");
+  const auto encoded_root = std::stoull(saved.get("art_root").value());
+  NodePtr root;
+  root.Set(encoded_root);
+  ASSERT_EQ(root.GetType(), NType::PREFIX);
+  ASSERT_EQ(root.GetOffset(), 0);
+
+  const auto type = encoded_root & IndexPointer::AND_METADATA;
+  const auto buffer = encoded_root & IndexPointer::AND_BUFFER_ID;
+  const std::pair<const char*, idx_t> invalid_roots[] = {
+      {"invalid type", (idx_t{0x7f} << IndexPointer::SHIFT_METADATA) | buffer},
+      {"missing buffer", type | IndexPointer::AND_BUFFER_ID},
+      {"out of bounds slot",
+       type | buffer |
+           (IndexPointer::AND_OFFSET << IndexPointer::SHIFT_OFFSET)},
+      {"unallocated slot",
+       type | buffer | (idx_t{1} << IndexPointer::SHIFT_OFFSET)},
+  };
+  for (const auto& [reason, invalid_root] : invalid_roots) {
+    SCOPED_TRACE(reason);
+    auto invalid = saved;
+    invalid.set("art_root", std::to_string(invalid_root));
+    EXPECT_THROW(ArtTree::Load(invalid, checkpoint), SerializationException);
+  }
+}
+
+TEST_F(ARTTreeTest, RejectInvalidPrefixChildReference) {
+  auto& checkpoint = *checkpoint_;
+  ArtTree tree(checkpoint);
+  ASSERT_TRUE(tree.Insert(Value::STRING("key"), 1));
+  ModuleDescriptor saved;
+  tree.Save(checkpoint, saved);
+
+  NodePtr root;
+  root.Set(std::stoull(saved.get("art_root").value()));
+  ASSERT_EQ(root.GetType(), NType::PREFIX);
+  const auto segment_size =
+      std::stoull(saved.get("art_allocator_0_segment_size").value());
+  FixedSizeAllocator allocator(segment_size, checkpoint);
+  auto reader = checkpoint.CreateObjectReader();
+  const std::string prefix = "art_allocator_0_buffer_";
+  allocator.Load(checkpoint, reader, saved, prefix);
+  const idx_t invalid_child =
+      (root.Get() & IndexPointer::AND_METADATA) | IndexPointer::AND_BUFFER_ID;
+  ARTStore(invalid_child, allocator.Get(root) + tree.PrefixCount() + 1);
+
+  // Submit valid object bytes so the reader reaches reference validation.
+  auto writer = checkpoint.CreateObjectWriter();
+  allocator.Save(writer);
+  writer.Commit();
+  auto invalid = saved;
+  allocator.SaveMetadata(invalid, prefix);
+  EXPECT_THROW(ArtTree::Load(invalid, checkpoint), SerializationException);
+}
+
 TEST_F(ARTTreeTest, MultipleBuffersAndStableCheckpoint) {
   ArtTree tree(*checkpoint_, MemoryLevel::kInMemory, 239);
   for (unsigned i = 0; i < 1500; ++i) {
