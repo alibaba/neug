@@ -22,6 +22,7 @@
 
 #include "neug/storages/checkpoint_file_manager.h"
 #include "neug/storages/checkpoint_manifest.h"
+#include "neug/storages/checkpoint_object_manager.h"
 #include "neug/storages/module_descriptor.h"
 
 namespace neug {
@@ -91,6 +92,16 @@ class Checkpoint {
   /// Consume @p buffer and publish it as an immutable object.
   std::string Commit(IDataContainer& buffer) {
     return file_mgr_->Commit(buffer);
+  }
+
+  /// Open a writer for appending fragments to a single immutable object.
+  CheckpointObjectWriter CreateObjectWriter() {
+    return CheckpointObjectWriter(*this);
+  }
+
+  /// Open a reader that maps each requested immutable object once.
+  CheckpointObjectReader CreateObjectReader() {
+    return CheckpointObjectReader(*this);
   }
 
   /// Set the complete in-memory manifest. CheckpointManager persists it before
