@@ -16,6 +16,7 @@
 #pragma once
 
 #include <memory>
+#include <mutex>
 #include <string>
 #include <unordered_map>
 #include <unordered_set>
@@ -196,6 +197,7 @@ class StorageIndexManager {
   std::unordered_map<std::string, PendingIndex> pending_indexes_;
   std::vector<std::shared_ptr<const PendingIndexMutation>> pending_mutations_;
   std::unordered_set<std::string> dirty_index_names_;
+  std::mutex insert_dirty_mutex_;
   bool catalog_dirty_{false};
 };
 

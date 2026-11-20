@@ -86,6 +86,9 @@ struct ShowIndexStats {
 // Stores the index query parameters, i.e., target value, comparison type, etc.
 struct IndexQueryParams {
   virtual ~IndexQueryParams() = default;
+  // Query-scoped view. The caller must retain the graph snapshot through
+  // Search.
+  std::shared_ptr<const VertexSet> vertex_set;
 };
 
 struct SearchResult {
@@ -194,6 +197,18 @@ class NEUG_API StorageIndex : public Module {
    */
   result<std::vector<SearchResult>> Search(const IndexQueryParams& params);
 
+  // Addressable slots in the VID-to-index-ID mapping; not a live row count.
+  size_t VertexCapacity() const;
+  // Addressable index-ID slots, including holes left by updates/rollback.
+  size_t IndexCapacity() const;
+  // Shared allocation frontier; callers add their reserved insert count to
+  // calculate the required index capacity, checking overflow before Resize.
+  index_id_t GetNextIndexID() const;
+  // Grow each mapping independently to at least the requested slot count.
+  // Requires exclusive framework access. Growth policy belongs to the caller;
+  // this does not resize vector payloads or the physical search index.
+  void Resize(vid_t vertex_size, index_id_t index_size);
+
   /**
    * @brief Insert or replace the index record for a vertex id.
    *
@@ -201,7 +216,8 @@ class NEUG_API StorageIndex : public Module {
    * @param new_value The changed property value and its position in the index.
    */
   virtual Status Upsert(vid_t vid, const IndexValue& new_value) = 0;
-  Status Upsert(vid_t vid, const IndexValues& new_values);
+  Status Upsert(vid_t vid, const IndexValues& new_values,
+                bool insert_safe = true);
 
   /**
    * @brief Mark a vertex as deleted using tombstone semantics.

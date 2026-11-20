@@ -41,6 +41,7 @@
 #include "neug/storages/module/module_factory.h"
 #include "neug/transaction/cow_graph_storage.h"
 #include "neug/transaction/cow_graph_workspace.h"
+#include "neug/transaction/mvcc_insert_transaction.h"
 #include "neug/transaction/snapshot_cow_write_transaction.h"
 #include "neug/transaction/snapshot_read_transaction.h"
 #include "neug/transaction/transaction_utils.h"
@@ -104,6 +105,21 @@ class MaintenanceIndex : public ExampleIndex {
   }
 };
 
+class FailingInsertIndex : public ExampleIndex {
+ public:
+  inline static bool fail_append = false;
+
+ protected:
+  Status AppendImpl(index_id_t id, const IndexValues& values) override {
+    RETURN_IF_NOT_OK(ExampleIndex::AppendImpl(id, values));
+    return fail_append ? Status::RuntimeError("injected index append failure")
+                       : Status::OK();
+  }
+  std::unique_ptr<ExampleIndex> CreateClone() const override {
+    return std::make_unique<FailingInsertIndex>();
+  }
+};
+
 class StubPlanner : public IGraphPlanner {
  public:
   std::string type() const override { return "stub"; }
@@ -126,6 +142,9 @@ class TPIndexTest : public ::testing::Test {
         kVecIndexType, [] { return std::make_unique<VecIndex>(); });
     ModuleFactory::instance().Register("maintenance_index", [] {
       return std::make_unique<MaintenanceIndex>();
+    });
+    ModuleFactory::instance().Register("failing_insert_index", [] {
+      return std::make_unique<FailingInsertIndex>();
     });
   }
 
@@ -425,6 +444,50 @@ class TPIndexTest : public ::testing::Test {
   VersionManager version_manager_;
   CapturingWalWriter wal_writer_;
 };
+
+TEST_F(TPIndexTest, InsertOnlyIndexUndoOnWalFailureAndSnapshotFiltering) {
+  CreatePersonTableAP();
+  ASSERT_TRUE(CreateIndex("idx_person_age", "Person", "age"));
+  auto meta = PersonAgeIndexMeta(*ap_, "second_age");
+  meta->type = "failing_insert";
+  ASSERT_TRUE(ap_->CreateIndex(std::move(meta)));
+  const auto label = graph_->schema().get_vertex_label_id("Person");
+  InsertCapacityRequest capacity;
+  capacity.AddVertex("Person", Value::INT64(100),
+                     {Value::STRING("new"), Value::INT32(30)});
+  capacity.Grow(*graph_);
+  StartSnapshotStore();
+  auto old_read = NewSnapshotReadTransaction();
+  StorageReadInterface old_reader(old_read.view(), old_read.timestamp());
+  auto insert = [&](int64_t key) {
+    const auto ts = version_manager_.acquire_insert_timestamp();
+    MvccInsertTransaction txn(SnapshotGuard(*snapshot_store_), allocator_,
+                              wal_writer_, version_manager_, ts);
+    vid_t vid;
+    EXPECT_TRUE(txn.AddVertex(label, Value::INT64(key),
+                              {Value::STRING("new"), Value::INT32(30)}, vid));
+    return txn.Commit();
+  };
+  FailingInsertIndex::fail_append = true;
+  EXPECT_FALSE(insert(100));
+  FailingInsertIndex::fail_append = false;
+  EXPECT_TRUE(wal_writer_.records.empty());
+  EXPECT_TRUE(SearchPersonNamesInCurrent(30).empty());
+  wal_writer_.failure = CapturingWalWriter::Failure::kPreWrite;
+  EXPECT_FALSE(insert(100));
+  EXPECT_TRUE(wal_writer_.records.empty());
+  EXPECT_TRUE(SearchPersonNamesInCurrent(30).empty());
+  wal_writer_.failure = CapturingWalWriter::Failure::kNone;
+  EXPECT_TRUE(insert(100));
+  EXPECT_TRUE(SearchPersonNames(old_reader, 30).empty());
+  EXPECT_EQ(SearchPersonNamesInCurrent(30), std::vector<std::string>{"new"});
+  auto current = NewSnapshotReadTransaction();
+  StorageReadInterface reader(current.view(), current.timestamp());
+  EXPECT_EQ(SearchPersonNames(reader, 30, "second_age"),
+            std::vector<std::string>{"new"});
+  current.Commit();
+  old_read.Commit();
+}
 
 TEST_F(TPIndexTest, OptimizeIndexesAtomicFailureRetryAndWalReplay) {
   CreatePersonTableAP();
