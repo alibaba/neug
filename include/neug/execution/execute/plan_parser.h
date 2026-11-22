@@ -15,6 +15,7 @@
 #pragma once
 
 #include <memory>
+#include <mutex>
 #include <utility>
 #include <vector>
 
@@ -57,6 +58,11 @@ class PlanParser {
   static ParamsMetaMap parse_params_type(const physical::PhysicalPlan& plan);
 
  private:
+  friend class PlanParserTestAccess;
+
+  void init_impl();
+
+  std::once_flag init_flag_;
   std::vector<std::vector<
       std::pair<std::vector<physical::PhysicalOpr_Operator::OpKindCase>,
                 std::unique_ptr<IOperatorBuilder>>>>
