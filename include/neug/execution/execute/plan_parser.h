@@ -58,6 +58,8 @@ class PlanParser {
   static ParamsMetaMap parse_params_type(const physical::PhysicalPlan& plan);
 
  private:
+  friend class PlanParserTestAccess;
+
   void init_impl();
 
   std::once_flag init_flag_;

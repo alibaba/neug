@@ -45,7 +45,7 @@ runs:
       ctest --output-on-failure -R logical_delete_test -V
       ctest --output-on-failure -R test_connection -V
       ctest --output-on-failure -R test_request -V
-      ctest --output-on-failure --no-tests=error -R '^test_c_api_concurrent_open$' -V
+      ctest --output-on-failure --no-tests=error -R '^test_plan_parser_init$' -V
       ctest --output-on-failure -R test_indexer -V
       # test_db_svc links brpc/bthread and is not built on Windows.
       if [[ "$TEST_PLATFORM" != windows ]]; then

@@ -7,3 +7,6 @@ add_neug_test(
 	test_value.cc
 	test_value_column.cc
 	test_runtime_column.cc)
+
+# Exercise first initialization before any database fixture initializes it.
+add_neug_test(test_plan_parser_init test_plan_parser_init.cc)

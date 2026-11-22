@@ -82,7 +82,7 @@ class Schema;
 namespace execution {
 
 void PlanParser::init() {
-  // All databases share this registry, including concurrently opened ones.
+  // Built-in operator builders have process lifetime, even across DB reopens.
   std::call_once(init_flag_, [this] { init_impl(); });
 }
 

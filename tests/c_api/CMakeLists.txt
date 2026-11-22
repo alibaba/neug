@@ -1,10 +1,6 @@
 add_neug_test(test_c_api
     test_database.cc test_connection.cc test_result.cc test_graph.cc)
 
-# Keep the first concurrent opens in a fresh process: other C API tests open
-# databases in their fixtures and would initialize the shared registry first.
-add_neug_test(test_c_api_concurrent_open test_concurrent_open.cc)
-
 # This source MUST remain C, not a C++ translation unit with a .c suffix.
 add_executable(c_api_smoke smoke.c)
 set_target_properties(c_api_smoke PROPERTIES
