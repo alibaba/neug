@@ -126,6 +126,24 @@ using IndexValues = std::vector<Value>;
  *
  * Extensions (e.g. zvec) provide concrete implementations by subclassing
  * Index and registering them through the ModuleFactory.
+ *
+ * Concurrency contract for every implementation:
+ * - Insert-only transactions share an index instance. AppendImpl may run
+ *   concurrently with other AppendImpl calls and with SearchImpl; searches may
+ *   also overlap each other. The framework does not serialize these calls.
+ * - Each newly inserted VID has one writer. Capacity is reserved before append;
+ *   Upsert(..., insert_safe=false) must not resize. Index ID allocation and
+ *   mapping synchronization do not protect implementation-specific state.
+ * - Failed inserts can roll back through Delete while other inserts/searches
+ *   run. Overrides must preserve this concurrency safety. Uncommitted and
+ *   aborted entries must be excluded using the query's visibility information;
+ *   an allocation frontier alone does not establish MVCC visibility.
+ * - Resize and Detach require exclusive framework access with readers/writers
+ *   drained. Update-mode mutations and checkpoint maintenance are serialized
+ *   by the framework; implementations must preserve COW snapshot isolation.
+ *   Init/Open/Rebind/BulkBuild configure an instance before concurrent use.
+ * Implementations must synchronize their own shared mutable state or avoid
+ * maintaining it. This contract also applies to test extensions.
  */
 class NEUG_API StorageIndex : public Module {
  public:

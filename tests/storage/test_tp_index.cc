@@ -16,11 +16,13 @@
 #include <gtest/gtest.h>
 
 #include <algorithm>
+#include <atomic>
 #include <filesystem>
 #include <memory>
 #include <optional>
 #include <stdexcept>
 #include <string>
+#include <thread>
 #include <utility>
 #include <vector>
 
@@ -925,6 +927,64 @@ TEST_F(TPIndexTest, APCreateVecColumnAndTPUpdateMaintainsVecIndexSearch) {
   auto committed_result = SearchVectorInCurrent({11.5f, 12.5f});
   ASSERT_EQ(committed_result.size(), 1);
   EXPECT_EQ(committed_result.front().vid, first_vid);
+}
+
+TEST_F(TPIndexTest, VecIndexConcurrentAppendAndSearch) {
+  CreateVectorTableAP();
+  auto created = CreateVecIndexAP("idx_vector_embedding");
+  ASSERT_TRUE(created) << created.error().ToString();
+  auto* index = created.value();
+  // Allocate/populate payloads before sharing the index, as required by its
+  // append contract. Use distinct VIDs for the concurrent append writers.
+  constexpr int kWriters = 4;
+  constexpr int kRows = 128;
+  std::vector<vid_t> vids;
+  for (int i = 0; i < kRows; ++i) {
+    vids.push_back(AddVectorAP(i, float(i), 0.0f));
+  }
+  const auto type = DataType::Array(DataType::FLOAT, 2);
+  std::atomic<int> ready{0};
+  std::atomic<bool> start{false};
+  std::vector<std::thread> threads;
+  auto wait = [&] {
+    ready.fetch_add(1);
+    while (!start.load()) {
+      std::this_thread::yield();
+    }
+  };
+  for (int worker = 0; worker < kWriters; ++worker) {
+    threads.emplace_back([&, worker] {
+      wait();
+      for (int i = worker; i < kRows; i += kWriters) {
+        auto value =
+            Value::ARRAY(type, {Value::FLOAT(float(i)), Value::FLOAT(0)});
+        EXPECT_TRUE(index->Upsert(vids[i], IndexValues{value}, false).ok());
+      }
+    });
+  }
+  threads.emplace_back([&] {
+    wait();
+    for (int i = 0; i < kRows; ++i) {
+      VecIndexQueryParams params({float(i), 0.0f});
+      auto found = index->Search(params);
+      ASSERT_TRUE(found);
+      ASSERT_EQ(found->size(), 1);
+      EXPECT_EQ(found->front().vid, vids[i]);
+      EXPECT_EQ(found->front().score, 0.0);
+    }
+  });
+  while (ready.load() != kWriters + 1) {
+    std::this_thread::yield();
+  }
+  start.store(true);
+  for (auto& thread : threads) {
+    thread.join();
+  }
+  VecIndexQueryParams params({float(kRows - 1), 0.0f});
+  auto found = index->Search(params);
+  ASSERT_TRUE(found);
+  ASSERT_EQ(found->size(), 1);
+  EXPECT_EQ(found->front().vid, vids.back());
 }
 
 TEST_F(TPIndexTest, AbortedVectorVertexDeletePreservesReadSnapshot) {

@@ -89,16 +89,20 @@ Status dropVertexIndex(PropertyGraph& graph, label_t label,
 Status renameVertexIndex(PropertyGraph& graph, label_t label,
                          const std::string& old_name,
                          const std::string& new_name);
+// skip_pending is recovery-only; record pending mutations before maintaining
+// active indexes. Normal transactions must continue rejecting pending indexes.
 Status addVertexIndexData(PropertyGraph& graph, label_t label, vid_t lid,
                           const Value& id, const std::vector<Value>& props,
                           const IndexDetachFn& detach_index = nullptr,
-                          bool insert_safe = true);
+                          bool insert_safe = true, bool skip_pending = false);
 Status updateVertexIndexData(PropertyGraph& graph, label_t label, vid_t lid,
                              int32_t col_id, const Value& value,
-                             const IndexDetachFn& detach_index = nullptr);
+                             const IndexDetachFn& detach_index = nullptr,
+                             bool skip_pending = false);
 Status deleteVertexIndexData(PropertyGraph& graph, label_t label,
                              const std::vector<vid_t>& vids,
-                             const IndexDetachFn& detach_index = nullptr);
+                             const IndexDetachFn& detach_index = nullptr,
+                             bool skip_pending = false);
 
 // Recovery-only index. Stores offsets, never pointers into graph buffers, and
 // survives append/growth and graph clones. Clear after compaction or schema

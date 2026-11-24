@@ -293,7 +293,21 @@ StorageIndexManager::GetIndexesContainingProperty(
 
 neug::result<std::vector<BoundIndexRef>>
 StorageIndexManager::GetIndexesContainingPropertyForUpdate(
-    label_t label_id, const std::string& property_name) {
+    label_t label_id, const std::string& property_name, bool skip_pending) {
+  if (skip_pending) {
+    // Recovery has already recorded the corresponding pending mutation.
+    std::vector<BoundIndexRef> result;
+    for (const auto& [name, index] : indexes_) {
+      if (!index || index->GetMeta().schema.label_id != label_id)
+        continue;
+      auto column = index->GetMeta().schema.FindProperty(property_name);
+      if (column) {
+        dirty_index_names_.insert(name);
+        result.push_back({index.get(), *column});
+      }
+    }
+    return result;
+  }
   auto indexes = GetIndexesContainingProperty(label_id, property_name);
   if (!indexes) {
     return indexes;
@@ -305,11 +319,11 @@ StorageIndexManager::GetIndexesContainingPropertyForUpdate(
 }
 
 neug::result<std::vector<StorageIndex*>>
-StorageIndexManager::GetIndexesForUpdate(label_t label_id) {
+StorageIndexManager::GetIndexesForUpdate(label_t label_id, bool skip_pending) {
   std::lock_guard<std::mutex> lock(insert_dirty_mutex_);
   std::vector<StorageIndex*> result;
   for (const auto& [name, pending] : pending_indexes_) {
-    if (pending.meta.schema.label_id == label_id) {
+    if (!skip_pending && pending.meta.schema.label_id == label_id) {
       return tl::unexpected(
           PendingIndexError(name, "access", pending.descriptor.module_type));
     }

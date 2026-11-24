@@ -114,12 +114,14 @@ class StorageIndexManager {
       label_t label_id, const std::string& property_name) const;
 
   /// Return indexes that are about to be mutated and mark them dirty for
-  /// incremental checkpoint persistence.
+  /// incremental checkpoint persistence. skip_pending is for WAL recovery only:
+  /// the caller must separately record mutations for pending indexes.
   neug::result<std::vector<BoundIndexRef>>
   GetIndexesContainingPropertyForUpdate(label_t label_id,
-                                        const std::string& property_name);
+                                        const std::string& property_name,
+                                        bool skip_pending = false);
   neug::result<std::vector<StorageIndex*>> GetIndexesForUpdate(
-      label_t label_id);
+      label_t label_id, bool skip_pending = false);
 
   bool HasPendingIndex(label_t label_id) const;
   bool HasPendingIndexContainingProperty(

@@ -54,7 +54,6 @@ class VecSource {
 
   size_t dimension() const { return dimension_; }
   size_t vector_count() const { return vector_count_; }
-  void set_vector_count(size_t vector_count) { vector_count_ = vector_count; }
 
  private:
   const VecColumn* column_ = nullptr;
@@ -80,8 +79,7 @@ class VecIndex final : public StorageIndex {
     auto* mutable_column = const_cast<VecColumn*>(column);
     index_id_accessor_ = std::make_unique<VecColumnBackedIndexIDAccessor>(
         *mutable_column->get_offset_accessor());
-    source_ = std::make_unique<VecSource>(column,
-                                          index_id_accessor_->GetNextIndexID());
+    column_ = column;
     return Status::OK();
   }
 
@@ -128,27 +126,30 @@ class VecIndex final : public StorageIndex {
       RETURN_STATUS_ERROR(StatusCode::ERR_INVALID_ARGUMENT,
                           "VecIndex requires VecIndexQueryParams");
     }
-    if (!source_) {
+    if (!column_) {
       RETURN_STATUS_ERROR(StatusCode::ERR_INTERNAL_ERROR,
                           "VecIndex is not bound to a VecColumn");
     }
-    if (vec_params->query.size() != source_->dimension()) {
+    // Capture the atomic allocation bound once per query. This is not an
+    // MVCC boundary: mappings and vertex_set still filter individual slots.
+    const VecSource source(column_, index_id_accessor_->GetVisibleLimit());
+    if (vec_params->query.size() != source.dimension()) {
       RETURN_STATUS_ERROR(StatusCode::ERR_INVALID_ARGUMENT,
                           "VecIndex query dimension does not match the column");
     }
 
     index_id_t best_id = INVALID_INDEX_ID;
     double best_distance = std::numeric_limits<double>::max();
-    for (index_id_t node_id = 0; node_id < source_->vector_count(); ++node_id) {
+    for (index_id_t node_id = 0; node_id < source.vector_count(); ++node_id) {
       const auto vid = index_id_accessor_->GetVIDByIndexID(node_id);
       if (vid == INVALID_VID ||
           (params.vertex_set && !params.vertex_set->valid(vid))) {
         continue;
       }
       const auto* vector =
-          static_cast<const float*>(source_->get_vector(node_id));
+          static_cast<const float*>(source.get_vector(node_id));
       double distance = 0.0;
-      for (size_t i = 0; i < source_->dimension(); ++i) {
+      for (size_t i = 0; i < source.dimension(); ++i) {
         const double delta =
             static_cast<double>(vector[i]) - vec_params->query[i];
         distance += delta * delta;
@@ -169,16 +170,13 @@ class VecIndex final : public StorageIndex {
       return Status(StatusCode::ERR_INVALID_ARGUMENT,
                     "VecIndex requires exactly one value");
     }
-    // VecIndex stores no index data. VecSource observes values directly from
-    // the bound VecColumn buffer.
-    if (source_) {
-      source_->set_vector_count(index_id_accessor_->GetNextIndexID());
-    }
+    // VecColumn owns the payload and atomic allocation bound. No shared
+    // cached count is updated here, so concurrent appends have no local state.
     return Status::OK();
   }
 
  private:
-  std::unique_ptr<VecSource> source_;
+  const VecColumn* column_ = nullptr;
 };
 
 }  // namespace neug
