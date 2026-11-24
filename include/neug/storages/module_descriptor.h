@@ -23,6 +23,7 @@
 #include <rapidjson/document.h>
 
 #include "neug/config.h"
+#include "neug/storages/checkpoint_object_manager.h"
 
 namespace neug {
 
@@ -98,6 +99,19 @@ struct ModuleDescriptor {
   ModuleDescriptor& set_path(const std::string& name, std::string path) {
     paths_[name] = std::move(path);
     return *this;
+  }
+
+  /// Record the payload range for a named object reference.
+  void set_slice(const std::string& name, CheckpointObjectSlice slice) {
+    slices_.insert_or_assign(name, slice);
+  }
+
+  std::optional<CheckpointObjectSlice> get_slice(
+      const std::string& name) const {
+    const auto it = slices_.find(name);
+    if (it == slices_.end())
+      return std::nullopt;
+    return it->second;
   }
 
   /// Look up a path by name.  Returns std::nullopt when absent.
@@ -186,6 +200,8 @@ struct ModuleDescriptor {
   /// Resolved immutable object paths a Module owns, keyed by an arbitrary
   /// local name (e.g. "nbr_list", "items").
   std::unordered_map<std::string, std::string> paths_;
+  /// Optional payload ranges, stored separately from the object paths.
+  std::unordered_map<std::string, CheckpointObjectSlice> slices_;
 
   /// Named references to other flat module entries. For example, ArrayColumn
   /// stores its element column under refs_["element"].
