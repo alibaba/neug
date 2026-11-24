@@ -985,7 +985,10 @@ def test_indexed_insert_cold_recovery_with_pending_indexes(
         assert states == {'vec': 'active' if preload == 'vector_search' else 'pending',
                           'txt': 'active' if preload == 'fts' else 'pending'}, states
         def check_vector():
-            rows = list(conn.execute("MATCH(n:Item) RETURN n.id, vector_distance_l2(n.v,[1.0,0.0]) AS score ORDER BY score LIMIT 10;"))
+            rows = list(conn.execute(
+                "MATCH(n:Item) RETURN n.id, "
+                "vector_distance_l2(n.v,[1.0,0.0]) AS score ORDER BY score LIMIT 10;"
+            ))
             assert rows == [[1,0.0],[2,1.0],[0,81.0]], rows
         def check_text():
             rows = list(conn.execute("MATCH(n:Item) RETURN n.id, bm25(n.text,'common') AS score ORDER BY score LIMIT 10;"))
