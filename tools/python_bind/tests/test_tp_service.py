@@ -35,6 +35,31 @@ from neug.session import Session
 logger = logging.getLogger(__name__)
 
 
+def test_property_scans_preserve_label_ids(
+    tmp_path, unused_tcp_port, check_label_hole_property_scans
+):
+    db = Database(
+        str(tmp_path / "label_holes"), max_thread_num=1, checkpoint_on_close=False
+    )
+    session = None
+    try:
+        endpoint = db.serve(
+            host="127.0.0.1",
+            port=unused_tcp_port,
+            blocking=False,
+            thread_num=1,
+            auto_compaction=False,
+        )
+        wait_for_server_ready(endpoint)
+        session = Session.open(endpoint, timeout="10s")
+        check_label_hole_property_scans(session)
+    finally:
+        if session is not None:
+            session.close()
+        db.stop_serving()
+        db.close()
+
+
 @pytest.fixture(scope="module")
 def setup_database(tmp_path_factory):
     db_dir = str(tmp_path_factory.mkdtemp("test_batch_loading"))

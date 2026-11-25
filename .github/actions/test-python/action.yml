@@ -50,12 +50,10 @@ runs:
       python -m pytest -sv tests/test_alter_property.py
       python -m pytest -sv tests/test_ddl.py
       python -m pytest -sv tests/test_query.py
-      python -m pytest -sv tests/test_vertex_property_scan.py -k embedded
       # Temporarily skip TP service tests on Windows: concurrent updates to
       # the same vertex time out.
       if [[ "$RUNNER_OS" != Windows ]]; then
         python -m pytest -sv tests/test_tp_service.py
-        python -m pytest -sv tests/test_vertex_property_scan.py -k tp
       fi
       python -m pytest -sv tests/test_load.py
       python -m pytest -sv tests/test_load_array.py
