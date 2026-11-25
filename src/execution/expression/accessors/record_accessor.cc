@@ -49,14 +49,15 @@ class BindedRecordVertexPropertyExpr : public RecordExprBase {
       : tag_(tag), property_name_(property_name), type_(type) {
     const auto& storage_interface =
         dynamic_cast<const StorageReadInterface&>(storage);
-    property_columns_.reserve(storage.schema().vertex_label_frontier());
+    // Keep tombstone slots so columns remain indexed by the original label ID.
+    property_columns_.resize(storage.schema().vertex_label_frontier());
     for (label_t label = 0; label < storage.schema().vertex_label_frontier();
          ++label) {
       if (!storage.schema().is_vertex_label_valid(label)) {
         continue;
       }
-      property_columns_.emplace_back(
-          storage_interface.GetVertexPropColumn(label, property_name_));
+      property_columns_[label] =
+          storage_interface.GetVertexPropColumn(label, property_name_);
     }
   }
 
