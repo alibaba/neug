@@ -195,7 +195,11 @@ result<QueryResult> ServiceTransactionManager::Execute(
       }
       return query_result;
     } catch (const std::exception& e) {
+      entry->context.AbortAndMarkRollbackOnly();
       RETURN_ERROR(Status::RuntimeError(e.what()));
+    } catch (...) {
+      entry->context.AbortAndMarkRollbackOnly();
+      RETURN_ERROR(Status::InternalError("Failed to execute transaction."));
     }
   }();
   if (!response) {
@@ -223,17 +227,23 @@ Status ServiceTransactionManager::Commit(std::string_view transaction_id) {
   }
 
   Status status;
-  if (entry->context.IsReadOnly()) {
-    status = entry->context.Commit();
-  } else {
-    status = entry->context.PrepareTpSnapshotCommit();
-    if (status.ok() && Expired(*entry)) {
-      entry->context.Rollback();
-      status = TransactionExpired();
+  try {
+    if (entry->context.IsReadOnly()) {
+      status = entry->context.Commit();
+    } else {
+      status = entry->context.PrepareTpSnapshotCommit();
+      if (status.ok() && Expired(*entry)) {
+        entry->context.Rollback();
+        status = TransactionExpired();
+      }
+      if (status.ok()) {
+        status = entry->context.CommitPreparedTpSnapshot();
+      }
     }
-    if (status.ok()) {
-      status = entry->context.CommitPreparedTpSnapshot();
-    }
+  } catch (const std::exception& e) {
+    status = Status::RuntimeError(e.what());
+  } catch (...) {
+    status = Status::InternalError("Failed to commit transaction.");
   }
   if (!status.ok() && entry->context.IsActive()) {
     entry->context.Rollback();

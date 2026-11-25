@@ -30,6 +30,17 @@ add_neug_test(test_query_result test_query_result.cc)
 
 add_neug_test(test_query_result_list test_query_result_list.cc)
 
+add_neug_test(test_service_http test_service_http.cc)
+set_tests_properties(test_service_http PROPERTIES TIMEOUT 60)
+if (NOT BUILD_HTTP_SERVER)
+    # Exercise the native HTTP boundary even in core-only developer builds.
+    target_sources(test_service_http PRIVATE
+        ../../src/server/httplib_transport.cc
+        ../../src/server/tp_execution_slot_pool.cc
+        ../../src/server/tp_service_runtime.cc
+        ../../src/server/service_transaction_manager.cc)
+endif()
+
 add_neug_test(test_column test_column.cc)
 
 add_neug_test(test_explain_profile test_explain_profile.cpp)

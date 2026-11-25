@@ -125,7 +125,7 @@ jobs:
             schema_test logical_delete_test test_indexer test_mmap_container
             test_connection test_query_result test_query_result_list test_column
             test_explain_profile test_request test_execution_slot test_file_lock
-            test_plan_parser_init
+            test_plan_parser_init test_service_http
           )
           test_pattern=$(printf '%s|' "${cpp_tests[@]}")
           ctest --test-dir build-lite -R "^(${test_pattern%|})$" \
