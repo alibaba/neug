@@ -144,41 +144,6 @@ static Status renameVertexIndex(PropertyGraph& graph, label_t label,
   return Status::OK();
 }
 
-// Appends index entries for one newly inserted vertex row.
-static Status addVertexIndexData(PropertyGraph& graph, label_t label, vid_t lid,
-                                 const Value& id,
-                                 const std::vector<Value>& props) {
-  const auto& v_schema = graph.schema().get_vertex_schema(label);
-  auto& index_manager = graph.mutable_index_manager();
-
-  // Build every indexed tuple in metadata order. Primary keys are stored
-  // separately from regular properties, so read the supplied id explicitly.
-  const auto& pk_name = std::get<1>(v_schema->primary_keys[0]);
-  auto indexes = index_manager.GetIndexesForUpdate(label);
-  if (!indexes) {
-    return indexes.error();
-  }
-  for (auto* index : indexes.value()) {
-    IndexValues values;
-    for (const auto& column : index->GetMeta().schema.columns) {
-      if (column.property_name == pk_name) {
-        values.push_back(id);
-        continue;
-      }
-      auto it = std::find(v_schema->property_names.begin(),
-                          v_schema->property_names.end(), column.property_name);
-      if (it == v_schema->property_names.end()) {
-        return Status::InternalError("Indexed property does not exist");
-      }
-      auto pos = static_cast<size_t>(
-          std::distance(v_schema->property_names.begin(), it));
-      values.push_back(pos < props.size() ? props[pos] : Value());
-    }
-    RETURN_IF_NOT_OK(index->Upsert(lid, values));
-  }
-  return Status::OK();
-}
-
 // Appends index entries for a batch of newly inserted vertex rows.
 static Status batchAddVertexIndexData(PropertyGraph& graph, label_t label,
                                       const std::vector<vid_t>& vids) {
@@ -258,9 +223,10 @@ static Status deleteVertexIndexData(PropertyGraph& graph, label_t label,
 }  // namespace
 
 result<std::vector<SearchResult>> StorageReadInterface::IndexSearch(
-    const std::string& unique_index_name,
-    const IndexQueryParams& params) const {
+    const std::string& unique_index_name, IndexQueryParams& params) const {
   GS_AUTO(index, view_.GetIndexByName(unique_index_name));
+  params.vertex_set = std::make_shared<VertexSet>(
+      GetVertexSet(index->GetMeta().schema.label_id));
   return index->Search(params);
 }
 

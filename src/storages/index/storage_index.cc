@@ -24,6 +24,7 @@
 
 #include "neug/storages/checkpoint.h"
 #include "neug/storages/checkpoint_manifest.h"
+#include "neug/storages/graph/vertex_table.h"
 
 namespace neug {
 
@@ -64,7 +65,24 @@ result<std::vector<SearchResult>> StorageIndex::Search(
   return results;
 }
 
-Status StorageIndex::Upsert(vid_t vid, const IndexValues& new_values) {
+size_t StorageIndex::VertexCapacity() const {
+  return index_id_accessor_->VertexCapacity();
+}
+
+size_t StorageIndex::IndexCapacity() const {
+  return index_id_accessor_->IndexCapacity();
+}
+
+index_id_t StorageIndex::GetNextIndexID() const {
+  return index_id_accessor_->GetNextIndexID();
+}
+
+void StorageIndex::Resize(vid_t vertex_size, index_id_t index_size) {
+  index_id_accessor_->Resize(vertex_size, index_size);
+}
+
+Status StorageIndex::Upsert(vid_t vid, const IndexValues& new_values,
+                            bool insert_safe) {
   if (!index_id_accessor_) {
     return Status::InternalError("Index ID accessor is not initialized");
   }
@@ -74,7 +92,7 @@ Status StorageIndex::Upsert(vid_t vid, const IndexValues& new_values) {
   }
   assert(std::none_of(new_values.begin(), new_values.end(),
                       [](const Value& value) { return value.IsNull(); }));
-  auto index_id = index_id_accessor_->UpsertVID(vid);
+  auto index_id = index_id_accessor_->UpsertVID(vid, insert_safe);
   return AppendImpl(index_id, new_values);
 }
 

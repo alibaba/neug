@@ -26,12 +26,13 @@ class BindedVertexPropertyAccessor : public VertexExprBase {
                                const DataType& type)
       : type_(type) {
     int32_t label_num = graph.schema().vertex_label_frontier();
+    // Keep tombstone slots so columns remain indexed by the original label ID.
+    property_columns_.resize(label_num);
     for (label_t label = 0; label < label_num; ++label) {
       if (!graph.schema().is_vertex_label_valid(label)) {
         continue;
       }
-      property_columns_.emplace_back(
-          graph.GetVertexPropColumn(static_cast<label_t>(label), prop_name));
+      property_columns_[label] = graph.GetVertexPropColumn(label, prop_name);
     }
   }
 

@@ -49,7 +49,6 @@ class NEUG_API InsertCapacityRequest {
 
  private:
   friend class InsertCapacityReservations;
-  void ValidateGrowthSupport(PropertyGraph& graph) const;
   void Merge(const InsertCapacityRequest& other);
   void Subtract(const InsertCapacityRequest& other) noexcept;
   static void Add(Need& need, const std::vector<Value>& props);

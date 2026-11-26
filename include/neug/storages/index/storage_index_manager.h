@@ -16,6 +16,7 @@
 #pragma once
 
 #include <memory>
+#include <mutex>
 #include <string>
 #include <unordered_map>
 #include <unordered_set>
@@ -113,12 +114,14 @@ class StorageIndexManager {
       label_t label_id, const std::string& property_name) const;
 
   /// Return indexes that are about to be mutated and mark them dirty for
-  /// incremental checkpoint persistence.
+  /// incremental checkpoint persistence. skip_pending is for WAL recovery only:
+  /// the caller must separately record mutations for pending indexes.
   neug::result<std::vector<BoundIndexRef>>
   GetIndexesContainingPropertyForUpdate(label_t label_id,
-                                        const std::string& property_name);
+                                        const std::string& property_name,
+                                        bool skip_pending = false);
   neug::result<std::vector<StorageIndex*>> GetIndexesForUpdate(
-      label_t label_id);
+      label_t label_id, bool skip_pending = false);
 
   bool HasPendingIndex(label_t label_id) const;
   bool HasPendingIndexContainingProperty(
@@ -196,6 +199,7 @@ class StorageIndexManager {
   std::unordered_map<std::string, PendingIndex> pending_indexes_;
   std::vector<std::shared_ptr<const PendingIndexMutation>> pending_mutations_;
   std::unordered_set<std::string> dirty_index_names_;
+  std::mutex insert_dirty_mutex_;
   bool catalog_dirty_{false};
 };
 

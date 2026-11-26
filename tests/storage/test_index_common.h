@@ -197,6 +197,10 @@ class ExampleIndex : public StorageIndex {
     }
     for (index_id_t index_id = 0; index_id < accessor->GetNextIndexID();
          ++index_id) {
+      const auto vid = accessor->GetVIDByIndexID(index_id);
+      if (vid == INVALID_VID ||
+          (params.vertex_set && !params.vertex_set->valid(vid)))
+        continue;
       if (values[index_id] == example_params->target_value) {
         results.push_back({index_id});
       }
