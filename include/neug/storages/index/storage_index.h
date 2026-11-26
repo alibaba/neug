@@ -138,10 +138,16 @@ using IndexValues = std::vector<Value>;
  *   run. Overrides must preserve this concurrency safety. Uncommitted and
  *   aborted entries must be excluded using the query's visibility information;
  *   an allocation frontier alone does not establish MVCC visibility.
- * - Resize and Detach require exclusive framework access with readers/writers
- *   drained. Update-mode mutations and checkpoint maintenance are serialized
- *   by the framework; implementations must preserve COW snapshot isolation.
- *   Init/Open/Rebind/BulkBuild configure an instance before concurrent use.
+ * - Insert-only capacity growth runs with readers and writers drained before
+ *   Resize. This exclusive growth boundary does not apply to COW Detach.
+ * - Update-mode transactions wait for inserters, not old snapshot readers.
+ *   Detach runs on the writer's private copy while readers may still query
+ *   older snapshots. It must preserve resources used by those snapshots:
+ *   copy shared mutable state before changing it, and do not modify or release
+ *   shared backing resources while an older snapshot can still access them.
+ * - Update-mode writers and checkpoint maintenance are serialized by the
+ *   framework. Init/Open/Rebind/BulkBuild configure an instance before
+ *   concurrent use.
  * Implementations must synchronize their own shared mutable state or avoid
  * maintaining it. This contract also applies to test extensions.
  */
