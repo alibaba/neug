@@ -86,6 +86,9 @@ struct ShowIndexStats {
 // Stores the index query parameters, i.e., target value, comparison type, etc.
 struct IndexQueryParams {
   virtual ~IndexQueryParams() = default;
+  // Query-scoped view. The caller must retain the graph snapshot through
+  // Search.
+  std::shared_ptr<const VertexSet> vertex_set;
 };
 
 struct SearchResult {
@@ -123,6 +126,30 @@ using IndexValues = std::vector<Value>;
  *
  * Extensions (e.g. zvec) provide concrete implementations by subclassing
  * Index and registering them through the ModuleFactory.
+ *
+ * Concurrency contract for every implementation:
+ * - Insert-only transactions share an index instance. AppendImpl may run
+ *   concurrently with other AppendImpl calls and with SearchImpl; searches may
+ *   also overlap each other. The framework does not serialize these calls.
+ * - Each newly inserted VID has one writer. Capacity is reserved before append;
+ *   Upsert(..., insert_safe=false) must not resize. Index ID allocation and
+ *   mapping synchronization do not protect implementation-specific state.
+ * - Failed inserts can roll back through Delete while other inserts/searches
+ *   run. Overrides must preserve this concurrency safety. Uncommitted and
+ *   aborted entries must be excluded using the query's visibility information;
+ *   an allocation frontier alone does not establish MVCC visibility.
+ * - Insert-only capacity growth runs with readers and writers drained before
+ *   Resize. This exclusive growth boundary does not apply to COW Detach.
+ * - Update-mode transactions wait for inserters, not old snapshot readers.
+ *   Detach runs on the writer's private copy while readers may still query
+ *   older snapshots. It must preserve resources used by those snapshots:
+ *   copy shared mutable state before changing it, and do not modify or release
+ *   shared backing resources while an older snapshot can still access them.
+ * - Update-mode writers and checkpoint maintenance are serialized by the
+ *   framework. Init/Open/Rebind/BulkBuild configure an instance before
+ *   concurrent use.
+ * Implementations must synchronize their own shared mutable state or avoid
+ * maintaining it. This contract also applies to test extensions.
  */
 class NEUG_API StorageIndex : public Module {
  public:
@@ -194,6 +221,18 @@ class NEUG_API StorageIndex : public Module {
    */
   result<std::vector<SearchResult>> Search(const IndexQueryParams& params);
 
+  // Addressable slots in the VID-to-index-ID mapping; not a live row count.
+  size_t VertexCapacity() const;
+  // Addressable index-ID slots, including holes left by updates/rollback.
+  size_t IndexCapacity() const;
+  // Shared allocation frontier; callers add their reserved insert count to
+  // calculate the required index capacity, checking overflow before Resize.
+  index_id_t GetNextIndexID() const;
+  // Grow each mapping independently to at least the requested slot count.
+  // Requires exclusive framework access. Growth policy belongs to the caller;
+  // this does not resize vector payloads or the physical search index.
+  void Resize(vid_t vertex_size, index_id_t index_size);
+
   /**
    * @brief Insert or replace the index record for a vertex id.
    *
@@ -201,7 +240,8 @@ class NEUG_API StorageIndex : public Module {
    * @param new_value The changed property value and its position in the index.
    */
   virtual Status Upsert(vid_t vid, const IndexValue& new_value) = 0;
-  Status Upsert(vid_t vid, const IndexValues& new_values);
+  Status Upsert(vid_t vid, const IndexValues& new_values,
+                bool insert_safe = true);
 
   /**
    * @brief Mark a vertex as deleted using tombstone semantics.

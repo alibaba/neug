@@ -1462,7 +1462,9 @@ def test_cosine_normalize_false_preserves_valid_unit_vectors(tmp_path):
         assert _local_buffer_checkpoint(path, "unit_vector_hnsw")[0] == 1
         conn.execute("CREATE (:UnitVectorItem {id: 3, embedding: [0.0,1.0,0.0,0.0]});")
         conn.execute("CHECKPOINT;")
-        assert _local_buffer_checkpoint(path, "unit_vector_hnsw")[0] == 2
+        # Direct HNSW does not maintain a persisted Flat partition boundary.
+        # Rebind derives its runtime boundary from the restored column.
+        assert _local_buffer_checkpoint(path, "unit_vector_hnsw")[0] == 1
         _close_database(db, conn)
         db, conn = _open_database(path, checkpoint_on_close=False)
         result = conn.execute(
@@ -1474,6 +1476,34 @@ def test_cosine_normalize_false_preserves_valid_unit_vectors(tmp_path):
         assert [row[0] for row in rows] == [3, 1]
         assert [row[1] for row in rows] == pytest.approx([0.0, 0.2], abs=1e-5)
         assert "IndexScanOpr" in _profile_operator_names(result)
+    finally:
+        _close_database(db, conn)
+
+
+def test_direct_hnsw_checkpoint_reopen_after_append(tmp_path):
+    """Direct HNSW derives its boundary from the column after each reopen."""
+    path = tmp_path / "direct-hnsw-boundary"
+    db, conn = _open_database(path, checkpoint_on_close=False)
+    try:
+        conn.execute("CREATE NODE TABLE Item(id INT64 PRIMARY KEY, v FLOAT[4]);")
+        conn.execute("CREATE (:Item {id: 0, v: [1.0,0.0,0.0,0.0]});")
+        conn.execute(
+            "CREATE INDEX item_hnsw ON Item USING HNSW(v) "
+            "WITH(metric='cosine', cosine_normalize=false);"
+        )
+        conn.execute("CHECKPOINT;")
+        for vid, vector in ((1, "[0.0,1.0,0.0,0.0]"), (2, "[0.0,0.0,1.0,0.0]")):
+            conn.execute(f"CREATE (:Item {{id: {vid}, v: {vector}}});")
+            conn.execute("CHECKPOINT;")
+            _close_database(db, conn)
+            db, conn = _open_database(path, checkpoint_on_close=False)
+            result = conn.execute(
+                "PROFILE MATCH (n:Item) RETURN n.id, "
+                f"vector_distance_cosine(n.v, {vector}) AS score "
+                "ORDER BY score LIMIT 1;"
+            )
+            assert list(result) == [[vid, 0.0]]
+            assert "IndexScanOpr" in _profile_operator_names(result)
     finally:
         _close_database(db, conn)
 

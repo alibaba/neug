@@ -17,6 +17,7 @@
 #include <chrono>
 #include <cstdio>
 #include <ctime>
+#include <exception>
 #include <string>
 #include <string_view>
 #include <utility>
@@ -31,6 +32,19 @@
 
 namespace neug {
 namespace service_http {
+
+// Use the same error payload for exceptions at either HTTP boundary. Call
+// only with a captured exception (or from a catch block).
+inline Status ExceptionToStatus(
+    std::exception_ptr error = std::current_exception()) {
+  try {
+    std::rethrow_exception(error);
+  } catch (const std::exception& e) {
+    return Status::RuntimeError(e.what());
+  } catch (...) {
+    return Status::InternalError("Unhandled service request exception.");
+  }
+}
 
 // HTTP status mapping shared by the BRPC and cpp-httplib transports. The
 // values are standard HTTP codes; brpc's HTTP_STATUS_* constants expand to
@@ -166,19 +180,19 @@ inline result<std::string> SerializeQueryResult(
   }
   try {
     return query_result.value().Serialize();
-  } catch (const std::exception& e) {
-    RETURN_ERROR(Status::RuntimeError(e.what()));
-  }
+  } catch (...) { RETURN_ERROR(ExceptionToStatus()); }
 }
 
 template <typename Execute>
 result<std::string> ParseAndExecuteQuery(const std::string& request,
                                          Execute&& execute) {
-  auto parsed = RequestParser::ParseFromString(request);
-  if (!parsed) {
-    RETURN_ERROR(parsed.error());
-  }
-  return SerializeQueryResult(execute(parsed.value()));
+  try {
+    auto parsed = RequestParser::ParseFromString(request);
+    if (!parsed) {
+      RETURN_ERROR(parsed.error());
+    }
+    return SerializeQueryResult(execute(parsed.value()));
+  } catch (...) { RETURN_ERROR(ExceptionToStatus()); }
 }
 
 }  // namespace service_http

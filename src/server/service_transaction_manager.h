@@ -25,6 +25,10 @@
 #include <thread>
 #include <unordered_map>
 
+#ifdef NEUG_BUILD_TEST
+#include <functional>
+#endif
+
 #include "neug/main/query_result.h"
 #include "neug/main/transaction_context.h"
 #include "neug/server/service_transaction.h"
@@ -34,6 +38,14 @@ namespace neug {
 
 class TpExecutionSlotPool;
 struct QueryRequest;
+
+#ifdef NEUG_BUILD_TEST
+enum class ServiceTransactionTestPhase { kExecute, kPreparedCommit };
+
+// Thread-local fault injection before statement execution or WAL append.
+NEUG_API void SetServiceTransactionHookForTest(
+    std::function<void(ServiceTransactionTestPhase)> hook);
+#endif
 
 /** Owns service-local explicit transactions without retaining execution slots.
  */

@@ -82,6 +82,11 @@ class Schema;
 namespace execution {
 
 void PlanParser::init() {
+  // Built-in operator builders have process lifetime, even across DB reopens.
+  std::call_once(init_flag_, [this] { init_impl(); });
+}
+
+void PlanParser::init_impl() {
   register_operator_builder(std::make_unique<ops::ScanOprBuilder>());
   register_operator_builder(std::make_unique<ops::IndexScanOprBuilder>());
 
