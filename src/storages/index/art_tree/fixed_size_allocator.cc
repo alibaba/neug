@@ -397,6 +397,20 @@ void FixedSizeAllocator::VerifyBuffers() const {
   }
 }
 
+void FixedSizeAllocator::VerifyReference(const IndexPointer ptr) const {
+  const auto buffer = buffers.find(ptr.GetBufferId());
+  if (buffer == buffers.end())
+    throw SerializationException("ART node references a missing buffer");
+  const auto slot = ptr.GetOffset();
+  if (slot >= available_segments_per_buffer)
+    throw SerializationException("ART node slot is out of bounds");
+  SegmentHandle bitmap(*buffer->second, 0);
+  ValidityMask free_slots(bitmap.GetPtr<validity_t>(),
+                          available_segments_per_buffer);
+  if (free_slots.RowIsValid(slot))
+    throw SerializationException("ART node references an unallocated slot");
+}
+
 void FixedSizeAllocator::NextBufferWithFreeSpace() {
   if (!buffers_with_free_space.empty()) {
     buffer_with_free_space = *buffers_with_free_space.begin();
