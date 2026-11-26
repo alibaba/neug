@@ -26,7 +26,6 @@
 
 #include "neug/compiler/function/neug_scalar_function.h"
 #include "neug/compiler/function/string/functions/array_extract_function.h"
-#include "neug/execution/expression/exprs/logical_expr.h"
 
 #include "neug/common/types/value.h"
 
@@ -37,23 +36,10 @@ namespace function {
 
 namespace {
 
-std::string escapeRegexLiteral(std::string_view value) {
-  constexpr std::string_view regexMetacharacters = R"(\.^$|()[]{}*+?)";
-  std::string escaped;
-  escaped.reserve(value.size());
-  for (const auto character : value) {
-    if (regexMetacharacters.find(character) != std::string_view::npos) {
-      escaped.push_back('\\');
-    }
-    escaped.push_back(character);
-  }
-  return escaped;
-}
-
+template <typename Predicate>
 neug::Value evaluateStringPredicate(const std::vector<neug::Value>& args,
-                                    const std::string& prefix,
-                                    const std::string& suffix,
-                                    const std::string& functionName) {
+                                    const std::string& functionName,
+                                    Predicate predicate) {
   if (args.size() != 2) {
     THROW_RUNTIME_ERROR(functionName + ": expect exactly 2 arguments, got " +
                         std::to_string(args.size()));
@@ -65,9 +51,8 @@ neug::Value evaluateStringPredicate(const std::vector<neug::Value>& args,
       args[1].type().id() != DataTypeId::kVarchar) {
     THROW_RUNTIME_ERROR(functionName + ": inputs must be strings");
   }
-  auto pattern =
-      prefix + escapeRegexLiteral(neug::StringValue::Get(args[1])) + suffix;
-  return execution::evaluate_regex(args[0], neug::Value::STRING(pattern));
+  return neug::Value::BOOLEAN(predicate(neug::StringValue::Get(args[0]),
+                                        neug::StringValue::Get(args[1])));
 }
 
 }  // namespace
@@ -81,7 +66,10 @@ function_set ContainsFunction::getFunctionSet() {
 }
 
 neug::Value ContainsFunction::Exec(const std::vector<neug::Value>& args) {
-  return evaluateStringPredicate(args, ".*", ".*", name);
+  return evaluateStringPredicate(
+      args, name, [](std::string_view value, std::string_view pattern) {
+        return value.find(pattern) != std::string_view::npos;
+      });
 }
 
 function_set EndsWithFunction::getFunctionSet() {
@@ -93,7 +81,10 @@ function_set EndsWithFunction::getFunctionSet() {
 }
 
 neug::Value EndsWithFunction::Exec(const std::vector<neug::Value>& args) {
-  return evaluateStringPredicate(args, ".*", "$", name);
+  return evaluateStringPredicate(
+      args, name, [](std::string_view value, std::string_view pattern) {
+        return value.ends_with(pattern);
+      });
 }
 
 function_set StartsWithFunction::getFunctionSet() {
@@ -105,7 +96,10 @@ function_set StartsWithFunction::getFunctionSet() {
 }
 
 neug::Value StartsWithFunction::Exec(const std::vector<neug::Value>& args) {
-  return evaluateStringPredicate(args, "^", ".*", name);
+  return evaluateStringPredicate(
+      args, name, [](std::string_view value, std::string_view pattern) {
+        return value.starts_with(pattern);
+      });
 }
 
 function_set UpperFunction::getFunctionSet() {
