@@ -15,6 +15,7 @@
 #include <gtest/gtest.h>
 #include <filesystem>
 #include <string_view>
+#include <thread>
 #include <utility>
 #ifdef _WIN32
 #include <process.h>
@@ -26,7 +27,9 @@
 #include "neug/storages/allocators.h"
 #include "neug/storages/checkpoint_manager.h"
 #include "neug/storages/csr/csr_view_utils.h"
+#include "neug/storages/csr/mutable_csr.h"
 #include "neug/storages/graph/edge_table.h"
+#include "neug/storages/graph/graph_view.h"
 #include "neug/storages/loader/loader_utils.h"
 #include "neug/storages/module_descriptor.h"
 #include "unittest/utils.h"
@@ -294,6 +297,134 @@ TEST_F(EdgeTableTest, EdgeNumUsesStoredDirection) {
     EXPECT_EQ(neighbor.get_vertex(), 1);
     ++neighbor;
     EXPECT_TRUE(neighbor == neighbors.end());
+  }
+}
+
+TEST_F(EdgeTableTest, DeleteCleansHalfEdgeWithoutDeletingOccupiedSingleSlot) {
+  auto ckp = make_checkpoint(workspace());
+  auto schema = std::make_shared<EdgeSchema>(
+      *schema_.get_edge_schema(src_label_, dst_label_, edge_label_int_));
+  schema->oe_strategy = EdgeStrategy::kSingle;
+  schema->ie_strategy = EdgeStrategy::kMultiple;
+  EdgeTable table(schema);
+  table.Init(ckp, MemoryLevel::kInMemory);
+  table.EnsureCapacity(4, 4);
+  Allocator alloc(MemoryLevel::kInMemory, "");
+  EdgeTableView view(table);
+  EdgeInsertOffsets original, partial;
+  view.AddEdge(0, 1, {Value::INT32(10)}, 1, alloc, false, &original);
+  // Incoming is appended first; outgoing rejects its occupied single slot.
+  EXPECT_THROW(
+      view.AddEdge(0, 2, {Value::INT32(20)}, 2, alloc, false, &partial),
+      std::exception);
+  EXPECT_GE(partial.incoming, 0);
+  EXPECT_EQ(partial.outgoing, INVALID_EDGE_OFFSET);
+  auto pending = table.get_incoming_view(2).get_edges(2);
+  ASSERT_TRUE(pending.begin() != pending.end());
+  table.DeleteEdge(0, 2, partial.outgoing, partial.incoming, 2);
+  table.DeleteEdge(0, 2, partial.outgoing, partial.incoming, MAX_TIMESTAMP);
+  auto removed = table.get_incoming_view(2).get_edges(2);
+  EXPECT_TRUE(removed.begin() == removed.end());
+  auto preserved = table.get_outgoing_view(2).get_edges(0);
+  ASSERT_TRUE(preserved.begin() != preserved.end());
+  EXPECT_EQ(preserved.begin().get_vertex(), 1);
+  EXPECT_EQ(preserved.begin().get_timestamp(), 1);
+  EXPECT_EQ(table.EdgeNum(), 1u);
+
+  // Reuse becomes possible only after deleting the original single slot.
+  table.DeleteEdge(0, 1, original.outgoing, original.incoming, 1);
+  table.AddEdge(0, 2, {Value::INT32(30)}, 3, alloc, false);
+  table.DeleteEdge(0, 2, INVALID_EDGE_OFFSET, INVALID_EDGE_OFFSET, 3);
+  EXPECT_THROW(table.DeleteEdge(0, 2, 1, INVALID_EDGE_OFFSET, 3),
+               std::exception);
+  EXPECT_THROW(table.DeleteEdge(0, 2, -2, INVALID_EDGE_OFFSET, 3),
+               std::exception);
+  EXPECT_EQ(table.EdgeNum(), 1u);
+  auto replacement = table.get_outgoing_view(3).get_edges(0);
+  ASSERT_TRUE(replacement.begin() != replacement.end());
+  EXPECT_EQ(replacement.begin().get_timestamp(), 3);
+}
+
+TEST_F(EdgeTableTest, DeleteParallelEdgesSupportsSingleDirectionStorage) {
+  auto ckp = make_checkpoint(workspace());
+  Allocator alloc(MemoryLevel::kInMemory, "");
+  for (const auto& [outgoing, incoming] :
+       {std::pair{EdgeStrategy::kNone, EdgeStrategy::kMultiple},
+        std::pair{EdgeStrategy::kMultiple, EdgeStrategy::kNone},
+        std::pair{EdgeStrategy::kMultiple, EdgeStrategy::kMultiple}}) {
+    auto schema = std::make_shared<EdgeSchema>(
+        *schema_.get_edge_schema(src_label_, dst_label_, edge_label_empty_));
+    schema->oe_strategy = outgoing;
+    schema->ie_strategy = incoming;
+    EdgeTable table(schema);
+    table.Init(ckp, MemoryLevel::kInMemory);
+    table.EnsureCapacity(4, 4);
+    EdgeTableView view(table);
+    table.AddEdge(0, 1, {}, 1, alloc, false);
+    std::vector<EdgeInsertOffsets> offsets(20);
+    for (auto& position : offsets) {
+      view.AddEdge(0, 1, {}, 2, alloc, false, &position);
+      EXPECT_EQ(position.incoming >= 0, incoming != EdgeStrategy::kNone);
+      EXPECT_EQ(position.outgoing >= 0, outgoing != EdgeStrategy::kNone);
+    }
+    table.AddEdge(0, 1, {}, 3, alloc, false);
+    table.DeleteEdge(0, 1, offsets.front().outgoing, offsets.front().incoming,
+                     2);
+    EXPECT_EQ(table.EdgeNum(),
+              21u);  // Only this position, not all parallel edges.
+    for (const auto& position : offsets) {
+      table.DeleteEdge(0, 1, position.outgoing, position.incoming, 2);
+      table.DeleteEdge(0, 1, position.outgoing, position.incoming,
+                       MAX_TIMESTAMP);
+    }
+    EXPECT_EQ(table.EdgeNum(), 2u);
+    auto csr = outgoing == EdgeStrategy::kNone ? table.get_incoming_view(3)
+                                               : table.get_outgoing_view(3);
+    auto edges = csr.get_edges(outgoing == EdgeStrategy::kNone ? 1 : 0);
+    size_t count = 0;
+    for (auto it = edges.begin(); it != edges.end(); ++it) {
+      EXPECT_NE(it.get_timestamp(), 2u);
+      ++count;
+    }
+    EXPECT_EQ(count, 2u);
+  }
+}
+
+TEST_F(EdgeTableTest, DeleteSerializesWithConcurrentAdjacencyGrowth) {
+  auto ckp = make_checkpoint(workspace());
+  EdgeTable table(
+      schema_.get_edge_schema(src_label_, dst_label_, edge_label_empty_));
+  table.Init(ckp, MemoryLevel::kInMemory);
+  table.EnsureCapacity(4, 4);
+  Allocator first_alloc(MemoryLevel::kInMemory, "");
+  Allocator second_alloc(MemoryLevel::kInMemory, "");
+  EdgeTableView view(table);
+  std::vector<EdgeInsertOffsets> offsets(20);
+  for (auto& position : offsets) {
+    view.AddEdge(0, 1, {}, 1, first_alloc, false, &position);
+  }
+  std::thread inserter([&] {
+    for (int i = 0; i < 1000; ++i) {
+      table.AddEdge(0, 1, {}, 2, second_alloc, false);
+    }
+  });
+  for (int i = 0; i < 100; ++i) {
+    for (const auto& position : offsets) {
+      table.DeleteEdge(0, 1, position.outgoing, position.incoming, 1);
+    }
+  }
+  inserter.join();
+  EXPECT_EQ(table.EdgeNum(), 1000u);
+  for (bool incoming : {false, true}) {
+    auto csr =
+        incoming ? table.get_incoming_view(2) : table.get_outgoing_view(2);
+    auto edges = csr.get_edges(incoming ? 1 : 0);
+    size_t count = 0;
+    for (auto it = edges.begin(); it != edges.end(); ++it) {
+      EXPECT_EQ(it.get_timestamp(), 2u);
+      ++count;
+    }
+    EXPECT_EQ(count, 1000u);
   }
 }
 
@@ -1267,8 +1398,8 @@ TEST_F(EdgeTableTest, TestUpdateEdgePropertyAfterDeletionBundled) {
   auto ie_view = this->edge_table->get_incoming_view(neug::MAX_TIMESTAMP);
   auto oes = oe_view.get_edges(src);
   auto ies = ie_view.get_edges(dst);
-  int32_t e1_oe = -1;
-  int32_t e1_ie = -1;
+  int32_t e1_oe = INVALID_EDGE_OFFSET;
+  int32_t e1_ie = INVALID_EDGE_OFFSET;
   for (auto it = oes.begin(); it != oes.end(); ++it) {
     if (it.get_timestamp() == 1) {
       e1_oe = static_cast<int32_t>(

@@ -13,9 +13,11 @@
  * limitations under the License.
  */
 #pragma once
+#include "neug/transaction/insert_capacity.h"
 
 #include <stddef.h>
 #include <stdint.h>
+#include <functional>
 #include <limits>
 #include <map>
 #include <set>
@@ -34,6 +36,14 @@
 
 namespace neug {
 
+#ifdef NEUG_BUILD_TEST
+// One-shot, thread-local fault injection after capacity reservation succeeds.
+NEUG_API void SetBeforeInsertApplyForTest(std::function<void()> hook);
+// Invoked after applying insert WAL, before releasing the capacity reservation.
+// The callback must not throw; the WAL is already durable at this point.
+NEUG_API void SetInsertPostIngestHookForTest(std::function<void()> hook);
+#endif
+
 class ExecutionSlot;
 class PropertyGraph;
 class IVersionManager;
@@ -50,7 +60,7 @@ class IWalWriter;
  * Unlike SnapshotCowWriteTransaction, MvccInsertTransaction does NOT COW-clone
  * the PropertyGraph. It pins the current GraphSnapshotStore slot and, on
  * Commit(), applies the WAL ops directly to the live PropertyGraph behind that
- * slot via `IngestWal(slot_->mutable_view(), ...)`. Concurrent
+ * slot via `ApplyInserts()`. Concurrent
  * SnapshotReadTransactions on the same slot see the in-progress live state.
  *
  * Reader isolation is therefore enforced **entirely** by per-record timestamp
@@ -72,6 +82,8 @@ class IWalWriter;
  * - Vertex insertion with property validation
  * - Edge insertion with vertex existence checking (including just-added
  *   vertices via added_vertices_ side table)
+ * - Endpoint lookup accepts completed earlier inserts above the reader
+ *   watermark without exposing pending inserts or changing snapshot reads
  * - Validates property types against schema
  *
  * @since v0.1.0
@@ -157,29 +169,35 @@ class MvccInsertTransaction {
   /**
    * @brief Commit the transaction.
    *
-   * Writes the WAL data to persistent storage, releases the snapshot pin, and
-   * then releases the timestamp. Returns early if no operations were
-   * performed.
+   * Applies buffered inserts with undo, persists the WAL, releases the snapshot
+   * pin, and then publishes the timestamp. Failed apply or a definitely
+   * unwritten WAL is rolled back (edges before vertices). An uncertain WAL
+   * failure is fatal.
    *
-   * @return true if commit successful
+   * @return true if commit successful; false after rollback on apply failure
+   *         or a definitely unwritten WAL.
    *
-   * Implementation: Checks if any operations in arc_, writes WAL via logger_,
-   * releases the snapshot pin, releases the timestamp, then calls clear().
+   * Uncommitted changes only touch runtime storage; checkpoint publication must
+   * remain excluded by insert admission until commit or rollback completes.
    *
    * @since v0.1.0
    */
   bool Commit();
 
   void Abort();
+  bool RequiresCapacityRetry() const { return capacity_retry_; }
+  const InsertCapacityRequest& capacity_request() const {
+    return growth_request_;
+  }
 
   timestamp_t timestamp() const;
 
   /**
    * @brief Apply an insert-WAL byte stream via a writable GraphView.
    *
-   * Used both:
-   *  - by MvccInsertTransaction::Commit() — passing its writable view_; and
-   *  - by NeugDB recovery — over a GraphView rebuilt on the opened graph.
+   * Used by NeugDB recovery for already committed WAL records. Online commits
+   * use ApplyInserts(), which also validates endpoint visibility and tracks
+   * undo.
    *
    * Marks dirty bits through the view's borrowed DirtyTracker after successful
    * writes. Capacity is assumed to be sufficient (no auto-grow /
@@ -205,12 +223,35 @@ class MvccInsertTransaction {
   bool GetVertexIndex(label_t label, const Value& oid, vid_t& lid) const;
 
  private:
+  struct VertexUndo {
+    label_t label;
+    vid_t vid = INVALID_VID;
+  };
+  struct EdgeUndo {
+    label_t src_label, dst_label, edge_label;
+    vid_t src, dst;
+    EdgeInsertOffsets offsets;
+  };
+  // Entries are recorded before mutation, including the currently failing op.
+  std::vector<VertexUndo> vertex_undo_;
+  std::vector<EdgeUndo> edge_undo_;
+  void ApplyInserts();
+  void RollbackInserts() noexcept;
+
   Value get_vertex_id(label_t label, vid_t lid) const;
+  bool IsCommittedVertex(label_t label, vid_t lid) const;
+  bool GetCommittedVertexIndex(label_t label, const Value& id,
+                               vid_t& lid) const;
 
   void create_id_indexer_if_not_exists(label_t label);
 
   void clear();
 
+  InsertCapacityRequest capacity_;
+  InsertCapacityRequest growth_request_;
+  bool capacity_reserved_ = false;
+  void ReleaseCapacity() noexcept;
+  bool capacity_retry_ = false;
   InArchive arc_;
 
   std::vector<std::unique_ptr<neug::IdIndexerBase<vid_t>>> added_vertices_;
@@ -224,6 +265,7 @@ class MvccInsertTransaction {
   IWalWriter& wal_writer_;
   IVersionManager& vm_;
   timestamp_t timestamp_;
+  timestamp_t read_timestamp_;
 };
 
 class StorageTPInsertInterface : public StorageInsertInterface {
@@ -239,7 +281,7 @@ class StorageTPInsertInterface : public StorageInsertInterface {
   }
 
  private:
-  // Insert path does not physically write the graph until IngestWal; marking
+  // Insert path does not physically write the graph until ApplyInserts; marking
   // here would be a false positive.
   void MarkVertexTableDirty(label_t) override {}
   void MarkEdgeTableDirty(label_t, label_t, label_t) override {}

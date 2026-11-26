@@ -37,6 +37,51 @@ from neug.proto.error_pb2 import ERR_TX_STATE_CONFLICT
 from neug.proto.error_pb2 import ERR_TYPE_CONVERSION
 
 
+@pytest.mark.skipif(sys.platform != "win32", reason="Windows disk allocation")
+def test_wal_sparse_allocation_and_recovery(tmp_path):
+    import ctypes
+    from ctypes import wintypes
+
+    kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
+    allocated_size = kernel32.GetCompressedFileSizeW
+    allocated_size.argtypes = [
+        wintypes.LPCWSTR,
+        ctypes.POINTER(wintypes.DWORD),
+    ]
+    allocated_size.restype = wintypes.DWORD
+
+    path = tmp_path / "sparse_wal"
+    db = Database(str(path), checkpoint_on_close=False)
+    conn = db.connect()
+    try:
+        list(conn.execute("CREATE NODE TABLE Item(id INT64, PRIMARY KEY(id))"))
+        list(conn.execute("CREATE (:Item {id:42})"))
+    finally:
+        conn.close()
+        db.close()
+
+    wal_files = list(path.rglob("*.wal"))
+    assert wal_files, "Recovery must exercise persisted WAL records"
+    for wal in wal_files:
+        high = wintypes.DWORD()
+        ctypes.set_last_error(0)
+        low = allocated_size(str(wal), ctypes.byref(high))
+        error = ctypes.get_last_error()
+        if low == 0xFFFFFFFF and error:
+            raise ctypes.WinError(error)
+        # A tiny commit must not physically reserve the 1 GiB logical suffix.
+        assert wal.stat().st_size >= 1 << 30
+        assert ((high.value << 32) | low) < 1 << 20
+
+    db = Database(str(path), checkpoint_on_close=False)
+    conn = db.connect()
+    try:
+        assert list(conn.execute("MATCH (n:Item) RETURN n.id")) == [[42]]
+    finally:
+        conn.close()
+        db.close()
+
+
 class ConnectionApiTransactionControl:
     """Explicit transaction control through the embedded Connection API."""
 

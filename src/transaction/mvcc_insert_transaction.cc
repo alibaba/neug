@@ -33,6 +33,50 @@
 
 namespace neug {
 
+#ifdef NEUG_BUILD_TEST
+namespace {
+// Reacquire TLS on the current pthread; bthreads may migrate during capacity
+// maintenance. Match the accessor used by the execution-slot test hooks.
+#if defined(__GNUC__) || defined(__clang__)
+__attribute__((noinline))
+#elif defined(_MSC_VER)
+__declspec(noinline)
+#endif
+std::function<void()>&
+GetBeforeInsertApplyHook() {
+  static thread_local std::function<void()> hook;
+  auto* pointer = &hook;
+#if defined(__GNUC__) || defined(__clang__)
+  asm volatile("" : "+r"(pointer) : : "memory");
+#endif
+  return *pointer;
+}
+// Keep the two hooks independent. Copy the post-ingest hook before applying
+// inserts, since a bthread can migrate during that work.
+#if defined(__GNUC__) || defined(__clang__)
+__attribute__((noinline))
+#elif defined(_MSC_VER)
+__declspec(noinline)
+#endif
+std::function<void()>&
+GetInsertPostIngestHook() {
+  static thread_local std::function<void()> hook;
+  auto* pointer = &hook;
+#if defined(__GNUC__) || defined(__clang__)
+  asm volatile("" : "+r"(pointer) : : "memory");
+#endif
+  return *pointer;
+}
+}  // namespace
+void SetBeforeInsertApplyForTest(std::function<void()> hook) {
+  GetBeforeInsertApplyHook() = std::move(hook);
+}
+
+void SetInsertPostIngestHookForTest(std::function<void()> hook) {
+  GetInsertPostIngestHook() = std::move(hook);
+}
+#endif
+
 MvccInsertTransaction::MvccInsertTransaction(SnapshotGuard guard,
                                              Allocator& alloc,
                                              IWalWriter& wal_writer,
@@ -43,7 +87,8 @@ MvccInsertTransaction::MvccInsertTransaction(SnapshotGuard guard,
       alloc_(alloc),
       wal_writer_(wal_writer),
       vm_(vm),
-      timestamp_(timestamp) {
+      timestamp_(timestamp),
+      read_timestamp_(vm.insert_read_timestamp()) {
   arc_.Resize(sizeof(WalHeader));
 }
 
@@ -51,7 +96,7 @@ MvccInsertTransaction::~MvccInsertTransaction() { Abort(); }
 
 bool MvccInsertTransaction::GetVertexIndex(label_t label, const Value& id,
                                            vid_t& index) const {
-  if (view_->get_lid(label, id, index, timestamp_)) {
+  if (GetCommittedVertexIndex(label, id, index)) {
     return true;
   }
   if (added_vertices_.size() > label && added_vertices_[label] != nullptr &&
@@ -62,18 +107,42 @@ bool MvccInsertTransaction::GetVertexIndex(label_t label, const Value& id,
   return false;
 }
 
+bool MvccInsertTransaction::IsCommittedVertex(label_t label, vid_t lid) const {
+  const auto ts = view_->GetVertexInsertTimestamp(label, lid);
+  if (ts <= read_timestamp_) {
+    return true;
+  }
+  // A prior Commit can return while an older insert still holds back the
+  // reader watermark. Accept that completed insert, but never a pending one.
+  // Recheck ownership after completion in case an abort reused the slot.
+  return ts < timestamp_ && vm_.is_insert_timestamp_completed(ts) &&
+         view_->GetVertexInsertTimestamp(label, lid) == ts;
+}
+
+bool MvccInsertTransaction::GetCommittedVertexIndex(label_t label,
+                                                    const Value& id,
+                                                    vid_t& lid) const {
+  if (view_->get_lid(label, id, lid, read_timestamp_)) {
+    return true;
+  }
+  return view_->get_lid(label, id, lid, timestamp_ - 1) &&
+         IsCommittedVertex(label, lid);
+}
+
 Value MvccInsertTransaction::get_vertex_id(label_t label, vid_t lid) const {
-  if (added_vertices_.size() <= label || added_vertices_[label] == nullptr) {
-    return view_->GetOid(label, lid, timestamp_);
-  }
-  vid_t base = added_vertices_base_[label];
-  if (lid >= base) {
+  if (added_vertices_.size() > label && added_vertices_[label] != nullptr &&
+      lid >= added_vertices_base_[label]) {
+    vid_t base = added_vertices_base_[label];
     Value ret{DataType{DataTypeId::kNull}};
-    CHECK(added_vertices_[label]->get_key(lid - base, ret));
+    if (!added_vertices_[label]->get_key(lid - base, ret)) {
+      THROW_STORAGE_EXCEPTION("Insert edge endpoint is not visible");
+    }
     return ret;
-  } else {
-    return view_->GetOid(label, lid, timestamp_);
   }
+  if (!IsCommittedVertex(label, lid)) {
+    THROW_INVALID_ARGUMENT_EXCEPTION("Insert edge endpoint is not committed");
+  }
+  return view_->GetOid(label, lid, timestamp_ - 1);
 }
 
 Status MvccInsertTransaction::AddVertex(label_t label, const Value& id,
@@ -109,9 +178,14 @@ Status MvccInsertTransaction::AddVertex(label_t label, const Value& id,
   }
   create_id_indexer_if_not_exists(label);
   if (!GetVertexIndex(label, id, vid)) {
+    if (vertex_nums_[label] >= INVALID_VID - added_vertices_base_[label]) {
+      THROW_STORAGE_EXCEPTION("Temporary VID capacity exhausted");
+    }
     added_vertices_[label]->_add(id);
     vid = vertex_nums_[label] + added_vertices_base_[label];
     vertex_nums_[label]++;
+    capacity_.AddVertex(view_->schema().get_vertex_label_name(label), id,
+                        props);
     InsertVertexRedo::Serialize(
         arc_, view_->schema().get_vertex_label_name(label), id, props);
   }
@@ -150,6 +224,9 @@ Status MvccInsertTransaction::AddEdge(label_t src_label, vid_t src_vid,
     }
   }
   const auto& schema = view_->schema();
+  capacity_.AddEdge(schema.get_vertex_label_name(src_label),
+                    schema.get_vertex_label_name(dst_label),
+                    schema.get_edge_label_name(edge_label), properties);
   InsertEdgeRedo::Serialize(arc_, schema.get_vertex_label_name(src_label), src,
                             schema.get_vertex_label_name(dst_label), dst,
                             schema.get_edge_label_name(edge_label), properties);
@@ -168,10 +245,38 @@ bool MvccInsertTransaction::Commit() {
     clear();
     return true;
   }
+  if (!capacity_reserved_) {
+    capacity_reserved_ = vm_.insert_capacity_reservations().TryReserve(
+        *guard_.get().mutable_graph(), capacity_, growth_request_);
+  }
+  capacity_retry_ = !capacity_reserved_;
+  if (capacity_retry_)
+    return false;
+#ifdef NEUG_BUILD_TEST
+  const auto post_ingest_hook = GetInsertPostIngestHook();
+#endif
   auto* header = reinterpret_cast<WalHeader*>(arc_.GetBuffer());
   header->length = arc_.GetSize() - sizeof(WalHeader);
   header->type = 0;
   header->timestamp = timestamp_;
+
+  try {
+#ifdef NEUG_BUILD_TEST
+    auto hook = std::exchange(GetBeforeInsertApplyHook(), {});
+    if (hook) {
+      hook();
+    }
+#endif
+    ApplyInserts();
+  } catch (const std::exception& e) {
+    LOG(ERROR) << "Failed to apply inserts: " << e.what();
+    Abort();
+    return false;
+  } catch (...) {
+    LOG(ERROR) << "Failed to apply inserts: unknown exception";
+    Abort();
+    return false;
+  }
 
   try {
     if (!wal_writer_.append(arc_.GetBuffer(), arc_.GetSize())) {
@@ -185,11 +290,16 @@ bool MvccInsertTransaction::Commit() {
   } catch (...) {
     LOG(FATAL) << "Insert WAL append failed after commit append began";
   }
-  // Apply WAL operations through the writable view. Capacity is assumed
-  // to be sufficient; the strict insert path will throw if exhausted.
-  IngestWal(*view_, timestamp_, arc_.GetBuffer() + sizeof(WalHeader),
-            header->length, alloc_);
+  // Durable WAL is the commit decision. Nothing after this point may undo it.
+  vertex_undo_.clear();
+  edge_undo_.clear();
 
+#ifdef NEUG_BUILD_TEST
+  if (post_ingest_hook)
+    post_ingest_hook();
+#endif
+
+  ReleaseCapacity();
   view_ = nullptr;
   guard_.release();
   vm_.release_insert_timestamp(timestamp_);
@@ -197,13 +307,105 @@ bool MvccInsertTransaction::Commit() {
   return true;
 }
 
+void MvccInsertTransaction::ReleaseCapacity() noexcept {
+  if (capacity_reserved_) {
+    vm_.insert_capacity_reservations().Release(capacity_);
+    capacity_reserved_ = false;
+  }
+}
+
 void MvccInsertTransaction::Abort() {
   if (timestamp_ != INVALID_TIMESTAMP) {
-    LOG(ERROR) << "aborting " << timestamp_ << "-th transaction (insert)";
+    RollbackInserts();
+    ReleaseCapacity();
+    if (capacity_retry_) {
+      VLOG(1) << "Retrying insert transaction " << timestamp_
+              << " after capacity growth";
+    } else {
+      LOG(ERROR) << "aborting " << timestamp_ << "-th transaction (insert)";
+    }
     view_ = nullptr;
     guard_.release();
     vm_.release_insert_timestamp(timestamp_);
     clear();
+  }
+}
+
+void MvccInsertTransaction::ApplyInserts() {
+  OutArchive arc;
+  arc.SetSlice(arc_.GetBuffer() + sizeof(WalHeader),
+               arc_.GetSize() - sizeof(WalHeader));
+  while (!arc.Empty()) {
+    OpType op;
+    arc >> op;
+    if (op == OpType::kInsertVertex) {
+      InsertVertexRedo redo;
+      arc >> redo;
+      auto label = view_->schema().get_vertex_label_id(redo.vertex_type);
+      vertex_undo_.push_back({label});
+      // Partial writes must be checkpointed as tombstones after rollback too.
+      view_->MarkVertexTableDirty(label);
+      // AddVertex assigns the output immediately after acquiring ownership,
+      // before property writes that may throw. Failed acquisition leaves the
+      // journal's invalid VID untouched.
+      auto& vid = vertex_undo_.back().vid;
+      auto status =
+          view_->AddVertex(label, redo.oid, redo.props, vid, timestamp_);
+      THROW_STORAGE_EXCEPTION_STATUS("Failed to insert vertex", status);
+    } else if (op == OpType::kInsertEdge) {
+      InsertEdgeRedo redo;
+      arc >> redo;
+      const auto& schema = view_->schema();
+      auto src_label = schema.get_vertex_label_id(redo.src_type);
+      auto dst_label = schema.get_vertex_label_id(redo.dst_type);
+      auto edge_label = schema.get_edge_label_id(redo.edge_type);
+      vid_t src, dst;
+      auto endpoint = [&](label_t label, const Value& id, vid_t& lid) {
+        return view_->GetInsertEndpoint(label, id, lid, read_timestamp_,
+                                        timestamp_) ||
+               GetCommittedVertexIndex(label, id, lid);
+      };
+      if (!endpoint(src_label, redo.src, src) ||
+          !endpoint(dst_label, redo.dst, dst)) {
+        THROW_STORAGE_EXCEPTION("Insert edge endpoint is not visible");
+      }
+      edge_undo_.push_back({src_label, dst_label, edge_label, src, dst});
+      view_->MarkEdgeTableDirty(src_label, dst_label, edge_label);
+      int32_t offset;
+      const void* prop = nullptr;
+      auto status = view_->AddEdge(src_label, src, dst_label, dst, edge_label,
+                                   redo.properties, timestamp_, alloc_, offset,
+                                   prop, &edge_undo_.back().offsets);
+      THROW_STORAGE_EXCEPTION_STATUS("Failed to insert edge", status);
+    } else {
+      THROW_INTERNAL_EXCEPTION("Unexpected insert operation");
+    }
+  }
+}
+
+void MvccInsertTransaction::RollbackInserts() noexcept {
+  try {
+    auto& graph = *guard_.get().mutable_graph();
+    // Do not make vertex slots reusable until both CSR directions are clean.
+    // Insert admission excludes update/compaction until cleanup completes.
+    // Each journal entry owns its recorded slots until this deletion; never
+    // replay a journal after releasing those slots for reuse.
+    for (auto it = edge_undo_.rbegin(); it != edge_undo_.rend(); ++it) {
+      graph.get_edge_table(it->src_label, it->dst_label, it->edge_label)
+          .DeleteEdge(it->src, it->dst, it->offsets.outgoing,
+                      it->offsets.incoming, timestamp_);
+    }
+    edge_undo_.clear();
+    for (auto it = vertex_undo_.rbegin(); it != vertex_undo_.rend(); ++it) {
+      if (it->vid != INVALID_VID) {
+        // Edges were already removed above; avoid graph-level cascade delete.
+        graph.get_vertex_table(it->label).DeleteVertex(it->vid, timestamp_);
+      }
+    }
+    vertex_undo_.clear();
+  } catch (...) {
+    // Never publish a timestamp with incomplete cleanup.
+    LOG(FATAL) << "Insert rollback failed";
   }
 }
 
@@ -257,6 +459,9 @@ void MvccInsertTransaction::IngestWal(GraphView& view, uint32_t timestamp,
 }
 
 void MvccInsertTransaction::clear() {
+  capacity_ = {};
+  growth_request_ = {};
+  capacity_retry_ = false;
   arc_.Clear();
   added_vertices_.clear();
   added_vertices_base_.clear();
@@ -292,7 +497,15 @@ void MvccInsertTransaction::create_id_indexer_if_not_exists(label_t label) {
           "got: " +
           std::to_string(type));
     }
-    added_vertices_base_[label] = view_->LidNum(label);
+    // Concurrent inserts can acquire real VIDs above the current LidNum.
+    // Capacity cannot grow while this transaction holds insert admission,
+    // so transaction-local VIDs start outside the entire real-VID range.
+    const auto capacity =
+        guard_.get().mutable_graph()->get_vertex_table(label).Capacity();
+    if (capacity > INVALID_VID) {
+      THROW_STORAGE_EXCEPTION("Temporary VID capacity exhausted");
+    }
+    added_vertices_base_[label] = static_cast<vid_t>(capacity);
   }
 }
 

@@ -18,6 +18,9 @@ add_neug_test(schema_test schema_test.cc)
 add_neug_test(logical_delete_test logical_delete_test.cc)
 
 add_neug_test(test_indexer test_indexer.cc)
+add_neug_test(test_parallel_utils test_parallel_utils.cc)
+target_include_directories(test_parallel_utils PRIVATE
+    ${CMAKE_SOURCE_DIR}/extension/gds/include)
 
 add_neug_test(test_mmap_container test_mmap_container.cc)
 

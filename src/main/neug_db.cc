@@ -106,7 +106,7 @@ inline std::string allocator_prefix(const std::string& allocator_dir,
 }
 
 class Connection;
-static void IngestWalRange(PropertyGraph& graph,
+static void IngestWalRange(std::shared_ptr<PropertyGraph>& graph,
                            std::vector<std::shared_ptr<Allocator>>& allocators,
                            const IWalParser& parser, uint32_t from,
                            uint32_t to) {
@@ -117,10 +117,18 @@ static void IngestWalRange(PropertyGraph& graph,
   // read_ts = MAX_TIMESTAMP so vertices inserted earlier in the loop are
   // visible to later edge-resolution lookups regardless of the per-unit
   // commit timestamp.
-  GraphView view(graph);
+  auto view = std::make_unique<GraphView>(*graph);
   for (size_t j = from; j < to; ++j) {
     const auto& unit = parser.get_insert_wal(j);
-    MvccInsertTransaction::IngestWal(view, j, unit.ptr, unit.size,
+    auto capacity = InsertCapacityRequest::FromWal(unit.ptr, unit.size);
+    if (!capacity.Fits(*graph)) {
+      auto candidate = graph->Clone();
+      capacity.Grow(*candidate);
+      view.reset();
+      graph = std::move(candidate);
+      view = std::make_unique<GraphView>(*graph);
+    }
+    MvccInsertTransaction::IngestWal(*view, j, unit.ptr, unit.size,
                                      *allocators[0]);
     if (j % 1000000 == 0) {
       LOG(INFO) << "Ingested " << j << " WALs";
@@ -159,6 +167,10 @@ bool NeugDB::Open(const std::string& data_dir, int32_t max_thread_num,
 bool NeugDB::Open(const NeugDBConfig& config) {
   if (!closed_.load(std::memory_order_acquire)) {
     THROW_RUNTIME_ERROR("NeugDB instance is already open.");
+  }
+  if (config.wal_sync_mode != WalSyncMode::STANDARD &&
+      config.wal_sync_mode != WalSyncMode::FULL) {
+    THROW_INVALID_ARGUMENT_EXCEPTION("wal_sync_mode must be STANDARD or FULL");
   }
   config_ = config;
   try {
@@ -222,7 +234,8 @@ bool NeugDB::Open(const NeugDBConfig& config) {
       checkpoint_mgr_.CollectGarbage();
     }
     wal_writers_ = std::make_unique<WalWriterSet>(
-        allocators_.size(), config_.mode, graph().checkpoint().wal_dir());
+        allocators_.size(), config_.mode, graph().checkpoint().wal_dir(),
+        config_.wal_sync_mode);
     initVersionManager(initial_visibility_ts);
     initQueryRuntime();
   } catch (...) {
@@ -558,7 +571,7 @@ timestamp_t NeugDB::openGraphAndIngestWals() {
     neug::WalParserFactory::Init();
     auto wal_parser = WalParserFactory::CreateWalParser(ckp->wal_dir());
     const timestamp_t recovered_wal_timestamp =
-        ingestWals(*wal_parser, *graph,
+        ingestWals(*wal_parser, graph,
                    static_cast<timestamp_t>(ckp->manifest().base_timestamp()));
 
     // VersionManager is initialized by the caller with recovered_wal_timestamp.
@@ -574,8 +587,10 @@ timestamp_t NeugDB::openGraphAndIngestWals() {
   }
 }
 
-timestamp_t NeugDB::ingestWals(IWalParser& parser, PropertyGraph& graph,
+timestamp_t NeugDB::ingestWals(IWalParser& parser,
+                               std::shared_ptr<PropertyGraph>& graph,
                                timestamp_t base_timestamp) {
+  RecoveryEdgeIndex edge_index;
   uint32_t from_ts = base_timestamp + 1;
   LOG(INFO) << "Ingesting update wals size: "
             << parser.get_update_wals().size();
@@ -592,10 +607,11 @@ timestamp_t NeugDB::ingestWals(IWalParser& parser, PropertyGraph& graph,
       IngestWalRange(graph, allocators_, parser, from_ts, to_ts);
     }
     if (update_wal.size == 0) {
-      graph.Compact();
+      edge_index.Clear();
+      graph->Compact();
     } else {
-      ReplayCowGraphWal(graph, to_ts, update_wal.ptr, update_wal.size,
-                        *allocators_[0]);
+      ReplayCowGraphWal(*graph, to_ts, update_wal.ptr, update_wal.size,
+                        *allocators_[0], &edge_index);
     }
     from_ts = to_ts + 1;
   }

@@ -82,6 +82,11 @@ class Schema;
 namespace execution {
 
 void PlanParser::init() {
+  // Built-in operator builders have process lifetime, even across DB reopens.
+  std::call_once(init_flag_, [this] { init_impl(); });
+}
+
+void PlanParser::init_impl() {
   register_operator_builder(std::make_unique<ops::ScanOprBuilder>());
   register_operator_builder(std::make_unique<ops::IndexScanOprBuilder>());
 
@@ -543,6 +548,11 @@ static void parse_params_type_impl(const physical::PhysicalPlan& plan,
         expression_parse(
             path_expand_opr.base().edge_expand().params().predicate(),
             params_type);
+      }
+      if (path_expand_opr.base().get_v().has_params() &&
+          path_expand_opr.base().get_v().params().has_predicate()) {
+        expression_parse(path_expand_opr.base().get_v().params().predicate(),
+                         params_type);
       }
       break;
     }

@@ -15,8 +15,12 @@
 
 #include "neug/storages/module_descriptor.h"
 
+#include <limits>
+
 #include <rapidjson/stringbuffer.h>
 #include <rapidjson/writer.h>
+
+#include "neug/utils/exception/exception.h"
 
 namespace neug {
 
@@ -51,6 +55,18 @@ rapidjson::Value ModuleDescriptor::ToJson(
       paths_obj.AddMember(key_val, val_val, alloc);
     }
     obj.AddMember("objects", paths_obj, alloc);
+  }
+  if (!slices_.empty()) {
+    rapidjson::Value slices_obj(rapidjson::kObjectType);
+    for (const auto& [key, slice] : slices_) {
+      rapidjson::Value name(
+          key.c_str(), static_cast<rapidjson::SizeType>(key.size()), alloc);
+      rapidjson::Value entry(rapidjson::kObjectType);
+      entry.AddMember("offset", static_cast<uint64_t>(slice.offset), alloc);
+      entry.AddMember("length", static_cast<uint64_t>(slice.length), alloc);
+      slices_obj.AddMember(name, entry, alloc);
+    }
+    obj.AddMember("slices", slices_obj, alloc);
   }
   if (!refs_.empty()) {
     rapidjson::Value refs_obj(rapidjson::kObjectType);
@@ -89,6 +105,27 @@ ModuleDescriptor ModuleDescriptor::FromJson(const rapidjson::Value& obj) {
       if (m.value.IsString()) {
         desc.paths_[m.name.GetString()] = m.value.GetString();
       }
+    }
+  }
+  if (obj.HasMember("slices")) {
+    const auto& slices = obj["slices"];
+    if (!slices.IsObject())
+      THROW_CHECKPOINT_EXCEPTION("Invalid checkpoint object slices");
+    for (const auto& member : slices.GetObject()) {
+      const std::string name = member.name.GetString();
+      const auto& value = member.value;
+      if (!value.IsObject())
+        THROW_CHECKPOINT_EXCEPTION("Invalid checkpoint object slice: " + name);
+      const auto offset = value.FindMember("offset");
+      const auto length = value.FindMember("length");
+      const auto end = value.MemberEnd();
+      constexpr auto max_size = std::numeric_limits<size_t>::max();
+      if (offset == end || length == end || !offset->value.IsUint64() ||
+          !length->value.IsUint64() || offset->value.GetUint64() > max_size ||
+          length->value.GetUint64() > max_size)
+        THROW_CHECKPOINT_EXCEPTION("Invalid checkpoint object slice: " + name);
+      desc.set_slice(name, {static_cast<size_t>(offset->value.GetUint64()),
+                            static_cast<size_t>(length->value.GetUint64())});
     }
   }
   if (obj.HasMember("refs") && obj["refs"].IsObject()) {

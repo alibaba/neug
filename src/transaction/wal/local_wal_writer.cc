@@ -34,8 +34,12 @@
 #include <ostream>
 
 #include "neug/transaction/wal/wal.h"
+#include "neug/transaction/wal/wal_sync.h"
 #include "neug/utils/io/file/file_utils.h"
 #include "neug/utils/likely.h"
+#ifdef _WIN32
+#include <winioctl.h>
+#endif
 
 namespace neug {
 
@@ -43,9 +47,8 @@ namespace neug {
 namespace {
 
 errno_t ResizeWalFile(int fd, size_t size) {
-  // Unlike _chsize_s, native EOF extension does not eagerly write zeros
-  // across the whole 1 GiB allocation. Sequential WAL writes initialize the
-  // used prefix, including the existing zero terminator, before _commit.
+  // Extend the logical size without writing zeros. Newly created WAL files
+  // are marked sparse below so the unused suffix does not reserve disk space.
   FILE_END_OF_FILE_INFO info{};
   info.EndOfFile.QuadPart = static_cast<LONGLONG>(size);
   if (!SetFileInformationByHandle(reinterpret_cast<HANDLE>(_get_osfhandle(fd)),
@@ -61,8 +64,10 @@ errno_t ResizeWalFile(int fd, size_t size) {
 #endif
 
 std::unique_ptr<IWalWriter> LocalWalWriter::Make(const std::string& wal_uri,
-                                                 int slot_id) {
-  return std::unique_ptr<IWalWriter>(new LocalWalWriter(wal_uri, slot_id));
+                                                 int slot_id,
+                                                 WalSyncMode sync_mode) {
+  return std::unique_ptr<IWalWriter>(
+      new LocalWalWriter(wal_uri, slot_id, sync_mode));
 }
 
 LocalWalWriter::~LocalWalWriter() noexcept {
@@ -111,6 +116,18 @@ void LocalWalWriter::create_file() {
     THROW_IO_EXCEPTION("Failed to open wal file " +
                        std::string(strerror(errno)));
   }
+#ifdef _WIN32
+  // EOF extension alone still reserves the entire 1 GiB on NTFS. Match the
+  // sparse allocation of ftruncate on Unix before extending this empty file.
+  // Filesystems without sparse-file support retain the regular-file behavior.
+  DWORD returned = 0;
+  if (!DeviceIoControl(reinterpret_cast<HANDLE>(_get_osfhandle(fd_)),
+                       FSCTL_SET_SPARSE, nullptr, 0, nullptr, 0, &returned,
+                       nullptr)) {
+    LOG(WARNING) << "Could not mark WAL file sparse, Windows error: "
+                 << GetLastError();
+  }
+#endif
   // Persist the new file name before preallocation. Directory-sync failures
   // then leave an empty file rather than an unused 1 GiB WAL.
   if (!file_utils::fsync_directory(prefix)) {
@@ -247,7 +264,9 @@ bool LocalWalWriter::append(const char* data, size_t length) {
     retire_after_append_failure("Failed to sync WAL file", errno);
   }
 #elif defined(F_FULLFSYNC)
-  if (fcntl(fd_, F_FULLFSYNC) != 0) {
+  if (detail::SyncWal(
+          sync_mode_, [this] { return fsync(fd_); },
+          [this] { return fcntl(fd_, F_FULLFSYNC); }) != 0) {
     retire_after_append_failure("Failed to sync WAL file", errno);
   }
 #else

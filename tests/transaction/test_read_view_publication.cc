@@ -87,6 +87,9 @@ class ScriptedVersionManager : public IVersionManager {
     return {capture_published_view(), std::move(admission)};
   }
   uint32_t acquire_insert_timestamp() override { return 1; }
+  uint32_t insert_read_timestamp() const override {
+    return UnpackPublishedReadView(published_.load()).visibility_ts;
+  }
   void release_insert_timestamp(uint32_t) override {}
   uint32_t acquire_update_timestamp() override { return 1; }
   uint32_t acquire_update_timestamp_until(
@@ -301,6 +304,29 @@ TEST_F(ReadViewPublicationTest, LeaseRetryUsesConfiguredRuntimeWait) {
   EXPECT_EQ(runtime_wait_calls.load(std::memory_order_relaxed), 1);
   EXPECT_EQ(lease.timestamp(), static_cast<uint32_t>(mismatch_count + 1));
   EXPECT_TRUE(lease.view().schema().is_vertex_label_valid("company"));
+}
+
+TEST_F(ReadViewPublicationTest,
+       CapacityPublicationPreservesVisibilityTimestamp) {
+  VersionManager manager;
+  manager.init_ts({7, 0}, 2);
+  uint32_t generation;
+  {
+    auto maintenance = manager.acquire_capacity_maintenance();
+    ASSERT_NE(maintenance, nullptr);
+    auto candidate = initial_graph_->Clone();
+    auto prepared =
+        store_->PrepareSnapshot(candidate, store_->CurrentPlanningGeneration());
+    ASSERT_TRUE(prepared);
+    generation = std::move(prepared.value()).Publish();
+    manager.publish_capacity_snapshot(generation);
+  }
+  auto read = manager.acquire_read_operation();
+  EXPECT_EQ(read.published_view.visibility_ts, 7);
+  EXPECT_EQ(read.published_view.snapshot_generation, generation);
+  read.admission.release();
+  auto lease = ReadSnapshotLease::Acquire(manager, *store_);
+  EXPECT_EQ(lease.timestamp(), 7);
 }
 
 }  // namespace

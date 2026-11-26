@@ -5,6 +5,10 @@ on:
     - cron: 0 14 * * 1
   workflow_dispatch:
     inputs:
+      c_api_only:
+        description: Build only Lite C API packages for selected platforms (ignores python_versions).
+        type: boolean
+        default: false
       platforms:
         description: Platforms to package.
         type: choice
@@ -32,6 +36,10 @@ on:
           - '3.14'
   workflow_call:
     inputs:
+      c_api_only:
+        description: Build and verify only Lite C API packages for selected platforms.
+        type: boolean
+        default: false
       plan:
         type: string
         default: ''
@@ -80,7 +88,7 @@ jobs:
     with:
       platforms: ${{ inputs.platforms || 'all' }}
       python_versions: ${{ inputs.python_versions || 'all' }}
-      plan: ${{ inputs.plan || '' }}
+      plan: ${{ !inputs.c_api_only && inputs.plan || '' }}
 
   # ========================================
   # Record the resolved plan as a run-level artifact. Wheel artifact names carry
@@ -113,7 +121,7 @@ jobs:
   # ========================================
   linux_wheel:
     needs: initialize
-    if: fromJSON(needs.initialize.outputs.plan).linux[0] != null
+    if: ${{ !inputs.c_api_only && fromJSON(needs.initialize.outputs.plan).linux[0] != null }}
     name: Linux Wheel / ${{ matrix.arch }}
     strategy:
       fail-fast: true
@@ -254,7 +262,7 @@ jobs:
     needs: initialize
     env:
       EXTENSIONS: ${{ fromJSON(needs.initialize.outputs.plan).extensions }}
-    if: fromJSON(needs.initialize.outputs.plan).linux[0] != null
+    if: ${{ !inputs.c_api_only && fromJSON(needs.initialize.outputs.plan).linux[0] != null }}
     name: Linux NPM / ${{ matrix.arch }}
     strategy:
       fail-fast: true
@@ -321,21 +329,21 @@ jobs:
         artifact_platform: linux-${{ matrix.arch }}
         upload_artifacts: 'true'
 
-    - name: Restore Workspace and npm Cache Ownership
+    - name: Restore Mounted Directory Ownership
       if: always()
       shell: bash
       run: |
-        chown -R neug:neug "$GITHUB_WORKSPACE"
-        if [ -d "$HOME/.npm" ]; then
-          chown -R neug:neug "$HOME/.npm"
-        fi
+        set -euo pipefail
+        # The image runs as root, so restore mounted directory ownership after use.
+        # TODO: Switch to the neug user when updating the image in the future.
+        chown -R neug:neug /__w
 
   # ========================================
   # For MacOS, package directly in the development environment through OSX.yml.
   # ========================================
   macos:
     needs: initialize
-    if: contains(fromJSON(needs.initialize.outputs.plan).platforms, 'osx-arm64')
+    if: ${{ !inputs.c_api_only && contains(fromJSON(needs.initialize.outputs.plan).platforms, 'osx-arm64') }}
     uses: ./.github/workflows/OSX.yml
     with:
       packages: '["wheel","npm"]'
@@ -349,7 +357,7 @@ jobs:
   # ========================================
   windows:
     needs: initialize
-    if: fromJSON(needs.initialize.outputs.plan).windows_architectures[0] != null
+    if: ${{ !inputs.c_api_only && fromJSON(needs.initialize.outputs.plan).windows_architectures[0] != null }}
     uses: ./.github/workflows/Windows.yml
     with:
       architectures: ${{ toJSON(fromJSON(needs.initialize.outputs.plan).windows_architectures) }}
@@ -363,7 +371,7 @@ jobs:
   # ========================================
   java:
     needs: initialize
-    if: fromJSON(needs.initialize.outputs.plan).verify_java
+    if: ${{ !inputs.c_api_only && fromJSON(needs.initialize.outputs.plan).verify_java }}
     runs-on: ubuntu-22.04
     steps:
     - uses: actions/checkout@v4
@@ -394,7 +402,7 @@ jobs:
 
   npm-main:
     needs: initialize
-    if: fromJSON(needs.initialize.outputs.plan).platforms[0] != null
+    if: ${{ !inputs.c_api_only && fromJSON(needs.initialize.outputs.plan).platforms[0] != null }}
     runs-on: ubuntu-22.04
     steps:
     - uses: actions/checkout@v4
@@ -423,15 +431,99 @@ jobs:
         if-no-files-found: error
         retention-days: 7
 
+  c-api:
+    needs: initialize
+    if: fromJSON(needs.initialize.outputs.plan).c_api_matrix[0] != null
+    name: Package Lite C API (${{ matrix.platform }})
+    strategy:
+      fail-fast: false
+      matrix:
+        include: ${{ fromJSON(needs.initialize.outputs.plan).c_api_matrix }}
+    runs-on: ${{ matrix.runner }}
+    defaults:
+      run:
+        shell: bash
+    timeout-minutes: 120
+    steps:
+    - name: Preserve Patch Line Endings
+      if: runner.os == 'Windows'
+      run: git config --global core.autocrlf false
+    - uses: actions/checkout@v4
+    - name: Fetch Lite Dependencies
+      run: |
+        git submodule update --init --recursive --depth 1 --jobs 2 -- \
+          third_party/parallel-hashmap third_party/glog third_party/yaml-cpp \
+          third_party/protobuf third_party/rapidjson third_party/HowardHinnant/date \
+          third_party/gflags third_party/abseil-cpp
+    - uses: actions/setup-python@v5
+      with:
+        python-version: '3.11'
+    - name: Setup MSVC
+      if: runner.os == 'Windows'
+      uses: ilammy/msvc-dev-cmd@v1
+      with:
+        arch: x64
+    - name: Install Linux Build Tools
+      if: runner.os == 'Linux'
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y build-essential cmake binutils
+    - name: Check Build Tools
+      run: cmake --version
+    - name: Test Packaging Checks
+      run: python -m unittest discover -s tests/scripts -p 'test_*.py' -v
+    - name: Build and Verify Lite C API
+      run: python scripts/package_c_api.py build --jobs 2
+    - name: Check Release Metadata
+      env:
+        PACKAGE_PLATFORM: ${{ matrix.platform }}
+      run: |
+        python - <<'PYTHON'
+        import os, shutil, subprocess, tempfile
+        from pathlib import Path
+        from scripts.release_c_api import validate_packages
+        output = Path('build/c-api-dist')
+        with tempfile.TemporaryDirectory() as temporary:
+            assets = Path(temporary)
+            for file in output.glob('*.tar.gz*'):
+                shutil.copyfile(file, assets / file.name)
+            validate_packages(
+                assets, Path('NEUG_VERSION').read_text().strip(),
+                [os.environ['PACKAGE_PLATFORM']],
+                subprocess.check_output(['git', 'rev-parse', 'HEAD'], text=True).strip(),
+            )
+        PYTHON
+    - name: Upload C API Package
+      uses: actions/upload-artifact@v4
+      with:
+        name: c-api-${{ matrix.platform }}-${{ github.run_id }}
+        path: |
+          build/c-api-dist/*.tar.gz
+          build/c-api-dist/*.tar.gz.sha256
+        if-no-files-found: error
+        retention-days: 7
+    - name: Upload Build Diagnostics
+      if: always()
+      uses: actions/upload-artifact@v4
+      with:
+        name: c-api-build-logs-${{ matrix.platform }}-${{ github.run_id }}
+        path: |
+          build/c-api-dist/**/*.log
+          build/c-api-dist/**/verification.json
+        if-no-files-found: ignore
+        retention-days: 7
+
   # ========================================
   # Download the uploaded artifacts in independent environments and run package smoke tests.
   # ========================================
   verify:
-    if: ${{ !cancelled() && needs.initialize.result == 'success' && (needs.linux_wheel.result == 'success' || needs.linux_wheel.result == 'skipped') && (needs.linux-npm.result == 'success' || needs.linux-npm.result == 'skipped') && (needs.macos.result == 'success' || needs.macos.result == 'skipped') && (needs.windows.result == 'success' || needs.windows.result == 'skipped') && (needs.java.result == 'success' || needs.java.result == 'skipped') }}
-    needs: [initialize, linux_wheel, linux-npm, macos, windows, java]
+    if: ${{ !cancelled() && needs.initialize.result == 'success' && (needs.linux_wheel.result == 'success' || needs.linux_wheel.result == 'skipped') && (needs.linux-npm.result == 'success' || needs.linux-npm.result == 'skipped') && (needs.macos.result == 'success' || needs.macos.result == 'skipped') && (needs.windows.result == 'success' || needs.windows.result == 'skipped') && (needs.java.result == 'success' || needs.java.result == 'skipped') && (needs.c-api.result == 'success' || needs.c-api.result == 'skipped') }}
+    needs: [initialize, linux_wheel, linux-npm, macos, windows, java, c-api]
     uses: ./.github/workflows/verify-artifacts.yml
     with:
       plan: ${{ needs.initialize.outputs.plan }}
+      c_api_only: ${{ inputs.c_api_only || false }}
+      verify_c_api: ${{ fromJSON(needs.initialize.outputs.plan).c_api_matrix[0] != null }}
     secrets: inherit
 
   # ========================================
@@ -439,13 +531,14 @@ jobs:
   # ========================================
   complete:
     if: always()
-    needs: [version-check, initialize, linux_wheel, linux-npm, macos, windows, java, npm-main, verify]
+    needs: [version-check, initialize, linux_wheel, linux-npm, macos, windows, java, npm-main, c-api, verify]
     runs-on: ubuntu-22.04
     steps:
 
     - name: Require Successful Builds and Artifact Tests
       env:
         RESULTS: ${{ toJSON(needs) }}
+        C_API_ONLY: ${{ inputs.c_api_only || false }}
       run: |
         python3 - <<'PYCODE'
         import json, os
@@ -454,6 +547,8 @@ jobs:
             summary.write('## Package result\n```json\n' + json.dumps(results, indent=2) + '\n```\n')
         assert results['initialize']['result'] == 'success', results
         assert results['verify']['result'] == 'success', results
+        if os.environ['C_API_ONLY'] == 'true':
+            assert results['c-api']['result'] == 'success', 'No supported C API platform was built'
         assert all(job['result'] in ('success', 'skipped') for job in results.values()), results
         PYCODE
 
@@ -481,11 +576,12 @@ jobs:
         STATUS_WINDOWS="${{ needs.windows.result }}"
         STATUS_JAVA="${{ needs.java.result }}"
         STATUS_NPM_MAIN="${{ needs.npm-main.result }}"
+        STATUS_C_API="${{ needs.c-api.result }}"
         STATUS_VERIFY="${{ needs.verify.result }}"
         # A package run passes unless a stage actually failed or was cancelled;
         # a legitimately skipped stage (a platform not selected by the plan)
         # must not be reported as a failure.
-        STATUSES=" $STATUS_VERSION_CHECK $STATUS_INITIALIZE $STATUS_LINUX_WHEEL $STATUS_LINUX_NPM $STATUS_MACOS $STATUS_WINDOWS $STATUS_JAVA $STATUS_NPM_MAIN $STATUS_VERIFY "
+        STATUSES=" $STATUS_VERSION_CHECK $STATUS_INITIALIZE $STATUS_LINUX_WHEEL $STATUS_LINUX_NPM $STATUS_MACOS $STATUS_WINDOWS $STATUS_JAVA $STATUS_NPM_MAIN $STATUS_C_API $STATUS_VERIFY "
         if [[ "$STATUSES" == *" failure "* || "$STATUSES" == *" cancelled "* ]]; then
           TITLE="[Package Report] NeuG CI Failed"
         else
@@ -497,7 +593,7 @@ jobs:
             \"msgtype\": \"markdown\",
             \"markdown\": {
               \"title\": \"$TITLE\",
-              \"text\": \"## $TITLE\\n\\n- **version-check**: ${STATUS_VERSION_CHECK}\\n- **initialize**: ${STATUS_INITIALIZE}\\n- **linux_wheel**: ${STATUS_LINUX_WHEEL}\\n- **linux-npm**: ${STATUS_LINUX_NPM}\\n- **macos**: ${STATUS_MACOS}\\n- **windows**: ${STATUS_WINDOWS}\\n- **java**: ${STATUS_JAVA}\\n- **npm-main**: ${STATUS_NPM_MAIN}\\n- **verify**: ${STATUS_VERIFY}\\n- **Repo**: ${{ github.repository }}\\n- **Branch**: ${{ github.ref_name }}\\n- **Commit**: ${{ github.sha }}\\n- [View Run](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})\"
+              \"text\": \"## $TITLE\\n\\n- **version-check**: ${STATUS_VERSION_CHECK}\\n- **initialize**: ${STATUS_INITIALIZE}\\n- **linux_wheel**: ${STATUS_LINUX_WHEEL}\\n- **linux-npm**: ${STATUS_LINUX_NPM}\\n- **macos**: ${STATUS_MACOS}\\n- **windows**: ${STATUS_WINDOWS}\\n- **java**: ${STATUS_JAVA}\\n- **npm-main**: ${STATUS_NPM_MAIN}\\n- **c-api**: ${STATUS_C_API}\\n- **verify**: ${STATUS_VERIFY}\\n- **Repo**: ${{ github.repository }}\\n- **Branch**: ${{ github.ref_name }}\\n- **Commit**: ${{ github.sha }}\\n- [View Run](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})\"
             }
           }")
         echo "DingTalk response: $RESP"

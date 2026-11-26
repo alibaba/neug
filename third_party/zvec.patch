@@ -60,6 +60,20 @@ diff --git a/src/core/interface/index.cc b/src/core/interface/index.cc
 index e80bce6..e7b7ddf 100644
 --- a/src/core/interface/index.cc
 +++ b/src/core/interface/index.cc
+@@ -214,7 +214,11 @@ thread_local static std::array<core::IndexContext::Pointer,
+
+ bool Index::init_context() {
+-  context_index_ = (magic_enum::enum_integer(param_.index_type) - 1) * 2 +
+-                   static_cast<size_t>(is_sparse_);
++  // open() initializes the slot before publishing the index. Subsequent
++  // concurrent acquisitions must only modify their thread-local context.
++  if (context_index_ == std::numeric_limits<size_t>::max()) {
++    context_index_ = (magic_enum::enum_integer(param_.index_type) - 1) * 2 +
++                     static_cast<size_t>(is_sparse_);
++  }
+   if (context_list[context_index_] == nullptr) {
+     if ((context_list[context_index_] = streamer_->create_context()) ==
+         nullptr) {
 @@ -927,10 +927,11 @@ int Index::_dense_add(const VectorData &vector_data, const uint32_t doc_id,
        LOG_ERROR("Failed to quantize vector with turbo quantizer");
        return core::IndexError_Runtime;
@@ -238,3 +252,56 @@ index c695140..9dfe19e 100644
    // DenseVector dense_vector;
    // SparseVector sparse_vector;
  };
+diff --git a/src/core/algorithm/hnsw/hnsw_algorithm.h b/src/core/algorithm/hnsw/hnsw_algorithm.h
+index 8e546ba..448801a 100644
+--- a/src/core/algorithm/hnsw/hnsw_algorithm.h
++++ b/src/core/algorithm/hnsw/hnsw_algorithm.h
+@@ -16,5 +16,6 @@
+ #include <stdint.h>
+ #include <chrono>
++#include <mutex>
+ #include <type_traits>
+ #include <vector>
+ #include <ailego/parallel/lock.h>
+@@ -91,6 +91,7 @@ class HnswAlgorithm : public HnswAlgorithmBase {
+   //! Generate a random level
+   //! return graph level
+   uint32_t get_random_level() const override {
++    std::lock_guard<std::mutex> lock(random_mutex_);
+     // gen rand float (0, 1)
+     double f = mt_() / static_cast<float>(mt_.max());
+     for (size_t level = 0; level < level_probas_.size(); level++) {
+@@ -151,6 +152,7 @@ class HnswAlgorithm : public HnswAlgorithmBase {
+
+   EntityType &entity_;
+   mutable std::mt19937 mt_{};
++  mutable std::mutex random_mutex_{};
+   std::vector<double> level_probas_{};
+
+   mutable ailego::SpinMutex spin_lock_{};  // global spin lock
+diff --git a/src/core/algorithm/hnsw/hnsw_streamer_entity.cc b/src/core/algorithm/hnsw/hnsw_streamer_entity.cc
+index 321deaa..ef8811f 100644
+--- a/src/core/algorithm/hnsw/hnsw_streamer_entity.cc
++++ b/src/core/algorithm/hnsw/hnsw_streamer_entity.cc
+@@ -952,6 +952,8 @@ const HnswEntity::Pointer HnswContiguousStreamerEntity::clone() const {
+ }
+
+ const HnswEntity::Pointer HnswExternalStreamerEntity::clone() const {
++  // Contexts can be created while another worker allocates graph chunks.
++  std::lock_guard<std::mutex> lock(mutex_);
+   std::vector<Chunk::Pointer> node_chunks;
+   node_chunks.reserve(node_chunks_.size());
+   for (size_t i = 0UL; i < node_chunks_.size(); ++i) {
+diff --git a/src/core/algorithm/hnsw/hnsw_streamer_entity.h b/src/core/algorithm/hnsw/hnsw_streamer_entity.h
+index eb46f47..32ddf90 100644
+--- a/src/core/algorithm/hnsw/hnsw_streamer_entity.h
++++ b/src/core/algorithm/hnsw/hnsw_streamer_entity.h
+@@ -583,7 +583,7 @@ class HnswStreamerEntity : public HnswEntity {
+
+  protected:
+   IndexStreamer::Stats &stats_;
+-  std::mutex mutex_{};
++  mutable std::mutex mutex_{};
+   //! Guards upper_neighbor_index_ and upper_neighbor_chunks_ against
+   //! concurrent reads (find) and writes (insert/emplace_back).
+   //! Shared via shared_ptr so all clones synchronize on the SAME mutex.

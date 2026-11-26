@@ -29,6 +29,22 @@
 
 namespace neug {
 
+// No adjacency slot was stored for this direction.
+inline constexpr int32_t INVALID_EDGE_OFFSET = -1;
+
+// Transaction-local positions, valid while insert admission excludes slot
+// reordering. Never retain a buffer pointer across adjacency growth.
+struct EdgeInsertOffsets {
+  int32_t incoming = INVALID_EDGE_OFFSET;
+  int32_t outgoing = INVALID_EDGE_OFFSET;
+};
+
+#ifdef NEUG_BUILD_TEST
+NEUG_API void ResetDeleteEdgeSlotVisitsForTest();
+NEUG_API size_t DeleteEdgeSlotVisitsForTest();
+NEUG_API void RecordDeleteEdgeSlotVisitForTest();
+#endif
+
 // CsrType is defined in csr_view.h to avoid a csr_base <-> csr_view
 // include cycle (CsrView may need to know about CsrType in future).
 
@@ -80,8 +96,8 @@ class CsrBase : public Module {
                                   timestamp_t ts) = 0;
 
   virtual std::pair<int32_t, const void*> put_generic_edge(
-      vid_t src, vid_t dst, const Value& data, timestamp_t ts,
-      Allocator& alloc) = 0;
+      vid_t src, vid_t dst, const Value& data, timestamp_t ts, Allocator& alloc,
+      int32_t* inserted_offset = nullptr) = 0;
 
   virtual std::tuple<std::vector<vid_t>, std::vector<vid_t>> batch_export(
       ColumnBase* prev_data_col) const = 0;
@@ -102,19 +118,18 @@ class TypedCsrBase : public CsrBase {
                                const std::vector<EDATA_T>& data_list,
                                timestamp_t ts = 0) = 0;
 
-  virtual std::pair<int32_t, const void*> put_edge(vid_t src, vid_t dst,
-                                                   const EDATA_T& data,
-                                                   timestamp_t ts,
-                                                   Allocator& alloc) {
+  virtual std::pair<int32_t, const void*> put_edge(
+      vid_t src, vid_t dst, const EDATA_T& data, timestamp_t ts,
+      Allocator& alloc, int32_t* inserted_offset = nullptr) {
     LOG(FATAL) << "not supported...";
     return {0, nullptr};
   }
 
-  std::pair<int32_t, const void*> put_generic_edge(vid_t src, vid_t dst,
-                                                   const Value& data,
-                                                   timestamp_t ts,
-                                                   Allocator& alloc) override {
-    return this->put_edge(src, dst, data.GetValue<EDATA_T>(), ts, alloc);
+  std::pair<int32_t, const void*> put_generic_edge(
+      vid_t src, vid_t dst, const Value& data, timestamp_t ts, Allocator& alloc,
+      int32_t* inserted_offset = nullptr) override {
+    return this->put_edge(src, dst, data.GetValue<EDATA_T>(), ts, alloc,
+                          inserted_offset);
   }
 };
 

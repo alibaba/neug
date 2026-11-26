@@ -67,6 +67,28 @@ state, change schema, or change indexes are serialized through an update lease.
 An explicit read-write transaction retains the required lease until commit or
 rollback. Its changes remain private until commit publishes them.
 
+Insert transactions apply buffered changes to runtime storage before persisting
+their WAL record, and publish visibility only after WAL persistence succeeds.
+If apply fails, or the WAL writer confirms that it wrote no bytes, an in-memory
+undo journal removes the transaction's edges in both directions before removing
+its vertices. Undo includes partially applied operations, matches the owning
+insert timestamp, and retains physical slots for later reuse or compaction.
+Each edge operation records separate incoming and outgoing adjacency offsets
+as those inserts complete, including when a later step fails. Undo uses these
+transaction-local offsets under the adjacency locks instead of scanning for
+matching edges. Append growth preserves offsets; insert admission prevents
+slot reordering until commit or rollback finishes.
+
+An insert may reference committed vertices and vertices created by that same
+transaction. It checks completion separately for an earlier insert
+whose timestamp is above the captured reader watermark. This lets successive
+requests create vertices and then edges even while an unrelated, older insert
+holds back that watermark. Pending and rolled-back vertices remain unavailable,
+and vertices from later timestamps do not enter an earlier insert.
+
+Ordinary snapshot readers still use the contiguous committed watermark. They
+see the dependent vertices and edges only after all earlier timestamps finish.
+
 Each successful ordinary write is recorded in the WAL. Service-mode checkpoint
 maintenance waits for in-flight work, temporarily prevents new transactions
 from starting, publishes the new checkpoint, and rotates execution-slot WAL

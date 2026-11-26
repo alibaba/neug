@@ -63,15 +63,12 @@ Returns the database schema in JSON format.
 
 #### Query Execution Endpoint
 ```http
-POST /cypher
+POST /cypherv2
 Content-Type: text/plain
 
-{
-    "query": "MATCH (n) RETURN n LIMIT 10",
-    "format": "json"
-}
+MATCH (n) RETURN n LIMIT 10
 ```
-Executes a Cypher query and returns results in JSON format.
+The request body is the raw Cypher query text (not JSON). Executes the query and returns the result as a JSON payload.
 
 ## Troubleshooting
 

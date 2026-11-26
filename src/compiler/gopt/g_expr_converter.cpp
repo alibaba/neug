@@ -989,7 +989,13 @@ std::unique_ptr<::common::Expression> GExprConverter::convertCast(
   auto sourceExpr = children[0];
   switch (sourceExpr->expressionType) {
   case common::ExpressionType::LITERAL: {
-    return castLiteral(expr);
+    auto literal = castLiteral(expr);
+    if (literal) {
+      return literal;
+    }
+    // Some casts only have a runtime implementation. Preserve the CAST so
+    // unsupported conversions report a query error instead of an empty IR.
+    return convertExtensionFunc(scalarExpr, schemaAlias);
   }
   case common::ExpressionType::PARAMETER: {
     // Inference can assign the target type to an untyped parameter. An

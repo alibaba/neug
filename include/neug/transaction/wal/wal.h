@@ -14,6 +14,8 @@
  */
 #pragma once
 
+#include "neug/config.h"
+
 #include <stddef.h>
 #include <stdint.h>
 #include <memory>
@@ -117,7 +119,7 @@ class IWalParser {
 class WalWriterFactory {
  public:
   using wal_writer_initializer_t = std::unique_ptr<IWalWriter> (*)(
-      const std::string& wal_uri, int32_t slot_id);
+      const std::string& wal_uri, int32_t slot_id, WalSyncMode sync_mode);
 
   static void Init();
 
@@ -125,8 +127,9 @@ class WalWriterFactory {
 
   static std::unique_ptr<IWalWriter> CreateDummyWalWriter();
 
-  static std::unique_ptr<IWalWriter> CreateWalWriter(const std::string& wal_uri,
-                                                     int32_t slot_id);
+  static std::unique_ptr<IWalWriter> CreateWalWriter(
+      const std::string& wal_uri, int32_t slot_id,
+      WalSyncMode sync_mode = WalSyncMode::STANDARD);
 
   static bool RegisterWalWriter(const std::string& wal_writer_type,
                                 wal_writer_initializer_t initializer);
@@ -334,7 +337,8 @@ struct UpdateEdgePropRedo {
                         const Value& src, const std::string& dst_type,
                         const Value& dst, const std::string& edge_type,
                         int32_t oe_offset, int32_t ie_offset, int prop_id,
-                        const Value& value);
+                        const Value& value,
+                        const std::vector<Value>* before = nullptr);
   static void Deserialize(OutArchive& arc, UpdateEdgePropRedo& redo);
 };
 
@@ -358,7 +362,8 @@ struct RemoveEdgeRedo {
   static void Serialize(InArchive& arc, const std::string& src_type,
                         const Value& src, const std::string& dst_type,
                         const Value& dst, const std::string& edge_type,
-                        int32_t oe_offset, int32_t ie_offset);
+                        int32_t oe_offset, int32_t ie_offset,
+                        const std::vector<Value>* before = nullptr);
   static void Deserialize(OutArchive& arc, RemoveEdgeRedo& redo);
 };
 

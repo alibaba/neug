@@ -26,7 +26,11 @@ runs:
       export TEST_PATH=${GITHUB_WORKSPACE}/tests
       cd ${GITHUB_WORKSPACE}/build
       ctest --output-on-failure -R storage_test -V
+      ctest --output-on-failure --no-tests=error -R '^art_index$' -V
       ctest --output-on-failure -R transaction_test -V
+      ctest --output-on-failure --no-tests=error -R '^read_view_publication_test$' -V
+      ctest --output-on-failure --no-tests=error -R '^insert_visibility_test$' -V
+      ctest --output-on-failure --no-tests=error -R '^test_column$' -V
       ctest --output-on-failure -R csr_test -V
       ctest --output-on-failure -R edge_table_test -V
       ctest --output-on-failure -R graph_view_test -V
@@ -41,6 +45,7 @@ runs:
       ctest --output-on-failure -R logical_delete_test -V
       ctest --output-on-failure -R test_connection -V
       ctest --output-on-failure -R test_request -V
+      ctest --output-on-failure --no-tests=error -R '^test_plan_parser_init$' -V
       ctest --output-on-failure -R test_indexer -V
       # test_db_svc links brpc/bthread and is not built on Windows.
       if [[ "$TEST_PLATFORM" != windows ]]; then

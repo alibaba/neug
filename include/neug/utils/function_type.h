@@ -23,11 +23,16 @@
 #include "neug/common/types/value.h"
 
 namespace neug {
-namespace execution {
+class IStorageInterface;
 
+namespace execution {
 using neug::Value;
 
 using neug_func_exec_t = Value (*)(const std::vector<Value>&);
+// Context-aware functions receive the storage used to bind their argument
+// expressions. Storage may be null for constant binding.
+using neug_context_func_exec_t = Value (*)(const std::vector<Value>&,
+                                           const IStorageInterface*);
 
 }  // namespace execution
 }  // namespace neug

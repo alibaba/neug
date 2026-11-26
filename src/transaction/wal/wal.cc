@@ -60,12 +60,12 @@ void WalWriterFactory::Init() {}
 void WalWriterFactory::Finalize() {}
 
 std::unique_ptr<IWalWriter> WalWriterFactory::CreateWalWriter(
-    const std::string& wal_uri, int32_t slot_id) {
+    const std::string& wal_uri, int32_t slot_id, WalSyncMode sync_mode) {
   auto& known_writers_ = getKnownWalWriters();
   auto scheme = get_wal_uri_scheme(wal_uri);
   auto iter = known_writers_.find(scheme);
   if (iter != known_writers_.end()) {
-    return iter->second(wal_uri, slot_id);
+    return iter->second(wal_uri, slot_id, sync_mode);
   } else {
     std::stringstream ss;
     for (const auto& writer : known_writers_) {
@@ -408,11 +408,16 @@ void UpdateVertexPropRedo::Deserialize(OutArchive& arc,
 void UpdateEdgePropRedo::Serialize(
     InArchive& arc, const std::string& src_type, const Value& src,
     const std::string& dst_type, const Value& dst, const std::string& edge_type,
-    int32_t oe_offset, int32_t ie_offset, int prop_id, const Value& value) {
-  arc << static_cast<uint8_t>(OpType::kUpdateEdgeProp);
+    int32_t oe_offset, int32_t ie_offset, int prop_id, const Value& value,
+    const std::vector<Value>* before) {
+  arc << static_cast<uint8_t>(before ? OpType::kUpdateEdgePropByValue
+                                     : OpType::kUpdateEdgeProp);
   arc << src_type << src << dst_type << dst << edge_type;
   arc << oe_offset << ie_offset;
   arc << prop_id << value;
+  if (before) {
+    arc << *before;
+  }
 }
 
 void UpdateEdgePropRedo::Deserialize(OutArchive& arc,
@@ -436,10 +441,15 @@ void RemoveVertexRedo::Deserialize(OutArchive& arc, RemoveVertexRedo& redo) {
 void RemoveEdgeRedo::Serialize(InArchive& arc, const std::string& src_type,
                                const Value& src, const std::string& dst_type,
                                const Value& dst, const std::string& edge_type,
-                               int32_t oe_offset, int32_t ie_offset) {
-  arc << static_cast<uint8_t>(OpType::kRemoveEdge);
+                               int32_t oe_offset, int32_t ie_offset,
+                               const std::vector<Value>* before) {
+  arc << static_cast<uint8_t>(before ? OpType::kRemoveEdgeByValue
+                                     : OpType::kRemoveEdge);
   arc << src_type << src << dst_type << dst << edge_type;
   arc << oe_offset << ie_offset;
+  if (before) {
+    arc << *before;
+  }
 }
 
 void RemoveEdgeRedo::Deserialize(OutArchive& arc, RemoveEdgeRedo& redo) {

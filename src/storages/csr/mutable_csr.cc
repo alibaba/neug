@@ -42,10 +42,23 @@
 
 namespace neug {
 
+#ifdef NEUG_BUILD_TEST
+namespace {
+std::atomic<size_t> delete_edge_slot_visits{0};
+}
+void ResetDeleteEdgeSlotVisitsForTest() { delete_edge_slot_visits.store(0); }
+size_t DeleteEdgeSlotVisitsForTest() { return delete_edge_slot_visits.load(); }
+void RecordDeleteEdgeSlotVisitForTest() {
+  delete_edge_slot_visits.fetch_add(1, std::memory_order_relaxed);
+}
+#endif
+
 template <typename EDATA_T>
 void MutableCsr<EDATA_T>::Open(Checkpoint& ckp,
                                const ModuleDescriptor& descriptor,
                                MemoryLevel memory_level) {
+  resize_allocator_ = ckp.runtime_allocator();
+  level_ = memory_level;
   unsorted_since_ = std::stoull(descriptor.get("unsorted_since").value_or("0"));
   // Incremental checkpoints preserve tombstones, so the sum of degrees counts
   // occupied slots rather than live edges. Validating the persisted live-edge
@@ -211,23 +224,32 @@ void MutableCsr<EDATA_T>::resize(vid_t vnum) {
     THROW_RUNTIME_ERROR("Containers not initialized");
   }
   auto old_vnum = vertex_capacity();
+  if (vnum == old_vnum) {
+    return;
+  }
+  auto adj = ResizeContainerCopy(resize_allocator_, level_, adj_list_buffer_,
+                                 vnum * sizeof(nbr_t*));
+  auto degrees = ResizeContainerCopy(resize_allocator_, level_, degree_list_,
+                                     vnum * sizeof(int));
+  auto caps = ResizeContainerCopy(resize_allocator_, level_, cap_list_,
+                                  vnum * sizeof(int));
+  std::unique_ptr<SpinLock[]> locks;
   if (vnum > old_vnum) {
-    adj_list_buffer_->Resize(vnum * sizeof(nbr_t*));
-    degree_list_->Resize(vnum * sizeof(int));
-    cap_list_->Resize(vnum * sizeof(int));
-    auto** buf_arr = reinterpret_cast<nbr_t**>(adj_list_buffer_->GetData());
-    auto* sz_arr = reinterpret_cast<std::atomic<int>*>(degree_list_->GetData());
-    auto* cap_arr = reinterpret_cast<int*>(cap_list_->GetData());
+    locks = std::make_unique<SpinLock[]>(vnum);
+    auto** buf_arr = reinterpret_cast<nbr_t**>(adj->GetData());
+    auto* sz_arr = reinterpret_cast<std::atomic<int>*>(degrees->GetData());
+    auto* cap_arr = reinterpret_cast<int*>(caps->GetData());
     for (vid_t i = old_vnum; i < vnum; ++i) {
       buf_arr[i] = nullptr;
       sz_arr[i].store(0, std::memory_order_relaxed);
       cap_arr[i] = 0;
     }
-    locks_ = std::make_unique<SpinLock[]>(vnum);
-  } else {
-    adj_list_buffer_->Resize(vnum * sizeof(nbr_t*));
-    degree_list_->Resize(vnum * sizeof(int));
-    cap_list_->Resize(vnum * sizeof(int));
+  }
+  adj_list_buffer_ = std::move(adj);
+  degree_list_ = std::move(degrees);
+  cap_list_ = std::move(caps);
+  if (locks) {
+    locks_ = std::move(locks);
   }
   refresh_prefetch_policy();
 }
@@ -396,8 +418,14 @@ template <typename EDATA_T>
 void MutableCsr<EDATA_T>::delete_edge(vid_t src, int32_t offset,
                                       timestamp_t ts) {
   vid_t vnum = static_cast<vid_t>(vertex_capacity());
+  if (src >= vnum || offset < 0) {
+    THROW_INVALID_ARGUMENT_EXCEPTION("src out of bound or offset out of bound");
+  }
+  // Append may replace the buffer. Resolve and delete the slot under the
+  // same lock, so concurrent insertion cannot copy an undeleted old slot.
+  std::lock_guard<SpinLock> lock(locks_[src]);
   auto* sz_arr = reinterpret_cast<std::atomic<int>*>(degree_list_->GetData());
-  if (src >= vnum || offset >= sz_arr[src].load(std::memory_order_relaxed)) {
+  if (offset >= sz_arr[src].load(std::memory_order_relaxed)) {
     THROW_INVALID_ARGUMENT_EXCEPTION("src out of bound or offset out of bound");
   }
   nbr_t* nbrs = reinterpret_cast<nbr_t**>(adj_list_buffer_->GetData())[src];
@@ -405,7 +433,10 @@ void MutableCsr<EDATA_T>::delete_edge(vid_t src, int32_t offset,
     THROW_INVALID_ARGUMENT_EXCEPTION("adjacency buffer is null");
   }
   auto old_ts = nbrs[offset].timestamp.load();
-  if (old_ts <= ts) {
+#ifdef NEUG_BUILD_TEST
+  RecordDeleteEdgeSlotVisitForTest();
+#endif
+  if (old_ts != std::numeric_limits<timestamp_t>::max() && old_ts <= ts) {
     nbrs[offset].timestamp.store(std::numeric_limits<timestamp_t>::max());
     edge_num_.fetch_sub(1, std::memory_order_relaxed);
     unsorted_since_ = 0;
@@ -525,6 +556,8 @@ template <typename EDATA_T>
 void SingleMutableCsr<EDATA_T>::Open(Checkpoint& ckp,
                                      const ModuleDescriptor& descriptor,
                                      MemoryLevel level) {
+  resize_allocator_ = ckp.runtime_allocator();
+  level_ = level;
   assert(descriptor.module_type.empty() ||
          descriptor.module_type == ModuleTypeName());
   nbr_list_ = ckp.OpenFile(
@@ -567,14 +600,18 @@ void SingleMutableCsr<EDATA_T>::compact() {
 
 template <typename EDATA_T>
 void SingleMutableCsr<EDATA_T>::resize(vid_t vnum) {
-  size_t old_vnum = vertex_capacity();
-  nbr_list_->Resize(vnum * sizeof(nbr_t));
-  if (vnum > old_vnum) {
-    auto* data = reinterpret_cast<nbr_t*>(nbr_list_->GetData());
-    for (vid_t i = old_vnum; i < vnum; ++i) {
-      data[i].timestamp.store(std::numeric_limits<timestamp_t>::max());
-    }
+  const auto old_size = vertex_capacity();
+  if (vnum == old_size) {
+    return;
   }
+  auto replacement = ResizeContainerCopy(resize_allocator_, level_, nbr_list_,
+                                         vnum * sizeof(nbr_t));
+  auto* data = static_cast<nbr_t*>(replacement->GetData());
+  for (vid_t i = old_size; i < vnum; ++i) {
+    data[i].timestamp.store(std::numeric_limits<timestamp_t>::max());
+  }
+  nbr_list_ = std::move(replacement);
+  refresh_prefetch_policy();
 }
 
 template <typename EDATA_T>
@@ -667,6 +704,7 @@ void SingleMutableCsr<EDATA_T>::batch_delete_edges(
 template <typename EDATA_T>
 void SingleMutableCsr<EDATA_T>::delete_edge(vid_t src, int32_t offset,
                                             timestamp_t ts) {
+  std::lock_guard<SpinLock> lock(insert_lock_);
   if (!nbr_list_) {
     return;
   }
@@ -678,8 +716,14 @@ void SingleMutableCsr<EDATA_T>::delete_edge(vid_t src, int32_t offset,
   }
   nbr_t* data = reinterpret_cast<nbr_t*>(nbr_list_->GetData());
   auto& nbr = data[src];
-  assert(offset == 0);
-  if (nbr.timestamp.load() <= ts) {
+  if (offset != 0) {
+    THROW_INVALID_ARGUMENT_EXCEPTION("offset out of bound");
+  }
+#ifdef NEUG_BUILD_TEST
+  RecordDeleteEdgeSlotVisitForTest();
+#endif
+  const auto old_ts = nbr.timestamp.load();
+  if (old_ts != std::numeric_limits<timestamp_t>::max() && old_ts <= ts) {
     nbr.timestamp.store(std::numeric_limits<timestamp_t>::max());
     edge_num_.fetch_sub(1, std::memory_order_relaxed);
   } else if (nbr.timestamp.load() == std::numeric_limits<timestamp_t>::max()) {

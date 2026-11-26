@@ -2497,6 +2497,10 @@ GQueryConvertor::convertPropMapping(const std::string& propertyName,
   auto mappingPB = std::make_unique<::physical::PropertyMapping>();
   mappingPB->set_allocated_property(propertyPB.release());
   auto dataPB = exprConvertor->convert(data, schemaAlias);
+  if (!dataPB) {
+    THROW_EXCEPTION_WITH_FILE_LINE("Failed to convert property expression: " +
+                                   data.toString());
+  }
   mappingPB->set_allocated_data(dataPB.release());
   return mappingPB;
 }

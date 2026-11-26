@@ -22,6 +22,7 @@
 
 #include "neug/storages/checkpoint_file_manager.h"
 #include "neug/storages/checkpoint_manifest.h"
+#include "neug/storages/checkpoint_object_manager.h"
 #include "neug/storages/module_descriptor.h"
 
 namespace neug {
@@ -83,9 +84,24 @@ class Checkpoint {
     return file_mgr_->CreateRuntimeContainer(size, level);
   }
 
+  // Runtime allocations may outlive the manifest-specific Checkpoint object.
+  std::shared_ptr<CheckpointFileManager> runtime_allocator() const {
+    return file_mgr_;
+  }
+
   /// Consume @p buffer and publish it as an immutable object.
   std::string Commit(IDataContainer& buffer) {
     return file_mgr_->Commit(buffer);
+  }
+
+  /// Open a writer for appending fragments to a single immutable object.
+  CheckpointObjectWriter CreateObjectWriter() {
+    return CheckpointObjectWriter(*this);
+  }
+
+  /// Open a reader that maps each requested immutable object once.
+  CheckpointObjectReader CreateObjectReader() {
+    return CheckpointObjectReader(*this);
   }
 
   /// Set the complete in-memory manifest. CheckpointManager persists it before
@@ -137,7 +153,7 @@ class Checkpoint {
   std::string wal_dir_;
   uint64_t id_;
   CheckpointManifest manifest_;
-  std::unique_ptr<CheckpointFileManager> file_mgr_;
+  std::shared_ptr<CheckpointFileManager> file_mgr_;
 };
 
 /// File name prefix for the allocator with @p allocator_id under
