@@ -1845,6 +1845,89 @@ def test_where_subquery(modern_graph):
     assert records == [[1]]
 
 
+@pytest.mark.parametrize("negated", [False, True])
+@pytest.mark.parametrize(
+    "prefix, inner, matched",
+    [
+        ("MATCH (m:Note)", "MATCH (n:Note) WHERE n.id = m.id", [0, 1, 2]),
+        ("MATCH (m:Note)", "MATCH (n:Note) WHERE n.text = m.text", [0, 1, 2]),
+        ("MATCH (m:Note)", "MATCH (t:Tag) WHERE t.note_id = m.id", [0]),
+        (
+            "MATCH (m:Note)",
+            "MATCH (t:Tag) WHERE t.note_id = m.id AND t.text = m.text",
+            [0],
+        ),
+        (
+            "MATCH (m:Note) WITH m.id AS mid",
+            "MATCH (t:Tag) WHERE t.note_id = mid",
+            [0],
+        ),
+    ],
+)
+def test_exists_correlated_properties(empty_db, negated, prefix, inner, matched):
+    _, conn = empty_db
+    conn.execute("CREATE NODE TABLE Note(id INT64 PRIMARY KEY, text STRING);")
+    conn.execute(
+        "CREATE NODE TABLE Tag(id INT64 PRIMARY KEY, note_id INT64, text STRING);"
+    )
+    conn.execute(
+        "CREATE (:Note {id: 0, text: 'a'}), (:Note {id: 1, text: 'b'}), "
+        "(:Note {id: 2, text: 'c'});"
+    )
+    conn.execute(
+        "CREATE (:Tag {id: 0, note_id: 0, text: 'a'}), "
+        "(:Tag {id: 1, note_id: 0, text: 'a'}), (:Tag {id: 2});"
+    )
+    key = "mid" if "WITH" in prefix else "m.id"
+    expected = [i for i in range(3) if (i in matched) != negated]
+    result = conn.execute(
+        f"{prefix} WHERE {'NOT ' if negated else ''}EXISTS {{ {inner} }} "
+        f"RETURN {key} ORDER BY {key};"
+    )
+    assert list(result) == [[i] for i in expected]
+
+    if "WITH" not in prefix:
+        # A separate outer predicate must still apply to the semi/anti join result.
+        result = conn.execute(
+            f"{prefix} WHERE {key} > 0 AND "
+            f"{'NOT ' if negated else ''}EXISTS {{ {inner} }} "
+            f"RETURN {key} ORDER BY {key};"
+        )
+        assert list(result) == [[i] for i in expected if i > 0]
+
+
+@pytest.mark.parametrize("negated", [False, True])
+@pytest.mark.parametrize(
+    "prefix, correlation, error",
+    [
+        ("MATCH (m:Note) WHERE", "n.id = m.id + 0", "Unconnected correlated query"),
+        (
+            "MATCH (m:Note) WITH m.id AS mid WHERE mid > 0 AND",
+            "n.id = mid",
+            "Unsupported join type: 2",
+        ),
+    ],
+)
+def test_exists_unsupported_correlation_returns_error(
+    empty_db, negated, prefix, correlation, error
+):
+    _, conn = empty_db
+    conn.execute("CREATE NODE TABLE Note(id INT64 PRIMARY KEY);")
+    conn.execute("CREATE (:Note {id: 0}), (:Note {id: 1});")
+    with pytest.raises(RuntimeError, match=error):
+        conn.execute(
+            f"{prefix} {'NOT ' if negated else ''}EXISTS {{ "
+            f"MATCH (n:Note) WHERE {correlation} }} RETURN 1;"
+        )
+
+    # Planning failure must leave the connection usable for another query.
+    result = conn.execute(
+        "MATCH (m:Note) WHERE EXISTS { MATCH (n:Note) WHERE n.id > 0 } "
+        "RETURN m.id ORDER BY m.id;"
+    )
+    assert list(result) == [[0], [1]]
+
+
 def test_exists_correlated_pattern_order(tmp_path):
     """Correlated EXISTS: two comma-separated patterns, same semantics, different order.
 
