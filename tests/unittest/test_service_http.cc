@@ -30,7 +30,7 @@
 #include "neug/main/neug_db.h"
 #include "neug/transaction/insert_capacity.h"
 #include "neug/utils/exception/exception.h"
-#if defined(BUILD_HTTP_SERVER) && !defined(_WIN32)
+#ifndef _WIN32
 #include "../../src/server/brpc_transport.h"
 #else
 #include "neug/server/httplib_transport.h"
@@ -173,7 +173,7 @@ class ServiceHttpExceptions : public ::testing::TestWithParam<bool> {};
 TEST_P(ServiceHttpExceptions, EveryEndpointReturns500AndKeepsServing) {
   ThrowingOperations operations;
   operations.unknown = GetParam();
-#if defined(BUILD_HTTP_SERVER) && !defined(_WIN32)
+#ifndef _WIN32
   BrpcTransport transport(operations, "127.0.0.1", 0, 1);
 #else
   HttplibTransport transport(operations, "127.0.0.1", 0, 1);
