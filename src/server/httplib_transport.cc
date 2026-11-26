@@ -19,7 +19,6 @@
 #include <chrono>
 #include <utility>
 
-#include "neug/server/service_config.h"
 #include "neug/server/tp_operations.h"
 #include "neug/utils/exception/exception.h"
 #include "service_http_common.h"
@@ -67,18 +66,6 @@ void HttplibControlExecutor::Loop() {
   }
 }
 
-std::unique_ptr<IServiceTransport> CreateDefaultServiceTransport(
-    ITpOperations& service, const ServiceConfig& config,
-    int database_thread_num) {
-  const auto thread_num =
-      config.thread_num != 0
-          ? config.thread_num
-          : static_cast<uint32_t>(database_thread_num > 0 ? database_thread_num
-                                                          : 1);
-  return std::make_unique<HttplibTransport>(service, config.host_str,
-                                            config.query_port, thread_num);
-}
-
 namespace {
 
 void SendQueryResponse(httplib::Response& res, result<std::string>&& response) {
@@ -118,6 +105,10 @@ HttplibTransport::~HttplibTransport() { StopAndJoin(); }
 
 void HttplibTransport::RegisterHandlers() {
   auto* svr = server_.get();
+  svr->set_exception_handler([](const httplib::Request&, httplib::Response& res,
+                                std::exception_ptr error) {
+    SendError(res, service_http::ExceptionToStatus(error));
+  });
 
   // Non-POST requests on the transaction endpoints must answer 405 with an
   // Allow header to match the BRPC contract (asserted in test_db_svc.cc);
@@ -232,14 +223,22 @@ void HttplibTransport::RunOnControlWorker(std::function<void()> task) {
   std::mutex done_mutex;
   std::condition_variable done_cv;
   bool done = false;
+  std::exception_ptr error;
   control_executor_.Execute([&] {
-    task();
+    // Never unwind out of the control thread or strand the waiting request.
+    // Rethrow on the request worker so the HTTP exception handler responds.
+    try {
+      task();
+    } catch (...) { error = std::current_exception(); }
     std::lock_guard<std::mutex> lock(done_mutex);
     done = true;
     done_cv.notify_one();
   });
   std::unique_lock<std::mutex> lock(done_mutex);
   done_cv.wait(lock, [&done]() { return done; });
+  if (error) {
+    std::rethrow_exception(error);
+  }
 }
 
 void HttplibTransport::HandleFinishTransaction(const httplib::Request& req,
