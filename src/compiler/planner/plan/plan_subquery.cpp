@@ -263,9 +263,12 @@ void Planner::planRegularMatch(const QueryGraphCollection& queryGraphCollection,
   }
 }
 
-// combine schema of all graph operators in the outer plan
+// Preserve the current scope and add internal IDs from outer graph operators.
 std::unique_ptr<Schema> Planner::combineSchema(LogicalPlan& outerPlan) {
-  auto combinedSchema = std::make_unique<Schema>();
+  // Property and WITH expressions must remain visible to predicate pull-up.
+  // Otherwise correlated predicates can be mistaken for inner-only filters,
+  // leaving the correlated hash join without any keys.
+  auto combinedSchema = outerPlan.getSchema()->copy();
   auto op = outerPlan.getLastOperator();
   while (op) {
     if (op->getOperatorType() == LogicalOperatorType::GET_V ||
