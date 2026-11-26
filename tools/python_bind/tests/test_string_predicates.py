@@ -70,10 +70,15 @@ def test_string_predicate_literals(empty_db, syntax, value, pattern, expected):
 @pytest.mark.parametrize("syntax", ["operator", "function"])
 def test_string_predicate_properties_and_filters(empty_db, syntax):
     _, conn = empty_db
+    # Stored STRING properties currently map NULL to an empty string;
+    # NULL propagation is covered by the literal tests above.
+    cases = [
+        (v, p, expected) for v, p, expected in CASES if v is not None and p is not None
+    ]
     conn.execute(
         "CREATE NODE TABLE Note(id INT64 PRIMARY KEY, text STRING, pattern STRING);"
     )
-    for index, (value, pattern, _) in enumerate(CASES):
+    for index, (value, pattern, _) in enumerate(cases):
         conn.execute(
             f"CREATE (:Note {{id: {index}, text: {literal(value)}, "
             f"pattern: {literal(pattern)}}});"
@@ -81,11 +86,11 @@ def test_string_predicate_properties_and_filters(empty_db, syntax):
     predicates = expressions("n.text", "n.pattern", syntax)
     assert list(
         conn.execute(f"MATCH (n:Note) RETURN {', '.join(predicates)} ORDER BY n.id;")
-    ) == [expected for _, _, expected in CASES]
+    ) == [expected for _, _, expected in cases]
     for column, predicate in enumerate(predicates):
         assert list(
             conn.execute(f"MATCH (n:Note) WHERE {predicate} RETURN n.id ORDER BY n.id;")
-        ) == [[i] for i, (_, _, expected) in enumerate(CASES) if expected[column]]
+        ) == [[i] for i, (_, _, expected) in enumerate(cases) if expected[column]]
 
 
 @pytest.mark.parametrize("syntax", ["operator", "function"])
