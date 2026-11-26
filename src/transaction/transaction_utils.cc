@@ -289,12 +289,13 @@ Status renameVertexIndex(PropertyGraph& graph, label_t label,
 
 Status addVertexIndexData(PropertyGraph& graph, label_t label, vid_t lid,
                           const Value& id, const std::vector<Value>& props,
-                          const IndexDetachFn& detach_index) {
+                          const IndexDetachFn& detach_index, bool insert_safe,
+                          bool skip_pending) {
   const auto& v_schema = graph.schema().get_vertex_schema(label);
   auto& index_manager = graph.mutable_index_manager();
 
   const auto& pk_name = std::get<1>(v_schema->primary_keys[0]);
-  auto indexes = index_manager.GetIndexesForUpdate(label);
+  auto indexes = index_manager.GetIndexesForUpdate(label, skip_pending);
   if (!indexes) {
     return indexes.error();
   }
@@ -317,14 +318,15 @@ Status addVertexIndexData(PropertyGraph& graph, label_t label, vid_t lid,
           std::distance(v_schema->property_names.begin(), it));
       values.push_back(pos < props.size() ? props[pos] : Value());
     }
-    RETURN_IF_NOT_OK(index->Upsert(lid, values));
+    RETURN_IF_NOT_OK(index->Upsert(lid, values, insert_safe));
   }
   return Status::OK();
 }
 
 Status updateVertexIndexData(PropertyGraph& graph, label_t label, vid_t lid,
                              int32_t col_id, const Value& value,
-                             const IndexDetachFn& detach_index) {
+                             const IndexDetachFn& detach_index,
+                             bool skip_pending) {
   const auto& v_schema = graph.schema().get_vertex_schema(label);
   if (col_id < 0 ||
       static_cast<size_t>(col_id) >= v_schema->property_names.size() ||
@@ -334,7 +336,7 @@ Status updateVertexIndexData(PropertyGraph& graph, label_t label, vid_t lid,
 
   auto indexes =
       graph.mutable_index_manager().GetIndexesContainingPropertyForUpdate(
-          label, v_schema->property_names[col_id]);
+          label, v_schema->property_names[col_id], skip_pending);
   if (!indexes) {
     return indexes.error();
   }
@@ -350,9 +352,10 @@ Status updateVertexIndexData(PropertyGraph& graph, label_t label, vid_t lid,
 
 Status deleteVertexIndexData(PropertyGraph& graph, label_t label,
                              const std::vector<vid_t>& vids,
-                             const IndexDetachFn& detach_index) {
+                             const IndexDetachFn& detach_index,
+                             bool skip_pending) {
   auto& index_manager = graph.mutable_index_manager();
-  auto indexes = index_manager.GetIndexesForUpdate(label);
+  auto indexes = index_manager.GetIndexesForUpdate(label, skip_pending);
   if (!indexes) {
     return indexes.error();
   }
@@ -442,9 +445,9 @@ void ReplayCowGraphWal(PropertyGraph& graph, uint32_t timestamp, char* data,
             }
           }
           index_manager.RecordPendingInsert(label, vid, std::move(properties));
-        } else {
-          ret = addVertexIndexData(graph, label, vid, oid, props);
         }
+        ret = addVertexIndexData(graph, label, vid, oid, props, nullptr, true,
+                                 true);
         THROW_STORAGE_EXCEPTION_STATUS(
             "Failed to append vertex indexes in redo: ", ret);
       }
@@ -487,9 +490,9 @@ void ReplayCowGraphWal(PropertyGraph& graph, uint32_t timestamp, char* data,
               label, v_schema->property_names[prop_id])) {
         graph.mutable_index_manager().RecordPendingUpdate(
             label, vid, v_schema->property_names[prop_id], value);
-      } else {
-        ret = updateVertexIndexData(graph, label, vid, prop_id, value);
       }
+      ret = updateVertexIndexData(graph, label, vid, prop_id, value, nullptr,
+                                  true);
       THROW_STORAGE_EXCEPTION_STATUS(
           "Failed to update vertex property indexes in redo: ", ret);
     } else if (op_type == OpType::kUpdateEdgeProp ||
@@ -546,9 +549,8 @@ void ReplayCowGraphWal(PropertyGraph& graph, uint32_t timestamp, char* data,
       THROW_STORAGE_EXCEPTION_STATUS("Failed to delete vertex in redo: ", ret);
       if (graph.mutable_index_manager().HasPendingIndex(label)) {
         graph.mutable_index_manager().RecordPendingDelete(label, vid);
-      } else {
-        ret = deleteVertexIndexData(graph, label, {vid});
       }
+      ret = deleteVertexIndexData(graph, label, {vid}, nullptr, true);
       THROW_STORAGE_EXCEPTION_STATUS(
           "Failed to delete vertex indexes in redo: ", ret);
     } else if (op_type == OpType::kRemoveEdge ||

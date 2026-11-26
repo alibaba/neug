@@ -1225,6 +1225,136 @@ TEST(StructPropertyColumnTest, DataTypeArchiveRoundTripPreservesNames) {
   }
 }
 
+TEST(VecColumnTest, IndexAccessorIndependentCapacityAndNoImplicitGrowth) {
+  const auto dir =
+      std::filesystem::temp_directory_path() /
+      ("accessor_capacity_" +
+       std::to_string(
+           std::chrono::steady_clock::now().time_since_epoch().count()));
+  std::filesystem::create_directories(dir);
+  {
+    CheckpointManager manager;
+    manager.Open(dir.string());
+    auto ckp = make_checkpoint(manager);
+    DefaultIndexIDAccessor accessor;
+    accessor.Open(*ckp, ModuleDescriptor{}, MemoryLevel::kInMemory);
+    accessor.Resize(2, 1);
+    EXPECT_EQ(accessor.UpsertVID(0, false), 0);
+    EXPECT_THROW(accessor.UpsertVID(1, false), exception::StorageException);
+    EXPECT_EQ(accessor.GetNextIndexID(), 1);
+    EXPECT_EQ(accessor.GetIndexIDByVID(1), INVALID_INDEX_ID);
+    accessor.Resize(2, 3);
+    EXPECT_EQ(accessor.VertexCapacity(), 2);
+    EXPECT_EQ(accessor.UpsertVID(1, false), 1);
+    EXPECT_THROW(accessor.UpsertVID(2, false), exception::StorageException);
+    EXPECT_EQ(accessor.GetNextIndexID(), 2);
+    accessor.Resize(3, 3);
+    EXPECT_EQ(accessor.IndexCapacity(), 3);
+    EXPECT_EQ(accessor.UpsertVID(2, false), 2);
+    EXPECT_EQ(accessor.GetVisibleLimit(), 3);
+    auto capacity_clone = accessor.Clone();
+    auto* grown = static_cast<IndexIDAccessor*>(capacity_clone.get());
+    // Reverse-only growth must not allocate or fork the forward container.
+    SetResizeFailureCountdownForTest(0);
+    EXPECT_NO_THROW(grown->Resize(3, 5));
+    EXPECT_EQ(grown->VertexCapacity(), 3);
+    EXPECT_EQ(grown->IndexCapacity(), 5);
+    EXPECT_EQ(accessor.IndexCapacity(), 3);
+    EXPECT_THROW(grown->Resize(5, 7), std::bad_alloc);
+    SetResizeFailureCountdownForTest(-1);
+    EXPECT_EQ(grown->VertexCapacity(), 3);
+    EXPECT_EQ(grown->IndexCapacity(), 5);
+    grown->Resize(5, 5);
+    EXPECT_EQ(grown->VertexCapacity(), 5);
+    EXPECT_EQ(grown->IndexCapacity(), 5);
+    EXPECT_EQ(accessor.VertexCapacity(), 3);
+    EXPECT_EQ(grown->GetIndexIDByVID(0), 0);
+    EXPECT_EQ(grown->GetIndexIDByVID(4), INVALID_INDEX_ID);
+    EXPECT_EQ(grown->GetVIDByIndexID(4), INVALID_VID);
+    EXPECT_EQ(grown->GetVisibleLimit(), 3);
+    auto clone = accessor.Clone();
+    auto* detached = static_cast<IndexIDAccessor*>(clone.get());
+    detached->Detach(*ckp, MemoryLevel::kInMemory);
+    detached->UpsertVID(0, true);
+    EXPECT_EQ(accessor.GetIndexIDByVID(0), 0);
+    EXPECT_EQ(accessor.GetVisibleLimit(), 3);
+    EXPECT_EQ(detached->GetVisibleLimit(), 4);
+    EXPECT_EQ(accessor.GetNextIndexID(), 4);
+    EXPECT_TRUE(accessor.DeleteVID(1).ok());
+    EXPECT_EQ(accessor.GetVIDByIndexID(1), INVALID_VID);
+    EXPECT_EQ(accessor.GetVisibleLimit(), 3);
+  }
+  std::filesystem::remove_all(dir);
+}
+
+TEST(VecColumnTest, ConcurrentReservedAppendAndRead) {
+  const auto dir =
+      std::filesystem::temp_directory_path() /
+      ("vec_concurrent_" +
+       std::to_string(
+           std::chrono::steady_clock::now().time_since_epoch().count()));
+  std::filesystem::create_directories(dir);
+  {
+    CheckpointManager manager;
+    manager.Open(dir.string());
+    auto ckp = make_checkpoint(manager);
+    constexpr size_t count = 4096;
+    auto type = DataType::Array(DataType::FLOAT, 2);
+    auto accessor = std::make_unique<DefaultIndexIDAccessor>();
+    accessor->Open(*ckp, ModuleDescriptor{}, MemoryLevel::kInMemory);
+    accessor->Resize(count, count);
+    auto buffer = ckp->CreateRuntimeContainer(count * 2 * sizeof(float),
+                                              MemoryLevel::kInMemory);
+    VecColumn column(std::move(buffer), std::move(accessor), type, count,
+                     Value::ARRAY(type, {Value::FLOAT(0), Value::FLOAT(0)}),
+                     *ckp, MemoryLevel::kInMemory);
+    std::unique_ptr<std::atomic<bool>[]> ready(new std::atomic<bool>[count] {});
+    std::atomic<bool> start{false};
+    std::vector<std::thread> writers;
+    for (size_t worker = 0; worker < 4; ++worker) {
+      writers.emplace_back([&, worker] {
+        while (!start.load())
+          std::this_thread::yield();
+        for (size_t vid = worker; vid < count; vid += 4) {
+          column.set_any(vid,
+                         Value::ARRAY(type, {Value::FLOAT(float(vid)),
+                                             Value::FLOAT(float(vid + 1))}),
+                         false);
+          ready[vid].store(true, std::memory_order_release);
+        }
+      });
+    }
+    auto reader = std::async(std::launch::async, [&] {
+      start.store(true);
+      for (size_t vid = 0; vid < count; ++vid) {
+        while (!ready[vid].load(std::memory_order_acquire))
+          std::this_thread::yield();
+        const auto id = column.get_offset_accessor()->GetIndexIDByVID(vid);
+        EXPECT_LT(id, count);
+        EXPECT_EQ(column.get_offset_accessor()->GetVIDByIndexID(id), vid);
+        auto value = column.get_any(vid);
+        EXPECT_EQ(ArrayValue::GetChildren(value)[0].GetValue<float>(),
+                  float(vid));
+        EXPECT_EQ(ArrayValue::GetChildren(value)[1].GetValue<float>(),
+                  float(vid + 1));
+      }
+    });
+    for (auto& writer : writers)
+      writer.join();
+    reader.get();
+    EXPECT_EQ(column.get_offset_accessor()->GetNextIndexID(), count);
+    auto clone = column.Clone();
+    auto* detached = dynamic_cast<VecColumn*>(clone.get());
+    detached->Detach(*ckp, MemoryLevel::kInMemory);
+    ASSERT_TRUE(detached->get_offset_accessor()->DeleteVID(0).ok());
+    EXPECT_NE(column.get_offset_accessor()->GetIndexIDByVID(0),
+              INVALID_INDEX_ID);
+    EXPECT_EQ(detached->get_offset_accessor()->GetIndexIDByVID(0),
+              INVALID_INDEX_ID);
+  }
+  std::filesystem::remove_all(dir);
+}
+
 TEST(VecColumnTest, AccessResizeCloneAndDumpOpen) {
   auto temp_dir =
       std::filesystem::temp_directory_path() /

@@ -377,6 +377,10 @@ void HNSWIndex::Open(Checkpoint& ckp, const ModuleDescriptor& descriptor,
   if (!flat_index_ || flat_index_->open(flat_runtime_path_, options) != 0) {
     THROW_RUNTIME_ERROR("Failed to open External Flat");
   }
+  // Avoid the interface's lazy is_trained_ write in concurrent first searches.
+  if (zvec_index_->train() != 0 || flat_index_->train() != 0) {
+    THROW_RUNTIME_ERROR("Failed to prepare vector indexes for search");
+  }
   LOG(INFO) << "[zvec] Opened HNSW index at " << zvec_runtime_path_;
 }
 
@@ -450,13 +454,16 @@ Status HNSWIndex::Rebind(const IndexBindContext& context) {
   }
   index_id_accessor_ =
       std::make_unique<VecColumnBackedIndexIDAccessor>(*offset_accessor);
-  const bool initialize_visible_ids = column_ == nullptr;
   column_ = column;
   const auto limit = index_id_accessor_->GetVisibleLimit();
   local_buffer_enabled_ =
       metric_ != zvec::core_interface::MetricType::kCosine ||
       column->is_l2_normalized();
-  if (!flat_index_offset_) {
+  if (!local_buffer_enabled_) {
+    // Direct HNSW has no Flat partition. Its boundary is derived from the
+    // bound column, so a checkpoint's cached Flat offset is irrelevant.
+    flat_index_offset_ = limit;
+  } else if (!flat_index_offset_) {
     flat_index_offset_ = limit;
     LOG(WARNING)
         << "HNSW flat_index_offset is absent; initialize it to visible "
@@ -467,41 +474,11 @@ Status HNSWIndex::Rebind(const IndexBindContext& context) {
     return Status::RuntimeError(
         "HNSW LocalBuffer offset exceeds visible limit");
   }
-  if (initialize_visible_ids)
-    InitializeVisibleIDs();
   return Status::OK();
-}
-
-void HNSWIndex::InitializeVisibleIDs() {
-  deleted_cursor_ = index_id_accessor_->GetDeletedIndexIDs().size();
-  hnsw_ids_ = roaring::Roaring();
-  flat_ids_ = roaring::Roaring();
-  // Reconstruct only actual mappings on first bind after Open. Never insert
-  // allocation gaps into either bitmap. Clones already own their snapshot IDs.
-  for (size_t vid = 0; vid < index_id_accessor_->size(); ++vid) {
-    const auto id = index_id_accessor_->GetIndexIDByVID(vid);
-    if (id != INVALID_INDEX_ID) {
-      (!local_buffer_enabled_ || id < flat_index_offset_.value() ? hnsw_ids_
-                                                                 : flat_ids_)
-          .add(id);
-    }
-  }
-}
-
-void HNSWIndex::ConsumeDeletedIDs() {
-  const auto& deleted_ids = index_id_accessor_->GetDeletedIndexIDs();
-  CHECK_LE(deleted_cursor_, deleted_ids.size());
-  while (deleted_cursor_ < deleted_ids.size()) {
-    const auto id = deleted_ids[deleted_cursor_];
-    hnsw_ids_.remove(id);
-    flat_ids_.remove(id);
-    ++deleted_cursor_;
-  }
 }
 
 Status HNSWIndex::Delete(vid_t vid) {
   RETURN_IF_NOT_OK(StorageIndex::Delete(vid));
-  ConsumeDeletedIDs();
   return Status::OK();
 }
 
@@ -512,7 +489,6 @@ Status HNSWIndex::BulkBuild(const VertexSet& vertices) {
   }
   struct BuildWorkerState {
     flat_hash_set<uint64_t> fingerprints;
-    roaring::Roaring ids;
     size_t indexed_count = 0;
   };
   const auto options = BuildParallelOptions(build_workers_, vertices.size());
@@ -550,22 +526,18 @@ Status HNSWIndex::BulkBuild(const VertexSet& vertices) {
                   state.fingerprints.insert(static_cast<uint64_t>(
                       std::hash<std::string_view>{}(std::string_view(
                           static_cast<const char*>(data), vector_byte_size))));
-                  state.ids.add(id);
                   ++state.indexed_count;
                   return Status::OK();
                 });
   if (!status.ok())
     return status;
   flat_hash_set<uint64_t> duplicate_statistics;
-  roaring::Roaring ids, empty;
   size_t indexed_vector_count = 0;
   for (auto& state : states) {
     duplicate_statistics.insert(state.fingerprints.begin(),
                                 state.fingerprints.end());
-    ids |= state.ids;
     indexed_vector_count += state.indexed_count;
   }
-  const auto deleted_cursor = index_id_accessor_->GetDeletedIndexIDs().size();
   const auto limit = index_id_accessor_->GetVisibleLimit();
   const auto duplicate_vector_count =
       indexed_vector_count - duplicate_statistics.size();
@@ -584,11 +556,6 @@ Status HNSWIndex::BulkBuild(const VertexSet& vertices) {
   } else {
     LOG(INFO) << message;
   }
-  // Physical inserts may survive a failed operation or transaction rollback.
-  // Publish snapshot-local visibility only after all workers succeed.
-  hnsw_ids_.swap(ids);
-  flat_ids_.swap(empty);
-  deleted_cursor_ = deleted_cursor;
   flat_index_offset_ = limit;
   return Status::OK();
 }
@@ -651,8 +618,6 @@ result<OptimizeIndexStats> HNSWIndex::Optimize() {
     stats.skipped_count += state.skipped_count;
   }
   flat_index_offset_ = limit;
-  hnsw_ids_ |= flat_ids_;
-  flat_ids_ = roaring::Roaring();
   stats.changed = true;
   return stats;
 }
@@ -684,9 +649,6 @@ std::unique_ptr<Module> HNSWIndex::Clone() const {
   cloned->build_workers_ = build_workers_;
   cloned->flat_index_offset_ = flat_index_offset_;
   cloned->local_buffer_enabled_ = local_buffer_enabled_;
-  cloned->hnsw_ids_ = hnsw_ids_;
-  cloned->flat_ids_ = flat_ids_;
-  cloned->deleted_cursor_ = deleted_cursor_;
   cloned->zvec_runtime_path_ = zvec_runtime_path_;
   cloned->zvec_runtime_file_ = zvec_runtime_file_;
   cloned->dimension_ = dimension_;
@@ -726,37 +688,19 @@ result<std::vector<SearchCandidate>> HNSWIndex::SearchImpl(
   }
   GS_AUTO(target, ConvertDenseValue(meta_->schema.columns[0].property_type,
                                     query_value, dimension_));
+  // Scalar input was already filtered by this query's snapshot. Translate it
+  // once so this path does not repeat timestamp or reverse-map lookups.
   roaring::Roaring scalar_hnsw_ids, scalar_flat_ids;
-  const auto* hnsw_ids = &hnsw_ids_;
-  const auto* flat_ids = &flat_ids_;
   if (p->use_scalar_filter) {
-    // Upstream storage has already established visibility. Partition once,
-    // without rechecking tombstones/ranges in each distance callback.
     for (auto vid : p->scalar_filter) {
       const auto id = index_id_accessor_->GetIndexIDByVID(vid);
-      if (id == INVALID_INDEX_ID)
-        continue;
-      (id < boundary ? scalar_hnsw_ids : scalar_flat_ids).add(id);
+      if (id != INVALID_INDEX_ID && id < limit)
+        (id < boundary ? scalar_hnsw_ids : scalar_flat_ids).add(id);
     }
-    hnsw_ids = &scalar_hnsw_ids;
-    flat_ids = &scalar_flat_ids;
   }
-  auto configure_candidates = [](auto& query_param, const roaring::Roaring& ids,
-                                 uint64_t document_count, bool needs_filter) {
-    // Compare without floating-point rounding; index IDs are uint32_t.
-    if (ids.cardinality() * uint64_t{10} < document_count) {
-      query_param.bf_pks = std::make_shared<std::vector<uint64_t>>();
-      query_param.bf_pks->reserve(ids.cardinality());
-      for (auto id : ids)
-        query_param.bf_pks->push_back(id);
-    } else if (needs_filter) {
-      query_param.filter =
-          std::make_shared<zvec::core_interface::IndexFilter>();
-      query_param.filter->set([ids_ptr = &ids](uint64_t id) {
-        return !ids_ptr->contains(static_cast<index_id_t>(id));
-      });
-    }
-  };
+  if (p->use_scalar_filter && scalar_hnsw_ids.isEmpty() &&
+      scalar_flat_ids.isEmpty())
+    return std::vector<SearchCandidate>{};
   zvec::core_interface::VectorData query;
   query.vector = zvec::core_interface::DenseVector{target.data()};
   query.query_is_l2_normalized = normalized_query;
@@ -770,7 +714,7 @@ result<std::vector<SearchCandidate>> HNSWIndex::SearchImpl(
       candidates.push_back({static_cast<index_id_t>(doc.key()), score});
     }
   };
-  if (!hnsw_ids->isEmpty()) {
+  if (boundary > 0 && (!p->use_scalar_filter || !scalar_hnsw_ids.isEmpty())) {
     HNSWVecSource source(column_);
     auto qp = std::make_shared<zvec::core_interface::HNSWQueryParam>();
     qp->topk = p->topk;
@@ -780,9 +724,28 @@ result<std::vector<SearchCandidate>> HNSWIndex::SearchImpl(
     qp->fetch_vector = p->fetch_vector;
     qp->radius = p->radius;
     // Shared physical graphs can contain IDs from newer/aborted snapshots.
-    const auto document_count = zvec_index_->get_doc_count();
-    configure_candidates(*qp, *hnsw_ids, document_count,
-                         hnsw_ids->cardinality() != document_count);
+    // Use exact search over sparse scalar candidates; the threshold is strict.
+    if (p->use_scalar_filter &&
+        scalar_hnsw_ids.cardinality() * 10 < zvec_index_->get_doc_count()) {
+      qp->bf_pks = std::make_shared<std::vector<uint64_t>>();
+      qp->bf_pks->reserve(scalar_hnsw_ids.cardinality());
+      for (auto id : scalar_hnsw_ids)
+        qp->bf_pks->push_back(id);
+    } else if (p->use_scalar_filter) {
+      qp->filter = std::make_shared<zvec::core_interface::IndexFilter>();
+      qp->filter->set([&](uint64_t id) {
+        return !scalar_hnsw_ids.contains(static_cast<index_id_t>(id));
+      });
+    } else {
+      qp->filter = std::make_shared<zvec::core_interface::IndexFilter>();
+      qp->filter->set([&](uint64_t id) {
+        if (id >= boundary)
+          return true;
+        const auto vid = index_id_accessor_->GetVIDByIndexID(id);
+        return vid == INVALID_VID ||
+               (params.vertex_set && !params.vertex_set->valid(vid));
+      });
+    }
     zvec::core_interface::SearchResult result;
     const auto ret =
         zvec_index_->search_with_source(query, qp, source, &result);
@@ -792,16 +755,33 @@ result<std::vector<SearchCandidate>> HNSWIndex::SearchImpl(
     }
     append_results(result, false);
   }
-  if (!flat_ids->isEmpty()) {
+  if (local_buffer_enabled_ && limit > boundary &&
+      (!p->use_scalar_filter || !scalar_flat_ids.isEmpty())) {
     FlatVecSource source(column_, limit, boundary);
     auto qp = std::make_shared<zvec::core_interface::FlatQueryParam>();
     qp->topk = p->topk;
     qp->fetch_vector = p->fetch_vector;
     qp->radius = cosine_flat ? 0 : p->radius;
     // The source bounds enumeration, including when another snapshot appends.
-    const uint64_t document_count = uint64_t{limit} - boundary;
-    configure_candidates(*qp, *flat_ids, document_count,
-                         flat_ids->cardinality() != document_count);
+    if (p->use_scalar_filter &&
+        scalar_flat_ids.cardinality() * 10 < uint64_t(limit) - boundary) {
+      qp->bf_pks = std::make_shared<std::vector<uint64_t>>();
+      qp->bf_pks->reserve(scalar_flat_ids.cardinality());
+      for (auto id : scalar_flat_ids)
+        qp->bf_pks->push_back(id);
+    } else if (p->use_scalar_filter) {
+      qp->filter = std::make_shared<zvec::core_interface::IndexFilter>();
+      qp->filter->set([&](uint64_t id) {
+        return !scalar_flat_ids.contains(static_cast<index_id_t>(id));
+      });
+    } else {
+      qp->filter = std::make_shared<zvec::core_interface::IndexFilter>();
+      qp->filter->set([&](uint64_t id) {
+        const auto vid = index_id_accessor_->GetVIDByIndexID(id);
+        return vid == INVALID_VID ||
+               (params.vertex_set && !params.vertex_set->valid(vid));
+      });
+    }
     zvec::core_interface::SearchResult result;
     const auto ret =
         flat_index_->search_with_source(query, qp, source, &result);
@@ -832,8 +812,6 @@ Status HNSWIndex::AppendImpl(index_id_t index_id, const IndexValues& values) {
     return Status(StatusCode::ERR_INVALID_ARGUMENT,
                   "HNSW requires one non-null vector");
   }
-  // Both Upsert overloads reach AppendImpl after the column mapping changes.
-  ConsumeDeletedIDs();
   // VecColumn already validates and stores the value before index maintenance.
   // Register the actual slot without copying/normalizing the vector again.
   HNSWVecSource source(column_);
@@ -848,12 +826,6 @@ Status HNSWIndex::AppendImpl(index_id_t index_id, const IndexValues& values) {
     return Status::RuntimeError("Vector index append failed: " +
                                 std::to_string(ret));
   }
-  if (!local_buffer_enabled_) {
-    // Direct appends maintain IDs in order; do not advance over other slots
-    // that the column may already have allocated for a pending batch.
-    flat_index_offset_ = std::max(flat_index_offset_.value(), index_id + 1);
-  }
-  (local_buffer_enabled_ ? flat_ids_ : hnsw_ids_).add(index_id);
   return Status::OK();
 }
 

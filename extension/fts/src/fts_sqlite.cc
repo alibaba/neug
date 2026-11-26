@@ -129,9 +129,10 @@ SQLiteConnection::~SQLiteConnection() { Close(); }
 
 void SQLiteConnection::Open(const std::string& path) {
   Close();
-  auto code =
-      sqlite3_open_v2(path.c_str(), &connection_,
-                      SQLITE_OPEN_READWRITE | SQLITE_OPEN_CREATE, nullptr);
+  auto code = sqlite3_open_v2(
+      path.c_str(), &connection_,
+      SQLITE_OPEN_READWRITE | SQLITE_OPEN_CREATE | SQLITE_OPEN_FULLMUTEX,
+      nullptr);
   if (code != SQLITE_OK) {
     auto error =
         SQLiteError(connection_, "SQLite connection open failed", code);
