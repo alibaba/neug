@@ -47,29 +47,38 @@ class IndexFilter {
   virtual bool operator()(index_id_t index_id) const = 0;
 };
 
-class ScalarFilter final : public IndexFilter {
- public:
-  explicit ScalarFilter(std::unordered_set<index_id_t> allowed)
-      : allowed_(std::move(allowed)) {}
-
-  bool operator()(index_id_t index_id) const override {
-    return allowed_.contains(index_id);
-  }
-
- private:
-  std::unordered_set<index_id_t> allowed_;
-};
-
 class MVCCFilter final : public IndexFilter {
  public:
-  explicit MVCCFilter(const IndexIDAccessor& accessor) : accessor_(accessor) {}
+  MVCCFilter(const IndexIDAccessor& accessor, const VertexSet* vertices)
+      : accessor_(accessor), vertices_(vertices) {}
 
   bool operator()(index_id_t index_id) const override {
-    return accessor_.GetVIDByIndexID(index_id) != INVALID_VID;
+    const auto vid = accessor_.GetVIDByIndexID(index_id);
+    return vid != INVALID_VID && (!vertices_ || vertices_->valid(vid));
   }
 
  private:
   const IndexIDAccessor& accessor_;
+  const VertexSet* vertices_;
+};
+
+class ScalarFilter final : public IndexFilter {
+ public:
+  ScalarFilter(const IndexIDAccessor& accessor,
+               const std::vector<vid_t>& vids) {
+    allowed_.reserve(vids.size());
+    for (auto vid : vids) {
+      const auto id = accessor.GetIndexIDByVID(vid);
+      if (id != INVALID_INDEX_ID)
+        allowed_.insert(id);
+    }
+  }
+
+  bool empty() const { return allowed_.empty(); }
+  bool operator()(index_id_t id) const override { return allowed_.count(id); }
+
+ private:
+  std::unordered_set<index_id_t> allowed_;
 };
 
 void DestroyIndexFilter(void* filter) {
@@ -627,19 +636,14 @@ result<std::vector<SearchCandidate>> FTSIndex::SearchImpl(
   try {
     std::unique_ptr<IndexFilter> index_filter;
     if (fts_params->use_scalar_filter) {
-      std::unordered_set<index_id_t> allowed;
-      allowed.reserve(fts_params->scalar_filter.size());
-      for (auto vid : fts_params->scalar_filter) {
-        auto index_id = index_id_accessor_->GetIndexIDByVID(vid);
-        if (index_id != INVALID_INDEX_ID) {
-          allowed.insert(index_id);
-        }
-      }
-      index_filter = std::make_unique<ScalarFilter>(std::move(allowed));
-    } else if (index_id_accessor_->GetVisibleLimit() <
-                   index_id_accessor_->GetNextIndexID() ||
-               !index_id_accessor_->GetDeletedIndexIDs().empty()) {
-      index_filter = std::make_unique<MVCCFilter>(*index_id_accessor_);
+      auto scalar_filter = std::make_unique<ScalarFilter>(
+          *index_id_accessor_, fts_params->scalar_filter);
+      if (scalar_filter->empty())
+        return std::vector<SearchCandidate>{};
+      index_filter = std::move(scalar_filter);
+    } else {
+      index_filter = std::make_unique<MVCCFilter>(*index_id_accessor_,
+                                                  params.vertex_set.get());
     }
 
     std::shared_ptr<SQLiteStatement> search_statement;

@@ -34,6 +34,7 @@ enum class FTSScoreOrder { kAscending, kDescending };
 
 struct FTSQueryParams final : IndexQueryParams {
   std::vector<vid_t> scalar_filter;
+  // Scalar VIDs must already be visible in the current query snapshot.
   bool use_scalar_filter{false};
   std::string query_string;
   std::vector<std::string> property_names;

@@ -14,6 +14,8 @@
  */
 
 #include <gtest/gtest.h>
+#include <atomic>
+#include <barrier>
 #include <chrono>
 #include <cstdint>
 #include <filesystem>
@@ -73,8 +75,10 @@ class HNSWVecSourceTest : public ::testing::Test {
     return Value::ARRAY(type_, {Value::FLOAT(value), Value::FLOAT(0)});
   }
   void CheckSnapshotSearch(uint32_t capacity, uint32_t count);
+  void CheckConcurrentAppend(bool direct_hnsw);
 
-  std::unique_ptr<HNSWIndex> MakeIndex(size_t workers = 4) {
+  std::unique_ptr<HNSWIndex> MakeIndex(size_t workers = 4,
+                                       bool direct_hnsw = false) {
     IndexMeta meta;
     meta.name = "parallel_test";
     meta.type = "hnsw";
@@ -82,6 +86,10 @@ class HNSWVecSourceTest : public ::testing::Test {
     meta.options["m"] = "16";
     meta.options["ef_construction"] = "100";
     meta.options["concurrency"] = std::to_string(workers);
+    if (direct_hnsw) {
+      meta.options["metric"] = "cosine";
+      meta.options["cosine_normalize"] = "false";
+    }
     ModuleDescriptor descriptor;
     descriptor.set("index_meta", meta.ToJsonString());
     descriptor.set("flat_index_offset", "0");
@@ -109,6 +117,122 @@ class HNSWVecSourceTest : public ::testing::Test {
   std::shared_ptr<Checkpoint> checkpoint_;
   std::unique_ptr<VecColumn> column_;
 };
+
+void HNSWVecSourceTest::CheckConcurrentAppend(bool direct_hnsw) {
+  constexpr vid_t count = 1024;
+  auto vector = [&](vid_t id) {
+    return Value::ARRAY(type_, {Value::FLOAT(1), Value::FLOAT(float(id))});
+  };
+  column_->set_any(0, vector(0), true);
+  column_->get_offset_accessor()->Resize(4096, 4096);
+  column_->resize(4096);
+  auto index = MakeIndex(4, direct_hnsw);
+  VertexTimestamp timestamps;
+  timestamps.Init(0, count + 1);
+  timestamps.InsertVertex(0, 0);
+  ASSERT_TRUE(index->BulkBuild(VertexSet(1, timestamps, 0)).ok());
+  std::barrier start(5);
+  std::atomic<unsigned> remaining{4};
+  std::vector<std::thread> writers;
+  for (vid_t worker = 0; worker < 4; ++worker) {
+    writers.emplace_back([&, worker] {
+      start.arrive_and_wait();
+      for (vid_t id = worker + 1; id <= count; id += 4) {
+        column_->set_any(id, vector(id), false);
+        EXPECT_TRUE(index->Upsert(id, {0, vector(id)}).ok());
+        timestamps.InsertVertex(id, 1);
+      }
+      remaining.fetch_sub(1);
+    });
+  }
+  HNSWIndexQueryParams query;
+  query.target_value = vector(0);
+  query.topk = 5;
+  query.ef_search = 100;
+  // Include the entire VID range: timestamp filtering must hide new rows.
+  query.vertex_set = std::make_shared<VertexSet>(count + 1, timestamps, 0);
+  start.arrive_and_wait();
+  do {
+    auto result = index->Search(query);
+    EXPECT_TRUE(result.has_value());
+    if (result) {
+      EXPECT_EQ(result->size(), 1);
+      if (!result->empty())
+        EXPECT_EQ(result->front().vid, 0);
+    }
+    std::this_thread::yield();
+  } while (remaining.load() != 0);
+  for (auto& writer : writers)
+    writer.join();
+
+  query.vertex_set = std::make_shared<VertexSet>(count + 1, timestamps, 1);
+  query.use_scalar_filter = true;
+  for (vid_t id : {1u, 255u, 512u, 1024u}) {
+    query.target_value = vector(id);
+    query.scalar_filter = {id};
+    auto result = index->Search(query);
+    ASSERT_TRUE(result.has_value());
+    ASSERT_EQ(result->size(), 1);
+    EXPECT_EQ(result->front().vid, id);
+  }
+  query.scalar_filter.clear();
+  ASSERT_TRUE(index->Search(query)->empty());
+}
+
+TEST_F(HNSWVecSourceTest, ConcurrentFlatAppendAndSnapshotSearch) {
+  CheckConcurrentAppend(false);
+}
+
+TEST_F(HNSWVecSourceTest, ConcurrentDirectHNSWAppendAndSnapshotSearch) {
+  CheckConcurrentAppend(true);
+}
+
+TEST_F(HNSWVecSourceTest, ScalarCandidatesAcrossSparseDenseAndEmptyPartitions) {
+  constexpr vid_t partition_size = 100;
+  for (vid_t i = 1; i < partition_size; ++i)
+    column_->set_any(i, MakeVector(i), true);
+  auto index = MakeIndex();
+  VertexTimestamp timestamps;
+  timestamps.Init(partition_size, partition_size);
+  ASSERT_TRUE(index->BulkBuild(VertexSet(partition_size, timestamps, 0)).ok());
+  for (vid_t i = partition_size; i < 2 * partition_size; ++i) {
+    column_->set_any(i, MakeVector(i), true);
+    ASSERT_TRUE(index->Upsert(i, {0, MakeVector(i)}).ok());
+  }
+  HNSWIndexQueryParams query;
+  query.use_scalar_filter = true;
+  query.topk = 1;
+  query.ef_search = 100;
+  query.target_value = MakeVector(0);
+  for (auto ids : {std::vector<vid_t>{}, std::vector<vid_t>{1000}}) {
+    query.scalar_filter = ids;
+    auto result = index->Search(query);
+    ASSERT_TRUE(result.has_value());
+    EXPECT_TRUE(result->empty());
+  }
+  // 9% takes bf_pks, exactly 10% and 11% retain membership filtering.
+  // Query each partition alone and both together, including duplicate input.
+  for (vid_t count : {9u, 10u, 11u}) {
+    for (int partitions : {1, 2, 3}) {
+      query.scalar_filter.clear();
+      for (vid_t i = 0; i < count; ++i) {
+        if (partitions & 1)
+          query.scalar_filter.push_back(i);
+        if (partitions & 2)
+          query.scalar_filter.push_back(partition_size + i);
+      }
+      const vid_t expected =
+          (partitions & 2) ? partition_size + count - 1 : count - 1;
+      query.scalar_filter.push_back(expected);
+      query.target_value = MakeVector(expected);
+      auto result = index->Search(query);
+      ASSERT_TRUE(result.has_value());
+      ASSERT_EQ(result->size(), 1);
+      EXPECT_EQ(result->front().vid, expected);
+      EXPECT_FLOAT_EQ(result->front().score, 0);
+    }
+  }
+}
 
 TEST_F(HNSWVecSourceTest, NormalizationOptInFollowsColumnRepresentation) {
   column_->set_any(1, MakeVector(7), true);

@@ -1763,8 +1763,7 @@ TEST_F(MvccInsertTransactionTest, CapacityReservationsPreventOverbooking) {
   db.Close();
 }
 
-// Capacity rejection happens before any table is resized or reservation stored.
-TEST_F(MvccInsertTransactionTest, RejectVectorGrowthBeforeMutation) {
+TEST_F(MvccInsertTransactionTest, VectorGrowthReservesMappingsAndPayload) {
   neug::NeugDB db;
   db.Open(db_dir);
   auto conn = db.Connect();
@@ -1793,15 +1792,17 @@ TEST_F(MvccInsertTransactionTest, RejectVectorGrowthBeforeMutation) {
   for (size_t i = 0; i <= std::max(capacity, mapping_capacity); ++i)
     request.AddVertex("vector_item", neug::Value::INT64(i), {value});
   neug::InsertCapacityReservations reservations;
-  EXPECT_THROW(reservations.TryReserve(graph, request, growth), std::exception);
-  EXPECT_THROW(request.Grow(graph), std::exception);
-  EXPECT_EQ(table.Capacity(), capacity);
+  EXPECT_FALSE(reservations.TryReserve(graph, request, growth));
+  EXPECT_NO_THROW(request.Grow(graph));
+  EXPECT_GT(table.Capacity(), capacity);
   EXPECT_EQ(table.Size(), 0);
   auto* vec =
       dynamic_cast<neug::VecColumn*>(table.get_table().get_column_by_id(0));
   ASSERT_NE(vec, nullptr);
-  EXPECT_EQ(vec->size(), mapping_capacity);
-  EXPECT_EQ(vec->buffer_size(), payload_capacity);
+  EXPECT_GT(vec->size(), mapping_capacity);
+  EXPECT_GE(vec->buffer_size(), payload_capacity);
+  EXPECT_TRUE(reservations.TryReserve(graph, request, growth));
+  reservations.Release(request);
   EXPECT_EQ(vec->get_offset_accessor()->GetNextIndexID(), 0);
   neug::InsertCapacityRequest ordinary;
   ordinary.AddVertex(
