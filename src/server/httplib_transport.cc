@@ -19,7 +19,6 @@
 #include <chrono>
 #include <utility>
 
-#include "neug/server/service_config.h"
 #include "neug/server/tp_operations.h"
 #include "neug/utils/exception/exception.h"
 #include "service_http_common.h"
@@ -65,18 +64,6 @@ void HttplibControlExecutor::Loop() {
     }
     task();
   }
-}
-
-std::unique_ptr<IServiceTransport> CreateDefaultServiceTransport(
-    ITpOperations& service, const ServiceConfig& config,
-    int database_thread_num) {
-  const auto thread_num =
-      config.thread_num != 0
-          ? config.thread_num
-          : static_cast<uint32_t>(database_thread_num > 0 ? database_thread_num
-                                                          : 1);
-  return std::make_unique<HttplibTransport>(service, config.host_str,
-                                            config.query_port, thread_num);
 }
 
 namespace {

@@ -50,6 +50,13 @@ if (BUILD_HTTP_SERVER)
         target_link_libraries(httplib_load_client PUBLIC
             neug ${ARROW_LIB} ${OPENSSL_LIBRARIES} ${CRYPTO_LIB})
     else()
+        # Compile httplib into a separate executable so Unix CI exercises the
+        # native control worker as well as BRPC. The default transport factory
+        # remains in the production platform-specific source set.
+        add_neug_test(test_service_httplib test_service_http.cc
+            ../../src/server/httplib_transport.cc TEST_PREFIX "Httplib.")
+        target_compile_definitions(test_service_httplib PRIVATE NEUG_TEST_HTTPLIB)
+        set_tests_properties(test_service_httplib PROPERTIES TIMEOUT 60)
         add_neug_test(test_http_server test_http_server.cc)
         add_neug_test(test_db_svc test_db_svc.cc)
     endif()

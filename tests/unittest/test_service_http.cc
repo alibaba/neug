@@ -18,19 +18,21 @@
 
 #include <gtest/gtest.h>
 #include <atomic>
+#include <memory>
 #include <optional>
 #include <stdexcept>
 #include <string>
 #include <string_view>
 
 #include "../../src/server/service_http_common.h"
+#include "../../src/server/service_transaction_manager.h"
 #include "../../src/server/tp_service_runtime.h"
 #include "neug/main/connection.h"
 #include "neug/main/execution_slot.h"
 #include "neug/main/neug_db.h"
 #include "neug/transaction/insert_capacity.h"
 #include "neug/utils/exception/exception.h"
-#ifndef _WIN32
+#if !defined(_WIN32) && !defined(NEUG_TEST_HTTPLIB)
 #include "../../src/server/brpc_transport.h"
 #else
 #include "neug/server/httplib_transport.h"
@@ -125,6 +127,137 @@ TEST(ServiceHttp, ExecutionExceptionReleasesSlotAndAdmission) {
   EXPECT_EQ(db.graph().get_vertex_table(label).Size(), before + 1);
 }
 
+class ServiceTransactionExceptions : public ::testing::TestWithParam<bool> {
+ protected:
+  void SetUp() override {
+    NeugDBConfig config(":memory:", 1);
+    config.checkpoint_on_close = false;
+    ASSERT_TRUE(db_.Open(config));
+    auto connection = db_.Connect();
+    ASSERT_TRUE(connection->Query(
+        "CREATE NODE TABLE person(id INT64, PRIMARY KEY(id))"));
+    connection->Close();
+    ServiceConfig service_config;
+    service_config.thread_num = 1;
+    service_config.max_explicit_transactions = 1;
+    service_config.explicit_transaction_timeout_ms = 0;
+    service_config.auto_compaction = false;
+    runtime_ = std::make_unique<TpServiceRuntime>(db_, service_config);
+  }
+
+  void TearDown() override {
+    SetServiceTransactionHookForTest({});
+    runtime_.reset();
+    db_.Close();
+  }
+
+  static QueryRequest Request(const std::string& query,
+                              AccessMode mode = AccessMode::kUnKnown) {
+    QueryRequest request;
+    request.query = query;
+    request.access_mode = mode;
+    return request;
+  }
+
+  void Inject(ServiceTransactionTestPhase phase) {
+    const bool unknown = GetParam();
+    SetServiceTransactionHookForTest([phase, unknown](auto current) {
+      if (current != phase) {
+        return;
+      }
+      if (unknown) {
+        throw 42;
+      }
+      throw std::runtime_error("injected explicit transaction failure");
+    });
+  }
+
+  void CheckPublishedRows(size_t expected) {
+    auto visible = runtime_->ExecuteQuery(
+        Request("MATCH (p:person) RETURN p.id", AccessMode::kRead));
+    ASSERT_TRUE(visible) << visible.error().ToString();
+    EXPECT_EQ(visible->response().row_count(), expected);
+  }
+
+  StatusCode ExceptionCode() const {
+    return GetParam() ? StatusCode::ERR_INTERNAL_ERROR
+                      : StatusCode::ERR_QUERY_EXECUTION;
+  }
+
+  NeugDB db_;
+  std::unique_ptr<TpServiceRuntime> runtime_;
+};
+
+TEST_P(ServiceTransactionExceptions,
+       ExecutionFailureAbortsAndMarksRollbackOnly) {
+  auto transaction = runtime_->BeginTransaction(TransactionMode::kReadWrite);
+  ASSERT_TRUE(transaction) << transaction.error().ToString();
+  const auto id = transaction->transaction_id;
+  auto staged =
+      runtime_->ExecuteInTransaction(id, Request("CREATE (:person {id:1})"));
+  ASSERT_TRUE(staged) << staged.error().ToString();
+
+  // Throw before ExecutionSlot's own exception guard: this specifically tests
+  // the manager's cleanup of an already dirty explicit transaction.
+  Inject(ServiceTransactionTestPhase::kExecute);
+  auto failed = runtime_->ExecuteInTransaction(id, Request("RETURN 1"));
+  SetServiceTransactionHookForTest({});
+  ASSERT_FALSE(failed);
+  EXPECT_EQ(failed.error().error_code(), ExceptionCode());
+
+  auto reuse = runtime_->ExecuteInTransaction(id, Request("RETURN 1"));
+  ASSERT_FALSE(reuse);
+  EXPECT_EQ(reuse.error().error_code(), StatusCode::ERR_TX_STATE_CONFLICT);
+  EXPECT_EQ(runtime_->CommitTransaction(id).error_code(),
+            StatusCode::ERR_TX_STATE_CONFLICT);
+  CheckPublishedRows(0);
+
+  // A separate auto-commit writer must not wait on the failed transaction.
+  auto other = runtime_->ExecuteQuery(
+      Request("CREATE (:person {id:2})", AccessMode::kUpdate));
+  ASSERT_TRUE(other) << other.error().ToString();
+  EXPECT_TRUE(runtime_->RollbackTransaction(id).ok());
+  auto next = runtime_->BeginTransaction(TransactionMode::kReadWrite);
+  ASSERT_TRUE(next) << next.error().ToString();
+  EXPECT_TRUE(runtime_->RollbackTransaction(next->transaction_id).ok());
+  CheckPublishedRows(1);
+}
+
+TEST_P(ServiceTransactionExceptions, CommitFailureRollsBackAndReleasesSession) {
+  auto transaction = runtime_->BeginTransaction(TransactionMode::kReadWrite);
+  ASSERT_TRUE(transaction) << transaction.error().ToString();
+  const auto id = transaction->transaction_id;
+  auto staged =
+      runtime_->ExecuteInTransaction(id, Request("CREATE (:person {id:1})"));
+  ASSERT_TRUE(staged) << staged.error().ToString();
+
+  // The snapshot is prepared, but no WAL append/publication has begun.
+  Inject(ServiceTransactionTestPhase::kPreparedCommit);
+  const auto failed = runtime_->CommitTransaction(id);
+  SetServiceTransactionHookForTest({});
+  EXPECT_EQ(failed.error_code(), ExceptionCode());
+  CheckPublishedRows(0);
+  auto reuse = runtime_->ExecuteInTransaction(id, Request("RETURN 1"));
+  ASSERT_FALSE(reuse);
+  EXPECT_EQ(reuse.error().error_code(), StatusCode::ERR_TX_NOT_FOUND);
+  EXPECT_EQ(runtime_->CommitTransaction(id).error_code(),
+            StatusCode::ERR_TX_NOT_FOUND);
+  EXPECT_EQ(runtime_->RollbackTransaction(id).error_code(),
+            StatusCode::ERR_TX_NOT_FOUND);
+
+  // The one-session quota, write admission, and prepared snapshot are freed.
+  auto next = runtime_->BeginTransaction(TransactionMode::kReadWrite);
+  ASSERT_TRUE(next) << next.error().ToString();
+  auto other = runtime_->ExecuteInTransaction(
+      next->transaction_id, Request("CREATE (:person {id:2})"));
+  ASSERT_TRUE(other) << other.error().ToString();
+  EXPECT_TRUE(runtime_->CommitTransaction(next->transaction_id).ok());
+  CheckPublishedRows(1);
+}
+
+INSTANTIATE_TEST_SUITE_P(StandardAndUnknown, ServiceTransactionExceptions,
+                         ::testing::Bool());
+
 class ThrowingOperations final : public ITpOperations {
  public:
   std::atomic<bool> fail{true};
@@ -173,7 +306,7 @@ class ServiceHttpExceptions : public ::testing::TestWithParam<bool> {};
 TEST_P(ServiceHttpExceptions, EveryEndpointReturns500AndKeepsServing) {
   ThrowingOperations operations;
   operations.unknown = GetParam();
-#ifndef _WIN32
+#if !defined(_WIN32) && !defined(NEUG_TEST_HTTPLIB)
   BrpcTransport transport(operations, "127.0.0.1", 0, 1);
 #else
   HttplibTransport transport(operations, "127.0.0.1", 0, 1);

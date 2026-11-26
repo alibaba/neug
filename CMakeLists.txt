@@ -548,7 +548,8 @@ message(STATUS "CMAKE_CXX_COMPILER: ${CMAKE_CXX_COMPILER}")
 
 
 function(add_neug_test TEST_NAME)
-    set(SRCS ${ARGN})
+    cmake_parse_arguments(NEUG_TEST "" "TEST_PREFIX" "" ${ARGN})
+    set(SRCS ${NEUG_TEST_UNPARSED_ARGUMENTS})
     add_executable(${TEST_NAME} ${SRCS})
     target_link_libraries(${TEST_NAME} PUBLIC neug::GTest neug
         ${Protobuf_LIBRARIES} ${GLOG_LIBRARIES}
@@ -571,7 +572,8 @@ function(add_neug_test TEST_NAME)
     endif()
     include(GoogleTest)
 	add_test(NAME ${TEST_NAME} COMMAND ${TEST_NAME})
-	gtest_add_tests(TARGET ${TEST_NAME} TEST_LIST ${TEST_NAME}_tests)
+	gtest_add_tests(TARGET ${TEST_NAME} TEST_PREFIX "${NEUG_TEST_TEST_PREFIX}"
+        TEST_LIST ${TEST_NAME}_tests)
 endfunction()
 
 
