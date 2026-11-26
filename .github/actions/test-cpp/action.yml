@@ -45,6 +45,9 @@ runs:
       ctest --output-on-failure -R logical_delete_test -V
       ctest --output-on-failure -R test_connection -V
       ctest --output-on-failure -R test_request -V
+      if grep -q '^BUILD_HTTP_SERVER:BOOL=ON$' CMakeCache.txt; then
+        ctest --output-on-failure --no-tests=error -R '^(test_service_http|test_service_httplib)$' -V
+      fi
       ctest --output-on-failure --no-tests=error -R '^test_plan_parser_init$' -V
       ctest --output-on-failure -R test_indexer -V
       # test_db_svc links brpc/bthread and is not built on Windows.

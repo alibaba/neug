@@ -92,18 +92,22 @@ void BrpcHttpHandler::PostCypherQuery(
     HttpResponse*, google::protobuf::Closure* done) {
   brpc::ClosureGuard done_guard(done);
   auto* cntl = static_cast<brpc::Controller*>(cntl_base);
-  const auto query_request = cntl->request_attachment().to_string();
-  if (query_request.empty()) {
-    result<std::string> error = tl::unexpected(
-        Status(StatusCode::ERR_INVALID_ARGUMENT, "Query request is empty"));
-    SendHttpResponse(cntl, error);
-    return;
+  try {
+    const auto query_request = cntl->request_attachment().to_string();
+    if (query_request.empty()) {
+      result<std::string> error = tl::unexpected(
+          Status(StatusCode::ERR_INVALID_ARGUMENT, "Query request is empty"));
+      SendHttpResponse(cntl, error);
+      return;
+    }
+    auto response = service_http::ParseAndExecuteQuery(
+        query_request, [this](const auto& request) {
+          return tp_operations_.ExecuteQuery(request);
+        });
+    SendHttpResponse(cntl, response);
+  } catch (...) {
+    SendHttpResponse(cntl, tl::unexpected(service_http::ExceptionToStatus()));
   }
-  auto response = service_http::ParseAndExecuteQuery(
-      query_request, [this](const auto& request) {
-        return tp_operations_.ExecuteQuery(request);
-      });
-  SendHttpResponse(cntl, response);
 }
 
 void BrpcHttpHandler::GetSchema(google::protobuf::RpcController* cntl_base,
@@ -112,9 +116,13 @@ void BrpcHttpHandler::GetSchema(google::protobuf::RpcController* cntl_base,
                                 google::protobuf::Closure* done) {
   brpc::ClosureGuard done_guard(done);
   brpc::Controller* cntl = static_cast<brpc::Controller*>(cntl_base);
-  auto ret = tp_operations_.GetSchema();
+  try {
+    auto ret = tp_operations_.GetSchema();
 
-  SendHttpResponse(cntl, ret);
+    SendHttpResponse(cntl, ret);
+  } catch (...) {
+    SendHttpResponse(cntl, tl::unexpected(service_http::ExceptionToStatus()));
+  }
 }
 
 void BrpcHttpHandler::GetServiceStatus(
@@ -122,9 +130,13 @@ void BrpcHttpHandler::GetServiceStatus(
     HttpResponse* response, google::protobuf::Closure* done) {
   brpc::ClosureGuard done_guard(done);
   brpc::Controller* cntl = static_cast<brpc::Controller*>(cntl_base);
-  auto ret = tp_operations_.GetServiceStatus();
+  try {
+    auto ret = tp_operations_.GetServiceStatus();
 
-  SendHttpResponse(cntl, ret);
+    SendHttpResponse(cntl, ret);
+  } catch (...) {
+    SendHttpResponse(cntl, tl::unexpected(service_http::ExceptionToStatus()));
+  }
 }
 
 void BrpcHttpHandler::BeginTransaction(
@@ -132,30 +144,34 @@ void BrpcHttpHandler::BeginTransaction(
     HttpResponse*, google::protobuf::Closure* done) {
   brpc::ClosureGuard done_guard(done);
   auto* cntl = static_cast<brpc::Controller*>(cntl_base);
-  MarkTransactionResponse(cntl);
-  if (!RequireHttpMethod(cntl, brpc::HTTP_METHOD_POST, "POST")) {
-    return;
+  try {
+    MarkTransactionResponse(cntl);
+    if (!RequireHttpMethod(cntl, brpc::HTTP_METHOD_POST, "POST")) {
+      return;
+    }
+    auto mode = service_http::ParseTransactionMode(
+        cntl->request_attachment().to_string());
+    if (!mode) {
+      result<std::string> error = tl::unexpected(mode.error());
+      SendHttpResponse(cntl, error);
+      return;
+    }
+    auto transaction = tp_operations_.BeginTransaction(mode.value());
+    if (!transaction) {
+      result<std::string> error = tl::unexpected(transaction.error());
+      SendHttpResponse(cntl, error);
+      return;
+    }
+    result<std::string> response =
+        service_http::SerializeBeginResponse(transaction.value(), mode.value());
+    SendHttpResponse(cntl, response);
+    cntl->http_response().set_status_code(brpc::HTTP_STATUS_CREATED);
+    cntl->http_response().set_content_type("application/json");
+    cntl->http_response().SetHeader(
+        "Location", "/transactions/" + transaction->transaction_id);
+  } catch (...) {
+    SendHttpResponse(cntl, tl::unexpected(service_http::ExceptionToStatus()));
   }
-  auto mode = service_http::ParseTransactionMode(
-      cntl->request_attachment().to_string());
-  if (!mode) {
-    result<std::string> error = tl::unexpected(mode.error());
-    SendHttpResponse(cntl, error);
-    return;
-  }
-  auto transaction = tp_operations_.BeginTransaction(mode.value());
-  if (!transaction) {
-    result<std::string> error = tl::unexpected(transaction.error());
-    SendHttpResponse(cntl, error);
-    return;
-  }
-  result<std::string> response =
-      service_http::SerializeBeginResponse(transaction.value(), mode.value());
-  SendHttpResponse(cntl, response);
-  cntl->http_response().set_status_code(brpc::HTTP_STATUS_CREATED);
-  cntl->http_response().set_content_type("application/json");
-  cntl->http_response().SetHeader(
-      "Location", "/transactions/" + transaction->transaction_id);
 }
 
 void BrpcHttpHandler::ExecuteTransactionQuery(
@@ -163,28 +179,32 @@ void BrpcHttpHandler::ExecuteTransactionQuery(
     HttpResponse*, google::protobuf::Closure* done) {
   brpc::ClosureGuard done_guard(done);
   auto* cntl = static_cast<brpc::Controller*>(cntl_base);
-  MarkTransactionResponse(cntl);
-  if (!RequireHttpMethod(cntl, brpc::HTTP_METHOD_POST, "POST")) {
-    return;
+  try {
+    MarkTransactionResponse(cntl);
+    if (!RequireHttpMethod(cntl, brpc::HTTP_METHOD_POST, "POST")) {
+      return;
+    }
+    auto transaction_id = service_http::TransactionIdFromPath(
+        cntl->http_request().unresolved_path());
+    if (!transaction_id) {
+      result<std::string> error = tl::unexpected(transaction_id.error());
+      SendHttpResponse(cntl, error);
+      return;
+    }
+    auto request =
+        RequestParser::ParseFromString(cntl->request_attachment().to_string());
+    if (!request) {
+      result<std::string> error = tl::unexpected(request.error());
+      SendHttpResponse(cntl, error);
+      return;
+    }
+    auto response =
+        service_http::SerializeQueryResult(tp_operations_.ExecuteInTransaction(
+            transaction_id.value(), request.value()));
+    SendHttpResponse(cntl, response);
+  } catch (...) {
+    SendHttpResponse(cntl, tl::unexpected(service_http::ExceptionToStatus()));
   }
-  auto transaction_id = service_http::TransactionIdFromPath(
-      cntl->http_request().unresolved_path());
-  if (!transaction_id) {
-    result<std::string> error = tl::unexpected(transaction_id.error());
-    SendHttpResponse(cntl, error);
-    return;
-  }
-  auto request =
-      RequestParser::ParseFromString(cntl->request_attachment().to_string());
-  if (!request) {
-    result<std::string> error = tl::unexpected(request.error());
-    SendHttpResponse(cntl, error);
-    return;
-  }
-  auto response =
-      service_http::SerializeQueryResult(tp_operations_.ExecuteInTransaction(
-          transaction_id.value(), request.value()));
-  SendHttpResponse(cntl, response);
 }
 
 void BrpcHttpHandler::CommitTransaction(
@@ -192,9 +212,13 @@ void BrpcHttpHandler::CommitTransaction(
     HttpResponse*, google::protobuf::Closure* done) {
   brpc::ClosureGuard done_guard(done);
   auto* cntl = static_cast<brpc::Controller*>(cntl_base);
-  FinishTransaction(cntl, [this](std::string_view transaction_id) {
-    return tp_operations_.CommitTransaction(transaction_id);
-  });
+  try {
+    FinishTransaction(cntl, [this](std::string_view transaction_id) {
+      return tp_operations_.CommitTransaction(transaction_id);
+    });
+  } catch (...) {
+    SendHttpResponse(cntl, tl::unexpected(service_http::ExceptionToStatus()));
+  }
 }
 
 void BrpcHttpHandler::RollbackTransaction(
@@ -202,9 +226,13 @@ void BrpcHttpHandler::RollbackTransaction(
     HttpResponse*, google::protobuf::Closure* done) {
   brpc::ClosureGuard done_guard(done);
   auto* cntl = static_cast<brpc::Controller*>(cntl_base);
-  FinishTransaction(cntl, [this](std::string_view transaction_id) {
-    return tp_operations_.RollbackTransaction(transaction_id);
-  });
+  try {
+    FinishTransaction(cntl, [this](std::string_view transaction_id) {
+      return tp_operations_.RollbackTransaction(transaction_id);
+    });
+  } catch (...) {
+    SendHttpResponse(cntl, tl::unexpected(service_http::ExceptionToStatus()));
+  }
 }
 
 const char* BrpcHttpHandler::Routes() {

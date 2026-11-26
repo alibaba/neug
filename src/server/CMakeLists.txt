@@ -4,6 +4,7 @@ if (BUILD_HTTP_SERVER)
         # replaces brpc_transport/brpc_http_handler/bthread_runtime_wait.
         set(NEUG_SERVER_FILES
             httplib_transport.cc
+            httplib_service_transport.cc
             neug_db_service.cc
             service_transaction_manager.cc
             tp_execution_slot_pool.cc

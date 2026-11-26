@@ -28,6 +28,10 @@ namespace neug {
 
 namespace {
 
+#ifdef NEUG_BUILD_TEST
+thread_local std::function<void(ServiceTransactionTestPhase)> transaction_hook;
+#endif
+
 Status ServiceUnavailable(const std::string& message) {
   return Status(StatusCode::ERR_SERVICE_UNAVAILABLE, message);
 }
@@ -63,6 +67,13 @@ std::string GenerateTransactionId() {
 }
 
 }  // namespace
+
+#ifdef NEUG_BUILD_TEST
+void SetServiceTransactionHookForTest(
+    std::function<void(ServiceTransactionTestPhase)> hook) {
+  transaction_hook = std::move(hook);
+}
+#endif
 
 ServiceTransactionManager::ServiceTransactionManager(
     TpExecutionSlotPool& execution_slot_pool, size_t max_transactions,
@@ -187,6 +198,11 @@ result<QueryResult> ServiceTransactionManager::Execute(
       if (!slot) {
         RETURN_ERROR(ServiceUnavailable("No TP execution slot is available."));
       }
+#ifdef NEUG_BUILD_TEST
+      if (transaction_hook) {
+        transaction_hook(ServiceTransactionTestPhase::kExecute);
+      }
+#endif
       auto query_result = slot->ExecuteQueryInTransaction(
           request.query, request.access_mode, request.parameters,
           /*num_threads=*/0, entry->context);
@@ -195,7 +211,11 @@ result<QueryResult> ServiceTransactionManager::Execute(
       }
       return query_result;
     } catch (const std::exception& e) {
+      entry->context.AbortAndMarkRollbackOnly();
       RETURN_ERROR(Status::RuntimeError(e.what()));
+    } catch (...) {
+      entry->context.AbortAndMarkRollbackOnly();
+      RETURN_ERROR(Status::InternalError("Failed to execute transaction."));
     }
   }();
   if (!response) {
@@ -223,17 +243,28 @@ Status ServiceTransactionManager::Commit(std::string_view transaction_id) {
   }
 
   Status status;
-  if (entry->context.IsReadOnly()) {
-    status = entry->context.Commit();
-  } else {
-    status = entry->context.PrepareTpSnapshotCommit();
-    if (status.ok() && Expired(*entry)) {
-      entry->context.Rollback();
-      status = TransactionExpired();
+  try {
+    if (entry->context.IsReadOnly()) {
+      status = entry->context.Commit();
+    } else {
+      status = entry->context.PrepareTpSnapshotCommit();
+      if (status.ok() && Expired(*entry)) {
+        entry->context.Rollback();
+        status = TransactionExpired();
+      }
+      if (status.ok()) {
+#ifdef NEUG_BUILD_TEST
+        if (transaction_hook) {
+          transaction_hook(ServiceTransactionTestPhase::kPreparedCommit);
+        }
+#endif
+        status = entry->context.CommitPreparedTpSnapshot();
+      }
     }
-    if (status.ok()) {
-      status = entry->context.CommitPreparedTpSnapshot();
-    }
+  } catch (const std::exception& e) {
+    status = Status::RuntimeError(e.what());
+  } catch (...) {
+    status = Status::InternalError("Failed to commit transaction.");
   }
   if (!status.ok() && entry->context.IsActive()) {
     entry->context.Rollback();
