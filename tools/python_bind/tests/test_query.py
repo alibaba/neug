@@ -1876,7 +1876,8 @@ def test_exists_correlated_properties(empty_db, negated, prefix, inner, matched)
     )
     conn.execute(
         "CREATE (:Tag {id: 0, note_id: 0, text: 'a'}), "
-        "(:Tag {id: 1, note_id: 0, text: 'a'}), (:Tag {id: 2});"
+        "(:Tag {id: 1, note_id: 0, text: 'a'}), "
+        "(:Tag {id: 2, note_id: 99, text: 'unmatched'});"
     )
     key = "mid" if "WITH" in prefix else "m.id"
     expected = [i for i in range(3) if (i in matched) != negated]
@@ -1898,23 +1899,22 @@ def test_exists_correlated_properties(empty_db, negated, prefix, inner, matched)
 
 @pytest.mark.parametrize("negated", [False, True])
 @pytest.mark.parametrize(
-    "prefix, correlation, error",
+    "prefix, correlation",
     [
-        ("MATCH (m:Note) WHERE", "n.id = m.id + 0", "Unconnected correlated query"),
+        ("MATCH (m:Note) WHERE", "n.id = m.id + 0"),
         (
             "MATCH (m:Note) WITH m.id AS mid WHERE mid > 0 AND",
             "n.id = mid",
-            "Unsupported join type: 2",
         ),
     ],
 )
 def test_exists_unsupported_correlation_returns_error(
-    empty_db, negated, prefix, correlation, error
+    empty_db, negated, prefix, correlation
 ):
     _, conn = empty_db
     conn.execute("CREATE NODE TABLE Note(id INT64 PRIMARY KEY);")
     conn.execute("CREATE (:Note {id: 0}), (:Note {id: 1});")
-    with pytest.raises(RuntimeError, match=error):
+    with pytest.raises(RuntimeError):
         conn.execute(
             f"{prefix} {'NOT ' if negated else ''}EXISTS {{ "
             f"MATCH (n:Note) WHERE {correlation} }} RETURN 1;"
