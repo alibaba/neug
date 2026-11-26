@@ -151,3 +151,52 @@ def empty_db(tmp_path):
     yield db, conn
     conn.close()
     db.close()
+
+
+@pytest.fixture(
+    params=[
+        (("Dummy", "Domain"), ()),
+        (("Dummy", "Domain"), ("Dummy",)),
+        (("Dummy", "Domain", "Other"), ("Dummy",)),
+        (("First", "Dummy", "Domain", "Other"), ("Dummy",)),
+        (("Dummy", "Domain", "Middle", "Other"), ("Dummy", "Middle")),
+    ],
+    ids=["no-hole", "lower-hole", "multiple-survivors", "interior-hole", "two-holes"],
+)
+def check_label_hole_property_scans(request):
+    """Issue #1253: tombstones must not shift property columns to other labels."""
+    labels, dropped = request.param
+
+    def check(conn):
+        for label in labels:
+            conn.execute(
+                f"CREATE NODE TABLE {label}(id STRING, name STRING, PRIMARY KEY(id));"
+            )
+        for label in dropped:
+            conn.execute(f"DROP TABLE {label};")
+        surviving = [label for label in labels if label not in dropped]
+        for label in surviving:
+            conn.execute(f"CREATE (:{label} {{id: 'one', name: '{label}-probe'}});")
+
+        for label in surviving:
+            assert list(
+                conn.execute(f"MATCH (n:{label} {{id: 'one'}}) RETURN n.id;")
+            ) == [["one"]]
+            assert list(
+                conn.execute(
+                    f"MATCH (n:{label}) WHERE CONTAINS(n.name, '{label}-probe') "
+                    "RETURN count(n);"
+                )
+            ) == [[1]]
+            # A function in the projection also exercises record property access.
+            assert list(conn.execute(f"MATCH (n:{label}) RETURN upper(n.name);")) == [
+                [f"{label.upper()}-PROBE"]
+            ]
+
+        assert list(
+            conn.execute(
+                "MATCH (n) WHERE CONTAINS(n.name, 'probe') RETURN n.name ORDER BY n.name;"
+            )
+        ) == [[f"{label}-probe"] for label in sorted(surviving)]
+
+    return check

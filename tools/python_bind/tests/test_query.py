@@ -35,6 +35,11 @@ from neug.proto.error_pb2 import ERR_QUERY_SYNTAX
 logger = logging.getLogger(__name__)
 
 
+def test_property_scans_preserve_label_ids(empty_db, check_label_hole_property_scans):
+    _, conn = empty_db
+    check_label_hole_property_scans(conn)
+
+
 def _profile_operator_names(result):
     return [
         operator["operator_name"]
