@@ -4,8 +4,6 @@ add_neug_test(read_view_publication_test test_read_view_publication.cc)
 add_neug_test(insert_visibility_test test_insert_visibility.cc)
 
 if (BUILD_HTTP_SERVER)
-	add_executable(insert_capacity_benchmark EXCLUDE_FROM_ALL insert_capacity_benchmark.cc)
-	target_link_libraries(insert_capacity_benchmark PRIVATE neug ${Protobuf_LIBRARIES} ${GLOG_LIBRARIES} ${YAML_CPP_LIBRARIES})
 	add_neug_test(
 		transaction_test
 		test_mvcc_insert_transaction.cc
