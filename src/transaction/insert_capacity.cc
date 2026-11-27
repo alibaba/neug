@@ -363,9 +363,26 @@ void InsertCapacityRequest::Subtract(
 bool InsertCapacityReservations::TryReserve(
     PropertyGraph& graph, const InsertCapacityRequest& request,
     InsertCapacityRequest& growth_request) {
+  // Allocate the request's map nodes and nested column budgets before taking
+  // the shared lock. Unrelated outstanding tables need neither copying nor
+  // rechecking: this transaction cannot consume any of their capacity.
+  auto combined = request;
   std::lock_guard<std::mutex> lock(mutex_);
-  auto combined = outstanding_;
-  combined.Merge(request);
+  auto combine = [](auto& destination, const auto& outstanding) {
+    for (auto& [key, need] : destination) {
+      auto it = outstanding.find(key);
+      if (it == outstanding.end())
+        continue;
+      const auto& other = it->second;
+      CHECK(need.types == other.types);
+      need.rows = AddSize(need.rows, other.rows);
+      need.key_bytes = AddSize(need.key_bytes, other.key_bytes);
+      for (size_t i = 0; i < need.columns.size(); ++i)
+        InsertCapacityRequest::MergeColumn(need.columns[i], other.columns[i]);
+    }
+  };
+  combine(combined.vertices_, outstanding_.vertices_);
+  combine(combined.edges_, outstanding_.edges_);
 #ifdef NEUG_BUILD_TEST
   if (reservation_failures > 0) {
     --reservation_failures;
@@ -377,7 +394,24 @@ bool InsertCapacityReservations::TryReserve(
     growth_request = std::move(combined);
     return false;
   }
-  outstanding_ = std::move(combined);
+  // All checks (including overflow and nested allocations) precede mutation.
+  // Transfer prepared nodes for new tables; swap budgets for existing ones.
+  // Neither operation allocates, so a failed multi-table request cannot leave
+  // a partially updated ledger. Unrelated reservations remain untouched.
+  auto publish = [](auto& destination, auto& prepared) {
+    while (!prepared.empty()) {
+      auto it = prepared.begin();
+      auto existing = destination.find(it->first);
+      if (existing == destination.end()) {
+        destination.insert(prepared.extract(it));
+      } else {
+        std::swap(existing->second, it->second);
+        prepared.erase(it);
+      }
+    }
+  };
+  publish(outstanding_.vertices_, combined.vertices_);
+  publish(outstanding_.edges_, combined.edges_);
   return true;
 }
 void InsertCapacityReservations::Release(

@@ -1922,6 +1922,46 @@ TEST_F(MvccInsertTransactionTest, NestedCapacityWithoutVertexGrowth) {
   db.Close();
 }
 
+TEST_F(MvccInsertTransactionTest, FailedMultiTableReservationLeavesNoBudget) {
+  neug::NeugDB db;
+  ASSERT_TRUE(db.Open(db_dir));
+  auto conn = db.Connect();
+  ASSERT_TRUE(conn->Query("CREATE NODE TABLE budget_a(id INT64 PRIMARY KEY)"));
+  ASSERT_TRUE(conn->Query("CREATE NODE TABLE budget_b(id INT64 PRIMARY KEY)"));
+  auto& graph = const_cast<neug::PropertyGraph&>(db.graph());
+  const auto capacity_a =
+      graph.get_vertex_table(graph.schema().get_vertex_label_id("budget_a"))
+          .Capacity();
+  const auto capacity_b =
+      graph.get_vertex_table(graph.schema().get_vertex_label_id("budget_b"))
+          .Capacity();
+  neug::InsertCapacityRequest full_a, rejected;
+  for (size_t i = 0; i < capacity_a; ++i) {
+    full_a.AddVertex("budget_a", neug::Value::INT64(i), {});
+    rejected.AddVertex("budget_a", neug::Value::INT64(i), {});
+  }
+  for (size_t i = 0; i <= capacity_b; ++i)
+    rejected.AddVertex("budget_b", neug::Value::INT64(i), {});
+  neug::InsertCapacityReservations reservations;
+  neug::InsertCapacityRequest growth;
+  EXPECT_FALSE(reservations.TryReserve(graph, rejected, growth));
+  ASSERT_TRUE(reservations.TryReserve(graph, full_a, growth));
+  EXPECT_FALSE(reservations.TryReserve(graph, full_a, growth));
+  reservations.Release(full_a);
+  ASSERT_TRUE(reservations.TryReserve(graph, full_a, growth));
+  neug::InsertCapacityRequest full_b;
+  for (size_t i = 0; i < capacity_b; ++i)
+    full_b.AddVertex("budget_b", neug::Value::INT64(i), {});
+  ASSERT_TRUE(reservations.TryReserve(graph, full_b, growth));
+  // Publishing another table must not discard the existing reservation.
+  EXPECT_FALSE(reservations.TryReserve(graph, full_a, growth));
+  reservations.Release(full_a);
+  EXPECT_FALSE(reservations.TryReserve(graph, full_b, growth));
+  reservations.Release(full_b);
+  conn->Close();
+  db.Close();
+}
+
 TEST_F(MvccInsertTransactionTest, StringPayloadGrowthIsGeometric) {
   neug::NeugDB db;
   db.Open(db_dir);
