@@ -164,6 +164,16 @@ class PackageChecks(unittest.TestCase):
             ],
             ["linux-x86_64", "windows-x86_64"],
         )
+        self.assertEqual(
+            [row["platform"] for row in resolve("all")["c_api_matrix"]],
+            [
+                "linux-x86_64",
+                "linux-arm64",
+                "osx-arm64",
+                "windows-x86_64",
+                "windows-arm64",
+            ],
+        )
         self.assertEqual(resolve("java")["c_api_matrix"], [])
 
     def test_library_dependency_architecture_and_export_guards(self):

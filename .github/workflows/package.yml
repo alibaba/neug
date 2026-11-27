@@ -462,7 +462,7 @@ jobs:
       if: runner.os == 'Windows'
       uses: ilammy/msvc-dev-cmd@v1
       with:
-        arch: x64
+        arch: ${{ matrix.arch == 'arm64' && 'arm64' || 'x64' }}
     - name: Install Linux Build Tools
       if: runner.os == 'Linux'
       run: |

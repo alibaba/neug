@@ -58,7 +58,7 @@ class ReleaseChecks(unittest.TestCase):
         files = release.validate_packages(
             self.assets, "v1.2.3", self.platforms, self.commit
         )
-        self.assertEqual(len(files), 6)
+        self.assertEqual(len(files), len(self.platforms) * 2)
         for field, value in (
             ("version", "9.9.9"),
             ("platform", "linux-arm64"),

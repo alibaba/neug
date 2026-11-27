@@ -19,8 +19,10 @@ except ImportError:
 
 PLATFORMS = {
     "linux-x86_64": "Linux",
+    "linux-arm64": "Linux",
     "osx-arm64": "Darwin",
     "windows-x86_64": "Windows",
+    "windows-arm64": "Windows",
 }
 
 

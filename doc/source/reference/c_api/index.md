@@ -16,9 +16,9 @@ C / Rust / Dart / Swift
 ## Use a binary package
 
 Download a matching `neug-c-api-<version>-lite-<platform>.tar.gz` and its `.sha256`
-file from [GitHub Releases](https://github.com/alibaba/neug/releases). The first
-supported platforms are Linux x86_64, macOS ARM64 and Windows x86_64. These are
-desktop packages, not Android or iOS libraries.
+file from [GitHub Releases](https://github.com/alibaba/neug/releases). Supported
+platforms are Linux x86_64, Linux ARM64, macOS ARM64, Windows x86_64 and Windows
+ARM64. These are desktop packages, not Android or iOS libraries.
 
 For example, to download the 0.4.0 packages with `curl` (release tag `v0.4.0`;
 the file names carry the version without the leading `v`):
@@ -28,6 +28,10 @@ the file names carry the version without the leading `v`):
 curl -LO https://github.com/alibaba/neug/releases/download/v0.4.0/neug-c-api-0.4.0-lite-linux-x86_64.tar.gz
 curl -LO https://github.com/alibaba/neug/releases/download/v0.4.0/neug-c-api-0.4.0-lite-linux-x86_64.tar.gz.sha256
 
+# Linux ARM64
+curl -LO https://github.com/alibaba/neug/releases/download/v0.4.0/neug-c-api-0.4.0-lite-linux-arm64.tar.gz
+curl -LO https://github.com/alibaba/neug/releases/download/v0.4.0/neug-c-api-0.4.0-lite-linux-arm64.tar.gz.sha256
+
 # macOS ARM64
 curl -LO https://github.com/alibaba/neug/releases/download/v0.4.0/neug-c-api-0.4.0-lite-osx-arm64.tar.gz
 curl -LO https://github.com/alibaba/neug/releases/download/v0.4.0/neug-c-api-0.4.0-lite-osx-arm64.tar.gz.sha256
@@ -35,6 +39,10 @@ curl -LO https://github.com/alibaba/neug/releases/download/v0.4.0/neug-c-api-0.4
 # Windows x86_64
 curl -LO https://github.com/alibaba/neug/releases/download/v0.4.0/neug-c-api-0.4.0-lite-windows-x86_64.tar.gz
 curl -LO https://github.com/alibaba/neug/releases/download/v0.4.0/neug-c-api-0.4.0-lite-windows-x86_64.tar.gz.sha256
+
+# Windows ARM64
+curl -LO https://github.com/alibaba/neug/releases/download/v0.4.0/neug-c-api-0.4.0-lite-windows-arm64.tar.gz
+curl -LO https://github.com/alibaba/neug/releases/download/v0.4.0/neug-c-api-0.4.0-lite-windows-arm64.tar.gz.sha256
 ```
 
 For the latest available version, check the [Releases page](https://github.com/alibaba/neug/releases), then replace `0.4.0` / `v0.4.0` in the URLs and pick only the platform that
