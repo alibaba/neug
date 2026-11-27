@@ -182,6 +182,13 @@ runs:
     run: |
       python -m pytest -sv tests/test_db_concurrent.py
 
+  - name: Run Insert Capacity Regression Tests
+    id: run-insert-capacity-test
+    shell: bash
+    working-directory: tools/python_bind
+    run: |
+      python -m pytest -sv tests/transaction/test_insert_capacity.py
+
   - name: Run Transaction Concurrent Test
     id: run-transaction-concurrent-test
     continue-on-error: ${{ inputs.platform == 'windows' }}
