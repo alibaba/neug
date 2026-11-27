@@ -20,6 +20,26 @@ file from [GitHub Releases](https://github.com/alibaba/neug/releases). The first
 supported platforms are Linux x86_64, macOS ARM64 and Windows x86_64. These are
 desktop packages, not Android or iOS libraries.
 
+For example, to download the 0.4.0 packages with `curl` (release tag `v0.4.0`;
+the file names carry the version without the leading `v`):
+
+```sh
+# Linux x86_64
+curl -LO https://github.com/alibaba/neug/releases/download/v0.4.0/neug-c-api-0.4.0-lite-linux-x86_64.tar.gz
+curl -LO https://github.com/alibaba/neug/releases/download/v0.4.0/neug-c-api-0.4.0-lite-linux-x86_64.tar.gz.sha256
+
+# macOS ARM64
+curl -LO https://github.com/alibaba/neug/releases/download/v0.4.0/neug-c-api-0.4.0-lite-osx-arm64.tar.gz
+curl -LO https://github.com/alibaba/neug/releases/download/v0.4.0/neug-c-api-0.4.0-lite-osx-arm64.tar.gz.sha256
+
+# Windows x86_64
+curl -LO https://github.com/alibaba/neug/releases/download/v0.4.0/neug-c-api-0.4.0-lite-windows-x86_64.tar.gz
+curl -LO https://github.com/alibaba/neug/releases/download/v0.4.0/neug-c-api-0.4.0-lite-windows-x86_64.tar.gz.sha256
+```
+
+For the latest available version, check the [Releases page](https://github.com/alibaba/neug/releases), then replace `0.4.0` / `v0.4.0` in the URLs and pick only the platform that
+matches your machine.
+
 The package includes a self-contained `include/neug/c/neug.h`, a shared library,
 and C/C++ examples. Third-party code, including protobuf, is built into the
 library; no separate protobuf installation is needed. Operating-system libraries
