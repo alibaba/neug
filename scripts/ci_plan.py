@@ -83,9 +83,16 @@ def resolve(platforms="all", python_versions="all"):
         platforms=[r["platform"] for r in rows],
         matrix=rows,
         c_api_matrix=[
-            {"platform": r["platform"], "runner": r["runner"]}
+            {"platform": r["platform"], "arch": r["arch"], "runner": r["runner"]}
             for r in rows
-            if r["platform"] in ("linux-x86_64", "osx-arm64", "windows-x86_64")
+            if r["platform"]
+            in (
+                "linux-x86_64",
+                "linux-arm64",
+                "osx-arm64",
+                "windows-x86_64",
+                "windows-arm64",
+            )
         ],
         linux=[r for r in rows if r["platform"].startswith("linux-")],
         linux_architectures=[
